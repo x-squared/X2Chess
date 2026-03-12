@@ -4,7 +4,7 @@ import "chessground/assets/chessground.base.css";
 import "./styles.css";
 import { text_editor } from "./text_editor";
 import { parsePgnToModel } from "./pgn_model";
-import { setCommentTextById } from "./pgn_commands";
+import { insertCommentAroundMove, setCommentTextById } from "./pgn_commands";
 import { serializeModelToPgn } from "./pgn_serialize";
 import { ast_view } from "./ast_view";
 
@@ -372,6 +372,13 @@ const render = () => {
   text_editor.render(textEditorEl, state.pgnModel, {
     onCommentEdit: (commentId, editedText) => {
       state.pgnModel = setCommentTextById(state.pgnModel, commentId, editedText);
+      state.pgnText = serializeModelToPgn(state.pgnModel);
+      if (pgnInput) pgnInput.value = state.pgnText;
+      syncChessParseState(state.pgnText);
+      render();
+    },
+    onInsertComment: (moveId, position) => {
+      state.pgnModel = insertCommentAroundMove(state.pgnModel, moveId, position, "");
       state.pgnText = serializeModelToPgn(state.pgnModel);
       if (pgnInput) pgnInput.value = state.pgnText;
       syncChessParseState(state.pgnText);

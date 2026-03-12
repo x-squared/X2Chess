@@ -80,30 +80,32 @@ const parseMoveNumberToken = (raw) => {
   return { displayText: text, side: "raw", simplified: false };
 };
 
-const addCommentToken = (state, comment, text, segmentIndex) => {
+const addCommentToken = (state, comment, text) => {
   const block = currentBlock(state);
   block.tokens.push({
     key: `token_${state.tokenIndex++}`,
     kind: "comment",
     tokenType: "comment",
     commentId: comment.id,
-    segmentIndex,
     text,
   });
 };
 
 const addComment = (state, comment) => {
-  const source = comment.raw ?? "";
-  const chunks = splitByBreakHints(source);
-  let segmentIndex = 0;
-  chunks.forEach((chunk) => {
-    if (chunk.text) {
-      addCommentToken(state, comment, chunk.text, segmentIndex);
-      segmentIndex += 1;
-    }
-    if (chunk.hasBreakAfter) {
-      nextBlock(state);
-    }
+  addCommentToken(state, comment, comment.raw ?? "");
+  addSpace(state);
+};
+
+const addInsertCommentControl = (state, moveId, position) => {
+  const block = currentBlock(state);
+  block.tokens.push({
+    key: `token_${state.tokenIndex++}`,
+    kind: "control",
+    tokenType: "insert_comment",
+    text: position === "before" ? "+{before}" : "+{after}",
+    className: "text-editor-insert-comment",
+    moveId,
+    insertPosition: position,
   });
   addSpace(state);
 };
@@ -136,6 +138,7 @@ const emitMove = (entry, variation, state, strategyRegistry, flow) => {
   const moveClass = variation.depth === 0
     ? `text-editor-main-move move-${moveSide}`
     : `text-editor-variation-move move-${moveSide}`;
+  addInsertCommentControl(state, entry.id, "before");
   entry.commentsBefore.forEach((comment) => addComment(state, comment));
   addTextWithBreaks(
     state,
@@ -164,6 +167,7 @@ const emitMove = (entry, variation, state, strategyRegistry, flow) => {
     entry.commentsAfter.forEach((comment) => addComment(state, comment));
     entry.ravs.forEach((child) => emitVariation(child, state, strategyRegistry));
   }
+  addInsertCommentControl(state, entry.id, "after");
 };
 
 const strategyRegistry = {

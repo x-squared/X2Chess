@@ -51,3 +51,65 @@ export const setCommentTextById = (model, commentId, rawText) => {
   );
   return next;
 };
+
+const getNextCommentId = (model) => {
+  let maxId = 0;
+  visitVariation(
+    model.root,
+    () => {},
+    (comment) => {
+      const match = String(comment.id || "").match(/^comment_(\d+)$/);
+      if (!match) return;
+      const numeric = Number(match[1]);
+      if (Number.isFinite(numeric)) maxId = Math.max(maxId, numeric);
+    },
+  );
+  return `comment_${maxId + 1}`;
+};
+
+const makeComment = (id, raw = "") => ({
+  id,
+  type: "comment",
+  raw,
+  runs: parseCommentRuns(raw),
+});
+
+const insertAroundMoveInVariation = (variation, moveId, position, comment) => {
+  for (const entry of variation.entries) {
+    if (entry.type === "variation") {
+      if (insertAroundMoveInVariation(entry, moveId, position, comment)) return true;
+      continue;
+    }
+    if (entry.type !== "move") continue;
+    if (entry.id === moveId) {
+      if (position === "before") {
+        entry.commentsBefore.push(comment);
+      } else {
+        entry.commentsAfter.push(comment);
+        if (!Array.isArray(entry.postItems)) entry.postItems = [];
+        entry.postItems.push({ type: "comment", comment });
+      }
+      return true;
+    }
+    if (Array.isArray(entry.postItems)) {
+      for (const item of entry.postItems) {
+        if (item.type === "rav" && item.rav) {
+          if (insertAroundMoveInVariation(item.rav, moveId, position, comment)) return true;
+        }
+      }
+    } else {
+      for (const child of entry.ravs) {
+        if (insertAroundMoveInVariation(child, moveId, position, comment)) return true;
+      }
+    }
+  }
+  return false;
+};
+
+export const insertCommentAroundMove = (model, moveId, position = "after", rawText = "") => {
+  const next = cloneModel(model);
+  const safePosition = position === "before" ? "before" : "after";
+  const comment = makeComment(getNextCommentId(next), rawText);
+  const inserted = insertAroundMoveInVariation(next.root, moveId, safePosition, comment);
+  return inserted ? next : model;
+};

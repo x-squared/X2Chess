@@ -254,6 +254,7 @@ body {
   margin-left: 0;
   padding-left: 0;
   text-indent: 0;
+  white-space: pre-wrap;
 }
 
 .text-editor-comment-block:focus {
@@ -310,6 +311,22 @@ body {
 
 .text-editor-anchor {
   display: none;
+}
+
+.text-editor-insert-comment {
+  border: 1px dashed #9ca3af;
+  background: #f3f4f6;
+  color: #4b5563;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  line-height: 1.1;
+  padding: 0.08rem 0.28rem;
+  cursor: pointer;
+}
+
+.text-editor-insert-comment:hover {
+  background: #e5e7eb;
+  color: #1f2937;
 }
 
 .ast-view {

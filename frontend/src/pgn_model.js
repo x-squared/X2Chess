@@ -43,7 +43,7 @@ const isNag = (value) => /^\$\d+$/.test(value);
 
 export const parseCommentRuns = (raw) => {
   const runs = [];
-  const pattern = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*)/g;
+  const pattern = /(`[^`]+`|\*\*[^*]+\*\*|__[^_]+__|\*[^*]+\*)/g;
   let lastIndex = 0;
   let match = pattern.exec(raw);
   while (match) {
@@ -58,6 +58,14 @@ export const parseCommentRuns = (raw) => {
     const token = match[0];
     if (token.startsWith("**") && token.endsWith("**")) {
       runs.push({ text: token.slice(2, -2), bold: true, italic: false, code: false });
+    } else if (token.startsWith("__") && token.endsWith("__")) {
+      runs.push({
+        text: token.slice(2, -2),
+        bold: false,
+        italic: false,
+        underline: true,
+        code: false,
+      });
     } else if (token.startsWith("*") && token.endsWith("*")) {
       runs.push({ text: token.slice(1, -1), bold: false, italic: true, code: false });
     } else if (token.startsWith("`") && token.endsWith("`")) {

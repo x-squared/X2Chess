@@ -4,7 +4,6 @@ const syncClassName = (el, className) => {
 
 const toSegmentKind = (token) => {
   if (token.kind === "comment") return "comment";
-  if (token.kind === "control") return "control";
   return "move";
 };
 
@@ -43,12 +42,15 @@ const createCommentEl = (token, options) => {
 };
 
 const syncCommentEl = (el, token, options) => {
-  syncClassName(el, "text-editor-comment-block text-editor-comment");
+  const isHighlighted = options?.highlightCommentId && options.highlightCommentId === token.commentId;
+  syncClassName(el, `text-editor-comment-block text-editor-comment${isHighlighted ? " text-editor-comment-new" : ""}`);
   syncDataset(el, {
     kind: "comment",
     tokenType: "comment",
     tokenKey: token.key,
     commentId: token.commentId,
+    hasIndentDirective: token.hasIndentDirective ? "true" : "false",
+    indentDirectiveDepth: String(token.indentDirectiveDepth || 0),
   });
   el.contentEditable = "true";
   el.spellcheck = false;
@@ -57,7 +59,11 @@ const syncCommentEl = (el, token, options) => {
   el.onkeydown = (event) => {
     if (event.key === "Tab") {
       event.preventDefault();
-      document.execCommand("insertText", false, "  ");
+      if (event.shiftKey) {
+        document.execCommand("insertText", false, "\\i ");
+        return;
+      }
+      document.execCommand("insertText", false, "\t");
       return;
     }
     if ((event.metaKey || event.ctrlKey) && !event.shiftKey) {
@@ -76,8 +82,15 @@ const syncCommentEl = (el, token, options) => {
   };
   if (options?.onCommentEdit) {
     el.onblur = () => {
-      const nextValue = htmlCommentToRaw(el);
-      if (nextValue === token.text) return;
+      const nextDisplay = htmlCommentToRaw(el);
+      const nextValue = token.hasIndentDirective
+        ? (
+          nextDisplay.trim()
+            ? `${"\\i ".repeat(Math.max(1, Number(token.indentDirectiveDepth) || 1))}${nextDisplay}`
+            : ""
+        )
+        : nextDisplay;
+      if (nextValue === (token.rawText ?? token.text)) return;
       options.onCommentEdit(token.commentId, nextValue);
     };
   } else {
@@ -85,41 +98,13 @@ const syncCommentEl = (el, token, options) => {
   }
 };
 
-const createControlEl = (token, options) => {
-  const button = document.createElement("button");
-  button.type = "button";
-  syncControlEl(button, token, options);
-  return button;
-};
-
-const syncControlEl = (el, token, options) => {
-  syncClassName(el, token.className || "text-editor-insert-comment");
-  syncDataset(el, {
-    kind: "control",
-    tokenType: token.tokenType,
-    tokenKey: token.key,
-    moveId: token.moveId,
-    insertPosition: token.insertPosition,
-  });
-  el.type = "button";
-  el.contentEditable = "false";
-  if (el.textContent !== token.text) el.textContent = token.text;
-  if (options?.onInsertComment) {
-    el.onclick = () => options.onInsertComment(token.moveId, token.insertPosition);
-  } else {
-    el.onclick = null;
-  }
-};
-
 const createTokenEl = (token, options) => {
   if (token.kind === "comment") return createCommentEl(token, options);
-  if (token.kind === "control") return createControlEl(token, options);
   return createInlineEl(token);
 };
 
 const syncTokenEl = (el, token, options) => {
   if (token.kind === "comment") syncCommentEl(el, token, options);
-  else if (token.kind === "control") syncControlEl(el, token, options);
   else syncInlineEl(el, token);
 };
 
@@ -180,25 +165,34 @@ const reconcileTokenChildren = (blockEl, tokens, blockKey, options) => {
 
 const createBlockEl = (block, options) => {
   const el = document.createElement("div");
-  el.className = "text-editor-block";
-  el.dataset.blockKey = block.key;
+  syncBlockEl(el, block, options);
   reconcileTokenChildren(el, block.tokens, block.key, options);
   return el;
 };
 
 const syncBlockEl = (el, block, options) => {
-  if (el.className !== "text-editor-block") el.className = "text-editor-block";
-  syncDataset(el, { blockKey: block.key });
+  const depthClass = Number(block.indentDepth) > 0 ? ` text-editor-block-indent-${block.indentDepth}` : "";
+  const nextClassName = `text-editor-block${depthClass}`;
+  if (el.className !== nextClassName) el.className = nextClassName;
+  syncDataset(el, { blockKey: block.key, indentDepth: Number(block.indentDepth) || 0 });
   reconcileTokenChildren(el, block.tokens, block.key, options);
 };
 
 export const reconcileTextEditor = (container, blocks, options = {}) => {
-  const currentBlocks = Array.from(container.children);
+  const currentBlocks = Array.from(container.children).filter((child) => child.dataset.blockKey);
+  const appendBlockEl = (blockEl) => {
+    const overlay = container._textEditorOverlay;
+    if (overlay && overlay.parentElement === container) {
+      container.insertBefore(blockEl, overlay);
+    } else {
+      container.appendChild(blockEl);
+    }
+  };
   blocks.forEach((block, idx) => {
     let blockEl = currentBlocks[idx];
     if (!blockEl) {
       blockEl = createBlockEl(block, options);
-      container.appendChild(blockEl);
+      appendBlockEl(blockEl);
       return;
     }
     if (blockEl.dataset.blockKey !== block.key) {
@@ -214,9 +208,142 @@ export const reconcileTextEditor = (container, blocks, options = {}) => {
     }
     syncBlockEl(blockEl, block, options);
   });
-  const latestBlocks = Array.from(container.children);
+  const latestBlocks = Array.from(container.children).filter((child) => child.dataset.blockKey);
   for (let idx = latestBlocks.length - 1; idx >= blocks.length; idx -= 1) {
     latestBlocks[idx].remove();
+  }
+  setupMoveInsertOverlay(container, options);
+};
+
+const createMoveInsertOverlay = (container) => {
+  const overlay = document.createElement("div");
+  overlay.className = "text-editor-move-insert-overlay";
+  overlay.innerHTML = `
+    <button type="button" class="text-editor-insert-icon left" aria-label="Insert comment before move">&#x25C0;</button>
+    <button type="button" class="text-editor-insert-icon right" aria-label="Insert comment after move">&#x25B6;</button>
+  `;
+  container.appendChild(overlay);
+  return overlay;
+};
+
+const getMoveTokenFromEvent = (container, event) => {
+  if (!(event.target instanceof Element)) return null;
+  const moveEl = event.target.closest('[data-token-type="move"][data-node-id]');
+  if (!moveEl || !container.contains(moveEl)) return null;
+  return moveEl;
+};
+
+const positionOverlayAtMove = (container, overlay, moveEl) => {
+  const containerRect = container.getBoundingClientRect();
+  const moveRect = moveEl.getBoundingClientRect();
+  const horizontalPadding = 12;
+  overlay.style.left = `${moveRect.left - containerRect.left + moveRect.width / 2}px`;
+  overlay.style.top = `${moveRect.top - containerRect.top + moveRect.height / 2}px`;
+  overlay.style.width = `${moveRect.width + horizontalPadding * 2}px`;
+  overlay.style.height = `${Math.max(moveRect.height + 8, 22)}px`;
+  overlay.dataset.moveId = moveEl.dataset.nodeId || "";
+  overlay.classList.add("visible");
+};
+
+const setupMoveInsertOverlay = (container, options) => {
+  if (!container) return;
+  container._textEditorOptions = options;
+  let overlay = container._textEditorOverlay;
+  if (!overlay) {
+    overlay = createMoveInsertOverlay(container);
+    container._textEditorOverlay = overlay;
+    let hideTimer = null;
+    let activeMoveEl = null;
+    const clearHideTimer = () => {
+      if (!hideTimer) return;
+      window.clearTimeout(hideTimer);
+      hideTimer = null;
+    };
+    const showForMove = (moveEl) => {
+      activeMoveEl = moveEl;
+      clearHideTimer();
+      positionOverlayAtMove(container, overlay, moveEl);
+    };
+    const scheduleHide = () => {
+      clearHideTimer();
+      hideTimer = window.setTimeout(() => {
+        overlay.classList.remove("visible");
+        overlay.dataset.moveId = "";
+        activeMoveEl = null;
+      }, 220);
+    };
+    const leftBtn = overlay.querySelector(".text-editor-insert-icon.left");
+    const rightBtn = overlay.querySelector(".text-editor-insert-icon.right");
+    const triggerInsertAtSide = (moveId, side) => {
+      if (!moveId) return;
+      const resolveExisting = container._textEditorOptions?.onResolveExistingComment;
+      const existingCommentId = resolveExisting ? resolveExisting(moveId, side) : null;
+      if (focusCommentById(existingCommentId)) return;
+      const callback = container._textEditorOptions?.onInsertComment;
+      if (callback) callback(moveId, side);
+    };
+    const focusCommentById = (commentId) => {
+      if (!commentId) return false;
+      const commentEl = container.querySelector(`[data-kind="comment"][data-comment-id="${commentId}"]`);
+      if (!commentEl) return false;
+      commentEl.classList.add("text-editor-comment-new");
+      commentEl.focus();
+      const selection = window.getSelection();
+      if (selection) {
+        const range = document.createRange();
+        range.selectNodeContents(commentEl);
+        range.collapse(false);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+      window.setTimeout(() => commentEl.classList.remove("text-editor-comment-new"), 1400);
+      return true;
+    };
+    leftBtn?.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const moveId = overlay.dataset.moveId || "";
+      triggerInsertAtSide(moveId, "before");
+    });
+    rightBtn?.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const moveId = overlay.dataset.moveId || "";
+      triggerInsertAtSide(moveId, "after");
+    });
+    overlay.addEventListener("click", (event) => {
+      if (!(event.target instanceof Element)) return;
+      if (event.target.closest(".text-editor-insert-icon")) return;
+      const moveId = overlay.dataset.moveId || "";
+      if (!moveId) return;
+      const rect = overlay.getBoundingClientRect();
+      const clickX = event.clientX - rect.left;
+      const side = clickX < rect.width / 2 ? "before" : "after";
+      triggerInsertAtSide(moveId, side);
+    });
+    overlay.addEventListener("mouseenter", () => {
+      clearHideTimer();
+      if (activeMoveEl) positionOverlayAtMove(container, overlay, activeMoveEl);
+      else overlay.classList.add("visible");
+    });
+    overlay.addEventListener("mouseleave", () => {
+      scheduleHide();
+    });
+    container.addEventListener("mousemove", (event) => {
+      if (event.target instanceof Element && overlay.contains(event.target)) {
+        clearHideTimer();
+        return;
+      }
+      const moveEl = getMoveTokenFromEvent(container, event);
+      if (!moveEl) {
+        scheduleHide();
+        return;
+      }
+      showForMove(moveEl);
+    });
+    container.addEventListener("mouseleave", () => {
+      scheduleHide();
+    });
   }
 };
 
@@ -250,5 +377,5 @@ const htmlCommentToRawFromNode = (node) => {
 
 const htmlCommentToRaw = (element) => {
   const raw = Array.from(element.childNodes).map((node) => htmlCommentToRawFromNode(node)).join("");
-  return raw.replace(/\r/g, "").replace(/\n{3,}/g, "\n\n").trim();
+  return raw.replace(/\r/g, "").replace(/\n{3,}/g, "\n\n");
 };

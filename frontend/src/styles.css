@@ -213,6 +213,10 @@ body {
   line-height: 1.45;
   color: #111827;
   white-space: pre-wrap;
+  position: relative;
+  min-height: 340px;
+  max-height: 62vh;
+  overflow-y: auto;
 }
 
 .text-editor-block {
@@ -223,6 +227,29 @@ body {
   margin-top: 0.22rem;
 }
 
+.text-editor-block-indent-1 {
+  margin-left: 1.05rem;
+  padding-left: 0.6rem;
+  border-left: 2px solid #bfdbfe;
+  background: linear-gradient(90deg, rgba(219, 234, 254, 0.35), rgba(219, 234, 254, 0));
+}
+
+.text-editor-block-indent-2 {
+  margin-left: 2rem;
+  padding-left: 0.6rem;
+  border-left: 2px solid #93c5fd;
+  background: linear-gradient(90deg, rgba(191, 219, 254, 0.28), rgba(191, 219, 254, 0));
+}
+
+.text-editor-block-indent-3,
+.text-editor-block-indent-4,
+.text-editor-block-indent-5 {
+  margin-left: 3rem;
+  padding-left: 0.55rem;
+  border-left: 2px solid #60a5fa;
+  background: linear-gradient(90deg, rgba(147, 197, 253, 0.22), rgba(147, 197, 253, 0));
+}
+
 .text-editor-mainline {
   margin: 0;
   font-weight: 700;
@@ -230,6 +257,10 @@ body {
 
 .text-editor-main-move {
   font-weight: 700;
+  position: relative;
+  margin: 0 0.2rem;
+  padding: 0 0.16rem;
+  border-radius: 4px;
 }
 
 .text-editor-main-comment {
@@ -242,6 +273,10 @@ body {
 
 .text-editor-variation-move {
   font-weight: 400;
+  position: relative;
+  margin: 0 0.2rem;
+  padding: 0 0.16rem;
+  border-radius: 4px;
 }
 
 .text-editor-comment {
@@ -260,6 +295,12 @@ body {
 .text-editor-comment-block:focus {
   outline: 1px dashed #9ca3af;
   background: #eef2ff;
+}
+
+.text-editor-comment-new {
+  background: #dbeafe;
+  outline: 1px solid #60a5fa;
+  border-radius: 4px;
 }
 
 .text-editor-run-bold {
@@ -313,20 +354,50 @@ body {
   display: none;
 }
 
-.text-editor-insert-comment {
-  border: 1px dashed #9ca3af;
-  background: #f3f4f6;
-  color: #4b5563;
+.text-editor-move-insert-overlay {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: block;
+  border: 1px solid rgba(59, 130, 246, 0.45);
   border-radius: 4px;
-  font-size: 0.72rem;
-  line-height: 1.1;
-  padding: 0.08rem 0.28rem;
-  cursor: pointer;
+  background: rgba(239, 246, 255, 0.42);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+  z-index: 6;
 }
 
-.text-editor-insert-comment:hover {
-  background: #e5e7eb;
-  color: #1f2937;
+.text-editor-move-insert-overlay.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.text-editor-insert-icon {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  width: 12px;
+  border: none;
+  background: #93c5fd;
+  color: transparent;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.text-editor-insert-icon.left {
+  left: -12px;
+  clip-path: polygon(100% 0, 0 50%, 100% 100%);
+}
+
+.text-editor-insert-icon.right {
+  right: -12px;
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+
+.text-editor-insert-icon:hover {
+  background: #60a5fa;
 }
 
 .ast-view {

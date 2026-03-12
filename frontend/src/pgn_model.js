@@ -2,6 +2,33 @@ let modelIdCounter = 0;
 
 const nextId = (prefix) => `${prefix}_${++modelIdCounter}`;
 
+const decodeCommentLayout = (source) => {
+  let out = "";
+  for (let i = 0; i < source.length; i += 1) {
+    const ch = source[i];
+    if (ch === "\\" && i + 1 < source.length) {
+      const next = source[i + 1];
+      if (next === "n") {
+        out += "\n";
+        i += 1;
+        continue;
+      }
+      if (next === "t") {
+        out += "\t";
+        i += 1;
+        continue;
+      }
+      if (next === "\\") {
+        out += "\\";
+        i += 1;
+        continue;
+      }
+    }
+    out += ch;
+  }
+  return out;
+};
+
 const tokenizeMoveText = (source) => {
   const tokens = [];
   let i = 0;
@@ -14,7 +41,7 @@ const tokenizeMoveText = (source) => {
     if (ch === "{") {
       let j = i + 1;
       while (j < source.length && source[j] !== "}") j += 1;
-      const body = source.slice(i + 1, j).trim();
+      const body = decodeCommentLayout(source.slice(i + 1, j));
       tokens.push({ type: "comment", value: body });
       i = Math.min(j + 1, source.length);
       continue;
@@ -95,8 +122,7 @@ const parseHeaders = (rawPgn) => {
 const stripHeaders = (rawPgn) => rawPgn
   .split("\n")
   .filter((line) => !/^\s*\[[^\]]+\]\s*$/.test(line))
-  .join(" ")
-  .replace(/\s+/g, " ")
+  .join("\n")
   .trim();
 
 const createVariation = (depth, parentMoveId = null) => ({

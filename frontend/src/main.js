@@ -4,7 +4,12 @@ import "chessground/assets/chessground.base.css";
 import "./styles.css";
 import { text_editor } from "./text_editor";
 import { parsePgnToModel } from "./pgn_model";
-import { insertCommentAroundMove, setCommentTextById } from "./pgn_commands";
+import {
+  findExistingCommentIdAroundMove,
+  insertCommentAroundMove,
+  removeCommentById,
+  setCommentTextById,
+} from "./pgn_commands";
 import { serializeModelToPgn } from "./pgn_serialize";
 import { ast_view } from "./ast_view";
 
@@ -41,7 +46,10 @@ const DEFAULT_PGN = `[Event "Sample"]
 [Black "Black"]
 [Result "*"]
 
-1. e4 {Mainline comment} e5 2. Nf3 Nc6 3. Bb5 a6 *`;
+1. e4 (1. d4 d5 (1... Nf6 2. c4 e6) 2. c4) e5
+2. Nf3 (2. Nc3 Nf6 (2... Bb4 3. a3)) Nc6
+3. Bb5 a6 (3... Nf6 4. O-O (4. d3))
+4. Ba4 Nf6 *`;
 
 const state = {
   moves: [],
@@ -55,6 +63,7 @@ const state = {
   verboseMoves: [],
   statusMessage: "",
   errorMessage: "",
+  pendingFocusCommentId: null,
 };
 
 const app = document.querySelector("#app");
@@ -209,6 +218,34 @@ const buildGameAtPly = (ply) => {
   return game;
 };
 
+const stripAnnotationsForBoardParser = (source) => {
+  let out = "";
+  let variationDepth = 0;
+  let inComment = false;
+  for (let i = 0; i < source.length; i += 1) {
+    const ch = source[i];
+    if (inComment) {
+      if (ch === "}") inComment = false;
+      continue;
+    }
+    if (ch === "{") {
+      inComment = true;
+      continue;
+    }
+    if (ch === "(") {
+      variationDepth += 1;
+      continue;
+    }
+    if (ch === ")") {
+      variationDepth = Math.max(0, variationDepth - 1);
+      continue;
+    }
+    if (variationDepth > 0) continue;
+    out += ch;
+  }
+  return out;
+};
+
 const renderMoveList = () => {
   if (!movesEl) return;
   movesEl.replaceChildren();
@@ -358,6 +395,50 @@ const renderDomView = () => {
   domViewEl.textContent = formatDomNode(textEditorEl);
 };
 
+const getTextEditorOptions = () => ({
+  highlightCommentId: state.pendingFocusCommentId,
+  onResolveExistingComment: (moveId, position) => findExistingCommentIdAroundMove(state.pgnModel, moveId, position),
+  onCommentEdit: (commentId, editedText) => {
+    if (!editedText.trim()) {
+      state.pgnModel = removeCommentById(state.pgnModel, commentId);
+    } else {
+      state.pgnModel = setCommentTextById(state.pgnModel, commentId, editedText);
+    }
+    state.pgnText = serializeModelToPgn(state.pgnModel);
+    if (pgnInput) pgnInput.value = state.pgnText;
+    syncChessParseState(state.pgnText);
+    render();
+  },
+  onInsertComment: (moveId, position) => {
+    const { model, insertedCommentId, created } = insertCommentAroundMove(state.pgnModel, moveId, position, "");
+    state.pgnModel = model;
+    state.pendingFocusCommentId = insertedCommentId;
+    if (!created) {
+      render();
+      return;
+    }
+    state.pgnText = serializeModelToPgn(state.pgnModel);
+    if (pgnInput) pgnInput.value = state.pgnText;
+    syncChessParseState(state.pgnText);
+    render();
+  },
+});
+
+const focusCommentById = (commentId) => {
+  if (!textEditorEl || !commentId) return false;
+  const el = textEditorEl.querySelector(`[data-comment-id="${commentId}"]`);
+  if (!el) return false;
+  el.focus();
+  const selection = window.getSelection();
+  if (!selection) return true;
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  range.collapse(false);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  return true;
+};
+
 const render = () => {
   const game = buildGameAtPly(state.currentPly);
   renderBoard(game);
@@ -369,24 +450,21 @@ const render = () => {
   if (errorEl) {
     errorEl.textContent = state.errorMessage;
   }
-  text_editor.render(textEditorEl, state.pgnModel, {
-    onCommentEdit: (commentId, editedText) => {
-      state.pgnModel = setCommentTextById(state.pgnModel, commentId, editedText);
-      state.pgnText = serializeModelToPgn(state.pgnModel);
-      if (pgnInput) pgnInput.value = state.pgnText;
-      syncChessParseState(state.pgnText);
-      render();
-    },
-    onInsertComment: (moveId, position) => {
-      state.pgnModel = insertCommentAroundMove(state.pgnModel, moveId, position, "");
-      state.pgnText = serializeModelToPgn(state.pgnModel);
-      if (pgnInput) pgnInput.value = state.pgnText;
-      syncChessParseState(state.pgnText);
-      render();
-    },
-  });
+  text_editor.render(textEditorEl, state.pgnModel, getTextEditorOptions());
   ast_view.render(astViewEl, state.pgnModel);
   renderDomView();
+  if (state.pendingFocusCommentId) {
+    const focusTarget = state.pendingFocusCommentId;
+    window.requestAnimationFrame(() => {
+      if (focusCommentById(focusTarget)) {
+        window.setTimeout(() => {
+          const current = textEditorEl?.querySelector(`[data-comment-id="${focusTarget}"]`);
+          if (current) current.classList.remove("text-editor-comment-new");
+        }, 1600);
+      }
+    });
+    state.pendingFocusCommentId = null;
+  }
 
   const atStart = state.currentPly === 0;
   const atEnd = state.currentPly === state.moves.length;
@@ -444,13 +522,22 @@ const syncChessParseState = (source, { clearOnFailure = false } = {}) => {
     state.currentPly = Math.min(state.currentPly, state.moves.length);
     state.errorMessage = "";
   } catch {
-    if (clearOnFailure) {
+    try {
+      const fallbackParser = new Chess();
+      fallbackParser.loadPgn(stripAnnotationsForBoardParser(source));
+      state.moves = fallbackParser.history();
+      state.verboseMoves = fallbackParser.history({ verbose: true });
+      state.currentPly = Math.min(state.currentPly, state.moves.length);
       state.errorMessage = "";
-    } else {
-      state.errorMessage = t("pgn.error", "Unable to parse PGN.");
-      state.moves = [];
-      state.verboseMoves = [];
-      state.currentPly = 0;
+    } catch {
+      if (clearOnFailure) {
+        state.errorMessage = "";
+      } else {
+        state.errorMessage = t("pgn.error", "Unable to parse PGN.");
+        state.moves = [];
+        state.verboseMoves = [];
+        state.currentPly = 0;
+      }
     }
   }
 };
@@ -495,7 +582,7 @@ if (pgnInput) {
     state.pgnModel = parsePgnToModel(state.pgnText);
     // Do not keep stale parse errors while user is actively editing.
     syncChessParseState(state.pgnText.trim(), { clearOnFailure: true });
-    text_editor.render(textEditorEl, state.pgnModel);
+    text_editor.render(textEditorEl, state.pgnModel, getTextEditorOptions());
     ast_view.render(astViewEl, state.pgnModel);
     renderDomView();
     renderBoard(buildGameAtPly(state.currentPly));

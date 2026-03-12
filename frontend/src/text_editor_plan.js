@@ -1,21 +1,23 @@
 const NEWLINE_PATTERN = /(?:\[\[br\]\]|<br\s*\/?>|\\n|\n)/gi;
 
-const createBlock = (index) => ({
+const createBlock = (index, indentDepth = 0) => ({
   key: `block_${index}`,
+  indentDepth,
   tokens: [],
 });
 
 const createPlanState = () => ({
-  blocks: [createBlock(0)],
+  blocks: [createBlock(0, 0)],
   blockIndex: 0,
   tokenIndex: 0,
+  indentDepth: 0,
 });
 
 const currentBlock = (state) => state.blocks[state.blocks.length - 1];
 
 const nextBlock = (state) => {
   state.blockIndex += 1;
-  state.blocks.push(createBlock(state.blockIndex));
+  state.blocks.push(createBlock(state.blockIndex, state.indentDepth));
 };
 
 const normalizeAtBlockStart = (block, text) => (block.tokens.length === 0 ? text.replace(/^\s+/, "") : text);
@@ -80,42 +82,91 @@ const parseMoveNumberToken = (raw) => {
   return { displayText: text, side: "raw", simplified: false };
 };
 
-const addCommentToken = (state, comment, text) => {
+const addCommentToken = (
+  state,
+  comment,
+  text,
+  rawText,
+  hasIndentDirective = false,
+  indentDirectiveDepth = 0,
+) => {
   const block = currentBlock(state);
   block.tokens.push({
     key: `token_${state.tokenIndex++}`,
     kind: "comment",
     tokenType: "comment",
     commentId: comment.id,
+    rawText,
+    hasIndentDirective,
+    indentDirectiveDepth,
     text,
   });
 };
 
+const INDENT_BLOCK_DIRECTIVE_PREFIX = /^\s*(?:\\i(?:\s+|$))+/;
+const getIndentDirectiveDepth = (comment) => {
+  const raw = String(comment?.raw ?? "");
+  const match = raw.match(INDENT_BLOCK_DIRECTIVE_PREFIX);
+  if (!match) return 0;
+  const tokens = match[0].match(/\\i/g);
+  return tokens ? tokens.length : 0;
+};
+const hasIndentBlockDirective = (comment) => getIndentDirectiveDepth(comment) > 0;
+const stripIndentDirectives = (rawText) => String(rawText ?? "")
+  .replace(INDENT_BLOCK_DIRECTIVE_PREFIX, "")
+  .replace(/^\s+/, "");
+
 const addComment = (state, comment) => {
-  addCommentToken(state, comment, comment.raw ?? "");
+  const rawText = String(comment.raw ?? "");
+  const indentDirectiveDepth = getIndentDirectiveDepth(comment);
+  const hasIndentDirective = indentDirectiveDepth > 0;
+  const visibleText = hasIndentDirective ? stripIndentDirectives(rawText) : rawText;
+  addCommentToken(
+    state,
+    comment,
+    visibleText,
+    rawText,
+    hasIndentDirective,
+    indentDirectiveDepth,
+  );
   addSpace(state);
 };
 
-const addInsertCommentControl = (state, moveId, position) => {
-  const block = currentBlock(state);
-  block.tokens.push({
-    key: `token_${state.tokenIndex++}`,
-    kind: "control",
-    tokenType: "insert_comment",
-    text: position === "before" ? "+{before}" : "+{after}",
-    className: "text-editor-insert-comment",
-    moveId,
-    insertPosition: position,
-  });
-  addSpace(state);
+const emitIndentedBlock = (state, levels, emitContent) => {
+  const previousDepth = state.indentDepth;
+  state.indentDepth = previousDepth + Math.max(1, Number(levels) || 1);
+  nextBlock(state);
+  emitContent();
+  state.indentDepth = previousDepth;
+  nextBlock(state);
 };
 
 const emitVariation = (variation, state, strategyRegistry) => {
-  const flow = { nextMoveSide: "white" };
-  variation.entries.forEach((entry) => {
+  const flow = {
+    nextMoveSide: "white",
+    hoistedBeforeCommentMoveIds: new Set(),
+  };
+  for (let idx = 0; idx < variation.entries.length; idx += 1) {
+    const entry = variation.entries[idx];
     if (entry.type === "variation") {
       emitVariation(entry, state, strategyRegistry);
-      return;
+      continue;
+    }
+    const nextEntry = variation.entries[idx + 1];
+    if (entry.type === "comment" && nextEntry?.type === "variation" && hasIndentBlockDirective(entry)) {
+      emitIndentedBlock(state, getIndentDirectiveDepth(entry), () => {
+        addComment(state, entry);
+        emitVariation(nextEntry, state, strategyRegistry);
+      });
+      idx += 1;
+      continue;
+    }
+    if (entry.type === "move_number") {
+      const nextEntry = variation.entries[idx + 1];
+      if (nextEntry?.type === "move" && Array.isArray(nextEntry.commentsBefore) && nextEntry.commentsBefore.length > 0) {
+        nextEntry.commentsBefore.forEach((comment) => addComment(state, comment));
+        flow.hoistedBeforeCommentMoveIds.add(nextEntry.id);
+      }
     }
     if (entry.type === "move_number") {
       const parsed = parseMoveNumberToken(entry.text);
@@ -124,12 +175,12 @@ const emitVariation = (variation, state, strategyRegistry) => {
       }
     }
     const strategy = strategyRegistry[entry.type];
-    if (!strategy) return;
+    if (!strategy) continue;
     strategy(entry, variation, state, strategyRegistry, flow);
     if (entry.type === "move") {
       flow.nextMoveSide = flow.nextMoveSide === "white" ? "black" : "white";
     }
-  });
+  }
   variation.trailingComments.forEach((comment) => addComment(state, comment));
 };
 
@@ -138,8 +189,9 @@ const emitMove = (entry, variation, state, strategyRegistry, flow) => {
   const moveClass = variation.depth === 0
     ? `text-editor-main-move move-${moveSide}`
     : `text-editor-variation-move move-${moveSide}`;
-  addInsertCommentControl(state, entry.id, "before");
-  entry.commentsBefore.forEach((comment) => addComment(state, comment));
+  if (!flow?.hoistedBeforeCommentMoveIds?.has(entry.id)) {
+    entry.commentsBefore.forEach((comment) => addComment(state, comment));
+  }
   addTextWithBreaks(
     state,
     entry.san,
@@ -154,23 +206,35 @@ const emitMove = (entry, variation, state, strategyRegistry, flow) => {
   });
 
   if (Array.isArray(entry.postItems) && entry.postItems.length > 0) {
-    entry.postItems.forEach((item) => {
+    for (let idx = 0; idx < entry.postItems.length; idx += 1) {
+      const item = entry.postItems[idx];
       if (item.type === "comment" && item.comment) {
+        const nextItem = entry.postItems[idx + 1];
+        if (nextItem?.type === "rav" && nextItem.rav && hasIndentBlockDirective(item.comment)) {
+          emitIndentedBlock(state, getIndentDirectiveDepth(item.comment), () => {
+            addComment(state, item.comment);
+            emitVariation(nextItem.rav, state, strategyRegistry);
+          });
+          idx += 1;
+          continue;
+        }
         addComment(state, item.comment);
-        return;
+        continue;
       }
       if (item.type === "rav" && item.rav) {
         emitVariation(item.rav, state, strategyRegistry);
       }
-    });
+    }
   } else {
     entry.commentsAfter.forEach((comment) => addComment(state, comment));
     entry.ravs.forEach((child) => emitVariation(child, state, strategyRegistry));
   }
-  addInsertCommentControl(state, entry.id, "after");
 };
 
 const strategyRegistry = {
+  comment: (entry, _variation, state) => {
+    addComment(state, entry);
+  },
   move_number: (entry, variation, state) => {
     const parsed = parseMoveNumberToken(entry.text);
     addTextWithBreaks(
@@ -197,5 +261,13 @@ export const buildTextEditorPlan = (pgnModel) => {
   const state = createPlanState();
   if (!pgnModel || !pgnModel.root) return state.blocks;
   emitVariation(pgnModel.root, state, strategyRegistry);
-  return state.blocks;
+  const firstNonEmpty = state.blocks.findIndex((block) => block.tokens.length > 0);
+  if (firstNonEmpty === -1) return [createBlock(0, 0)];
+  const lastNonEmpty = (() => {
+    for (let i = state.blocks.length - 1; i >= 0; i -= 1) {
+      if (state.blocks[i].tokens.length > 0) return i;
+    }
+    return 0;
+  })();
+  return state.blocks.slice(firstNonEmpty, lastNonEmpty + 1);
 };

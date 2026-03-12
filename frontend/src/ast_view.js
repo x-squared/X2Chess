@@ -47,6 +47,10 @@ const renderEntry = (parent, entry) => {
     appendNode(parent, `move_number: ${entry.text}`, "ast-meta");
     return;
   }
+  if (entry.type === "comment") {
+    renderComment(parent, entry);
+    return;
+  }
   if (entry.type === "result") {
     appendNode(parent, `result: ${entry.text}`, "ast-meta");
     return;

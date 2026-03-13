@@ -491,8 +491,12 @@ const getTextEditorOptions = () => ({
         render();
         return;
       }
+      // Move-click navigation should jump immediately, without replay animation.
+      state.animationRunId += 1;
+      state.isAnimating = false;
       state.boardPreview = null;
-      gotoPly(target.mainlinePly);
+      state.currentPly = target.mainlinePly;
+      render();
       return;
     }
     state.boardPreview = {

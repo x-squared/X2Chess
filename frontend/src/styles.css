@@ -112,6 +112,8 @@ body.menu-open {
   background: linear-gradient(180deg, #fcfdff, #f2f7ff);
   box-shadow: -12px 0 28px rgba(16, 32, 54, 0.18);
   z-index: 120;
+  display: flex;
+  flex-direction: column;
   transform: translateX(102%);
   transition: transform 170ms ease;
 }
@@ -132,6 +134,12 @@ body.menu-open {
   font-size: 0.95rem;
   font-weight: 600;
   color: var(--text-secondary);
+}
+
+.app-menu-footer {
+  margin-top: auto;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-subtle);
 }
 
 .menu-close {
@@ -161,10 +169,7 @@ body.menu-open {
 }
 
 .runtime-build-badge {
-  position: absolute;
-  left: 0.85rem;
-  top: 0.75rem;
-  z-index: 3;
+  display: inline-block;
   font-size: 0.68rem;
   line-height: 1.2;
   color: var(--text-secondary);
@@ -229,6 +234,13 @@ body.menu-open {
   text-overflow: ellipsis;
 }
 
+.game-info-players-value {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.25;
+}
+
 .game-info-edit-trigger {
   align-self: center;
   min-width: 36px;
@@ -274,6 +286,7 @@ body.menu-open {
 }
 
 .game-info-editor-field {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 0.22rem;
@@ -282,7 +295,8 @@ body.menu-open {
   color: var(--text-secondary);
 }
 
-.game-info-editor-field input {
+.game-info-editor-field input,
+.game-info-editor-field select {
   height: 30px;
   border: 1px solid var(--border-strong);
   border-radius: 7px;
@@ -292,9 +306,44 @@ body.menu-open {
   font-size: 0.86rem;
 }
 
-.game-info-editor-field input:focus-visible {
+.game-info-editor-field input:focus-visible,
+.game-info-editor-field select:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
+}
+
+.game-info-player-suggestions {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  background: var(--surface-1);
+  box-shadow: var(--shadow-m);
+  z-index: 35;
+  padding: 0.2rem;
+}
+
+.game-info-player-suggestion {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  font-size: 0.83rem;
+  line-height: 1.25;
+  border-radius: 5px;
+  padding: 0.28rem 0.35rem;
+  cursor: pointer;
+}
+
+.game-info-player-suggestion:hover,
+.game-info-player-suggestion:focus-visible {
+  outline: none;
+  background: var(--accent-soft);
 }
 
 .board-editor-box {
@@ -429,6 +478,7 @@ body.menu-open {
 .pgn-actions button:focus-visible,
 .icon-button:focus-visible,
 .inline-control input:focus-visible,
+.inline-control select:focus-visible,
 .text-editor-comment-block:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
@@ -567,6 +617,25 @@ body.menu-open {
   opacity: 0.45;
   cursor: not-allowed;
   background: #f9fafb;
+}
+
+.icon-button.icon-button-text {
+  width: auto;
+  min-width: 52px;
+  padding: 0 0.45rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.icon-button.icon-button-format {
+  min-width: 32px;
+  width: 32px;
+  padding: 0;
+}
+
+.icon-button.active {
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
 }
 
 .text-editor-title {
@@ -748,6 +817,15 @@ body.menu-open {
   padding-left: 0;
   text-indent: 0;
   white-space: pre-wrap;
+}
+
+.text-editor-comment-intro {
+  display: inline-block;
+  margin-bottom: 0.55rem;
+  padding: 0.2rem 0.35rem;
+  border-radius: 4px;
+  background: #f4f8ff;
+  border-left: 3px solid #7c98c8;
 }
 
 .text-editor-comment-block:focus {

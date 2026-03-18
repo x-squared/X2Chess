@@ -3,17 +3,23 @@ import "./board/styles.css";
 import "./editor/styles.css";
 import "./panels/styles.css";
 import "./styles.css";
+import bundledPlayers from "../data/players.json";
 import {
   text_editor,
   parsePgnToModel,
   serializeModelToPgn,
   applyDefaultIndentDirectives,
+  ensureRequiredPgnHeaders,
   findExistingCommentIdAroundMove,
+  getFirstCommentMetadata,
   getHeaderValue,
   insertCommentAroundMove,
+  resolveEcoOpeningName,
+  resolveOwningMoveIdForCommentId,
   removeCommentById,
   setHeaderValue,
   setCommentTextById,
+  toggleFirstCommentIntroRole,
 } from "./editor";
 import { createEditorHistoryCapabilities } from "./editor/history";
 import { createPgnRuntimeCapabilities } from "./editor/pgn_runtime";
@@ -38,16 +44,22 @@ import { createRuntimeConfigCapabilities } from "./app_shell/runtime_config";
 import { createAppLayout } from "./app_shell/layout";
 import { resolveBuildTimestampLabel } from "./app_shell/build_info";
 import { createUiAdapters } from "./app_shell/ui_adapters";
+import { createTranslator, resolveLocale } from "./app_shell/i18n";
 import {
+  PLAYER_NAME_HEADER_KEYS,
+  buildPlayerNameSuggestions,
+  normalizePlayerRecords,
+  parsePlayerRecord,
+  normalizeGameInfoHeaderValue,
   renderGameInfoSummary,
   syncGameInfoEditorUi,
   syncGameInfoEditorValues,
 } from "./app_shell/game_info";
+import { createPlayerAutocompleteCapabilities } from "./app_shell/player_autocomplete";
 import {
-  APP_TRANSLATIONS,
+  DEFAULT_LOCALE,
   DEFAULT_PGN,
   createInitialAppState,
-  createTranslator,
 } from "./app_shell/app_state";
 import {
   ast_panel,
@@ -57,9 +69,13 @@ import {
   setPgnSaveStatus,
 } from "./panels";
 
-const t = createTranslator(APP_TRANSLATIONS);
+const initialLocale = resolveLocale(window.localStorage?.getItem("x2chess.locale") || navigator.language || DEFAULT_LOCALE);
+const t = createTranslator(initialLocale);
 
 const state = createInitialAppState(parsePgnToModel, DEFAULT_PGN);
+state.locale = initialLocale;
+state.pgnModel = ensureRequiredPgnHeaders(state.pgnModel);
+state.pgnText = serializeModelToPgn(state.pgnModel);
 const boardCapabilities = createBoardCapabilities(state);
 
 const BUILD_TIMESTAMP_RAW = typeof __X2CHESS_BUILD_TIMESTAMP__ !== "undefined"
@@ -81,14 +97,19 @@ const {
   btnUndo,
   btnRedo,
   btnLoad,
+  btnCommentBold,
+  btnCommentItalic,
+  btnCommentUnderline,
   btnDefaultIndent,
   btnCommentLeft,
   btnCommentRight,
   btnLinebreak,
   btnIndent,
+  btnFirstCommentIntro,
   speedInput,
   speedValue,
   soundInput,
+  localeInput,
   gameSelect,
   btnPickGamesFolder,
   saveStatusEl,
@@ -104,6 +125,7 @@ const {
   gameInfoEventValueEl,
   gameInfoDateValueEl,
   gameInfoOpeningValueEl,
+  gameInfoSuggestionEls,
   gameInfoInputs,
   textEditorEl,
   astViewEl,
@@ -111,6 +133,7 @@ const {
 } = createAppLayout({
   t,
   buildTimestampLabel: BUILD_TIMESTAMP_LABEL,
+  currentLocale: state.locale,
 });
 
 const moveSoundPlayer = createMoveSoundPlayer({
@@ -125,6 +148,9 @@ let renderPipelineCapabilities = null;
 let boardRuntimeCapabilities = null;
 let moveLookupCapabilities = null;
 let runtimeConfigCapabilities = null;
+let playerAutocompleteCapabilities = null;
+
+state.playerStore = bundledPlayers;
 
 // 2) UI adapter helpers shared by runtime components.
 const uiAdapters = createUiAdapters({
@@ -175,6 +201,7 @@ selectionRuntimeCapabilities = createSelectionRuntimeCapabilities({
   insertCommentAroundMoveFn: insertCommentAroundMove,
   removeCommentByIdFn: removeCommentById,
   setCommentTextByIdFn: setCommentTextById,
+  resolveOwningMoveIdForCommentFn: resolveOwningMoveIdForCommentId,
   applyPgnModelUpdate: (nextModel, focusCommentId, options) => applyPgnModelUpdate(nextModel, focusCommentId, options),
   onRender: () => render(),
 });
@@ -199,6 +226,8 @@ renderPipelineCapabilities = createAppRenderPipeline({
     btnCommentRight,
     btnLinebreak,
     btnIndent,
+    btnFirstCommentIntro,
+    getFirstCommentMetadata: () => getFirstCommentMetadata(state.pgnModel),
     speedValue,
   },
   buildGameAtPly: (ply) => boardRuntimeCapabilities.buildGameAtPly(ply),
@@ -235,6 +264,29 @@ renderPipelineCapabilities = createAppRenderPipeline({
   }),
 });
 
+playerAutocompleteCapabilities = createPlayerAutocompleteCapabilities({
+  state,
+  gameInfoSuggestionEls,
+  gameInfoInputs,
+  playerNameHeaderKeys: PLAYER_NAME_HEADER_KEYS,
+  normalizePlayerRecordsFn: (records) => normalizePlayerRecords(records),
+  parsePlayerRecordFn: (value) => parsePlayerRecord(value),
+  buildPlayerNameSuggestionsFn: (records, query) => buildPlayerNameSuggestions(records, query),
+  normalizeGameInfoHeaderValueFn: (key, value) => normalizeGameInfoHeaderValue(key, value),
+  getHeaderValueFn: (model, key, fallback) => getHeaderValue(model, key, fallback),
+  setHeaderValueFn: (model, key, value) => setHeaderValue(model, key, value),
+  ensureRequiredPgnHeadersFn: (model) => ensureRequiredPgnHeaders(model),
+  applyPgnModelUpdate: (nextModel) => applyPgnModelUpdate(nextModel),
+  loadPlayerStore: async () => {
+    if (!resourcesCapabilities) return;
+    state.playerStore = await resourcesCapabilities.loadPlayerStoreFromClientData(bundledPlayers);
+  },
+  savePlayerStore: async () => {
+    if (!resourcesCapabilities) return;
+    await resourcesCapabilities.savePlayerStoreToClientData(state.playerStore);
+  },
+});
+
 const boardNavigationCapabilities = createBoardNavigationCapabilities({
   state,
   getMovePositionById: (moveId, options) => moveLookupCapabilities.getMovePositionById(moveId, options),
@@ -262,9 +314,16 @@ const appShellCapabilities = createAppShellCapabilities({
   speedInput,
   speedValue,
   soundInput,
+  localeInput,
   onHandleSelectedMoveArrowHotkey: (event) => boardNavigationCapabilities.handleSelectedMoveArrowHotkey(event),
   onUndo: () => historyCapabilities.performUndo(),
   onRedo: () => historyCapabilities.performRedo(),
+  onChangeLocale: (localeCode) => {
+    const nextLocale = resolveLocale(localeCode);
+    if (nextLocale === state.locale) return;
+    window.localStorage?.setItem("x2chess.locale", nextLocale);
+    window.location.reload();
+  },
 });
 
 pgnRuntimeCapabilities = createPgnRuntimeCapabilities({
@@ -272,7 +331,7 @@ pgnRuntimeCapabilities = createPgnRuntimeCapabilities({
   pgnInput,
   t,
   defaultPgn: DEFAULT_PGN,
-  parsePgnToModelFn: parsePgnToModel,
+  parsePgnToModelFn: (source) => ensureRequiredPgnHeaders(parsePgnToModel(source)),
   serializeModelToPgnFn: serializeModelToPgn,
   buildMovePositionByIdFn: buildMovePositionById,
   stripAnnotationsForBoardParserFn: stripAnnotationsForBoardParser,
@@ -305,7 +364,7 @@ resourcesCapabilities = createResourcesCapabilities({
 const handleLivePgnInput = () => {
   if (!pgnInput) return;
   state.pgnText = pgnInput.value;
-  state.pgnModel = parsePgnToModel(state.pgnText);
+  state.pgnModel = ensureRequiredPgnHeaders(parsePgnToModel(state.pgnText));
   // Do not keep stale parse errors while user is actively editing.
   pgnRuntimeCapabilities.syncChessParseState(state.pgnText.trim(), { clearOnFailure: true });
   if (renderPipelineCapabilities) renderPipelineCapabilities.renderLiveInput();
@@ -322,17 +381,22 @@ const appWiringCapabilities = createAppWiringCapabilities({
     btnNext,
     btnLast,
     btnLoad,
+    btnCommentBold,
+    btnCommentItalic,
+    btnCommentUnderline,
     btnUndo,
     btnRedo,
     btnCommentLeft,
     btnCommentRight,
     btnLinebreak,
     btnIndent,
+    btnFirstCommentIntro,
     btnDefaultIndent,
     btnPickGamesFolder,
     gameSelect,
     pgnInput,
     btnGameInfoEdit,
+    gameInfoSuggestionEls,
     gameInfoInputs,
   },
   actions: {
@@ -341,10 +405,17 @@ const appWiringCapabilities = createAppWiringCapabilities({
     loadPgn: () => pgnRuntimeCapabilities.loadPgn(),
     performUndo: () => historyCapabilities.performUndo(),
     performRedo: () => historyCapabilities.performRedo(),
+    formatCommentStyle: (style) => {
+      selectionRuntimeCapabilities.formatFocusedComment(style);
+    },
     insertAroundSelectedMove: (position, rawText) => selectionRuntimeCapabilities.insertAroundSelectedMove(position, rawText),
     applyDefaultIndent: () => {
       const nextModel = applyDefaultIndentDirectives(state.pgnModel);
       applyPgnModelUpdate(nextModel);
+    },
+    toggleFirstCommentIntro: () => {
+      const nextModel = toggleFirstCommentIntroRole(state.pgnModel);
+      if (nextModel !== state.pgnModel) applyPgnModelUpdate(nextModel);
     },
     chooseClientGamesFolder: () => resourcesCapabilities.chooseClientGamesFolder(),
     loadGameByName: (fileName) => resourcesCapabilities.loadGameByName(fileName),
@@ -360,11 +431,28 @@ const appWiringCapabilities = createAppWiringCapabilities({
       render();
     },
     updateGameInfoHeader: (key, value) => {
-      const currentValue = getHeaderValue(state.pgnModel, key, "");
-      if (currentValue === String(value ?? "").trim()) return;
-      const nextModel = setHeaderValue(state.pgnModel, key, value);
+      const normalizedValue = normalizeGameInfoHeaderValue(key, value);
+      const currentValue = normalizeGameInfoHeaderValue(key, getHeaderValue(state.pgnModel, key, ""));
+      if (currentValue === normalizedValue) return;
+      let nextModel = setHeaderValue(state.pgnModel, key, normalizedValue);
+      if (key === "ECO") {
+        const currentOpening = getHeaderValue(nextModel, "Opening", "");
+        if (!currentOpening.trim()) {
+          const fallbackOpening = resolveEcoOpeningName(normalizedValue);
+          if (fallbackOpening) {
+            nextModel = setHeaderValue(nextModel, "Opening", fallbackOpening);
+          }
+        }
+      }
+      nextModel = ensureRequiredPgnHeaders(nextModel);
       applyPgnModelUpdate(nextModel);
     },
+    isPlayerNameField: (key) => playerAutocompleteCapabilities.isPlayerNameField(key),
+    loadPlayerStore: () => playerAutocompleteCapabilities.loadPlayerStore(),
+    handlePlayerNameInput: (key, input, event) => playerAutocompleteCapabilities.handlePlayerNameInput(key, input, event),
+    handlePlayerNameKeydown: (event, key, input) => playerAutocompleteCapabilities.handlePlayerNameKeydown(event, key, input),
+    commitPlayerNameInput: (key, value) => playerAutocompleteCapabilities.commitPlayerNameInput(key, value),
+    pickPlayerNameSuggestion: (key, playerName) => playerAutocompleteCapabilities.pickPlayerNameSuggestion(key, playerName),
   },
 });
 

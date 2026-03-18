@@ -31,6 +31,8 @@
  * @param {HTMLButtonElement|null} deps.btnCommentRight - Insert-comment-right button.
  * @param {HTMLButtonElement|null} deps.btnLinebreak - Insert-linebreak button.
  * @param {HTMLButtonElement|null} deps.btnIndent - Insert-indent button.
+ * @param {HTMLButtonElement|null} deps.btnFirstCommentIntro - First-comment intro toggle button.
+ * @param {Function} deps.getFirstCommentMetadata - Callback returning first-comment role metadata.
  * @param {HTMLElement|null} deps.speedValue - Move speed value label.
  */
 export const syncAppViewRuntime = ({
@@ -50,6 +52,8 @@ export const syncAppViewRuntime = ({
   btnCommentRight,
   btnLinebreak,
   btnIndent,
+  btnFirstCommentIntro,
+  getFirstCommentMetadata,
   speedValue,
 }) => {
   if (!state.boardPreview) {
@@ -104,4 +108,12 @@ export const syncAppViewRuntime = ({
   if (btnCommentRight) btnCommentRight.disabled = !hasSelectedMove;
   if (btnLinebreak) btnLinebreak.disabled = !hasSelectedMove;
   if (btnIndent) btnIndent.disabled = !hasSelectedMove;
+  if (btnFirstCommentIntro) {
+    const firstCommentMeta = typeof getFirstCommentMetadata === "function"
+      ? getFirstCommentMetadata()
+      : { exists: false, isIntro: false };
+    btnFirstCommentIntro.disabled = !firstCommentMeta.exists;
+    btnFirstCommentIntro.setAttribute("aria-pressed", firstCommentMeta.isIntro ? "true" : "false");
+    btnFirstCommentIntro.classList.toggle("active", Boolean(firstCommentMeta.isIntro));
+  }
 };

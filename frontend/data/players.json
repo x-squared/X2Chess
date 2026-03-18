@@ -1,0 +1,22 @@
+[
+  { "lastName": "Carlsen", "firstName": "Magnus" },
+  { "lastName": "Anand", "firstName": "Viswanathan" },
+  { "lastName": "Kasparov", "firstName": "Garry" },
+  { "lastName": "Karpov", "firstName": "Anatoly" },
+  { "lastName": "Fischer", "firstName": "Robert" },
+  { "lastName": "Spassky", "firstName": "Boris" },
+  { "lastName": "Tal", "firstName": "Mikhail" },
+  { "lastName": "Botvinnik", "firstName": "Mikhail" },
+  { "lastName": "Petrosian", "firstName": "Tigran" },
+  { "lastName": "Kramnik", "firstName": "Vladimir" },
+  { "lastName": "Topalov", "firstName": "Veselin" },
+  { "lastName": "Aronian", "firstName": "Levon" },
+  { "lastName": "Nakamura", "firstName": "Hikaru" },
+  { "lastName": "Caruana", "firstName": "Fabiano" },
+  { "lastName": "Giri", "firstName": "Anish" },
+  { "lastName": "Nepomniachtchi", "firstName": "Ian" },
+  { "lastName": "Ding", "firstName": "Liren" },
+  { "lastName": "Polgar", "firstName": "Judit" },
+  { "lastName": "Hou", "firstName": "Yifan" },
+  { "lastName": "Muzychuk", "firstName": "Anna" }
+]

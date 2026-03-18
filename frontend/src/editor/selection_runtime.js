@@ -23,9 +23,10 @@
  * @param {Function} deps.insertCommentAroundMoveFn - Callback `(pgnModel, moveId, position, rawText) => { model, insertedCommentId, created? }`.
  * @param {Function} deps.removeCommentByIdFn - Callback `(pgnModel, commentId) => model`.
  * @param {Function} deps.setCommentTextByIdFn - Callback `(pgnModel, commentId, text) => model`.
+ * @param {Function} deps.resolveOwningMoveIdForCommentFn - Callback `(pgnModel, commentId) => string|null`.
  * @param {Function} deps.applyPgnModelUpdate - Callback `(nextModel, focusCommentId?, options?) => void`.
  * @param {Function} deps.onRender - Callback to refresh UI.
- * @returns {{focusCommentById: Function, getTextEditorOptions: Function, insertAroundSelectedMove: Function, selectMoveById: Function}} Selection runtime capabilities.
+ * @returns {{focusCommentById: Function, formatFocusedComment: Function, getTextEditorOptions: Function, insertAroundSelectedMove: Function, selectMoveById: Function}} Selection runtime capabilities.
  */
 export const createSelectionRuntimeCapabilities = ({
   state,
@@ -36,6 +37,7 @@ export const createSelectionRuntimeCapabilities = ({
   insertCommentAroundMoveFn,
   removeCommentByIdFn,
   setCommentTextByIdFn,
+  resolveOwningMoveIdForCommentFn,
   applyPgnModelUpdate,
   onRender,
 }) => {
@@ -108,6 +110,34 @@ export const createSelectionRuntimeCapabilities = ({
   };
 
   /**
+   * Apply inline text formatting to current selection inside focused comment.
+   *
+   * @param {"bold"|"italic"|"underline"} style - Formatting style.
+   * @returns {boolean} True when a comment context was found and command executed.
+   */
+  const formatFocusedComment = (style) => {
+    if (!textEditorEl) return false;
+    const allowedStyles = new Set(["bold", "italic", "underline"]);
+    const command = allowedStyles.has(style) ? style : null;
+    if (!command) return false;
+
+    const selection = window.getSelection();
+    let anchorElement = null;
+    if (selection?.anchorNode instanceof Element) {
+      anchorElement = selection.anchorNode;
+    } else if (selection?.anchorNode instanceof Node) {
+      anchorElement = selection.anchorNode.parentElement;
+    } else if (document.activeElement instanceof Element) {
+      anchorElement = document.activeElement;
+    }
+    const commentEl = anchorElement?.closest?.('[data-kind="comment"][contenteditable="true"]') ?? null;
+    if (!(commentEl instanceof HTMLElement)) return false;
+    commentEl.focus();
+    document.execCommand(command);
+    return true;
+  };
+
+  /**
    * Insert comment token around currently selected move.
    *
    * @param {"before"|"after"} position - Relative insertion position.
@@ -135,6 +165,20 @@ export const createSelectionRuntimeCapabilities = ({
         : setCommentTextByIdFn(state.pgnModel, commentId, editedText);
       applyPgnModelUpdate(nextModel);
     },
+    onCommentFocus: (commentId, { hasIntroDirective } = {}) => {
+      if (hasIntroDirective) {
+        state.selectedMoveId = null;
+        state.boardPreview = null;
+        state.animationRunId += 1;
+        state.isAnimating = false;
+        state.currentPly = 0;
+        onRender();
+        return;
+      }
+      const owningMoveId = resolveOwningMoveIdForCommentFn(state.pgnModel, commentId);
+      if (!owningMoveId) return;
+      selectMoveById(owningMoveId);
+    },
     onInsertComment: (moveId, position) => {
       const { model, insertedCommentId, created } = insertCommentAroundMoveFn(state.pgnModel, moveId, position, "");
       state.selectedMoveId = moveId;
@@ -152,6 +196,7 @@ export const createSelectionRuntimeCapabilities = ({
 
   return {
     focusCommentById,
+    formatFocusedComment,
     getTextEditorOptions,
     insertAroundSelectedMove,
     selectMoveById,

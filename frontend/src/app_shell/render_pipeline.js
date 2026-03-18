@@ -87,6 +87,12 @@ export const createAppRenderPipeline = ({
       btnCommentRight: els.btnCommentRight,
       btnLinebreak: els.btnLinebreak,
       btnIndent: els.btnIndent,
+      btnFirstCommentIntro: els.btnFirstCommentIntro,
+      getFirstCommentMetadata: () => (
+        typeof els.getFirstCommentMetadata === "function"
+          ? els.getFirstCommentMetadata()
+          : { exists: false, isIntro: false }
+      ),
       speedValue: els.speedValue,
     });
   };

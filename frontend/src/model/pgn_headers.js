@@ -18,6 +18,19 @@
 const cloneModel = (model) => JSON.parse(JSON.stringify(model));
 
 /**
+ * Required Seven Tag Roster defaults used when missing in a PGN.
+ */
+export const REQUIRED_PGN_TAG_DEFAULTS = {
+  Event: "?",
+  Site: "?",
+  Round: "?",
+  Date: "??.??.????",
+  White: "?",
+  Black: "?",
+  Result: "*",
+};
+
+/**
  * Read a PGN header value by key.
  *
  * @param {object} model - PGN model.
@@ -64,5 +77,22 @@ export const setHeaderValue = (model, key, value) => {
   }
 
   next.headers.push({ key, value: normalizedValue });
+  return next;
+};
+
+/**
+ * Ensure required PGN tags exist on the model.
+ *
+ * @param {object} model - PGN model to normalize.
+ * @param {Record<string, string>} [requiredDefaults=REQUIRED_PGN_TAG_DEFAULTS] - Required key/default map.
+ * @returns {object} Updated model with all required headers present.
+ */
+export const ensureRequiredPgnHeaders = (model, requiredDefaults = REQUIRED_PGN_TAG_DEFAULTS) => {
+  let next = cloneModel(model);
+  Object.entries(requiredDefaults).forEach(([key, fallbackValue]) => {
+    const existing = getHeaderValue(next, key, "");
+    if (existing.trim()) return;
+    next = setHeaderValue(next, key, fallbackValue);
+  });
   return next;
 };

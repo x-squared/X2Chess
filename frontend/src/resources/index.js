@@ -14,6 +14,9 @@
  */
 
 const DEFAULT_APP_CONFIG = {
+  ui: {
+    locale: "en",
+  },
   textEditor: {
     fontSizePx: 14,
     lineHeight: 1.45,
@@ -48,6 +51,31 @@ const deepMergeObject = (base, partial) => {
     merged[key] = shouldRecurse ? deepMergeObject(leftVal, rightVal) : rightVal;
   });
   return merged;
+};
+
+const normalizePlayerNameField = (value) => String(value ?? "").trim();
+
+const normalizePlayerRecord = (record) => {
+  if (!record || typeof record !== "object") return null;
+  const lastName = normalizePlayerNameField(record.lastName || record.name || "");
+  const firstName = normalizePlayerNameField(record.firstName || "");
+  if (!lastName) return null;
+  return { lastName, firstName };
+};
+
+const normalizePlayerRecords = (records) => {
+  const byKey = new Map();
+  (Array.isArray(records) ? records : []).forEach((record) => {
+    const normalized = normalizePlayerRecord(record);
+    if (!normalized) return;
+    const key = `${normalized.lastName.toLowerCase()}|${normalized.firstName.toLowerCase()}`;
+    if (!byKey.has(key)) byKey.set(key, normalized);
+  });
+  return [...byKey.values()].sort((left, right) => {
+    const lastCmp = left.lastName.localeCompare(right.lastName);
+    if (lastCmp !== 0) return lastCmp;
+    return left.firstName.localeCompare(right.firstName);
+  });
 };
 
 /**
@@ -195,6 +223,57 @@ export const createResourcesCapabilities = ({
   gameSelect,
   autosaveDebounceMs = 700,
 }) => {
+  /**
+   * Persist player store into active local data area.
+   *
+   * @param {Array<{lastName: string, firstName: string}>} players - Player records to persist.
+   */
+  const savePlayerStoreToClientData = async (players) => {
+    const normalizedPlayers = normalizePlayerRecords(players);
+    if (!(state.gameRootPath && isTauriRuntime())) return;
+    try {
+      await tauriInvoke("save_player_list", {
+        rootDirectory: state.gameRootPath,
+        content: JSON.stringify(normalizedPlayers, null, 2),
+      });
+    } catch (error) {
+      console.warn("[X2Chess] unable to save player list:", error);
+    }
+  };
+
+  /**
+   * Load player store from active local data area, or seed and persist defaults when absent.
+   *
+   * @param {Array<{lastName: string, firstName: string}>} seedPlayers - Bundled seed player list.
+   * @returns {Promise<Array<{lastName: string, firstName: string}>>} Loaded/initialized player list.
+   */
+  const loadPlayerStoreFromClientData = async (seedPlayers = []) => {
+    const normalizedSeedPlayers = normalizePlayerRecords(seedPlayers);
+    if (!(state.gameRootPath && isTauriRuntime())) {
+      state.playerStore = normalizedSeedPlayers;
+      return state.playerStore;
+    }
+    try {
+      const rawPlayerList = await tauriInvoke("load_player_list", {
+        rootDirectory: state.gameRootPath,
+      });
+      if (rawPlayerList) {
+        const parsed = JSON.parse(String(rawPlayerList));
+        state.playerStore = normalizePlayerRecords(parsed);
+      } else {
+        state.playerStore = normalizedSeedPlayers;
+      }
+    } catch (error) {
+      console.warn("[X2Chess] unable to load player list, using seed list:", error);
+      state.playerStore = normalizedSeedPlayers;
+    }
+    if (state.playerStore.length === 0 && normalizedSeedPlayers.length > 0) {
+      state.playerStore = normalizedSeedPlayers;
+    }
+    await savePlayerStoreToClientData(state.playerStore);
+    return state.playerStore;
+  };
+
   /**
    * Resolve current browser-selected games directory (`games/` or root).
    *
@@ -561,8 +640,10 @@ export const createResourcesCapabilities = ({
   return {
     chooseClientGamesFolder,
     fetchGameFilesFromClientData,
+    loadPlayerStoreFromClientData,
     loadGameByName,
     loadRuntimeConfigFromClientDataAndDefaults,
+    savePlayerStoreToClientData,
     scheduleAutosave,
   };
 };

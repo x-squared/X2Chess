@@ -120,10 +120,176 @@ const makeComment = (id, raw = "") => ({
 });
 
 const INDENT_DIRECTIVE_PREFIX = /^\s*(?:\\i(?:\s+|$))+/;
+const INTRO_DIRECTIVE_PREFIX = /^\s*\\intro(?:\s+|$)/i;
 const withLeadingIndentDirective = (rawText) => {
   const source = String(rawText ?? "");
   if (INDENT_DIRECTIVE_PREFIX.test(source)) return source;
   return source.trim() ? `\\i ${source}` : "\\i";
+};
+
+const hasIntroDirective = (rawText) => INTRO_DIRECTIVE_PREFIX.test(String(rawText ?? ""));
+const stripIntroDirective = (rawText) => String(rawText ?? "")
+  .replace(INTRO_DIRECTIVE_PREFIX, "")
+  .replace(/^\s+/, "");
+const withLeadingIntroDirective = (rawText) => {
+  const stripped = stripIntroDirective(rawText);
+  return stripped ? `\\intro ${stripped}` : "\\intro";
+};
+
+const findFirstCommentInVariation = (variation) => {
+  for (const entry of variation.entries) {
+    if (entry.type === "comment") return entry;
+    if (entry.type === "variation") {
+      const nested = findFirstCommentInVariation(entry);
+      if (nested) return nested;
+      continue;
+    }
+    if (entry.type !== "move") continue;
+    if (Array.isArray(entry.commentsBefore) && entry.commentsBefore.length > 0) return entry.commentsBefore[0];
+    if (Array.isArray(entry.postItems) && entry.postItems.length > 0) {
+      for (const item of entry.postItems) {
+        if (item.type === "comment" && item.comment) return item.comment;
+        if (item.type === "rav" && item.rav) {
+          const nested = findFirstCommentInVariation(item.rav);
+          if (nested) return nested;
+        }
+      }
+    } else {
+      if (Array.isArray(entry.commentsAfter) && entry.commentsAfter.length > 0) return entry.commentsAfter[0];
+      if (Array.isArray(entry.ravs)) {
+        for (const child of entry.ravs) {
+          const nested = findFirstCommentInVariation(child);
+          if (nested) return nested;
+        }
+      }
+    }
+  }
+  if (Array.isArray(variation.trailingComments) && variation.trailingComments.length > 0) {
+    return variation.trailingComments[0];
+  }
+  return null;
+};
+
+/**
+ * Resolve metadata for the earliest comment in PGN traversal order.
+ *
+ * @param {object} model - PGN model root.
+ * @returns {{exists: boolean, commentId: string|null, isIntro: boolean}} First-comment role metadata.
+ */
+export const getFirstCommentMetadata = (model) => {
+  if (!model?.root) return { exists: false, commentId: null, isIntro: false };
+  const firstComment = findFirstCommentInVariation(model.root);
+  if (!firstComment) return { exists: false, commentId: null, isIntro: false };
+  return {
+    exists: true,
+    commentId: firstComment.id ?? null,
+    isIntro: hasIntroDirective(firstComment.raw),
+  };
+};
+
+/**
+ * Set or clear the intro role marker (`\intro`) on the first comment only.
+ *
+ * @param {object} model - PGN model root.
+ * @param {boolean} isIntro - True to enforce intro role, false to clear it.
+ * @returns {object} Updated model, or original model when unchanged.
+ */
+export const setFirstCommentIntroRole = (model, isIntro) => {
+  if (!model?.root) return model;
+  const next = cloneModel(model);
+  const firstComment = findFirstCommentInVariation(next.root);
+  if (!firstComment) return model;
+  const nextRaw = isIntro
+    ? withLeadingIntroDirective(firstComment.raw)
+    : stripIntroDirective(firstComment.raw);
+  if (nextRaw === firstComment.raw) return model;
+  firstComment.raw = nextRaw;
+  firstComment.runs = parseCommentRuns(nextRaw);
+  return next;
+};
+
+/**
+ * Toggle the intro role marker (`\intro`) on the first comment.
+ *
+ * @param {object} model - PGN model root.
+ * @returns {object} Updated model, or original model when first comment is missing.
+ */
+export const toggleFirstCommentIntroRole = (model) => {
+  const meta = getFirstCommentMetadata(model);
+  if (!meta.exists) return model;
+  return setFirstCommentIntroRole(model, !meta.isIntro);
+};
+
+const findNextMoveIdInEntries = (entries, startIdx) => {
+  for (let i = startIdx; i < entries.length; i += 1) {
+    const candidate = entries[i];
+    if (candidate?.type === "move" && candidate.id) return candidate.id;
+  }
+  return null;
+};
+
+const resolveOwningMoveIdInVariation = (variation, commentId, previousMoveId = null) => {
+  let localPreviousMoveId = previousMoveId;
+  for (let idx = 0; idx < variation.entries.length; idx += 1) {
+    const entry = variation.entries[idx];
+    if (entry.type === "comment") {
+      if (entry.id === commentId) {
+        return findNextMoveIdInEntries(variation.entries, idx + 1) || localPreviousMoveId || null;
+      }
+      continue;
+    }
+    if (entry.type === "variation") {
+      const nestedOwner = resolveOwningMoveIdInVariation(entry, commentId, localPreviousMoveId);
+      if (nestedOwner) return nestedOwner;
+      continue;
+    }
+    if (entry.type !== "move") continue;
+    if (Array.isArray(entry.commentsBefore) && entry.commentsBefore.some((comment) => comment.id === commentId)) {
+      return entry.id || null;
+    }
+    if (Array.isArray(entry.commentsAfter) && entry.commentsAfter.some((comment) => comment.id === commentId)) {
+      return entry.id || null;
+    }
+    if (Array.isArray(entry.postItems)) {
+      for (const item of entry.postItems) {
+        if (item.type === "comment" && item.comment?.id === commentId) {
+          return entry.id || null;
+        }
+        if (item.type === "rav" && item.rav) {
+          const nestedOwner = resolveOwningMoveIdInVariation(item.rav, commentId, entry.id || localPreviousMoveId);
+          if (nestedOwner) return nestedOwner;
+        }
+      }
+    } else if (Array.isArray(entry.ravs)) {
+      for (const child of entry.ravs) {
+        const nestedOwner = resolveOwningMoveIdInVariation(child, commentId, entry.id || localPreviousMoveId);
+        if (nestedOwner) return nestedOwner;
+      }
+    }
+    localPreviousMoveId = entry.id || localPreviousMoveId;
+  }
+  if (Array.isArray(variation.trailingComments) && variation.trailingComments.some((comment) => comment.id === commentId)) {
+    return localPreviousMoveId || null;
+  }
+  return null;
+};
+
+/**
+ * Resolve the move id associated with a given comment id.
+ *
+ * Mapping strategy:
+ * - comments before a move -> that move
+ * - comments after a move -> that move
+ * - standalone comments in a variation -> next move if present, else previous move
+ * - trailing variation comments -> last move in that variation
+ *
+ * @param {object} model - PGN model root.
+ * @param {string} commentId - Target comment identifier.
+ * @returns {string|null} Owning move id, or null when no move can be resolved.
+ */
+export const resolveOwningMoveIdForCommentId = (model, commentId) => {
+  if (!model?.root || !commentId) return null;
+  return resolveOwningMoveIdInVariation(model.root, commentId, null);
 };
 
 const getNearestAfterComment = (move) => {

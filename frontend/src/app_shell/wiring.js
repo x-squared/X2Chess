@@ -47,6 +47,9 @@ export const createAppWiringCapabilities = ({ state, t, els, actions }) => {
    * Bind DOM event handlers to host action callbacks.
    */
   const bindDomEvents = () => {
+    const isPlayerNameField = (key) => (
+      typeof actions.isPlayerNameField === "function" ? actions.isPlayerNameField(key) : false
+    );
     if (els.btnFirst) els.btnFirst.addEventListener("click", () => actions.gotoPly(0, { animate: false }));
     if (els.btnPrev) {
       els.btnPrev.addEventListener("click", () => {
@@ -60,12 +63,16 @@ export const createAppWiringCapabilities = ({ state, t, els, actions }) => {
     }
     if (els.btnLast) els.btnLast.addEventListener("click", () => actions.gotoPly(state.moves.length, { animate: false }));
     if (els.btnLoad) els.btnLoad.addEventListener("click", () => actions.loadPgn());
+    if (els.btnCommentBold) els.btnCommentBold.addEventListener("click", () => actions.formatCommentStyle("bold"));
+    if (els.btnCommentItalic) els.btnCommentItalic.addEventListener("click", () => actions.formatCommentStyle("italic"));
+    if (els.btnCommentUnderline) els.btnCommentUnderline.addEventListener("click", () => actions.formatCommentStyle("underline"));
     if (els.btnUndo) els.btnUndo.addEventListener("click", () => actions.performUndo());
     if (els.btnRedo) els.btnRedo.addEventListener("click", () => actions.performRedo());
     if (els.btnCommentLeft) els.btnCommentLeft.addEventListener("click", () => actions.insertAroundSelectedMove("before", ""));
     if (els.btnCommentRight) els.btnCommentRight.addEventListener("click", () => actions.insertAroundSelectedMove("after", ""));
     if (els.btnLinebreak) els.btnLinebreak.addEventListener("click", () => actions.insertAroundSelectedMove("after", "\\n"));
     if (els.btnIndent) els.btnIndent.addEventListener("click", () => actions.insertAroundSelectedMove("after", "\\i"));
+    if (els.btnFirstCommentIntro) els.btnFirstCommentIntro.addEventListener("click", () => actions.toggleFirstCommentIntro());
     if (els.btnDefaultIndent) {
       els.btnDefaultIndent.addEventListener("click", () => {
         actions.applyDefaultIndent();
@@ -106,11 +113,43 @@ export const createAppWiringCapabilities = ({ state, t, els, actions }) => {
     }
     if (Array.isArray(els.gameInfoInputs)) {
       els.gameInfoInputs.forEach((input) => {
-        if (!(input instanceof HTMLInputElement)) return;
+        if (!(input instanceof HTMLInputElement || input instanceof HTMLSelectElement)) return;
+        const key = input.dataset.headerKey;
+        if (!key) return;
+        if (input instanceof HTMLInputElement && isPlayerNameField(key)) {
+          input.addEventListener("input", (event) => {
+            actions.handlePlayerNameInput(key, input, event);
+          });
+          input.addEventListener("keydown", (event) => {
+            actions.handlePlayerNameKeydown(event, key, input);
+          });
+          input.addEventListener("blur", () => {
+            actions.commitPlayerNameInput(key, input.value);
+          });
+        }
         input.addEventListener("change", () => {
-          const key = input.dataset.headerKey;
-          if (!key) return;
+          if (input instanceof HTMLInputElement && isPlayerNameField(key)) {
+            actions.commitPlayerNameInput(key, input.value);
+            return;
+          }
           actions.updateGameInfoHeader(key, input.value);
+        });
+      });
+    }
+    if (Array.isArray(els.gameInfoSuggestionEls)) {
+      els.gameInfoSuggestionEls.forEach((container) => {
+        if (!(container instanceof HTMLElement)) return;
+        const fieldKey = container.dataset.playerSuggestionsFor;
+        if (!fieldKey) return;
+        container.addEventListener("mousedown", (event) => {
+          event.preventDefault();
+          const target = event.target;
+          if (!(target instanceof HTMLElement)) return;
+          const optionEl = target.closest("[data-player-suggestion-value]");
+          if (!(optionEl instanceof HTMLElement)) return;
+          const playerName = optionEl.dataset.playerSuggestionValue;
+          if (!playerName) return;
+          actions.pickPlayerNameSuggestion(fieldKey, playerName);
         });
       });
     }
@@ -126,9 +165,11 @@ export const createAppWiringCapabilities = ({ state, t, els, actions }) => {
   const startApp = () => {
     void actions.hydrateVisualAssets();
     actions.loadRuntimeConfigFromClientDataAndDefaults().then(() => {
-      actions.ensureBoard().then(() => initializeGameLibrary().then((loadedGame) => {
-        if (!loadedGame && !state.selectedGameFile) actions.initializeWithDefaultPgn();
-      }));
+      actions.loadPlayerStore().then(() => {
+        actions.ensureBoard().then(() => initializeGameLibrary().then((loadedGame) => {
+          if (!loadedGame && !state.selectedGameFile) actions.initializeWithDefaultPgn();
+        }));
+      });
     });
   };
 

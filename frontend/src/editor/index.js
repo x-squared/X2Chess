@@ -20,13 +20,22 @@
 export { text_editor } from "./text_editor";
 export { parsePgnToModel } from "../model/pgn_model";
 export { serializeModelToPgn } from "../model/pgn_serialize";
-export { resolveEcoOpeningName } from "../model";
+export {
+  ECO_OPENING_CODES,
+  REQUIRED_PGN_TAG_DEFAULTS,
+  ensureRequiredPgnHeaders,
+  resolveEcoOpeningName,
+} from "../model";
 export {
   applyDefaultIndentDirectives,
   findExistingCommentIdAroundMove,
+  getFirstCommentMetadata,
   getHeaderValue,
   insertCommentAroundMove,
   removeCommentById,
+  resolveOwningMoveIdForCommentId,
+  setFirstCommentIntroRole,
   setHeaderValue,
   setCommentTextById,
+  toggleFirstCommentIntroRole,
 } from "../model";

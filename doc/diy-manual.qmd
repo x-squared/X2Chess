@@ -6,7 +6,7 @@ Use this from repository root unless a section says otherwise.
 
 ## Quick Start (Most Used)
 
-> Note: Tauri desktop client is primary. Browser client is the alternative.
+> Note: Browser mode is not used in this project. X2Chess runs as a Tauri desktop client.
 > Note: X2Chess frontend uses port `5287`.
 
 ### 1) Check and remove stale dev processes (recommended before start)
@@ -43,19 +43,6 @@ npm run desktop:dev
 ```
 
 > Note: `desktop:dev` starts its own frontend dev server.
-
-### 3) (Alternative) Start browser fat-client only (Terminal B)
-
-```{bash}
-cd frontend
-npm run dev
-```
-
-### 4) Open browser client (if using browser mode)
-
-```{bash}
-open http://localhost:5287
-```
 
 ## Useful Scripts
 

@@ -72,7 +72,10 @@ const createCommentEl = (token, options) => {
 
 const syncCommentEl = (el, token, options) => {
   const isHighlighted = options?.highlightCommentId && options.highlightCommentId === token.commentId;
-  syncClassName(el, `text-editor-comment-block text-editor-comment${isHighlighted ? " text-editor-comment-new" : ""}`);
+  syncClassName(
+    el,
+    `text-editor-comment-block text-editor-comment${token.hasIntroDirective ? " text-editor-comment-intro" : ""}${isHighlighted ? " text-editor-comment-new" : ""}`,
+  );
   syncDataset(el, {
     kind: "comment",
     tokenType: "comment",
@@ -80,11 +83,20 @@ const syncCommentEl = (el, token, options) => {
     commentId: token.commentId,
     hasIndentDirective: token.hasIndentDirective ? "true" : "false",
     indentDirectiveDepth: String(token.indentDirectiveDepth || 0),
+    hasIntroDirective: token.hasIntroDirective ? "true" : "false",
   });
   el.contentEditable = "true";
   el.spellcheck = false;
   el.onclick = null;
+  el.onfocus = null;
   if (el.innerHTML !== rawCommentToHtml(token.text)) el.innerHTML = rawCommentToHtml(token.text);
+  if (options?.onCommentFocus) {
+    el.onfocus = () => {
+      options.onCommentFocus(token.commentId, {
+        hasIntroDirective: Boolean(token.hasIntroDirective),
+      });
+    };
+  }
   el.onkeydown = (event) => {
     if (event.key === "Tab") {
       event.preventDefault();
@@ -112,12 +124,13 @@ const syncCommentEl = (el, token, options) => {
   if (options?.onCommentEdit) {
     el.onblur = () => {
       const nextDisplay = htmlCommentToRaw(el);
-      const nextValue = token.hasIndentDirective
-        ? (
-          nextDisplay.trim()
-            ? `${"\\i ".repeat(Math.max(1, Number(token.indentDirectiveDepth) || 1))}${nextDisplay}`
-            : ""
-        )
+      const prefixParts = [];
+      if (token.hasIntroDirective) prefixParts.push("\\intro");
+      if (token.hasIndentDirective) {
+        prefixParts.push(...Array(Math.max(1, Number(token.indentDirectiveDepth) || 1)).fill("\\i"));
+      }
+      const nextValue = nextDisplay.trim() && prefixParts.length > 0
+        ? `${prefixParts.join(" ")} ${nextDisplay}`
         : nextDisplay;
       if (nextValue === (token.rawText ?? token.text)) return;
       options.onCommentEdit(token.commentId, nextValue);

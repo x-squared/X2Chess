@@ -25,9 +25,11 @@
  * @param {HTMLInputElement|null} deps.speedInput - Move-speed range input.
  * @param {HTMLElement|null} deps.speedValue - Move-speed value label.
  * @param {HTMLInputElement|null} deps.soundInput - Sound toggle input.
+ * @param {HTMLSelectElement|null} deps.localeInput - Locale selector input.
  * @param {Function} deps.onHandleSelectedMoveArrowHotkey - Callback `(event) => boolean`.
  * @param {Function} deps.onUndo - Callback invoked for undo shortcut.
  * @param {Function} deps.onRedo - Callback invoked for redo shortcut.
+ * @param {Function} deps.onChangeLocale - Callback `(localeCode) => void`.
  * @returns {{setMenuOpen: Function, bindShellEvents: Function}} App shell capabilities.
  */
 export const createAppShellCapabilities = ({
@@ -40,9 +42,11 @@ export const createAppShellCapabilities = ({
   speedInput,
   speedValue,
   soundInput,
+  localeInput,
   onHandleSelectedMoveArrowHotkey,
   onUndo,
   onRedo,
+  onChangeLocale,
 }) => {
   /**
    * Toggle menu open state and synchronize shell DOM attributes.
@@ -96,6 +100,13 @@ export const createAppShellCapabilities = ({
     if (soundInput) {
       soundInput.addEventListener("change", () => {
         state.soundEnabled = soundInput.checked;
+      });
+    }
+    if (localeInput) {
+      localeInput.addEventListener("change", () => {
+        const localeCode = String(localeInput.value || "").trim();
+        if (!localeCode || localeCode === state.locale) return;
+        onChangeLocale(localeCode);
       });
     }
 

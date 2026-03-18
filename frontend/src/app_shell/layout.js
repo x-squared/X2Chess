@@ -1,4 +1,5 @@
-import { GAME_INFO_HEADER_FIELDS } from "./game_info";
+import { GAME_INFO_HEADER_FIELDS, PLAYER_NAME_HEADER_KEYS } from "./game_info";
+import { SUPPORTED_LOCALES } from "./i18n";
 
 /**
  * App shell layout component.
@@ -19,22 +20,51 @@ import { GAME_INFO_HEADER_FIELDS } from "./game_info";
  * @param {object} deps - Layout dependencies.
  * @param {Function} deps.t - Translation callback `(key, fallback) => string`.
  * @param {string} deps.buildTimestampLabel - Human-readable build timestamp.
+ * @param {string} deps.currentLocale - Active locale code used for initial locale selector value.
  * @returns {object} Queried DOM references used by runtime components.
  */
-export const createAppLayout = ({ t, buildTimestampLabel }) => {
+export const createAppLayout = ({ t, buildTimestampLabel, currentLocale }) => {
   const app = document.querySelector("#app");
   if (!app) throw new Error("App root missing.");
-  const gameInfoEditorFieldsMarkup = GAME_INFO_HEADER_FIELDS.map((field) => `
-    <label class="game-info-editor-field" for="game-info-${field.key.toLowerCase()}">
-      <span>${field.label}</span>
+  const gameInfoEditorFieldsMarkup = GAME_INFO_HEADER_FIELDS.map((field) => {
+    const id = `game-info-${field.key.toLowerCase()}`;
+    const control = field.control || "text";
+    const placeholder = field.placeholder || field.label;
+    const controlMarkup = control === "select"
+      ? `
+      <select id="${id}" data-header-key="${field.key}">
+        ${(field.options || []).map((optionValue) => `
+          <option value="${optionValue}">${optionValue || "-"}</option>
+        `).join("")}
+      </select>
+    `
+      : `
       <input
-        id="game-info-${field.key.toLowerCase()}"
-        type="text"
+        id="${id}"
+        type="${control === "number" ? "number" : "text"}"
         data-header-key="${field.key}"
-        placeholder="${field.label}"
+        ${PLAYER_NAME_HEADER_KEYS.includes(field.key) ? 'data-player-name-input="true"' : ""}
+        placeholder="${placeholder}"
+        ${control === "number" ? 'inputmode="numeric" step="1" min="0"' : ""}
       />
-    </label>
-  `).join("");
+    `;
+    const suggestionsMarkup = PLAYER_NAME_HEADER_KEYS.includes(field.key)
+      ? `
+        <div
+          class="game-info-player-suggestions"
+          data-player-suggestions-for="${field.key}"
+          hidden
+        ></div>
+      `
+      : "";
+    return `
+      <label class="game-info-editor-field" for="${id}">
+        <span>${field.label}</span>
+        ${controlMarkup}
+        ${suggestionsMarkup}
+      </label>
+    `;
+  }).join("");
 
   app.innerHTML = `
     <main class="app">
@@ -56,16 +86,26 @@ export const createAppLayout = ({ t, buildTimestampLabel }) => {
             <input id="sound-input" type="checkbox" checked />
             ${t("controls.sound", "Sound")}
           </label>
+          <label class="inline-control">
+            ${t("controls.language", "Language")}
+            <select id="locale-input">
+              ${SUPPORTED_LOCALES.map((localeCode) => (
+    `<option value="${localeCode}" ${localeCode === currentLocale ? "selected" : ""}>${localeCode.toUpperCase()}</option>`
+  )).join("")}
+            </select>
+          </label>
+        </div>
+        <div class="app-menu-footer">
+          <span
+            id="runtime-build-badge"
+            class="runtime-build-badge"
+            title="Build timestamp (used to detect stale windows)"
+          >
+            Build ${buildTimestampLabel}
+          </span>
         </div>
       </aside>
       <section class="app-panel">
-        <span
-          id="runtime-build-badge"
-          class="runtime-build-badge"
-          title="Build timestamp (used to detect stale windows)"
-        >
-          Build ${buildTimestampLabel}
-        </span>
         <button
           id="btn-menu"
           class="menu-trigger"
@@ -81,7 +121,7 @@ export const createAppLayout = ({ t, buildTimestampLabel }) => {
             <div class="game-info-summary-grid">
               <p class="game-info-item">
                 <span class="game-info-label">${t("gameInfo.players", "Players")}</span>
-                <span id="game-info-players-value" class="game-info-value">-</span>
+                <span id="game-info-players-value" class="game-info-value game-info-players-value">-</span>
               </p>
               <p class="game-info-item">
                 <span class="game-info-label">${t("gameInfo.event", "Event")}</span>
@@ -134,6 +174,18 @@ export const createAppLayout = ({ t, buildTimestampLabel }) => {
                   </button>
                 </div>
                 <div class="toolbar-group toolbar-group-edit">
+                  <button id="btn-comment-bold" class="icon-button icon-button-text icon-button-format" type="button" title="${t("toolbar.commentBold", "Bold comment text")}" aria-label="${t("toolbar.commentBold", "Bold comment text")}">
+                    <strong>B</strong>
+                  </button>
+                  <button id="btn-comment-italic" class="icon-button icon-button-text icon-button-format" type="button" title="${t("toolbar.commentItalic", "Italic comment text")}" aria-label="${t("toolbar.commentItalic", "Italic comment text")}">
+                    <em>I</em>
+                  </button>
+                  <button id="btn-comment-underline" class="icon-button icon-button-text icon-button-format" type="button" title="${t("toolbar.commentUnderline", "Underline comment text")}" aria-label="${t("toolbar.commentUnderline", "Underline comment text")}">
+                    <u>U</u>
+                  </button>
+                  <button id="btn-first-comment-intro" class="icon-button icon-button-text" type="button" title="${t("toolbar.firstCommentIntro", "First comment intro")}" aria-label="${t("toolbar.firstCommentIntro", "First comment intro")}" aria-pressed="false">
+                    ${t("toolbar.introShort", "Intro")}
+                  </button>
                   <button id="btn-comment-left" class="icon-button" type="button" title="${t("toolbar.commentLeft", "Insert comment left")}">
                     <img src="/icons/toolbar/comment-left.svg" alt="${t("toolbar.commentLeft", "Insert comment left")}" />
                   </button>
@@ -211,7 +263,11 @@ export const createAppLayout = ({ t, buildTimestampLabel }) => {
     btnUndo: document.querySelector("#btn-undo"),
     btnRedo: document.querySelector("#btn-redo"),
     btnLoad: document.querySelector("#btn-load"),
+    btnCommentBold: document.querySelector("#btn-comment-bold"),
+    btnCommentItalic: document.querySelector("#btn-comment-italic"),
+    btnCommentUnderline: document.querySelector("#btn-comment-underline"),
     btnDefaultIndent: document.querySelector("#btn-default-indent"),
+    btnFirstCommentIntro: document.querySelector("#btn-first-comment-intro"),
     btnCommentLeft: document.querySelector("#btn-comment-left"),
     btnCommentRight: document.querySelector("#btn-comment-right"),
     btnLinebreak: document.querySelector("#btn-linebreak"),
@@ -219,6 +275,7 @@ export const createAppLayout = ({ t, buildTimestampLabel }) => {
     speedInput: document.querySelector("#speed-input"),
     speedValue: document.querySelector("#speed-value"),
     soundInput: document.querySelector("#sound-input"),
+    localeInput: document.querySelector("#locale-input"),
     gameSelect: document.querySelector("#game-select"),
     btnPickGamesFolder: document.querySelector("#btn-pick-games-folder"),
     saveStatusEl: document.querySelector("#save-status"),
@@ -234,6 +291,7 @@ export const createAppLayout = ({ t, buildTimestampLabel }) => {
     gameInfoEventValueEl: document.querySelector("#game-info-event-value"),
     gameInfoDateValueEl: document.querySelector("#game-info-date-value"),
     gameInfoOpeningValueEl: document.querySelector("#game-info-opening-value"),
+    gameInfoSuggestionEls: Array.from(document.querySelectorAll("[data-player-suggestions-for]")),
     gameInfoInputs: Array.from(document.querySelectorAll("[data-header-key]")),
     textEditorEl: document.querySelector("#text-editor"),
     astViewEl: document.querySelector("#ast-view"),

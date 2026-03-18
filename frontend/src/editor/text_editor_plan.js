@@ -22,6 +22,7 @@ const createPlanState = () => ({
   blockIndex: 0,
   tokenIndex: 0,
   indentDepth: 0,
+  firstCommentId: null,
 });
 
 const currentBlock = (state) => state.blocks[state.blocks.length - 1];
@@ -100,6 +101,7 @@ const addCommentToken = (
   rawText,
   hasIndentDirective = false,
   indentDirectiveDepth = 0,
+  hasIntroDirective = false,
 ) => {
   const block = currentBlock(state);
   block.tokens.push({
@@ -110,11 +112,13 @@ const addCommentToken = (
     rawText,
     hasIndentDirective,
     indentDirectiveDepth,
+    hasIntroDirective,
     text,
   });
 };
 
 const INDENT_BLOCK_DIRECTIVE_PREFIX = /^\s*(?:\\i(?:\s+|$))+/;
+const INTRO_DIRECTIVE_PREFIX = /^\s*\\intro(?:\s+|$)/i;
 const getIndentDirectiveDepth = (comment) => {
   const raw = String(comment?.raw ?? "");
   const match = raw.match(INDENT_BLOCK_DIRECTIVE_PREFIX);
@@ -123,15 +127,23 @@ const getIndentDirectiveDepth = (comment) => {
   return tokens ? tokens.length : 0;
 };
 const hasIndentBlockDirective = (comment) => getIndentDirectiveDepth(comment) > 0;
+const hasIntroDirective = (comment) => INTRO_DIRECTIVE_PREFIX.test(String(comment?.raw ?? ""));
+const stripIntroDirective = (rawText) => String(rawText ?? "")
+  .replace(INTRO_DIRECTIVE_PREFIX, "")
+  .replace(/^\s+/, "");
 const stripIndentDirectives = (rawText) => String(rawText ?? "")
   .replace(INDENT_BLOCK_DIRECTIVE_PREFIX, "")
   .replace(/^\s+/, "");
 
 const addComment = (state, comment) => {
   const rawText = String(comment.raw ?? "");
+  const isFirstComment = !state.firstCommentId;
+  if (isFirstComment) state.firstCommentId = comment.id;
+  const introDirective = isFirstComment && hasIntroDirective(comment);
+  const withoutIntro = introDirective ? stripIntroDirective(rawText) : rawText;
   const indentDirectiveDepth = getIndentDirectiveDepth(comment);
   const hasIndentDirective = indentDirectiveDepth > 0;
-  const visibleText = hasIndentDirective ? stripIndentDirectives(rawText) : rawText;
+  const visibleText = hasIndentDirective ? stripIndentDirectives(withoutIntro) : withoutIntro;
   addCommentToken(
     state,
     comment,
@@ -139,6 +151,7 @@ const addComment = (state, comment) => {
     rawText,
     hasIndentDirective,
     indentDirectiveDepth,
+    introDirective,
   );
   addSpace(state);
 };

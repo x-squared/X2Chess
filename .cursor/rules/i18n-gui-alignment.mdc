@@ -1,0 +1,14 @@
+---
+description: Enforce i18n usage and locale bundle alignment for GUI changes
+alwaysApply: true
+---
+
+# i18n GUI Alignment
+
+- Always use the app i18n mechanism for user-facing GUI text.
+- Do not hardcode visible UI strings in layout/components; use translation keys and `t(...)`.
+- When introducing or changing GUI text, update locale bundles in `frontend/data/i18n/` in the same change.
+- Keep locale key sets aligned across `en`, `de`, `fr`, `it`, and `es`.
+- Preserve hybrid policy:
+  - UI strings in per-language i18n files.
+  - Domain vocabularies (for example ECO names) as side-by-side multilingual domain data.

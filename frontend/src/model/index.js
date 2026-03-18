@@ -17,12 +17,21 @@
 
 export { parsePgnToModel, parseCommentRuns } from "./pgn_model";
 export { serializeModelToPgn } from "./pgn_serialize";
-export { resolveEcoOpeningName } from "./eco_openings";
+export { ECO_OPENING_CODES, resolveEcoOpeningName } from "./eco_openings";
 export {
   applyDefaultIndentDirectives,
   findExistingCommentIdAroundMove,
+  getFirstCommentMetadata,
   insertCommentAroundMove,
   removeCommentById,
+  resolveOwningMoveIdForCommentId,
   setCommentTextById,
+  setFirstCommentIntroRole,
+  toggleFirstCommentIntroRole,
 } from "./pgn_commands";
-export { getHeaderValue, setHeaderValue } from "./pgn_headers";
+export {
+  REQUIRED_PGN_TAG_DEFAULTS,
+  ensureRequiredPgnHeaders,
+  getHeaderValue,
+  setHeaderValue,
+} from "./pgn_headers";

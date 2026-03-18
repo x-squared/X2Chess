@@ -1,0 +1,11 @@
+---
+description: Keep main.js as composition root only
+alwaysApply: true
+---
+
+# main.js Composition Boundary
+
+- Treat `frontend/src/main.js` as a thin composition root.
+- Do not add feature logic, parsing, UI behavior, or stateful helpers to `main.js` unless strictly necessary.
+- Prefer creating or extending focused components under existing domains (for example `app_shell`, `editor`, `board`, `resources`, `model`) and only wire them in `main.js`.
+- Before changing `main.js`, first evaluate whether the change can be implemented in a component module and composed from `main.js`.

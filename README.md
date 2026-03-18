@@ -1,4 +1,4 @@
-# Chess-App
+# X2Chess
 
 Runnable chess PGN viewer baseline.
 

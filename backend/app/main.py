@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 
-app = FastAPI(title="Chess-App")
+app = FastAPI(title="X2Chess")
 
 
 @app.get("/health")
 def health():
-    return {"ok": True, "app": "Chess-App"}
+    return {"ok": True, "app": "X2Chess"}

@@ -1,39 +1,40 @@
 # DIY Manual
 
-Practical command cookbook for running Chess-App end-to-end from terminal cells (including Quarto).
+Practical command cookbook for running X2Chess end-to-end from terminal cells (including Quarto).
 
 Use this from repository root unless a section says otherwise.
 
 ## Quick Start (Most Used)
 
 > Note: Start backend and frontend in separate terminals because both commands are long-running.
+> Note: X2Chess backend uses port `8011` so it does not collide with TPLK backend (`8000`).
 
 ### 1) Check and remove stale dev processes (recommended before start)
 
 ```{bash}
-cd /Users/stephan/Workspace/AppSpace/Chess-App
+cd /Users/stephan/Workspace/X2Chess
 echo "Before cleanup:"
-lsof -i tcp:8000 || true
+lsof -i tcp:8011 || true
 lsof -i tcp:5173 || true
 
 # Graceful stop first
-lsof -ti tcp:8000 | xargs -r kill -15
+lsof -ti tcp:8011 | xargs -r kill -15
 lsof -ti tcp:5173 | xargs -r kill -15
 sleep 1
 
 # If still running, force stop
-lsof -ti tcp:8000 | xargs -r kill -9
+lsof -ti tcp:8011 | xargs -r kill -9
 lsof -ti tcp:5173 | xargs -r kill -9
 
 echo "After cleanup:"
-lsof -i tcp:8000 || true
+lsof -i tcp:8011 || true
 lsof -i tcp:5173 || true
 ```
 
 ### 2) Start backend (Terminal A)
 
 ```{bash}
-cd /Users/stephan/Workspace/AppSpace/Chess-App/backend
+cd /Users/stephan/Workspace/X2Chess/backend
 
 # Optional: first-time setup
 # python3 -m venv .venv
@@ -41,13 +42,13 @@ cd /Users/stephan/Workspace/AppSpace/Chess-App/backend
 # pip install -r requirements.txt
 
 source .venv/bin/activate
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --port 8011
 ```
 
 ### 3) Start frontend (Terminal B)
 
 ```{bash}
-cd /Users/stephan/Workspace/AppSpace/Chess-App/frontend
+cd /Users/stephan/Workspace/X2Chess/frontend
 
 # Optional: first-time setup
 # npm install
@@ -58,7 +59,7 @@ npm run dev
 ### 4) Verify both services are up
 
 ```{bash}
-curl -sS http://localhost:8000/health
+curl -sS http://localhost:8011/health
 open http://localhost:5173
 ```
 
@@ -67,27 +68,27 @@ open http://localhost:5173
 ### Install/update dependencies
 
 ```{bash}
-cd /Users/stephan/Workspace/AppSpace/Chess-App/backend
+cd /Users/stephan/Workspace/X2Chess/backend
 source .venv/bin/activate
 pip install -r requirements.txt
 
-cd /Users/stephan/Workspace/AppSpace/Chess-App/frontend
+cd /Users/stephan/Workspace/X2Chess/frontend
 npm install
 ```
 
 ### Build frontend for production
 
 ```{bash}
-cd /Users/stephan/Workspace/AppSpace/Chess-App/frontend
+cd /Users/stephan/Workspace/X2Chess/frontend
 npm run build
 ```
 
 ### Run backend only (without auto-reload)
 
 ```{bash}
-cd /Users/stephan/Workspace/AppSpace/Chess-App/backend
+cd /Users/stephan/Workspace/X2Chess/backend
 source .venv/bin/activate
-uvicorn app.main:app --host 0.0.0.0 --port 8000
+uvicorn app.main:app --host 0.0.0.0 --port 8011
 ```
 
 ### Quick health check loop
@@ -95,7 +96,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```{bash}
 while true; do
   date
-  curl -sS http://localhost:8000/health || echo "backend not reachable"
+  curl -sS http://localhost:8011/health || echo "backend not reachable"
   sleep 2
 done
 ```
@@ -103,6 +104,6 @@ done
 ### Stop local dev services quickly
 
 ```{bash}
-lsof -ti tcp:8000 | xargs -r kill -9
+lsof -ti tcp:8011 | xargs -r kill -9
 lsof -ti tcp:5173 | xargs -r kill -9
 ```

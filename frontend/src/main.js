@@ -15,7 +15,7 @@ import { serializeModelToPgn } from "./pgn_serialize";
 import { ast_view } from "./ast_view";
 
 const translations = {
-  "app.title": "Chess PGN Viewer",
+  "app.title": "X2Chess PGN Viewer",
   "controls.first": "|<",
   "controls.prev": "<",
   "controls.next": ">",
@@ -239,7 +239,7 @@ if (!app) throw new Error("App root missing.");
 
 app.innerHTML = `
   <main class="app">
-    <h1>${t("app.title", "Chess PGN Viewer")}</h1>
+    <h1>${t("app.title", "X2Chess PGN Viewer")}</h1>
     <section class="app-panel">
       <div class="board-editor-box">
         <div id="board" class="board merida"></div>

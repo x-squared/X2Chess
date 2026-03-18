@@ -1,0 +1,33 @@
+---
+description: Require public intent docs and parameter documentation in source code
+alwaysApply: true
+---
+
+# Public Code Documentation Rule
+
+All source code must include public documentation that explains intent and behavior.
+
+## Required documentation for changed/new code
+
+- Every public source file must include a short top-level doc comment describing:
+  - the file's intent,
+  - the main responsibilities,
+  - important side effects (if any).
+- Every public function/method must include a doc comment that explains:
+  - purpose and behavior,
+  - all parameters (name, meaning, and expected shape/range),
+  - return value,
+  - side effects and error behavior when relevant.
+- For classes/components/modules, document the integration, configuration, and communication APIs.
+
+## Parameter documentation policy
+
+- Document all parameters explicitly; do not skip optional/defaulted parameters.
+- For callbacks, document callback signature and when it is invoked.
+- For structured objects, document expected keys and constraints.
+
+## Delivery checks before finalizing changes
+
+- New/updated source files include top-level intent comments.
+- New/updated public functions and methods include parameter docs.
+- Documentation reflects current behavior after refactors.

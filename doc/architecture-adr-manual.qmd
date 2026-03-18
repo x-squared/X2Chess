@@ -1,0 +1,117 @@
+# X2Chess Architecture ADR Manual
+
+Last updated: 2026-03-18
+
+## Purpose
+
+This manual contains Architecture Decision Records (ADRs): why major architectural choices were made and their implications.
+
+## ADR-001: Fat-client-first browser runtime
+- Status: Accepted
+- Date: 2026-03-18
+- Decision:
+  - The primary/full runtime is a browser-based fat client executed locally.
+  - Client behavior and core interaction logic remain client-side first.
+- Implication:
+  - New features must be evaluated first for local browser execution.
+
+## ADR-002: Remote-launch, local-execution delivery
+- Status: Accepted
+- Date: 2026-03-18
+- Decision:
+  - Client assets may be launched/delivered from remote servers.
+  - Execution remains local in browser/app runtime; backend does not own UI execution flow.
+- Implication:
+  - Deployment flexibility is improved without server-side UI lock-in.
+
+## ADR-003: Resource model combines local and remote sources
+- Status: Accepted
+- Date: 2026-03-18
+- Decision:
+  - The client uses local resources (storage/cache/local processing) as first-class capabilities.
+  - The client integrates remote resources through explicit adapters/integration boundaries.
+- Implication:
+  - Resource access remains composable and environment-aware.
+
+## ADR-004: Full client and reduced app-profile from one codebase
+- Status: Accepted
+- Date: 2026-03-18
+- Decision:
+  - Keep one shared UI/domain codebase in `frontend/src`.
+  - Deliver a full fat-client browser profile and a reduced app-profile via Tauri shell.
+- Implication:
+  - Feature boundaries between full and reduced profiles must be explicit.
+
+## ADR-005: PGN model as canonical editor state
+- Status: Accepted
+- Date: 2026-03-18
+- Decision:
+  - Parse text into a model (`parsePgnToModel`) and serialize it back (`serializeModelToPgn`).
+  - Editing commands operate on the model first, then sync UI.
+- Implication:
+  - Model transformation quality is central for correctness and undo/redo behavior.
+
+## ADR-006: Visual asset resilience strategy
+- Status: Accepted
+- Date: 2026-03-18
+- Decision:
+  - Attempt remote asset hydration first.
+  - Fall back to local cache or bundled local assets.
+- Implication:
+  - Full and reduced profiles remain visually functional even without network.
+
+## ADR-007: Component-Contract required for components
+- Status: Accepted
+- Date: 2026-03-18
+- Decision:
+  - Components, especially GUI components, must expose an identifiable Integration API, Configuration API, and Communication API.
+  - Public API behavior must be documented in code-level public documentation.
+- Implication:
+  - Component integration and evolution remain explicit, testable, and maintainable.
+
+## ADR-008: Professional default CSS with user-adaptable theming
+- Status: Accepted
+- Date: 2026-03-18
+- Decision:
+  - The default UI style must remain clean and professional.
+  - CSS architecture must support future user adaptation through explicit theming extension points (tokens/CSS variables or equivalent).
+- Implication:
+  - Visual consistency is preserved while allowing controlled personalization.
+
+## ADR-009: Scenario-based local runtime data root
+- Status: Accepted
+- Date: 2026-03-18
+- Decision:
+  - Store local runtime data under top-level `run/` for `DEV` and `TEST`.
+  - Production (`PROD`) resolves to explicit production data root (`X2CHESS_PROD_DATA_ROOT`), or OS app-data default when not set.
+  - Development defaults to `run/DEV` and scenario can be switched via `X2CHESS_RUN_SCENARIO`.
+- Implication:
+  - Local runs remain organized while production avoids repo-relative data coupling.
+
+## ADR-010: Client-owned game file library with autosave
+- Status: Accepted
+- Date: 2026-03-18
+- Decision:
+  - Active game files are loaded from `run/<SCENARIO>/games`.
+  - UI exposes game selection dropdown and autosaves edits back to selected file.
+  - Resource loading/saving is implemented in client runtime via local file APIs (folder selection + file handles).
+- Implication:
+  - Editing workflow remains file-backed and scenario-aware without backend mediation.
+
+## ADR-011: Layered runtime configuration with partial user overrides
+- Status: Accepted
+- Date: 2026-03-18
+- Decision:
+  - Keep one default config bundled in client code.
+  - Allow user overrides as partial config in active data area (`config/user-config.json`).
+  - Resolve effective config by deep-merge of default + user override.
+  - Start with text editor settings in this runtime config contract.
+- Implication:
+  - Defaults remain stable while users can personalize behavior entirely through client-owned local data.
+
+## Change Log
+
+- 2026-03-18:
+  - Initial ADR set captured from architecture evolution history.
+  - Includes runtime/storage, UI/component, delivery, and config decisions through ADR-011.
+  - Updated ADR-010 and ADR-011 to enforce client-owned local resource handling.

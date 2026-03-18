@@ -1,0 +1,26 @@
+---
+description: Enforce professional CSS quality and user-adaptable theming
+alwaysApply: true
+---
+
+# UI Style and Theming Rule
+
+CSS must produce a clean, professional visual design as the default experience.
+
+## Style quality requirements
+
+- Maintain consistent spacing, typography, and visual hierarchy.
+- Keep component styles coherent and avoid ad-hoc one-off visual behavior.
+- Preserve readability, contrast, and interaction clarity for common states (default/hover/active/disabled/focus).
+
+## User style adaptation requirements
+
+- Build styles so user adaptation can be added cleanly (theme tokens, CSS custom properties, or equivalent).
+- Keep style decisions configurable through explicit theme variables, not scattered hard-coded values.
+- Define clear extension points for future user-selected themes/modes without breaking defaults.
+
+## Delivery checklist (substantial UI/CSS changes)
+
+- Confirm the default look remains clean and professional.
+- Confirm new styles are compatible with planned user adaptation points.
+- Update public style/theming documentation when style APIs or tokens change.

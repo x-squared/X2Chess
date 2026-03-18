@@ -1,0 +1,23 @@
+---
+description: Enforce setup manual updates for environment/toolchain changes
+alwaysApply: true
+---
+
+# Setup Manual Maintenance Rule
+
+Use `doc/setup-manual.qmd` as the source of truth for environment and toolchain setup.
+
+## End-of-step checklist (run before completing any substantial work step)
+
+- Check whether changes affect environment prerequisites, toolchains, package managers, scripts, or setup commands.
+- If yes, update `doc/setup-manual.qmd` in the same step:
+  - Update "Last updated" date.
+  - Update prerequisites and install steps.
+  - Update runnable setup scripts and verification commands.
+- Verify setup commands still match current repository layout and scripts.
+- If setup impact is none, explicitly confirm no setup-manual update is required.
+
+## Documentation discipline
+
+- Keep setup steps copy-paste ready and platform-scoped when needed.
+- Reference setup instructions from other manuals instead of duplicating them.

@@ -1,0 +1,23 @@
+---
+description: Enforce user manual updates for user-facing behavior changes
+alwaysApply: true
+---
+
+# User Manual Maintenance Rule
+
+Use `doc/user-manual.qmd` as the source of truth for user-facing behavior.
+
+## End-of-step checklist (run before completing any substantial work step)
+
+- Check whether changes affect user-visible UI, workflows, labels, controls, shortcuts, or behavior.
+- If yes, update `doc/user-manual.qmd` in the same step:
+  - Update "Last updated" date.
+  - Update relevant usage instructions and examples.
+  - Remove instructions that no longer match current behavior.
+- If user flows changed significantly, include a short migration note in the manual.
+- If no user-facing impact exists, explicitly confirm no user-manual update is required.
+
+## Documentation discipline
+
+- Write for end users, not implementers.
+- Prefer step-by-step instructions and concrete action/result phrasing.

@@ -1,3 +1,14 @@
+/**
+ * Text editor render planning.
+ *
+ * Intent:
+ * - Convert PGN model structure into normalized editor render blocks/tokens.
+ * - Preserve move/comment/variation semantics and inline formatting hints.
+ *
+ * Integration API:
+ * - `buildTextEditorPlan(pgnModel)` returns render blocks consumed by reconcile layer.
+ */
+
 const NEWLINE_PATTERN = /(?:\[\[br\]\]|<br\s*\/?>|\\n|\n)/gi;
 
 const createBlock = (index, indentDepth = 0) => ({

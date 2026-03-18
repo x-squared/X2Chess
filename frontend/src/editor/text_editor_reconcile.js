@@ -1,3 +1,14 @@
+/**
+ * Text editor DOM reconciliation.
+ *
+ * Intent:
+ * - Reconcile render plan blocks/tokens into stable DOM elements.
+ * - Manage move-hover insert overlay and delegated move selection events.
+ *
+ * Integration API:
+ * - `reconcileTextEditor(container, blocks, options)` mutates editor DOM to match plan.
+ */
+
 const syncClassName = (el, className) => {
   if (el.className !== className) el.className = className;
 };
@@ -38,12 +49,18 @@ const syncInlineEl = (el, token, options) => {
     ...(token.dataset || {}),
   });
   if (el.textContent !== token.text) el.textContent = token.text;
+  el.onclick = null;
+  el.onpointerdown = null;
   if (token.tokenType === "move" && token.dataset?.nodeId) {
-    el.onclick = () => {
-      if (options?.onMoveSelect) options.onMoveSelect(token.dataset.nodeId);
+    const handleSelect = (event) => {
+      const moveId = token.dataset?.nodeId || "";
+      if (!moveId) return;
+      const onMoveSelect = options?.onMoveSelect;
+      if (onMoveSelect) onMoveSelect(moveId);
+      event.preventDefault();
     };
-  } else {
-    el.onclick = null;
+    el.onpointerdown = handleSelect;
+    el.onclick = handleSelect;
   }
 };
 
@@ -239,10 +256,43 @@ const createMoveInsertOverlay = (container) => {
 };
 
 const getMoveTokenFromEvent = (container, event) => {
-  if (!(event.target instanceof Element)) return null;
-  const moveEl = event.target.closest('[data-token-type="move"][data-node-id]');
-  if (!moveEl || !container.contains(moveEl)) return null;
+  if (typeof event.composedPath === "function") {
+    const path = event.composedPath();
+    for (const item of path) {
+      if (!(item instanceof Element)) continue;
+      if (item.matches?.('[data-token-type="move"][data-node-id]')) {
+        return item;
+      }
+      if (item === container) break;
+    }
+  }
+  const rawTarget = event.target;
+  const targetEl = rawTarget instanceof Element
+    ? rawTarget
+    : rawTarget instanceof Node
+      ? rawTarget.parentElement
+      : null;
+  if (!targetEl) return null;
+  const moveEl = targetEl.closest('[data-token-type="move"][data-node-id]');
+  if (!moveEl) return null;
   return moveEl;
+};
+
+const getElementTargetFromEvent = (event) => {
+  const rawTarget = event.target;
+  if (rawTarget instanceof Element) return rawTarget;
+  if (rawTarget instanceof Node) return rawTarget.parentElement;
+  return null;
+};
+
+const trySelectMoveFromEvent = (container, event) => {
+  const moveEl = getMoveTokenFromEvent(container, event);
+  if (!moveEl) return false;
+  const moveId = moveEl.dataset.nodeId || "";
+  if (!moveId) return false;
+  const onMoveSelect = container._textEditorOptions?.onMoveSelect;
+  if (onMoveSelect) onMoveSelect(moveId);
+  return true;
 };
 
 const positionOverlayAtMove = (container, overlay, moveEl) => {
@@ -266,6 +316,13 @@ const setupMoveInsertOverlay = (container, options) => {
     container._textEditorOverlay = overlay;
     let hideTimer = null;
     let activeMoveEl = null;
+    const hideNow = () => {
+      clearHideTimer();
+      overlay.classList.remove("visible");
+      overlay.dataset.moveId = "";
+      activeMoveEl = null;
+    };
+    container._hideMoveInsertOverlay = hideNow;
     const clearHideTimer = () => {
       if (!hideTimer) return;
       window.clearTimeout(hideTimer);
@@ -279,9 +336,7 @@ const setupMoveInsertOverlay = (container, options) => {
     const scheduleHide = () => {
       clearHideTimer();
       hideTimer = window.setTimeout(() => {
-        overlay.classList.remove("visible");
-        overlay.dataset.moveId = "";
-        activeMoveEl = null;
+        hideNow();
       }, 110);
     };
     const leftBtn = overlay.querySelector(".text-editor-insert-icon.left");
@@ -316,20 +371,14 @@ const setupMoveInsertOverlay = (container, options) => {
       event.stopPropagation();
       const moveId = overlay.dataset.moveId || "";
       triggerInsertAtSide(moveId, "before");
+      hideNow();
     });
     rightBtn?.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
       const moveId = overlay.dataset.moveId || "";
       triggerInsertAtSide(moveId, "after");
-    });
-    overlay.addEventListener("click", (event) => {
-      if (!(event.target instanceof Element)) return;
-      if (event.target.closest(".text-editor-insert-icon")) return;
-      const moveId = overlay.dataset.moveId || "";
-      if (!moveId) return;
-      const onMoveSelect = container._textEditorOptions?.onMoveSelect;
-      if (onMoveSelect) onMoveSelect(moveId);
+      hideNow();
     });
     overlay.addEventListener("mouseenter", () => {
       clearHideTimer();
@@ -354,6 +403,21 @@ const setupMoveInsertOverlay = (container, options) => {
     container.addEventListener("mouseleave", () => {
       scheduleHide();
     });
+    container.addEventListener("click", (event) => {
+      const targetEl = getElementTargetFromEvent(event);
+      if (targetEl?.closest(".text-editor-insert-icon")) return;
+      const selected = trySelectMoveFromEvent(container, event);
+      if (!selected) return;
+      window.setTimeout(() => hideNow(), 0);
+    });
+    container.addEventListener("pointerdown", (event) => {
+      const targetEl = getElementTargetFromEvent(event);
+      if (targetEl?.closest(".text-editor-insert-icon")) return;
+      const selected = trySelectMoveFromEvent(container, event);
+      if (!selected) return;
+      hideNow();
+      event.preventDefault();
+    }, true);
   }
 };
 

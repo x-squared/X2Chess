@@ -1,0 +1,68 @@
+:root {
+  --board-background-image: url("/board-assets/img/boards/merida-blue.svg");
+  --piece-wp-image: url("/canvaschess/img/pieces/merida/wp.svg");
+  --piece-wn-image: url("/canvaschess/img/pieces/merida/wn.svg");
+  --piece-wb-image: url("/canvaschess/img/pieces/merida/wb.svg");
+  --piece-wr-image: url("/canvaschess/img/pieces/merida/wr.svg");
+  --piece-wq-image: url("/canvaschess/img/pieces/merida/wq.svg");
+  --piece-wk-image: url("/canvaschess/img/pieces/merida/wk.svg");
+  --piece-bp-image: url("/canvaschess/img/pieces/merida/bp.svg");
+  --piece-bn-image: url("/canvaschess/img/pieces/merida/bn.svg");
+  --piece-bb-image: url("/canvaschess/img/pieces/merida/bb.svg");
+  --piece-br-image: url("/canvaschess/img/pieces/merida/br.svg");
+  --piece-bq-image: url("/canvaschess/img/pieces/merida/bq.svg");
+  --piece-bk-image: url("/canvaschess/img/pieces/merida/bk.svg");
+}
+
+.board {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  background: #ececd7;
+  box-shadow: var(--shadow-s);
+}
+
+.board .cg-wrap {
+  width: 100%;
+  height: 100%;
+}
+
+.board cg-board {
+  background-image:
+    var(--board-background-image),
+    repeating-conic-gradient(#7389b6 0 25%, #ececd7 0 50%);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover, 25% 25%;
+}
+
+.board .cg-wrap piece {
+  filter: drop-shadow(0 0 0.45px rgba(0, 0, 0, 0.35));
+}
+
+.cg-wrap piece.pawn.white { background-image: var(--piece-wp-image) !important; }
+.cg-wrap piece.knight.white { background-image: var(--piece-wn-image) !important; }
+.cg-wrap piece.bishop.white { background-image: var(--piece-wb-image) !important; }
+.cg-wrap piece.rook.white { background-image: var(--piece-wr-image) !important; }
+.cg-wrap piece.queen.white { background-image: var(--piece-wq-image) !important; }
+.cg-wrap piece.king.white { background-image: var(--piece-wk-image) !important; }
+.cg-wrap piece.pawn.black { background-image: var(--piece-bp-image) !important; }
+.cg-wrap piece.knight.black { background-image: var(--piece-bn-image) !important; }
+.cg-wrap piece.bishop.black { background-image: var(--piece-bb-image) !important; }
+.cg-wrap piece.rook.black { background-image: var(--piece-br-image) !important; }
+.cg-wrap piece.queen.black { background-image: var(--piece-bq-image) !important; }
+.cg-wrap piece.king.black { background-image: var(--piece-bk-image) !important; }
+
+.board cg-board square.last-move {
+  background-color: rgba(42, 93, 202, 0.22);
+}
+
+.board cg-board square.selected {
+  background-color: rgba(42, 93, 202, 0.34);
+}
+
+.board cg-board square.move-dest {
+  background: radial-gradient(rgba(52, 70, 163, 0.45) 24%, rgba(0, 0, 0, 0) 26%);
+}

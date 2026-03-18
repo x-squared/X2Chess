@@ -76,7 +76,7 @@ function renderVariation(parent, variation) {
   variation.trailingComments.forEach((comment) => renderComment(children, comment));
 }
 
-export const ast_view = {
+export const ast_panel = {
   render(container, pgnModel) {
     if (!container) return;
     container.innerHTML = "";

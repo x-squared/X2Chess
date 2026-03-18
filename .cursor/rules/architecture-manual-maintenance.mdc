@@ -1,0 +1,28 @@
+---
+description: Enforce architecture manual updates and step checks
+alwaysApply: true
+---
+
+# Architecture Manual Maintenance Rule
+
+Use `doc/architecture-manual.qmd` as the source of truth for architecture structure/boundaries.
+Use `doc/architecture-adr-manual.qmd` as the source of truth for architecture decisions (ADRs).
+
+## End-of-step checklist (run before completing any substantial work step)
+
+- Check whether changed files affect architecture, boundaries, runtime behavior, delivery, or security posture.
+- If yes, update `doc/architecture-manual.qmd` in the same step:
+  - Update "Last updated" date.
+  - Update delivery/build paths if commands changed.
+  - Update full-client vs reduced app-profile boundaries if capabilities changed.
+  - Update constraints if new rules emerged.
+- If decision rationale changed or a new architectural decision was made, update `doc/architecture-adr-manual.qmd` in the same step.
+- Verify architecture consistency for both targets:
+  - Full browser fat-client path still valid.
+  - Reduced app-profile path still valid.
+- If no architecture impact, explicitly confirm that no manual update is required.
+
+## Documentation discipline
+
+- Keep ADR entries concise, dated, and status-marked in `doc/architecture-adr-manual.qmd`.
+- Prefer additive updates over silent rewrites so historical intent stays visible.

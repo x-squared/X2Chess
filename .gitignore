@@ -6,3 +6,11 @@ dist/
 build/
 .pytest_cache/
 coverage/
+frontend/src-tauri/target/
+run/*
+!run/DEV/
+!run/TEST/
+run/DEV/*
+!run/DEV/.gitkeep
+run/TEST/*
+!run/TEST/.gitkeep

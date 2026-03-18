@@ -1,0 +1,75 @@
+# X2Chess Architecture Manual
+
+Last updated: 2026-03-18
+
+## 1) Goals
+
+- Make the browser fat client the primary/full product runtime.
+- Allow remote launch (server-hosted assets) while preserving local client execution.
+- Combine local resource usage with remote resource integration in one client architecture.
+- Provide an app-profile variant as a reduced version of the full fat client.
+- Keep architecture decisions explicit and traceable.
+
+Architecture decisions are maintained in `doc/architecture-adr-manual.qmd`.
+
+## 2) System Overview
+
+## 2.1 Frontend (`frontend/`)
+
+- Technology: Vite + vanilla JavaScript (ES modules).
+- Main entrypoint: `frontend/src/main.js`.
+- Responsibilities:
+  - Render board + PGN editing UI.
+  - Parse PGN into an internal model and serialize back to text.
+  - Keep replay/navigation state in memory.
+  - Manage chess move playback and UI interactions.
+
+## 2.2 Backend (`backend/`)
+
+- Technology: FastAPI.
+- Scope in current architecture:
+  - Optional static serving and optional future remote services.
+  - Not part of client-local resource loading/saving.
+- Constraint:
+  - Local runtime resources are owned and handled only by the client runtime.
+
+## 2.3 App Profile Shell (`frontend/src-tauri/`)
+
+- Technology: Tauri 2 (Rust host + web frontend).
+- Configuration: `frontend/src-tauri/tauri.conf.json`.
+- Runtime entrypoint: `frontend/src-tauri/src/main.rs`.
+- Capability model:
+  - `frontend/src-tauri/capabilities/default.json` with `core:default`.
+- Build wiring:
+  - Dev URL `http://localhost:5287`.
+  - Production frontend assets from `frontend/dist`.
+
+## 3) Build and Delivery Paths
+
+Environment and toolchain setup is documented in `doc/setup-manual.qmd`.
+
+## 3.1 Full browser fat-client profile
+- Dev (local): `cd frontend && npm run dev`
+- Build (deployable from remote host or local static host): `cd frontend && npm run build`
+
+## 3.2 Reduced app profile (Tauri)
+- Dev shell + hot reload: `cd frontend && npm run desktop:dev`
+- Packaged app profile: `cd frontend && npm run desktop:pack`
+- Artifact directory: `frontend/src-tauri/target/release/bundle/`
+
+## 4) Constraints for Ongoing Work
+
+- Keep browser fat-client as primary source of feature truth.
+- Keep reduced app-profile differences explicit and documented.
+- Keep Tauri as reduced app shell, not a replacement for frontend domain logic.
+- Keep local resource APIs explicit and maintainable.
+- Keep local resource read/write in client code only (no backend mediation).
+- Keep remote integrations behind adapter boundaries and contracts.
+- Keep backend optional and decoupled from local resource workflows.
+- Enforce Component-Contract on components (integration + configuration + communication APIs, documented publicly in code).
+- Enforce clean/professional CSS defaults and maintain explicit theming extension points for future user adaptation.
+- Keep local runtime data scenario-separated under `run/`.
+- Keep production runtime data outside repository paths (explicit prod root or OS app-data default).
+- Keep scenario game libraries under `run/<SCENARIO>/games` for local scenarios.
+- Keep runtime configuration layered: default app config + partial user override in data area.
+- Update this manual when architecture decisions, boundaries, or delivery paths change.

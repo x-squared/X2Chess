@@ -1,0 +1,26 @@
+---
+description: Enforce component contract and documented public APIs
+alwaysApply: true
+---
+
+# Component Contract Rule
+
+Every component (especially GUI components) must follow a Component-Contract.
+
+## Required public API parts
+
+- **Integration API**: clearly defined entry points to integrate the component into other code.
+- **Configuration API**: explicit options/props/settings to adapt behavior during integration.
+- **Communication API**: explicit events/callbacks/messages/commands for runtime interaction.
+
+## API quality constraints
+
+- API surfaces must be clearly identifiable in code (named exports, interfaces/types, function signatures, or equivalent).
+- Behavior, inputs, outputs, defaults, and side effects must be documented in public code documentation.
+- Avoid hidden coupling through internal state mutation or undocumented global side effects.
+
+## Delivery checklist (substantial component changes)
+
+- Confirm all 3 API parts exist or are intentionally marked as not applicable with rationale.
+- Update public code docs whenever API behavior or signatures change.
+- Preserve backward compatibility when possible; otherwise document breaking changes.

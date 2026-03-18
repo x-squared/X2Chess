@@ -1,0 +1,27 @@
+---
+description: Enforce fat-client-first browser architecture with reduced app profile
+alwaysApply: true
+---
+
+# Fat-Client-First Architecture Rule
+
+The application architecture must remain:
+
+1. Browser-based fat client as the primary/full client.
+2. Remotely launchable but locally executed client runtime.
+3. A reduced app-profile variant (subset of full fat-client capabilities).
+
+## Required architecture constraints
+
+- Keep domain/UI logic local-first and browser-executed.
+- Allow remote delivery/launch of client assets without moving execution to server-side rendering.
+- Support local resource access (storage/cache/local processing) behind explicit client APIs.
+- Keep resource loading/saving strictly in the client runtime (no backend dependency for local resource handling).
+- Support integration of remote resources (services/APIs/content/providers) via explicit adapter boundaries.
+- Maintain a reduced app profile with clear feature boundaries relative to full client.
+- Keep full-client and app-profile compatibility explicit (feature flags/capability matrix or equivalent).
+
+## Delivery checks before finalizing changes
+
+- Full fat-client browser path still runs with `npm run dev` and `npm run build` in `frontend`.
+- Reduced app-profile path still runs with `npm run desktop:dev` and packages with `npm run desktop:pack` in `frontend`.

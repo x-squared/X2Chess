@@ -1,0 +1,19 @@
+---
+description: Enforce architecture ADR manual updates
+alwaysApply: true
+---
+
+# Architecture ADR Manual Maintenance Rule
+
+Use `doc/architecture-adr-manual.qmd` as the source of truth for architecture decisions.
+
+## End-of-step checklist (substantial architecture-impacting work)
+
+- Determine whether the step introduced a new architectural decision or changed rationale/trade-offs of an existing one.
+- If yes, add or update ADR entry in `doc/architecture-adr-manual.qmd` in the same step.
+- Keep ADR status, date, decision, and implication explicit.
+- If no ADR impact exists, explicitly confirm that no ADR update is required.
+
+## Documentation discipline
+
+- Keep ADR entries concise and additive; avoid rewriting history silently.

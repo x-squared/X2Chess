@@ -1,0 +1,125 @@
+# X2Chess Setup Manual
+
+Last updated: 2026-03-18
+
+## Purpose
+
+This manual is the single source of truth for preparing a local development machine for X2Chess work (web + backend + Tauri desktop).
+
+## What gets installed
+
+- Xcode Command Line Tools (macOS toolchain prerequisite).
+- Homebrew (package manager, if missing).
+- Node.js (LTS) and npm.
+- Python 3.
+- Rust toolchain (Cargo + rustc) required for Tauri.
+- Frontend npm dependencies.
+- Backend Python virtual environment and dependencies.
+
+## Supported setup scripts
+
+- Toolchains only:
+  - `scripts/setup_tauri_toolchain_macos.sh`
+- Full project setup:
+  - `scripts/setup_dev_environment_macos.sh`
+
+## Run: toolchains only (Tauri prerequisite path)
+
+From repo root:
+
+```bash
+bash scripts/setup_tauri_toolchain_macos.sh
+```
+
+This is the minimal script you need to make Tauri build commands work.
+
+## Run: full environment setup
+
+From repo root:
+
+```bash
+bash scripts/setup_dev_environment_macos.sh
+```
+
+This installs toolchains and then bootstraps frontend and backend dependencies.
+
+## Verify installation
+
+Run these commands after setup:
+
+```bash
+node --version
+npm --version
+python3 --version
+rustc --version
+cargo --version
+```
+
+Then verify project workflows:
+
+```bash
+cd frontend && npm run build
+cd frontend && npm run desktop:pack
+```
+
+## Runtime data folders
+
+Local runtime data for development/testing is stored under the repository `run/` root:
+
+- `run/DEV` (default development scenario)
+- `run/TEST`
+- Game files are discovered from `run/<SCENARIO>/games/*.pgn`
+
+The backend uses `X2CHESS_RUN_SCENARIO=DEV` by default for local development.
+You can switch scenario when running backend, for example:
+
+```bash
+cd backend
+source .venv/bin/activate
+X2CHESS_RUN_SCENARIO=TEST uvicorn app.main:app --reload
+```
+
+Production runtime data does **not** use `run/PROD`.
+For `X2CHESS_RUN_SCENARIO=PROD`, backend data root resolves as:
+
+- `X2CHESS_PROD_DATA_ROOT` if explicitly set.
+- Otherwise OS app-data location:
+  - macOS: `~/Library/Application Support/X2Chess`
+  - Windows: `%APPDATA%\\X2Chess` (fallback `%LOCALAPPDATA%\\X2Chess`)
+  - Linux: `$XDG_DATA_HOME/X2Chess` (fallback `~/.local/share/X2Chess`)
+
+## Runtime configuration layering
+
+Configuration is resolved in this order:
+
+1. Default config file in app code:
+   - `backend/app/default-config.json`
+2. User partial override in active data area:
+   - `run/<SCENARIO>/config/user-config.json` (DEV/TEST local scenarios)
+   - production data root `config/user-config.json` in resolved app-data location
+
+The user override file is a **partial copy**. Only keys you provide are overridden.
+
+Example partial override (text editor only):
+
+```json
+{
+  "textEditor": {
+    "fontSizePx": 16,
+    "lineHeight": 1.55,
+    "showDomView": false
+  }
+}
+```
+
+Runtime API to inspect resolved config:
+
+- `GET /config`
+- Note: backend file/config APIs are intended for DEV/TEST local development scenarios.
+
+## Notes
+
+- Tauri packaging requires Rust/Cargo to be available in `PATH`.
+- Frontend dev server uses dedicated port `5287` to reduce cross-project clashes.
+- `xcode-select --install` may open an Apple UI prompt and may require rerunning the script after installation.
+- Existing language/runtime installations are reused; scripts are idempotent where possible.

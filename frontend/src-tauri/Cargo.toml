@@ -1,0 +1,16 @@
+[package]
+name = "x2chess-desktop"
+version = "0.1.0"
+description = "X2Chess desktop shell"
+authors = ["X2Chess"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+rfd = "0.15"
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]

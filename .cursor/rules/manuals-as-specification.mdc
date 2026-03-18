@@ -1,0 +1,29 @@
+---
+description: Treat project manuals as living specification
+alwaysApply: true
+---
+
+# Manuals as Specification Rule
+
+Project manuals are the living specification for this app.
+
+## Scope of specification
+
+- Developer-facing specification is captured in:
+  - `doc/architecture-manual.qmd`
+  - `doc/architecture-adr-manual.qmd`
+  - `doc/setup-manual.qmd`
+- User-facing specification is captured in:
+  - `doc/user-manual.qmd`
+
+## Required behavior for substantial work steps
+
+- Before finalizing a step, check whether behavior, architecture, setup, or user workflows changed.
+- If changed, update the relevant manual(s) in the same step.
+- Keep implementation and manuals aligned; manuals define expected behavior, not only retrospective notes.
+- If no manual updates are needed, explicitly confirm that the spec remains accurate.
+
+## Quality constraints
+
+- Keep manuals concise, actionable, and consistent with actual app behavior.
+- Prefer explicit statements of expected behavior over ambiguous descriptions.

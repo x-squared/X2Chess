@@ -1,0 +1,94 @@
+# X2Chess User Manual
+
+Last updated: 2026-03-18
+
+## Who this manual is for
+
+This manual is for people using the X2Chess application to read, navigate, and edit PGN content.
+
+## Accessing the menu
+
+- Use the menu icon in the top-right corner of the main panel to open the side menu.
+- The menu opens from the right and contains app-level controls (for example speed and sound).
+- Close it with the close button, by pressing `Esc`, or by clicking outside the menu.
+
+## How the text editor works
+
+The text editor is the main place where you inspect and edit game notation and variations.
+
+## What you see in the editor
+
+- **Mainline moves** are shown prominently (bold) to distinguish the primary game flow.
+- **Variations** are shown with nested indentation and lighter visual weight.
+- **Comments** appear inline and can be edited directly.
+- **Move selection** is highlighted and linked to board position updates.
+
+## Selecting moves and syncing with the board
+
+- Click a move token in the editor to select it.
+- When you select a mainline move, the board jumps to that move immediately.
+- When you select a variation move, the board shows a position preview for that variation context.
+
+## Adding comments with the toolbar
+
+After selecting a move, you can use these buttons:
+
+- **Insert comment left**: adds/focuses a comment before the selected move.
+- **Insert comment right**: adds/focuses a comment after the selected move.
+- **Insert line break**: inserts a line-break directive in a right-side comment.
+- **Insert indent**: inserts an indent directive in a right-side comment.
+- **Default indent**: applies indent directives across variation boundaries for cleaner nested layout.
+
+If a comment already exists in the requested position, X2Chess focuses the existing comment instead of creating duplicates.
+
+## Editing comments directly
+
+- Click into a comment and type to edit.
+- Leaving a comment empty removes it automatically.
+- Newly inserted comments are briefly highlighted so they are easy to find.
+
+## Keyboard behavior in the editor
+
+- **Arrow Left / Arrow Right**: move selection to previous/next move.
+- **Arrow Down**: enter the first available variation from the selected move.
+- **Arrow Left** at variation start: jump back to the parent move.
+- **Shift + Arrow Left / Right**: jump to existing comment before/after selected move.
+- **Cmd/Ctrl + Z**: undo editor changes.
+- **Cmd/Ctrl + Shift + Z** or **Cmd/Ctrl + Y**: redo editor changes.
+
+## Working with PGN input area
+
+- Use **Choose folder** next to the **Game file** dropdown and select your local runtime folder (for example `run/DEV`).
+- X2Chess reads `.pgn` files from that folder's `games` subfolder (or from the selected folder itself if no `games` subfolder exists).
+- After selecting a folder, use the **Game file** dropdown to load a game.
+- When a game file is selected, edits are autosaved back to that same `.pgn` file.
+- Save state is shown next to the dropdown (`Saving...`, `Saved`, or error status).
+- Paste or drop PGN in the PGN input box.
+- Click **Load PGN** to parse and render in board + text editor views.
+- While typing, parsing feedback updates and stale parse errors are cleared during active edits.
+
+## Personalizing text editor behavior
+
+Text editor behavior can be customized through runtime config override file:
+
+- Built-in default config is bundled in the client.
+- User override file (for selected runtime folder): `config/user-config.json`
+
+You only need to set keys you want to change. Example:
+
+```json
+{
+  "textEditor": {
+    "fontSizePx": 16,
+    "lineHeight": 1.55,
+    "showAstView": true,
+    "showDomView": false
+  }
+}
+```
+
+## Notes for effective editing
+
+- Select a move first, then apply comment/indent actions.
+- Use the text editor as the primary editing surface; keep PGN input for bulk paste/import.
+- Use undo/redo frequently when restructuring comments and variations.

@@ -1,0 +1,22 @@
+---
+description: Govern manuals and their ownership rules
+alwaysApply: true
+---
+
+# Manual Governance Rule
+
+Use `doc/manuals-index.md` as the registry of project manuals and their owning maintenance rules.
+Treat manuals as living specification in line with `.cursor/rules/manuals-as-specification.mdc`.
+
+## End-of-step checklist (substantial work only)
+
+- Determine which manuals are impacted by the current changes.
+- For each impacted manual, apply its dedicated maintenance rule.
+- If a manual has no dedicated maintenance rule yet, create one in `.cursor/rules/`.
+- Keep setup instructions centralized in `doc/setup-manual.qmd`; do not duplicate setup details in other manuals.
+- If manuals or rules are added/renamed/removed, update `doc/manuals-index.md` in the same step.
+
+## Governance constraints
+
+- Prefer focused rules per manual over one large combined manual rule.
+- Keep each manual responsible for one concern with minimal overlap.

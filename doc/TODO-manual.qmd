@@ -1,0 +1,5 @@
+# TODO manual
+
+## Openings
+
+### TODO: Derive ECO from moves

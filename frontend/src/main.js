@@ -9,8 +9,10 @@ import {
   serializeModelToPgn,
   applyDefaultIndentDirectives,
   findExistingCommentIdAroundMove,
+  getHeaderValue,
   insertCommentAroundMove,
   removeCommentById,
+  setHeaderValue,
   setCommentTextById,
 } from "./editor";
 import { createEditorHistoryCapabilities } from "./editor/history";
@@ -36,6 +38,11 @@ import { createRuntimeConfigCapabilities } from "./app_shell/runtime_config";
 import { createAppLayout } from "./app_shell/layout";
 import { resolveBuildTimestampLabel } from "./app_shell/build_info";
 import { createUiAdapters } from "./app_shell/ui_adapters";
+import {
+  renderGameInfoSummary,
+  syncGameInfoEditorUi,
+  syncGameInfoEditorValues,
+} from "./app_shell/game_info";
 import {
   APP_TRANSLATIONS,
   DEFAULT_PGN,
@@ -91,6 +98,13 @@ const {
   btnMenuClose,
   menuPanel,
   menuBackdrop,
+  btnGameInfoEdit,
+  gameInfoEditorEl,
+  gameInfoPlayersValueEl,
+  gameInfoEventValueEl,
+  gameInfoDateValueEl,
+  gameInfoOpeningValueEl,
+  gameInfoInputs,
   textEditorEl,
   astViewEl,
   domViewEl,
@@ -198,6 +212,27 @@ renderPipelineCapabilities = createAppRenderPipeline({
   renderTextEditor: () => text_editor.render(textEditorEl, state.pgnModel, selectionRuntimeCapabilities.getTextEditorOptions()),
   renderAstPanel: () => ast_panel.render(astViewEl, state.pgnModel),
   renderDomView: () => uiAdapters.renderDomView(),
+  renderGameInfoSummary: () => renderGameInfoSummary({
+    pgnModel: state.pgnModel,
+    t,
+    els: {
+      gameInfoPlayersValueEl,
+      gameInfoEventValueEl,
+      gameInfoDateValueEl,
+      gameInfoOpeningValueEl,
+    },
+  }),
+  syncGameInfoEditorValues: () => syncGameInfoEditorValues({
+    pgnModel: state.pgnModel,
+    els: { gameInfoInputs },
+  }),
+  syncGameInfoEditorUi: () => syncGameInfoEditorUi({
+    state,
+    els: {
+      gameInfoEditorEl,
+      btnGameInfoEdit,
+    },
+  }),
 });
 
 const boardNavigationCapabilities = createBoardNavigationCapabilities({
@@ -297,6 +332,8 @@ const appWiringCapabilities = createAppWiringCapabilities({
     btnPickGamesFolder,
     gameSelect,
     pgnInput,
+    btnGameInfoEdit,
+    gameInfoInputs,
   },
   actions: {
     gotoPly: (nextPly, options) => boardNavigationCapabilities.gotoPly(nextPly, options),
@@ -318,6 +355,16 @@ const appWiringCapabilities = createAppWiringCapabilities({
     loadRuntimeConfigFromClientDataAndDefaults: () => resourcesCapabilities.loadRuntimeConfigFromClientDataAndDefaults(),
     ensureBoard: () => boardRuntimeCapabilities.ensureBoard(),
     initializeWithDefaultPgn: () => pgnRuntimeCapabilities.initializeWithDefaultPgn(),
+    toggleGameInfoEditor: () => {
+      state.isGameInfoEditorOpen = !state.isGameInfoEditorOpen;
+      render();
+    },
+    updateGameInfoHeader: (key, value) => {
+      const currentValue = getHeaderValue(state.pgnModel, key, "");
+      if (currentValue === String(value ?? "").trim()) return;
+      const nextModel = setHeaderValue(state.pgnModel, key, value);
+      applyPgnModelUpdate(nextModel);
+    },
   },
 });
 

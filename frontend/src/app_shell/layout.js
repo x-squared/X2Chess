@@ -1,3 +1,5 @@
+import { GAME_INFO_HEADER_FIELDS } from "./game_info";
+
 /**
  * App shell layout component.
  *
@@ -22,6 +24,17 @@
 export const createAppLayout = ({ t, buildTimestampLabel }) => {
   const app = document.querySelector("#app");
   if (!app) throw new Error("App root missing.");
+  const gameInfoEditorFieldsMarkup = GAME_INFO_HEADER_FIELDS.map((field) => `
+    <label class="game-info-editor-field" for="game-info-${field.key.toLowerCase()}">
+      <span>${field.label}</span>
+      <input
+        id="game-info-${field.key.toLowerCase()}"
+        type="text"
+        data-header-key="${field.key}"
+        placeholder="${field.label}"
+      />
+    </label>
+  `).join("");
 
   app.innerHTML = `
     <main class="app">
@@ -63,6 +76,44 @@ export const createAppLayout = ({ t, buildTimestampLabel }) => {
         >
           <span class="menu-trigger-icon" aria-hidden="true"></span>
         </button>
+        <section class="game-info-card">
+          <div class="game-info-summary-row">
+            <div class="game-info-summary-grid">
+              <p class="game-info-item">
+                <span class="game-info-label">${t("gameInfo.players", "Players")}</span>
+                <span id="game-info-players-value" class="game-info-value">-</span>
+              </p>
+              <p class="game-info-item">
+                <span class="game-info-label">${t("gameInfo.event", "Event")}</span>
+                <span id="game-info-event-value" class="game-info-value">-</span>
+              </p>
+              <p class="game-info-item">
+                <span class="game-info-label">${t("gameInfo.date", "Date")}</span>
+                <span id="game-info-date-value" class="game-info-value">-</span>
+              </p>
+              <p class="game-info-item">
+                <span class="game-info-label">${t("gameInfo.opening", "Opening")}</span>
+                <span id="game-info-opening-value" class="game-info-value">-</span>
+              </p>
+            </div>
+            <button
+              id="btn-game-info-edit"
+              class="game-info-edit-trigger"
+              type="button"
+              aria-label="${t("gameInfo.edit", "Edit game information")}"
+              aria-expanded="false"
+              aria-controls="game-info-editor"
+              title="${t("gameInfo.edit", "Edit game information")}"
+            >
+              <span aria-hidden="true">▼</span>
+            </button>
+          </div>
+          <div id="game-info-editor" class="game-info-editor" hidden>
+            <div class="game-info-editor-grid">
+              ${gameInfoEditorFieldsMarkup}
+            </div>
+          </div>
+        </section>
         <div class="board-editor-box">
           <div id="board" class="board merida"></div>
           <div class="text-editor-wrap board-editor-pane">
@@ -177,6 +228,13 @@ export const createAppLayout = ({ t, buildTimestampLabel }) => {
     btnMenuClose: document.querySelector("#btn-menu-close"),
     menuPanel: document.querySelector("#app-menu-panel"),
     menuBackdrop: document.querySelector("#menu-backdrop"),
+    btnGameInfoEdit: document.querySelector("#btn-game-info-edit"),
+    gameInfoEditorEl: document.querySelector("#game-info-editor"),
+    gameInfoPlayersValueEl: document.querySelector("#game-info-players-value"),
+    gameInfoEventValueEl: document.querySelector("#game-info-event-value"),
+    gameInfoDateValueEl: document.querySelector("#game-info-date-value"),
+    gameInfoOpeningValueEl: document.querySelector("#game-info-opening-value"),
+    gameInfoInputs: Array.from(document.querySelectorAll("[data-header-key]")),
     textEditorEl: document.querySelector("#text-editor"),
     astViewEl: document.querySelector("#ast-view"),
     domViewEl: document.querySelector("#dom-view"),

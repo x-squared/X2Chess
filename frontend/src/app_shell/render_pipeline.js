@@ -28,6 +28,9 @@ import { syncAppViewRuntime } from "./view_runtime";
  * @param {Function} deps.renderTextEditor - Callback `() => void` for text editor rendering.
  * @param {Function} deps.renderAstPanel - Callback `() => void` for AST panel rendering.
  * @param {Function} deps.renderDomView - Callback `() => void` for DOM panel rendering.
+ * @param {Function} deps.renderGameInfoSummary - Callback `() => void` for metadata summary rendering.
+ * @param {Function} deps.syncGameInfoEditorValues - Callback `() => void` for metadata editor value sync.
+ * @param {Function} deps.syncGameInfoEditorUi - Callback `() => void` for metadata editor open/close UI.
  * @returns {{renderFull: Function, renderLiveInput: Function}} Render pipeline functions.
  */
 export const createAppRenderPipeline = ({
@@ -42,6 +45,9 @@ export const createAppRenderPipeline = ({
   renderTextEditor,
   renderAstPanel,
   renderDomView,
+  renderGameInfoSummary,
+  syncGameInfoEditorValues,
+  syncGameInfoEditorUi,
 }) => {
   /**
    * Render full app frame and synchronize render-time runtime UI state.
@@ -61,6 +67,9 @@ export const createAppRenderPipeline = ({
     renderTextEditor();
     renderAstPanel();
     renderDomView();
+    renderGameInfoSummary();
+    syncGameInfoEditorValues();
+    syncGameInfoEditorUi();
     syncAppViewRuntime({
       state,
       boardCapabilities,
@@ -89,6 +98,9 @@ export const createAppRenderPipeline = ({
     renderTextEditor();
     renderAstPanel();
     renderDomView();
+    renderGameInfoSummary();
+    syncGameInfoEditorValues();
+    syncGameInfoEditorUi();
     renderBoard(buildGameAtPly(state.currentPly));
     if (els.statusEl) {
       els.statusEl.textContent = `${t("status.label", "Position")}: ${state.currentPly}/${state.moves.length}`;

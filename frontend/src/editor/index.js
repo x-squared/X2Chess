@@ -20,10 +20,13 @@
 export { text_editor } from "./text_editor";
 export { parsePgnToModel } from "../model/pgn_model";
 export { serializeModelToPgn } from "../model/pgn_serialize";
+export { resolveEcoOpeningName } from "../model";
 export {
   applyDefaultIndentDirectives,
   findExistingCommentIdAroundMove,
+  getHeaderValue,
   insertCommentAroundMove,
   removeCommentById,
+  setHeaderValue,
   setCommentTextById,
-} from "../model/pgn_commands";
+} from "../model";

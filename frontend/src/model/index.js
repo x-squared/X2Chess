@@ -17,6 +17,7 @@
 
 export { parsePgnToModel, parseCommentRuns } from "./pgn_model";
 export { serializeModelToPgn } from "./pgn_serialize";
+export { resolveEcoOpeningName } from "./eco_openings";
 export {
   applyDefaultIndentDirectives,
   findExistingCommentIdAroundMove,
@@ -24,3 +25,4 @@ export {
   removeCommentById,
   setCommentTextById,
 } from "./pgn_commands";
+export { getHeaderValue, setHeaderValue } from "./pgn_headers";

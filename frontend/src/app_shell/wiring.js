@@ -99,6 +99,21 @@ export const createAppWiringCapabilities = ({ state, t, els, actions }) => {
         }, 0);
       });
     }
+    if (els.btnGameInfoEdit) {
+      els.btnGameInfoEdit.addEventListener("click", () => {
+        actions.toggleGameInfoEditor();
+      });
+    }
+    if (Array.isArray(els.gameInfoInputs)) {
+      els.gameInfoInputs.forEach((input) => {
+        if (!(input instanceof HTMLInputElement)) return;
+        input.addEventListener("change", () => {
+          const key = input.dataset.headerKey;
+          if (!key) return;
+          actions.updateGameInfoHeader(key, input.value);
+        });
+      });
+    }
   };
 
   /**

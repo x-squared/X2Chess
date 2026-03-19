@@ -13,6 +13,17 @@ Every component (especially GUI components) must follow a Component-Contract.
 - **Configuration API**: explicit options/props/settings to adapt behavior during integration.
 - **Communication API**: explicit events/callbacks/messages/commands for runtime interaction.
 
+## Clarity standard for the 3 API sections
+
+- Write these sections so a developer can immediately use the component without reading implementation details first.
+- Each section must name concrete exports/functions/fields/callbacks (for example `createX(...)`, `render()`, `onSelect(itemId)`), not generic placeholders.
+- Explain **what is configurable** and **where the configuration is passed** (constructor deps, options object, state fields, etc.).
+- Explain inbound/outbound communication directions:
+  - what callers invoke,
+  - what callbacks/events the component emits,
+  - what shared state/DOM/storage side effects occur.
+- Avoid vague wording such as "handles integration", "delegates to services", or "provides communication" unless followed by specific mechanisms.
+
 ## API quality constraints
 
 - API surfaces must be clearly identifiable in code (named exports, interfaces/types, function signatures, or equivalent).
@@ -22,5 +33,6 @@ Every component (especially GUI components) must follow a Component-Contract.
 ## Delivery checklist (substantial component changes)
 
 - Confirm all 3 API parts exist or are intentionally marked as not applicable with rationale.
+- Verify Integration/Configuration/Communication sections contain concrete, actionable details (not template wording).
 - Update public code docs whenever API behavior or signatures change.
 - Preserve backward compatibility when possible; otherwise document breaking changes.

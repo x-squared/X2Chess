@@ -2,16 +2,23 @@
  * App shell game-info component.
  *
  * Integration API:
- * - `GAME_INFO_HEADER_FIELDS` list used by layout/wiring for editable headers.
- * - `renderGameInfoSummary({ pgnModel, els, t })` updates summary labels.
- * - `syncGameInfoEditorUi({ state, els })` syncs fold-down visibility state.
- * - `syncGameInfoEditorValues({ pgnModel, els })` keeps editor field values aligned.
+ * - Exposes `GAME_INFO_HEADER_FIELDS` and `PLAYER_NAME_HEADER_KEYS` for layout
+ *   generation and input wiring.
+ * - Exposes render/sync helpers used each frame:
+ *   - `renderGameInfoSummary(...)`
+ *   - `syncGameInfoEditorUi(...)`
+ *   - `syncGameInfoEditorValues(...)`
+ * - Exposes normalization helpers for header/player name handling.
  *
  * Configuration API:
- * - Header keys are defined in `GAME_INFO_HEADER_FIELDS`.
+ * - Configure editable tags, control types, placeholders, and option lists via
+ *   `GAME_INFO_HEADER_FIELDS`.
+ * - ECO lookup behavior is configured through model helpers (`resolveEcoOpeningName`).
  *
  * Communication API:
- * - Reads model header values and writes text content/value into provided DOM refs.
+ * - Reads header values from `pgnModel`.
+ * - Writes summary/editor values to supplied DOM refs.
+ * - Does not bind events itself; wiring modules call these helpers.
  */
 
 import {

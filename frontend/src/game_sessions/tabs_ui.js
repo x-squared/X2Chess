@@ -2,13 +2,17 @@
  * Game tabs UI adapter.
  *
  * Integration API:
- * - `createGameTabsUi(deps)`
+ * - Create with `createGameTabsUi(deps)`.
+ * - Call `bindEvents()` once, then call `render()` whenever session state changes.
  *
  * Configuration API:
- * - Expects caller-owned session list and active session id.
+ * - Configure by injecting session accessors (`getSessions`, `getActiveSessionId`)
+ *   and intent callbacks (`onSelectSession`, `onCloseSession`).
+ * - Translation callback `t(...)` configures ARIA labels.
  *
  * Communication API:
- * - Renders tab chips and routes click intents to callbacks.
+ * - Rebuilds tab DOM from current session list.
+ * - Emits select/close intents via callbacks; no direct session-state mutation.
  */
 
 /**

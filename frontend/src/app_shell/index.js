@@ -2,14 +2,23 @@
  * App shell component.
  *
  * Integration API:
- * - `createAppShellCapabilities(deps)` returns shell UI/shortcut capabilities.
+ * - Build shell behavior with `createAppShellCapabilities(deps)`.
+ * - Call `bindShellEvents()` once after layout refs are available.
+ * - Use `setMenuOpen`, `setDeveloperToolsEnabled`, and `setDevDockOpen` for
+ *   programmatic shell state changes.
  *
  * Configuration API:
- * - Receives state, translation callback, and shell DOM references from caller.
+ * - Configure by passing:
+ *   - shared `state`,
+ *   - shell DOM refs (menu, dock, save controls),
+ *   - callbacks for locale change, undo/redo, tab switching, and save actions.
  *
  * Communication API:
- * - Mutates shell-related state (`isMenuOpen`, speed/sound values) and delegates
- *   undo/redo and move-hotkey handling through explicit callbacks.
+ * - Mutates shell-oriented state fields (`isMenuOpen`, `moveDelayMs`,
+ *   `soundEnabled`, developer dock toggles/height).
+ * - Emits user intents via injected callbacks (`onUndo`, `onRedo`,
+ *   `onChangeLocale`, `onSaveActiveGameNow`, ...).
+ * - Binds global keyboard shortcuts for menu/undo/redo/dev-dock tabs.
  */
 
 /**
@@ -33,6 +42,10 @@
  * @param {HTMLButtonElement|null} deps.btnSaveActiveGame - Explicit save button.
  * @param {HTMLElement|null} deps.developerDockEl - Developer dock root.
  * @param {HTMLElement|null} deps.devDockResizeHandleEl - Developer dock resize handle.
+ * @param {HTMLElement|null} deps.boardEditorBoxEl - Game-Viewer board/editor grid root.
+ * @param {HTMLElement|null} deps.boardEditorResizeHandleEl - Board/editor divider resize handle.
+ * @param {HTMLElement|null} deps.resourceViewerResizeHandleEl - Resource-Viewer resize handle.
+ * @param {HTMLElement|null} deps.resourceViewerCardEl - Resource-Viewer card root.
  * @param {Function} deps.onHandleSelectedMoveArrowHotkey - Callback `(event) => boolean`.
  * @param {Function} deps.onUndo - Callback invoked for undo shortcut.
  * @param {Function} deps.onRedo - Callback invoked for redo shortcut.
@@ -41,6 +54,8 @@
  * @param {Function} deps.onChangeDeveloperDockOpen - Callback `(isOpen) => void`.
  * @param {Function} deps.onSwitchDeveloperDockTab - Callback `(tab) => void`.
  * @param {Function} deps.onChangeActiveSaveMode - Callback `(mode) => void`.
+ * @param {Function} [deps.onChangeBoardColumnWidth] - Callback `(widthPx) => void`.
+ * @param {Function} [deps.onChangeResourceViewerHeight] - Callback `(heightPx) => void`.
  * @param {Function} deps.onSaveActiveGameNow - Callback `() => void|Promise<void>`.
  * @returns {{setMenuOpen: Function, bindShellEvents: Function}} App shell capabilities.
  */
@@ -62,6 +77,10 @@ export const createAppShellCapabilities = ({
   btnSaveActiveGame,
   developerDockEl,
   devDockResizeHandleEl,
+  boardEditorBoxEl,
+  boardEditorResizeHandleEl,
+  resourceViewerResizeHandleEl,
+  resourceViewerCardEl,
   onHandleSelectedMoveArrowHotkey,
   onUndo,
   onRedo,
@@ -70,11 +89,26 @@ export const createAppShellCapabilities = ({
   onChangeDeveloperDockOpen,
   onSwitchDeveloperDockTab,
   onChangeActiveSaveMode,
+  onChangeBoardColumnWidth,
+  onChangeResourceViewerHeight,
   onSaveActiveGameNow,
 }) => {
   const minDockHeight = 180;
   const maxDockHeight = () => Math.max(300, Math.min(640, Math.floor(window.innerHeight * 0.76)));
   const clampDockHeight = (value) => Math.max(minDockHeight, Math.min(maxDockHeight(), Math.round(Number(value) || 0)));
+  const minResourceViewerHeight = 180;
+  const maxResourceViewerHeight = () => Math.max(220, Math.min(560, Math.floor(window.innerHeight * 0.52)));
+  const clampResourceViewerHeight = (value) => (
+    Math.max(minResourceViewerHeight, Math.min(maxResourceViewerHeight(), Math.round(Number(value) || 0)))
+  );
+  const minBoardColumnWidth = 320;
+  const maxBoardColumnWidth = () => {
+    const viewportBased = Math.floor(window.innerWidth * 0.65);
+    return Math.max(420, Math.min(760, viewportBased));
+  };
+  const clampBoardColumnWidth = (value) => (
+    Math.max(minBoardColumnWidth, Math.min(maxBoardColumnWidth(), Math.round(Number(value) || 0)))
+  );
 
   const syncDevDockControls = () => {
     const enabled = Boolean(state.isDeveloperToolsEnabled);
@@ -92,7 +126,11 @@ export const createAppShellCapabilities = ({
     if (btnSaveActiveGame) btnSaveActiveGame.disabled = false;
     if (document.body) document.body.classList.toggle("dev-dock-open", enabled && state.isDevDockOpen);
     const rootStyle = document.documentElement?.style;
-    if (rootStyle) rootStyle.setProperty("--dev-dock-height", `${clampDockHeight(state.devDockHeightPx)}px`);
+    if (rootStyle) {
+      rootStyle.setProperty("--dev-dock-height", `${clampDockHeight(state.devDockHeightPx)}px`);
+      rootStyle.setProperty("--resource-viewer-height", `${clampResourceViewerHeight(state.resourceViewerHeightPx)}px`);
+      rootStyle.setProperty("--board-column-width", `${clampBoardColumnWidth(state.boardColumnWidthPx)}px`);
+    }
   };
 
   /**
@@ -131,6 +169,32 @@ export const createAppShellCapabilities = ({
   const setDevDockHeight = (px) => {
     state.devDockHeightPx = clampDockHeight(px);
     syncDevDockControls();
+  };
+
+  /**
+   * Set Resource-Viewer table height in pixels.
+   *
+   * @param {number} px - Requested Resource-Viewer table height in pixels.
+   */
+  const setResourceViewerHeight = (px) => {
+    state.resourceViewerHeightPx = clampResourceViewerHeight(px);
+    syncDevDockControls();
+    if (typeof onChangeResourceViewerHeight === "function") {
+      onChangeResourceViewerHeight(state.resourceViewerHeightPx);
+    }
+  };
+
+  /**
+   * Set board column width in pixels.
+   *
+   * @param {number} px - Requested board column width in pixels.
+   */
+  const setBoardColumnWidth = (px) => {
+    state.boardColumnWidthPx = clampBoardColumnWidth(px);
+    syncDevDockControls();
+    if (typeof onChangeBoardColumnWidth === "function") {
+      onChangeBoardColumnWidth(state.boardColumnWidthPx);
+    }
   };
 
   /**
@@ -241,6 +305,52 @@ export const createAppShellCapabilities = ({
         const dockRect = developerDockEl.getBoundingClientRect();
         resizeState = { bottomPx: dockRect.bottom };
         devDockResizeHandleEl.setPointerCapture?.(event.pointerId);
+        event.preventDefault();
+      });
+      window.addEventListener("pointermove", onPointerMove);
+      window.addEventListener("pointerup", clearResize);
+      window.addEventListener("pointercancel", clearResize);
+    }
+    if (resourceViewerResizeHandleEl && resourceViewerCardEl) {
+      let resizeState = null;
+      const onPointerMove = (event) => {
+        if (!resizeState) return;
+        const deltaY = resizeState.startY - event.clientY;
+        setResourceViewerHeight(resizeState.startHeight + deltaY);
+      };
+      const clearResize = () => {
+        resizeState = null;
+      };
+      resourceViewerResizeHandleEl.addEventListener("pointerdown", (event) => {
+        resizeState = {
+          startY: event.clientY,
+          startHeight: clampResourceViewerHeight(state.resourceViewerHeightPx),
+        };
+        resourceViewerResizeHandleEl.setPointerCapture?.(event.pointerId);
+        event.preventDefault();
+      });
+      window.addEventListener("pointermove", onPointerMove);
+      window.addEventListener("pointerup", clearResize);
+      window.addEventListener("pointercancel", clearResize);
+    }
+    if (boardEditorResizeHandleEl && boardEditorBoxEl) {
+      let resizeState = null;
+      const onPointerMove = (event) => {
+        if (!resizeState) return;
+        const nextWidth = event.clientX - resizeState.leftPx - resizeState.handleHalfWidthPx;
+        setBoardColumnWidth(nextWidth);
+      };
+      const clearResize = () => {
+        resizeState = null;
+      };
+      boardEditorResizeHandleEl.addEventListener("pointerdown", (event) => {
+        const boxRect = boardEditorBoxEl.getBoundingClientRect();
+        const handleRect = boardEditorResizeHandleEl.getBoundingClientRect();
+        resizeState = {
+          leftPx: boxRect.left,
+          handleHalfWidthPx: Math.max(2, Math.round(handleRect.width / 2)),
+        };
+        boardEditorResizeHandleEl.setPointerCapture?.(event.pointerId);
         event.preventDefault();
       });
       window.addEventListener("pointermove", onPointerMove);

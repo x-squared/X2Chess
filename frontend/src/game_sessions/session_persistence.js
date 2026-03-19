@@ -2,13 +2,23 @@
  * Session persistence service.
  *
  * Integration API:
- * - `createSessionPersistenceService(deps)`
+ * - Create with `createSessionPersistenceService(deps)`.
+ * - Drive persistence through:
+ *   - `scheduleAutosaveForActiveSession()`
+ *   - `persistActiveSessionNow()`
+ *   - `setActiveSessionSaveMode(mode)`
  *
  * Configuration API:
- * - Autosave debounce is configurable; default save mode comes from state.
+ * - Autosave timing is configured via `autosaveDebounceMs`.
+ * - Save policy defaults come from `state.defaultSaveMode` and can be overridden
+ *   per session (`session.saveMode`).
+ * - Concrete storage backend is configured by injected `saveBySourceRef(...)`.
  *
  * Communication API:
- * - Persists active session via source gateway and emits save-status updates.
+ * - Reads active session + PGN via injected getters.
+ * - Writes session metadata (`dirtyState`, `revisionToken`, `saveMode`) through
+ *   `updateActiveSessionMeta`.
+ * - Emits user-facing save status through `onSetSaveStatus(...)`.
  */
 
 /**

@@ -91,6 +91,8 @@ import { createResourceViewerCapabilities } from "./resources_viewer";
 const initialLocale = resolveLocale(window.localStorage?.getItem("x2chess.locale") || navigator.language || DEFAULT_LOCALE);
 const t = createTranslator(initialLocale);
 const MODE_STORAGE_KEY = "x2chess.developerTools";
+const RESOURCE_VIEWER_HEIGHT_STORAGE_KEY = "x2chess.resourceViewerHeightPx";
+const BOARD_COLUMN_WIDTH_STORAGE_KEY = "x2chess.boardColumnWidthPx";
 const BUILD_APP_MODE = (() => {
   const raw = typeof __X2CHESS_MODE__ !== "undefined" ? String(__X2CHESS_MODE__) : DEFAULT_APP_MODE;
   return raw === "PROD" ? "PROD" : "DEV";
@@ -101,6 +103,18 @@ const readPersistedDeveloperToolsPreference = () => {
   if (raw === "false") return false;
   return null;
 };
+const readPersistedResourceViewerHeight = () => {
+  const raw = window.localStorage?.getItem(RESOURCE_VIEWER_HEIGHT_STORAGE_KEY);
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) return null;
+  return parsed;
+};
+const readPersistedBoardColumnWidth = () => {
+  const raw = window.localStorage?.getItem(BOARD_COLUMN_WIDTH_STORAGE_KEY);
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) return null;
+  return parsed;
+};
 
 const isLikelyPgnText = (value) => {
   if (!value || typeof value !== "string") return false;
@@ -108,6 +122,14 @@ const isLikelyPgnText = (value) => {
   if (!trimmed) return false;
   return /^\s*\[[A-Za-z0-9_]+\s+".*"\]\s*$/m.test(trimmed) || /\d+\.(?:\.\.)?\s*[^\s]+/.test(trimmed);
 };
+const EMPTY_GAME_PGN = `[Event "?"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "?"]
+[Black "?"]
+[Result "*"]
+`;
 
 const state = createInitialAppState(parsePgnToModel, DEFAULT_PGN);
 state.locale = initialLocale;
@@ -117,6 +139,16 @@ state.isDeveloperToolsEnabled = (() => {
   if (persisted !== null) return persisted;
   return state.appMode === "DEV";
 })();
+const persistedResourceViewerHeight = readPersistedResourceViewerHeight();
+if (Number.isFinite(persistedResourceViewerHeight)) {
+  state.resourceViewerHeightPx = persistedResourceViewerHeight;
+}
+const persistedBoardColumnWidth = readPersistedBoardColumnWidth();
+if (Number.isFinite(persistedBoardColumnWidth)) {
+  state.boardColumnWidthPx = persistedBoardColumnWidth;
+}
+// Developer dock always starts closed; users open it explicitly.
+state.isDevDockOpen = false;
 state.pgnModel = ensureRequiredPgnHeaders(state.pgnModel);
 state.pgnText = serializeModelToPgn(state.pgnModel);
 const boardCapabilities = createBoardCapabilities(state);
@@ -156,6 +188,20 @@ const {
   btnSaveActiveGame,
   saveStatusEl,
   gameTabsEl,
+  gameDropOverlayEl,
+  boardEditorBoxEl,
+  boardEditorResizeHandleEl,
+  boardEditorPaneEl,
+  resourceViewerCardEl,
+  resourceViewerResizeHandleEl,
+  btnOpenResource,
+  btnResourceMetadata,
+  resourceMetadataDialogEl,
+  resourceMetadataFieldsEl,
+  resourceMetadataApplyAllEl,
+  btnResourceMetadataReset,
+  btnResourceMetadataCancel,
+  btnResourceMetadataSave,
   resourceTabsEl,
   resourceTableWrapEl,
   astWrapEl,
@@ -231,6 +277,10 @@ const render = () => {
   if (!renderPipelineCapabilities) return;
   if (gameSessionStore) gameSessionStore.persistActiveSession();
   renderPipelineCapabilities.renderFull();
+  const boardHeight = Math.round(boardEl?.getBoundingClientRect?.().height || 0);
+  if (boardEditorPaneEl && boardHeight > 0) {
+    boardEditorPaneEl.style.maxHeight = `${boardHeight}px`;
+  }
   if (gameTabsUi) gameTabsUi.render();
 };
 
@@ -387,13 +437,36 @@ resourcesCapabilities = createResourcesCapabilities({
 resourceViewerCapabilities = createResourceViewerCapabilities({
   state,
   t,
+  btnResourceMetadata,
+  btnOpenResource,
+  resourceMetadataDialogEl,
+  resourceMetadataFieldsEl,
+  resourceMetadataApplyAllEl,
+  btnResourceMetadataReset,
+  btnResourceMetadataCancel,
+  btnResourceMetadataSave,
   resourceTabsEl,
   resourceTableWrapEl,
   listGamesForResource: (resourceRef) => resourcesCapabilities.listGamesForResource(resourceRef),
+  onRequestOpenResource: async () => {
+    const selected = await resourcesCapabilities.chooseResourceByPicker();
+    if (!selected?.resourceRef) return;
+    await ensureResourceTabVisible(selected.resourceRef, true);
+    render();
+  },
+  onOpenGameBySourceRef: async (sourceRef) => {
+    const existing = findOpenSessionBySourceRef(sourceRef);
+    if (existing) {
+      if (gameSessionStore.switchToSession(existing.sessionId)) render();
+      return;
+    }
+    await openSessionFromSourceRef(sourceRef, String(sourceRef?.recordId || ""));
+    render();
+  },
 });
 
 const initializeResourceViewerTabs = async () => {
-  const kinds = resourcesCapabilities.getAvailableSourceKinds();
+  const kinds = resourcesCapabilities.getAvailableSourceKinds().filter((kind) => kind !== "pgn-db");
   const tabs = kinds.map((kind) => ({
     title: t(`resources.tab.${kind}`, kind.toUpperCase()),
     resourceRef: {
@@ -433,6 +506,27 @@ sessionPersistenceService = createSessionPersistenceService({
   saveBySourceRef: (sourceRef, pgnText, revisionToken, options) => (
     resourcesCapabilities.saveGameBySourceRef(sourceRef, pgnText, revisionToken, options)
   ),
+  ensureSourceForActiveSession: async (session, pgnText) => {
+    const pendingResourceRef = normalizeResourceRefForInsert(
+      session?.pendingResourceRef
+        || resourceViewerCapabilities.getActiveResourceRef()
+        || { kind: state.activeSourceKind || "file", locator: state.gameDirectoryPath || "" },
+    );
+    if (!pendingResourceRef) return null;
+    const created = await resourcesCapabilities.createGameInResource(
+      pendingResourceRef,
+      pgnText,
+      session?.title || "new-game",
+    );
+    await ensureResourceTabVisible(
+      {
+        kind: created.sourceRef?.kind || pendingResourceRef.kind,
+        locator: created.sourceRef?.locator || pendingResourceRef.locator,
+      },
+      true,
+    );
+    return created;
+  },
   onSetSaveStatus: (message, kind) => uiAdapters.setSaveStatus(message, kind),
 });
 
@@ -461,6 +555,7 @@ const openSessionFromSnapshot = ({
   snapshot,
   title,
   sourceRef = null,
+  pendingResourceRef = null,
   revisionToken = "",
   saveMode = state.defaultSaveMode,
 }) => {
@@ -468,6 +563,7 @@ const openSessionFromSnapshot = ({
     snapshot,
     title,
     sourceRef,
+    pendingResourceRef,
     revisionToken,
     saveMode,
   });
@@ -488,6 +584,19 @@ const openSessionFromPgnText = (pgnText, preferredTitle = "", sourceRef = null, 
   });
 };
 
+const openUnsavedSessionFromPgnText = (pgnText, preferredTitle = "", pendingResourceRef = null) => {
+  const snapshot = gameSessionModel.createSessionFromPgnText(String(pgnText || ""));
+  openSessionFromSnapshot({
+    snapshot,
+    title: preferredTitle || t("games.new", "New game"),
+    sourceRef: null,
+    pendingResourceRef,
+    revisionToken: "",
+    saveMode: "auto",
+  });
+  gameSessionStore.updateActiveSessionMeta({ dirtyState: "dirty" });
+};
+
 const openSessionFromSourceRef = async (sourceRef, preferredTitle = "") => {
   const loaded = await resourcesCapabilities.loadGameBySourceRef(sourceRef);
   openSessionFromPgnText(
@@ -496,7 +605,46 @@ const openSessionFromSourceRef = async (sourceRef, preferredTitle = "") => {
     sourceRef,
     loaded.revisionToken,
   );
+  if (sourceRef?.kind && sourceRef.kind !== "file") {
+    gameSessionStore.updateActiveSessionMeta({ saveMode: "manual" });
+  }
 };
+
+const toResourceTabTitle = (resourceRef) => {
+  if (!resourceRef || typeof resourceRef !== "object") return t("resources.title", "Resources");
+  const locator = String(resourceRef.locator || "").replaceAll("\\", "/");
+  const shortLocator = locator.split("/").filter(Boolean).pop() || locator;
+  if (resourceRef.kind === "file" && shortLocator) return shortLocator;
+  return t(`resources.tab.${String(resourceRef.kind || "").toLowerCase()}`, String(resourceRef.kind || "Resource").toUpperCase());
+};
+
+const normalizeResourceRefForInsert = (resourceRef) => {
+  if (!resourceRef || typeof resourceRef !== "object") return null;
+  if (resourceRef.kind !== "file") return resourceRef;
+  const rawLocator = String(resourceRef.locator || "").trim();
+  if (rawLocator && rawLocator !== "local-files") return resourceRef;
+  if (state.gameDirectoryPath) return { kind: "file", locator: state.gameDirectoryPath };
+  if (state.gameDirectoryHandle) return { kind: "file", locator: "browser-handle" };
+  return null;
+};
+
+const ensureResourceTabVisible = async (resourceRef, select = true) => {
+  if (!resourceRef || typeof resourceRef !== "object") return;
+  resourceViewerCapabilities.upsertTab({
+    title: toResourceTabTitle(resourceRef),
+    resourceRef,
+    select,
+  });
+  await resourceViewerCapabilities.refreshActiveTabRows();
+};
+const isSameSourceRef = (left, right) => (
+  left?.kind === right?.kind
+  && String(left?.locator || "") === String(right?.locator || "")
+  && String(left?.recordId || "") === String(right?.recordId || "")
+);
+const findOpenSessionBySourceRef = (sourceRef) => (
+  gameSessionStore.listSessions().find((session) => isSameSourceRef(session.sourceRef, sourceRef)) || null
+);
 
 const appShellCapabilities = createAppShellCapabilities({
   state,
@@ -516,6 +664,10 @@ const appShellCapabilities = createAppShellCapabilities({
   btnSaveActiveGame,
   developerDockEl,
   devDockResizeHandleEl,
+  boardEditorBoxEl,
+  boardEditorResizeHandleEl,
+  resourceViewerResizeHandleEl,
+  resourceViewerCardEl,
   onHandleSelectedMoveArrowHotkey: (event) => boardNavigationCapabilities.handleSelectedMoveArrowHotkey(event),
   onUndo: () => historyCapabilities.performUndo(),
   onRedo: () => historyCapabilities.performRedo(),
@@ -543,6 +695,13 @@ const appShellCapabilities = createAppShellCapabilities({
   onChangeActiveSaveMode: (mode) => {
     sessionPersistenceService.setActiveSessionSaveMode(mode);
     render();
+  },
+  onChangeBoardColumnWidth: (widthPx) => {
+    window.localStorage?.setItem(BOARD_COLUMN_WIDTH_STORAGE_KEY, String(widthPx));
+    render();
+  },
+  onChangeResourceViewerHeight: (heightPx) => {
+    window.localStorage?.setItem(RESOURCE_VIEWER_HEIGHT_STORAGE_KEY, String(heightPx));
   },
   onSaveActiveGameNow: () => sessionPersistenceService.persistActiveSessionNow(),
 });
@@ -623,6 +782,7 @@ const appWiringCapabilities = createAppWiringCapabilities({
             listed[0].titleHint || String(listed[0].sourceRef?.recordId || ""),
           );
           await resourceViewerCapabilities.refreshActiveTabRows();
+          render();
           return;
         }
         pgnRuntimeCapabilities.initializeWithDefaultPgn();
@@ -630,6 +790,7 @@ const appWiringCapabilities = createAppWiringCapabilities({
           openSessionFromPgnText(state.pgnText, t("games.new", "New game"));
         }
         await resourceViewerCapabilities.refreshActiveTabRows();
+        render();
       };
       void run();
     },
@@ -678,8 +839,11 @@ gameTabsUi = createGameTabsUi({
   onCloseSession: (sessionId) => {
     const result = gameSessionStore.closeSession(sessionId);
     if (result.emptyAfterClose) {
-      pgnRuntimeCapabilities.initializeWithDefaultPgn();
-      openSessionFromPgnText(state.pgnText, t("games.new", "New game"));
+      const pendingResourceRef = normalizeResourceRefForInsert(
+        resourceViewerCapabilities.getActiveResourceRef()
+          || { kind: state.activeSourceKind || "file", locator: state.gameDirectoryPath || "" },
+      );
+      openUnsavedSessionFromPgnText(EMPTY_GAME_PGN, t("games.new", "New game"), pendingResourceRef);
       return;
     }
     render();
@@ -690,10 +854,48 @@ const appPanelEl = document.querySelector(".app-panel");
 const ingressHandlers = createGameIngressHandlers({
   appPanelEl,
   isLikelyPgnText,
-  openGameFromIncomingText: (sourceText, preferredTitle = "") => {
+  setDropOverlayVisible: (isVisible) => {
+    if (gameDropOverlayEl) gameDropOverlayEl.hidden = !isVisible;
+  },
+  openGameFromIncomingText: async (sourceText, options = {}) => {
     const pgnText = String(sourceText || "").trim();
     if (!isLikelyPgnText(pgnText)) return false;
-    openSessionFromPgnText(pgnText, preferredTitle);
+    const preferredTitle = String(options?.preferredTitle || "").trim();
+    const droppedSourceRef = options?.sourceRef && typeof options.sourceRef === "object" ? options.sourceRef : null;
+    const droppedResourceRef = options?.resourceRef && typeof options.resourceRef === "object" ? options.resourceRef : null;
+    if (droppedSourceRef) {
+      openSessionFromPgnText(pgnText, preferredTitle, droppedSourceRef, "");
+      if (droppedResourceRef) await ensureResourceTabVisible(droppedResourceRef, true);
+      render();
+      return true;
+    }
+    if (options?.preferInsertIntoActiveResource) {
+      const activeResourceRef = normalizeResourceRefForInsert(
+        resourceViewerCapabilities.getActiveResourceRef()
+          || { kind: state.activeSourceKind || "file", locator: state.gameDirectoryPath || "" },
+      );
+      if (activeResourceRef) {
+        try {
+          const created = await resourcesCapabilities.createGameInResource(activeResourceRef, pgnText, preferredTitle || "imported-game");
+          openSessionFromPgnText(
+            pgnText,
+            preferredTitle || created.titleHint || t("games.new", "New game"),
+            created.sourceRef,
+            created.revisionToken || "",
+          );
+          await ensureResourceTabVisible(
+            { kind: created.sourceRef?.kind || activeResourceRef.kind, locator: created.sourceRef?.locator || activeResourceRef.locator },
+            true,
+          );
+          render();
+          return true;
+        } catch (error) {
+          uiAdapters.setSaveStatus(String(error?.message || t("resources.error", "Unable to load resource games.")), "error");
+        }
+      }
+    }
+    openSessionFromPgnText(pgnText, preferredTitle || t("games.new", "New game"));
+    render();
     return true;
   },
 });
@@ -703,6 +905,15 @@ appWiringCapabilities.bindDomEvents();
 gameTabsUi.bindEvents();
 resourceViewerCapabilities.bindEvents();
 ingressHandlers.bindEvents();
+
+window.addEventListener("resize", () => {
+  window.requestAnimationFrame(() => {
+    const boardHeight = Math.round(boardEl?.getBoundingClientRect?.().height || 0);
+    if (boardEditorPaneEl && boardHeight > 0) {
+      boardEditorPaneEl.style.maxHeight = `${boardHeight}px`;
+    }
+  });
+});
 
 void initializeResourceViewerTabs().then(() => render());
 appWiringCapabilities.startApp();

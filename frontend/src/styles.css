@@ -22,6 +22,8 @@
   --text-editor-line-height: 1.45;
   --text-editor-max-height: 62vh;
   --dev-dock-height: 320px;
+  --resource-viewer-height: 260px;
+  --board-column-width: 520px;
   --board-background-image: url("/board-assets/img/boards/merida-blue.svg");
   --piece-wp-image: url("/canvaschess/img/pieces/merida/wp.svg");
   --piece-wn-image: url("/canvaschess/img/pieces/merida/wn.svg");
@@ -173,6 +175,35 @@ body.dev-dock-open .app {
   position: relative;
 }
 
+.game-drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  border: 2px dashed rgba(42, 93, 202, 0.55);
+  border-radius: 14px;
+  background: rgba(16, 32, 54, 0.18);
+  backdrop-filter: blur(1.5px);
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.game-drop-overlay[hidden] {
+  display: none;
+}
+
+.game-drop-overlay-label {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 999px;
+  background: rgba(8, 15, 28, 0.62);
+  color: #f6f9ff;
+  font-size: 0.86rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
 .runtime-build-badge {
   display: inline-block;
   font-size: 0.68rem;
@@ -275,6 +306,29 @@ body.dev-dock-open .app {
   background: linear-gradient(180deg, var(--surface-1), var(--surface-2));
   box-shadow: var(--shadow-s);
   padding: 0.55rem 0.65rem 0.65rem;
+  position: relative;
+}
+
+.resource-viewer-resize-handle {
+  position: absolute;
+  top: -7px;
+  left: 0;
+  right: 0;
+  height: 14px;
+  cursor: ns-resize;
+}
+
+.resource-viewer-resize-handle::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 5px;
+  width: 56px;
+  height: 4px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-1);
 }
 
 .resource-viewer-header {
@@ -352,7 +406,17 @@ body.dev-dock-open .app {
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
   background: var(--surface-0);
+  height: var(--resource-viewer-height);
+  min-height: var(--resource-viewer-height);
+  max-height: var(--resource-viewer-height);
   overflow: auto;
+}
+
+.resource-table-wrap > .resource-viewer-empty,
+.resource-table-wrap > .resource-viewer-error {
+  height: 100%;
+  display: flex;
+  align-items: center;
 }
 
 .resource-games-table {
@@ -405,6 +469,10 @@ body.dev-dock-open .app {
   max-height: min(76vh, 640px);
   display: flex;
   flex-direction: column;
+}
+
+.developer-dock[hidden] {
+  display: none !important;
 }
 
 .developer-dock-resize-handle {
@@ -662,10 +730,31 @@ body.dev-dock-open .app {
 
 .board-editor-box {
   display: grid;
-  grid-template-columns: minmax(320px, 560px) minmax(320px, 1fr);
+  grid-template-columns: minmax(320px, var(--board-column-width)) 14px minmax(320px, 1fr);
   gap: 1rem;
-  align-items: stretch;
+  align-items: start;
   margin-bottom: 0.9rem;
+}
+
+.board-editor-resize-handle {
+  align-self: stretch;
+  justify-self: stretch;
+  border-radius: 8px;
+  cursor: col-resize;
+  position: relative;
+}
+
+.board-editor-resize-handle::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 4px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-1);
 }
 
 .board {
@@ -863,6 +952,7 @@ body.dev-dock-open .app {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: hidden;
   background: transparent;
   border: none;
   padding: 0;
@@ -1310,6 +1400,10 @@ body.dev-dock-open .app {
 
   .board-editor-box {
     grid-template-columns: 1fr;
+  }
+
+  .board-editor-resize-handle {
+    display: none;
   }
 
   .board-editor-pane .text-editor {

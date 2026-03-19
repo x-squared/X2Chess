@@ -2,13 +2,20 @@
  * Game session store.
  *
  * Integration API:
- * - `createGameSessionStore(deps)`
+ * - Create once with `createGameSessionStore(deps)`.
+ * - Use public methods to manage session lifecycle:
+ *   `openSession`, `switchToSession`, `closeSession`, `persistActiveSession`.
  *
  * Configuration API:
- * - Uses shared app state arrays/counters for session persistence.
+ * - Store behavior is configured by injected snapshot handlers:
+ *   `captureActiveSessionSnapshot`, `applySessionSnapshotToState`,
+ *   `disposeSessionSnapshot`.
+ * - Session IDs/titles/counters are derived from shared state fields.
  *
  * Communication API:
- * - Offers open/switch/close/update operations for session management.
+ * - Mutates `state.gameSessions`, `state.activeSessionId`, and metadata fields.
+ * - Applies snapshots when switching/opening/closing sessions.
+ * - Disposes removed snapshots to release in-memory resources.
  */
 
 /**

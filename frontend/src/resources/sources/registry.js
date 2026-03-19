@@ -2,13 +2,19 @@
  * Source adapter registry.
  *
  * Integration API:
- * - `createSourceRegistry(adapters)`
+ * - Create with `createSourceRegistry(adapters)` and keep returned object in the
+ *   gateway/composition layer.
+ * - Resolve adapters via `getAdapterByKind(kind)` or
+ *   `getAdapterForSourceRef(sourceRef)` before list/load/save calls.
  *
  * Configuration API:
- * - Callers provide adapter instances keyed by `kind`.
+ * - Adapter set is fully caller-defined.
+ * - Each adapter must expose a unique string `kind`.
  *
  * Communication API:
- * - Resolves adapter for source references and lists available kinds.
+ * - Inbound: adapter registration list and lookup requests.
+ * - Outbound: adapter instance for the requested kind/sourceRef.
+ * - Throws early for unsupported kinds to keep gateway failures explicit.
  */
 
 /**

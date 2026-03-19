@@ -20,6 +20,16 @@ All source code must include public documentation that explains intent and behav
   - side effects and error behavior when relevant.
 - For classes/components/modules, document the integration, configuration, and communication APIs.
 
+## Readability and usefulness standard
+
+- Documentation must be actionable for maintainers, not just structurally complete.
+- Prefer concrete phrasing:
+  - name real functions/exports/callbacks,
+  - name real configuration keys and where they are passed,
+  - name real side effects (state fields, DOM writes, storage/network calls).
+- Avoid vague, content-light phrasing (for example "delegates to services", "supports communication", "handles configuration") unless followed by concrete details.
+- Write with "how to use this module" in mind: what to call, what to pass, what happens.
+
 ## Parameter documentation policy
 
 - Document all parameters explicitly; do not skip optional/defaulted parameters.
@@ -31,3 +41,4 @@ All source code must include public documentation that explains intent and behav
 - New/updated source files include top-level intent comments.
 - New/updated public functions and methods include parameter docs.
 - Documentation reflects current behavior after refactors.
+- Top-level component docs are concrete enough that another developer can integrate the component without opening unrelated files.

@@ -2,15 +2,16 @@
  * App state/bootstrap constants component.
  *
  * Integration API:
- * - `DEFAULT_LOCALE`
- * - `DEFAULT_PGN`
- * - `createInitialAppState(parsePgnToModelFn, defaultPgn?)`
+ * - Import `DEFAULT_LOCALE`, `DEFAULT_APP_MODE`, and `DEFAULT_PGN` for startup defaults.
+ * - Call `createInitialAppState(parsePgnToModelFn, defaultPgn?)` once during bootstrap.
  *
  * Configuration API:
- * - Callers may provide alternative translations or default PGN text.
+ * - Caller can override default PGN text by passing `defaultPgn`.
+ * - PGN parser function is injected, so state creation stays parser-agnostic.
  *
  * Communication API:
- * - Pure data factory functions; no side effects.
+ * - Returns plain initial state object only.
+ * - No DOM access, no storage access, no side effects.
  */
 
 export const DEFAULT_LOCALE = "en";
@@ -79,5 +80,7 @@ export const createInitialAppState = (parsePgnToModelFn, defaultPgn = DEFAULT_PG
   isDevDockOpen: false,
   activeDevTab: "ast",
   devDockHeightPx: 320,
+  resourceViewerHeightPx: 260,
+  boardColumnWidthPx: 520,
   appConfig: {},
 });

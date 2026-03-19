@@ -2,13 +2,15 @@
  * App build-info helpers.
  *
  * Integration API:
- * - `resolveBuildTimestampLabel(rawTimestamp)`
+ * - Import `resolveBuildTimestampLabel(rawTimestamp)` when rendering build info
+ *   in UI labels or diagnostics.
  *
  * Configuration API:
- * - Accepts raw build timestamp string (usually injected by bundler define).
+ * - Input is the raw build timestamp string (typically injected by Vite define).
+ * - If input is empty, return value is `"unknown"`.
  *
  * Communication API:
- * - Pure formatting helper, no side effects.
+ * - Pure function only: no state updates, no DOM access, no I/O.
  */
 
 /**

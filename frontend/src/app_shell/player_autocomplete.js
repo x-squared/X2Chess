@@ -2,15 +2,21 @@
  * App shell player-autocomplete component.
  *
  * Integration API:
- * - `createPlayerAutocompleteCapabilities(deps)` returns suggestion and commit handlers
- *   for player-name fields (`White`, `Black`, `Annotator`).
+ * - Build with `createPlayerAutocompleteCapabilities(deps)`.
+ * - Wire returned handlers to game-info name inputs (`White`, `Black`,
+ *   `Annotator`) for input/keydown/blur/suggestion-pick events.
  *
  * Configuration API:
- * - Caller provides player-name keys, normalization/query helpers, and persistence callbacks.
+ * - Configure by injecting:
+ *   - which header keys are treated as player-name fields,
+ *   - normalization/suggestion functions,
+ *   - model update callbacks,
+ *   - player-store load/save callbacks.
  *
  * Communication API:
- * - Reads/writes field values through provided DOM refs and callback functions.
- * - Persists player-store updates through provided save/load callbacks.
+ * - Reads and writes values through provided input/suggestion DOM refs.
+ * - Emits PGN model updates through `applyPgnModelUpdate(...)`.
+ * - Persists discovered names into player store via `savePlayerStore()`.
  */
 
 /**

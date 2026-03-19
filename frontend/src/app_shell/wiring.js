@@ -2,13 +2,21 @@
  * App wiring component.
  *
  * Integration API:
- * - `createAppWiringCapabilities(deps)` returns event-binding and startup helpers.
+ * - Call `createAppWiringCapabilities(deps)` from composition root.
+ * - Use returned methods:
+ *   - `bindDomEvents()` to attach UI listeners
+ *   - `startApp()` to run startup orchestration
  *
  * Configuration API:
- * - Receives DOM refs and callback functions from host composition root.
+ * - Configure by supplying:
+ *   - DOM refs in `deps.els`,
+ *   - action callbacks in `deps.actions`,
+ *   - shared state/translator for context-dependent behavior.
  *
  * Communication API:
- * - Binds UI events to host callbacks and orchestrates startup sequence.
+ * - Converts raw DOM events into semantic action calls.
+ * - Runs startup chain: hydrate assets -> load config -> load player store ->
+ *   ensure board -> initialize first game session.
  */
 
 /**

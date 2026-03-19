@@ -1,14 +1,25 @@
+import { extractPgnMetadata, PGN_STANDARD_METADATA_KEYS } from "./pgn_metadata.js";
+
 /**
  * File source adapter.
  *
  * Integration API:
- * - `createFileSourceAdapter(deps)`
+ * - Register via `createFileSourceAdapter({ state })`.
+ * - Use adapter methods from the source gateway: `pickSourceRoot`, `list`,
+ *   `load`, `save`, and optional DEV-root detection helpers.
  *
  * Configuration API:
- * - Supports browser File System Access API and Tauri commands.
+ * - Runtime behavior depends on environment:
+ *   - Browser: File System Access API handles/permissions.
+ *   - Tauri: command-based file operations (`list_pgn_files`, `load_game_file`, ...).
+ * - Source roots are configured by updating state (`gameDirectoryHandle`,
+ *   `gameDirectoryPath`, `gameRootPath`) through `applySourceRoot`.
  *
  * Communication API:
- * - Returns source records and persists PGN content for file-backed games.
+ * - `list()` returns normalized file records with `sourceRef`.
+ * - `load(sourceRef)` returns `{ pgnText, revisionToken, titleHint }`.
+ * - `save(sourceRef, pgnText)` persists content and returns new `revisionToken`.
+ * - Throws explicit errors for missing permissions/unsupported runtime.
  */
 
 /**
@@ -98,6 +109,18 @@ const pathParentUnix = (pathValue) => {
 };
 
 /**
+ * Resolve base file name from a path string.
+ *
+ * @param {string} pathValue - Full file path.
+ * @returns {string} Base name.
+ */
+const pathBaseUnix = (pathValue) => String(pathValue || "")
+  .replace(/\\/g, "/")
+  .split("/")
+  .filter(Boolean)
+  .pop() || "";
+
+/**
  * Attempt to resolve nested directory handle.
  *
  * @param {FileSystemDirectoryHandle} parentHandle - Parent handle.
@@ -163,6 +186,21 @@ const createFileSourceRef = (locator, fileName) => ({
 });
 
 /**
+ * Sanitize title into a filesystem-friendly base name.
+ *
+ * @param {string} rawTitle - Input title.
+ * @returns {string} Safe base name without extension.
+ */
+const sanitizeFileTitle = (rawTitle) => {
+  const normalized = String(rawTitle || "")
+    .trim()
+    .replace(/[^\w.-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return normalized || `imported-${Date.now()}`;
+};
+
+/**
  * Create file source adapter.
  *
  * @param {object} deps - Adapter dependencies.
@@ -170,6 +208,17 @@ const createFileSourceRef = (locator, fileName) => ({
  * @returns {object} File adapter with list/load/save/source-root helpers.
  */
 export const createFileSourceAdapter = ({ state }) => {
+  const isPlaceholderLocator = (value) => {
+    const normalized = String(value || "").trim().toLowerCase();
+    return normalized === "" || normalized === "local-files";
+  };
+
+  const resolveLocator = (sourceRef) => {
+    const locator = String(sourceRef?.locator || "").trim();
+    if (locator && !isPlaceholderLocator(locator)) return locator;
+    return String(state.gameDirectoryPath || "").trim();
+  };
+
   /**
    * Pick client games root in browser or Tauri runtime.
    *
@@ -200,6 +249,53 @@ export const createFileSourceAdapter = ({ state }) => {
       };
     }
     throw new Error("Local folder access is not supported in this browser runtime.");
+  };
+
+  /**
+   * Pick resource target from a single button flow:
+   * - first file picker (`.pgn`, `.sqlite`, `.db`, `.sqlite3`),
+   * - then folder picker when file selection is canceled.
+   *
+   * @returns {Promise<{type: "folder", title: string, sourceRoot: object}|{type: "pgn-db"|"sqlite", title: string, locator: string}|null>} Picked target descriptor.
+   */
+  const pickResourceTarget = async () => {
+    if (isTauriRuntime()) {
+      const selectedFilePath = await tauriInvoke("pick_resource_file");
+      const filePath = String(selectedFilePath || "").trim();
+      if (filePath) {
+        const baseName = pathBaseUnix(filePath);
+        const extension = baseName.includes(".") ? baseName.split(".").pop().toLowerCase() : "";
+        if (extension === "pgn") {
+          return { type: "pgn-db", title: baseName.replace(/\.[^.]+$/, ""), locator: filePath };
+        }
+        if (extension === "sqlite" || extension === "db" || extension === "sqlite3") {
+          return { type: "sqlite", title: baseName.replace(/\.[^.]+$/, ""), locator: filePath };
+        }
+        throw new Error("Unsupported resource file. Choose .pgn or SQLite (.sqlite/.db/.sqlite3).");
+      }
+      const folderRoot = await pickSourceRoot();
+      if (!folderRoot) return null;
+      const folderTitle = String(folderRoot.rootPath || folderRoot.gamesPath || "Local files")
+        .replace(/\\/g, "/")
+        .split("/")
+        .filter(Boolean)
+        .pop() || "Local files";
+      return {
+        type: "folder",
+        title: folderTitle,
+        sourceRoot: folderRoot,
+      };
+    }
+    if (supportsDirectoryPicker()) {
+      const folderRoot = await pickSourceRoot();
+      if (!folderRoot) return null;
+      return {
+        type: "folder",
+        title: "Local files",
+        sourceRoot: folderRoot,
+      };
+    }
+    throw new Error("Local folder/file access is not supported in this browser runtime.");
   };
 
   /**
@@ -243,8 +339,12 @@ export const createFileSourceAdapter = ({ state }) => {
    *
    * @returns {Promise<Array<{sourceRef: object, titleHint: string, revisionToken: string}>>} List of game descriptors.
    */
-  const list = async () => {
+  const list = async (options = {}) => {
+    const preferredLocatorRaw = String(options?.sourceRef?.locator || "").trim();
+    const preferredLocator = isPlaceholderLocator(preferredLocatorRaw) ? "" : preferredLocatorRaw;
+    const canUseBrowserHandle = !preferredLocator || preferredLocator === "browser-handle";
     if (state.gameDirectoryHandle) {
+      if (!canUseBrowserHandle) return [];
       const gamesSubdir = await tryGetDirectoryHandle(state.gameDirectoryHandle, "games");
       const gamesDir = gamesSubdir || state.gameDirectoryHandle;
       const entries = [];
@@ -252,25 +352,58 @@ export const createFileSourceAdapter = ({ state }) => {
         if (!entry || entry.kind !== "file") continue;
         const fileName = String(entry.name || "");
         if (!fileName.toLowerCase().endsWith(".pgn")) continue;
+        let metadataPayload = {
+          metadata: {},
+          availableMetadataKeys: [...PGN_STANDARD_METADATA_KEYS],
+        };
+        try {
+          const file = await entry.getFile();
+          metadataPayload = extractPgnMetadata(await file.text());
+        } catch {
+          // Keep listing robust; metadata is optional.
+        }
         entries.push({
           sourceRef: createFileSourceRef("browser-handle", fileName),
           titleHint: fileName.replace(/\.[^.]+$/, ""),
           revisionToken: "",
+          metadata: metadataPayload.metadata,
+          availableMetadataKeys: metadataPayload.availableMetadataKeys,
         });
       }
       entries.sort((left, right) => left.titleHint.localeCompare(right.titleHint));
       return entries;
     }
-    if (state.gameDirectoryPath && isTauriRuntime()) {
-      const names = await tauriInvoke("list_pgn_files", { gamesDirectory: state.gameDirectoryPath });
-      return (Array.isArray(names) ? names : [])
+    const effectiveDirectory = preferredLocator || state.gameDirectoryPath;
+    if (effectiveDirectory && isTauriRuntime()) {
+      const names = await tauriInvoke("list_pgn_files", { gamesDirectory: effectiveDirectory });
+      const normalizedNames = (Array.isArray(names) ? names : [])
         .map((name) => String(name || ""))
-        .filter(Boolean)
-        .map((name) => ({
-          sourceRef: createFileSourceRef(state.gameDirectoryPath, name),
+        .filter(Boolean);
+      const results = [];
+      // Resolve metadata per file to enable formal metadata contract.
+      for (const name of normalizedNames) {
+        let metadataPayload = {
+          metadata: {},
+          availableMetadataKeys: [...PGN_STANDARD_METADATA_KEYS],
+        };
+        try {
+          const content = await tauriInvoke("load_game_file", {
+            gamesDirectory: effectiveDirectory,
+            fileName: name,
+          });
+          metadataPayload = extractPgnMetadata(String(content || ""));
+        } catch {
+          // Continue listing when metadata extraction fails for a single file.
+        }
+        results.push({
+          sourceRef: createFileSourceRef(effectiveDirectory, name),
           titleHint: name.replace(/\.[^.]+$/, ""),
           revisionToken: "",
-        }));
+          metadata: metadataPayload.metadata,
+          availableMetadataKeys: metadataPayload.availableMetadataKeys,
+        });
+      }
+      return results;
     }
     return [];
   };
@@ -284,7 +417,11 @@ export const createFileSourceAdapter = ({ state }) => {
   const load = async (sourceRef) => {
     const fileName = String(sourceRef?.recordId || "");
     if (!fileName) throw new Error("File source is missing recordId.");
+    const locator = resolveLocator(sourceRef);
     if (state.gameDirectoryHandle) {
+      if (locator && locator !== "browser-handle") {
+        throw new Error("Browser runtime cannot load dropped files from arbitrary paths.");
+      }
       const gamesSubdir = await tryGetDirectoryHandle(state.gameDirectoryHandle, "games");
       const gamesDir = gamesSubdir || state.gameDirectoryHandle;
       const fileHandle = await gamesDir.getFileHandle(fileName, { create: false });
@@ -296,9 +433,9 @@ export const createFileSourceAdapter = ({ state }) => {
         titleHint: fileName.replace(/\.[^.]+$/, ""),
       };
     }
-    if (state.gameDirectoryPath && isTauriRuntime()) {
+    if (locator && isTauriRuntime()) {
       const pgnText = await tauriInvoke("load_game_file", {
-        gamesDirectory: state.gameDirectoryPath,
+        gamesDirectory: locator,
         fileName,
       });
       return {
@@ -320,10 +457,15 @@ export const createFileSourceAdapter = ({ state }) => {
   const save = async (sourceRef, pgnText) => {
     const fileName = String(sourceRef?.recordId || "");
     if (!fileName) throw new Error("File source is missing recordId.");
+    const locator = resolveLocator(sourceRef);
+    const createIfMissing = Boolean(sourceRef?.createIfMissing);
     if (state.gameDirectoryHandle) {
+      if (locator && locator !== "browser-handle") {
+        throw new Error("Browser runtime cannot save dropped files from arbitrary paths.");
+      }
       const gamesSubdir = await tryGetDirectoryHandle(state.gameDirectoryHandle, "games");
       const gamesDir = gamesSubdir || state.gameDirectoryHandle;
-      const fileHandle = await gamesDir.getFileHandle(fileName, { create: false });
+      const fileHandle = await gamesDir.getFileHandle(fileName, { create: createIfMissing });
       const hasPermission = await ensureFsPermission(fileHandle, "readwrite");
       if (!hasPermission) throw new Error("Write permission denied.");
       const writable = await fileHandle.createWritable();
@@ -332,9 +474,9 @@ export const createFileSourceAdapter = ({ state }) => {
       const file = await fileHandle.getFile();
       return { revisionToken: String(file.lastModified || Date.now()) };
     }
-    if (state.gameDirectoryPath && isTauriRuntime()) {
+    if (locator && isTauriRuntime()) {
       await tauriInvoke("save_game_file", {
-        gamesDirectory: state.gameDirectoryPath,
+        gamesDirectory: locator,
         fileName,
         content: String(pgnText || ""),
       });
@@ -343,12 +485,38 @@ export const createFileSourceAdapter = ({ state }) => {
     throw new Error("Local folder access is not supported in this browser runtime.");
   };
 
+  /**
+   * Create and persist a new game in a target file resource.
+   *
+   * @param {{locator?: string}|null} resourceRef - Target file resource.
+   * @param {string} pgnText - PGN content.
+   * @param {string} [titleHint=""] - Preferred title for new filename.
+   * @returns {Promise<{sourceRef: object, revisionToken: string, titleHint: string}>} Created game descriptor.
+   */
+  const createInResource = async (resourceRef, pgnText, titleHint = "") => {
+    const locator = String(resourceRef?.locator || "").trim() || String(state.gameDirectoryPath || "").trim();
+    if (!locator && !state.gameDirectoryHandle) {
+      throw new Error("No active file resource is available to store imported text.");
+    }
+    const baseName = sanitizeFileTitle(titleHint || "imported-game");
+    const fileName = `${baseName}.pgn`;
+    const sourceRef = createFileSourceRef(locator || "browser-handle", fileName);
+    await save({ ...sourceRef, createIfMissing: true }, pgnText);
+    return {
+      sourceRef,
+      revisionToken: String(Date.now()),
+      titleHint: baseName,
+    };
+  };
+
   return {
     kind: "file",
     applySourceRoot,
     detectDefaultSourceRoot,
     list,
     load,
+    createInResource,
+    pickResourceTarget,
     pickSourceRoot,
     save,
   };

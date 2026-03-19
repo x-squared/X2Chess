@@ -8,16 +8,18 @@ import es from "../../data/i18n/es.json";
  * App shell i18n helpers.
  *
  * Integration API:
- * - `SUPPORTED_LOCALES`
- * - `DEFAULT_LOCALE`
- * - `resolveLocale(input)`
- * - `createTranslator(locale?)`
+ * - Import constants `SUPPORTED_LOCALES` and `DEFAULT_LOCALE` for UI selectors
+ *   and startup defaults.
+ * - Call `resolveLocale(input)` for browser/localStorage locale hints.
+ * - Call `createTranslator(locale?)` once and pass returned `t(key, fallback)`
+ *   to layout/render modules.
  *
  * Configuration API:
- * - Locale bundles are sourced from `frontend/data/i18n/*.json`.
+ * - Translations are configured by JSON bundles in `frontend/data/i18n/*.json`.
+ * - Locale fallback order is: requested locale -> language-only locale -> English.
  *
  * Communication API:
- * - Translation resolver returns localized string with fallback to English.
+ * - Returns read-only lookup functions; this module does not mutate state or DOM.
  */
 
 const BUNDLES_BY_LOCALE = {

@@ -4,13 +4,22 @@ import { Chess } from "chess.js";
  * Game session model utilities.
  *
  * Integration API:
- * - `createGameSessionModel(deps)`
+ * - Create once with `createGameSessionModel(deps)`.
+ * - Use returned helpers for three operations:
+ *   - capture current runtime into a session snapshot,
+ *   - apply a snapshot into active runtime,
+ *   - create/dispose snapshot payloads for session lifecycle.
  *
  * Configuration API:
- * - Parser/serializer/move-position builders are injected by caller.
+ * - Parsing/serialization/chess mapping logic is injected (`parsePgnToModelFn`,
+ *   `serializeModelToPgnFn`, `buildMovePositionByIdFn`, ...), so this module stays
+ *   independent from concrete parser implementations.
+ * - Translation callback configures parse-error fallback text.
  *
  * Communication API:
- * - Produces immutable-ish session snapshots and applies/disposes them.
+ * - Reads/writes shared runtime state when capturing/applying snapshots.
+ * - Produces plain snapshot objects stored by the session store.
+ * - Clears snapshot internals in `disposeSessionSnapshot` to free memory eagerly.
  */
 
 /**

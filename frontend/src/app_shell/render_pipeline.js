@@ -4,13 +4,21 @@ import { syncAppViewRuntime } from "./view_runtime";
  * App render pipeline component.
  *
  * Integration API:
- * - `createAppRenderPipeline(deps)` returns render functions for full and live-input views.
+ * - Create with `createAppRenderPipeline(deps)` in composition root.
+ * - Use returned methods:
+ *   - `renderFull()` for normal frame rendering
+ *   - `renderLiveInput()` for lightweight updates while editing raw PGN
  *
  * Configuration API:
- * - Host provides state, UI refs, render callbacks, and translation function.
+ * - Host configures what is rendered by passing callbacks (`renderBoard`,
+ *   `renderTextEditor`, `renderResourceViewer`, etc.) and element refs in `deps.els`.
+ * - Developer-dock panel rendering depends on `state.isDeveloperToolsEnabled`,
+ *   `state.isDevDockOpen`, and `state.activeDevTab`.
  *
  * Communication API:
- * - Performs DOM rendering calls and applies view-runtime synchronization.
+ * - Calls downstream component renderers in a defined order.
+ * - Writes error/status text through provided DOM refs.
+ * - Delegates final control-state synchronization to `syncAppViewRuntime(...)`.
  */
 
 /**

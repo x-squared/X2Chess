@@ -6,23 +6,23 @@ import { createSourceGateway } from "./source_gateway";
  * Resources composition component.
  *
  * Integration API:
- * - Call `createResourcesCapabilities(deps)` once from `main.js`.
- * - Use the returned methods to:
- *   - choose and query game resources,
- *   - load/save games by source reference,
- *   - load runtime config and player store data.
- * - This component is orchestration only. It coordinates services and exposes a
- *   stable API to the composition root.
+ * - Create once via `createResourcesCapabilities(deps)`.
+ * - Use returned methods directly from composition root/session flows:
+ *   - `chooseClientGamesFolder()`
+ *   - `listSourceGames(kind)` / `listGamesForResource(resourceRef)`
+ *   - `loadGameBySourceRef(sourceRef)` / `saveGameBySourceRef(...)`
+ *   - `loadRuntimeConfigFromClientDataAndDefaults()`
+ *   - player store load/save helpers.
  *
  * Configuration API:
- * - Configure behavior via injected dependencies:
- *   - `deps.state`: shared runtime state (current source roots, mode, etc.).
- *   - `deps.t`: translation callback used for user-facing status text.
- *   - `deps.onSetSaveStatus(message, kind)`: host callback for status updates.
- *   - `deps.onApplyRuntimeConfig(config)`: host callback that applies loaded config.
- *   - `deps.onLoadPgn` and `deps.pgnInput`: optional bridge for compatibility flows.
- * - Source-specific behavior is configured in adapters behind `source_gateway`
- *   (`file`, `sqlite`, future sources).
+ * - Required injected dependencies:
+ *   - `state` for active runtime/source context,
+ *   - `t` for user-facing status texts,
+ *   - `onSetSaveStatus(message, kind)` for save/load feedback,
+ *   - `onApplyRuntimeConfig(config)` to apply loaded runtime config.
+ * - Optional compatibility bridge:
+ *   - `onLoadPgn` and `pgnInput` to hydrate legacy raw-PGN flow after load.
+ * - Source behavior is configured by adapters registered in source gateway.
  *
  * Communication API:
  * - Inbound:
@@ -33,7 +33,7 @@ import { createSourceGateway } from "./source_gateway";
  *   - Calls `onApplyRuntimeConfig(...)` after config resolution.
  *   - Calls `onLoadPgn()` after writing loaded PGN into `pgnInput` (if provided).
  * - Side effects:
- *   - Reads/writes local resources through delegated services; no direct rendering.
+ *   - Reads/writes local resources and shared resource state; no direct rendering.
  */
 
 /**
@@ -49,10 +49,12 @@ import { createSourceGateway } from "./source_gateway";
  * @param {HTMLTextAreaElement|null} [deps.pgnInput] - Optional PGN textarea.
  * @returns {{
  *   chooseClientGamesFolder: Function,
+ *   chooseResourceByPicker: Function,
  *   getAvailableSourceKinds: Function,
  *   listGamesForResource: Function,
  *   listSourceGames: Function,
  *   loadGameBySourceRef: Function,
+ *   createGameInResource: Function,
  *   loadPlayerStoreFromClientData: Function,
  *   loadRuntimeConfigFromClientDataAndDefaults: Function,
  *   saveGameBySourceRef: Function,
@@ -100,6 +102,23 @@ export const createResourcesCapabilities = ({
   };
 
   /**
+   * Open a resource picker that can select either a folder or supported file resource.
+   *
+   * @returns {Promise<{resourceRef: object}|null>} Picked resource descriptor.
+   */
+  const chooseResourceByPicker = async () => {
+    try {
+      const selected = await sourceGateway.chooseResourceByPicker();
+      if (!selected) return null;
+      onSetSaveStatus("", "");
+      return selected;
+    } catch (error) {
+      onSetSaveStatus(String(error?.message || t("resources.error", "Unable to load resource games.")), "error");
+      return null;
+    }
+  };
+
+  /**
    * Load game from source reference and hydrate active editor state (compatibility path).
    *
    * @param {object} sourceRef - Source reference.
@@ -112,6 +131,18 @@ export const createResourcesCapabilities = ({
     onSetSaveStatus("", "");
     return payload;
   };
+
+  /**
+   * Create a new game entry inside a target resource.
+   *
+   * @param {object} resourceRef - Target resource reference.
+   * @param {string} pgnText - PGN content.
+   * @param {string} [titleHint=""] - Preferred title/file name stem.
+   * @returns {Promise<{sourceRef: object, revisionToken: string, titleHint: string}>} Created source payload.
+   */
+  const createGameInResource = async (resourceRef, pgnText, titleHint = "") => (
+    sourceGateway.createGameInResource(resourceRef, pgnText, titleHint)
+  );
 
   /**
    * Save game by source reference.
@@ -143,9 +174,11 @@ export const createResourcesCapabilities = ({
 
   return {
     chooseClientGamesFolder,
+    chooseResourceByPicker,
     getAvailableSourceKinds: () => sourceGateway.getAdapterKinds(),
     listGamesForResource,
     listSourceGames,
+    createGameInResource,
     loadGameBySourceRef,
     loadPlayerStoreFromClientData: playerStoreService.loadPlayerStoreFromClientData,
     loadRuntimeConfigFromClientDataAndDefaults,

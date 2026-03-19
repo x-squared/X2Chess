@@ -1,4 +1,5 @@
 import { createFileSourceAdapter } from "./sources/file_adapter";
+import { createPgnDbSourceAdapter } from "./sources/pgn_db_adapter";
 import { createSourceRegistry } from "./sources/registry";
 import { createSqliteSourceAdapter } from "./sources/sqlite_adapter";
 
@@ -6,13 +7,22 @@ import { createSqliteSourceAdapter } from "./sources/sqlite_adapter";
  * Source gateway service.
  *
  * Integration API:
- * - `createSourceGateway(deps)`
+ * - Build once with `createSourceGateway({ state })`.
+ * - Use returned methods for all source-facing operations (`list/load/save`,
+ *   root selection, default DEV preload).
  *
  * Configuration API:
- * - Registers source adapters and tracks active source kind/root in shared state.
+ * - Active behavior is configured by:
+ *   - registered adapters (`file`, `sqlite`, future kinds),
+ *   - `state.activeSourceKind`,
+ *   - source root values already present in shared state.
  *
  * Communication API:
- * - Provides uniform list/load/save operations via source references.
+ * - Inbound: caller asks for list/load/save using kind or `sourceRef`.
+ * - Outbound: calls resolved adapter methods (`list`, `load`, `save`) and returns
+ *   normalized payloads to caller.
+ * - Side effects: updates source-selection fields in shared state when root
+ *   selection/preload methods are used.
  */
 
 /**
@@ -20,12 +30,13 @@ import { createSqliteSourceAdapter } from "./sources/sqlite_adapter";
  *
  * @param {object} deps - Gateway dependencies.
  * @param {object} deps.state - Shared app state.
- * @returns {{chooseFileSourceRoot: Function, getAdapterKinds: Function, listGames: Function, loadBySourceRef: Function, maybePreloadDefaultDevSource: Function, saveBySourceRef: Function}} Gateway API.
+ * @returns {{chooseFileSourceRoot: Function, chooseResourceByPicker: Function, createGameInResource: Function, getAdapterKinds: Function, listGames: Function, loadBySourceRef: Function, maybePreloadDefaultDevSource: Function, saveBySourceRef: Function}} Gateway API.
  */
 export const createSourceGateway = ({ state }) => {
   const fileAdapter = createFileSourceAdapter({ state });
+  const pgnDbAdapter = createPgnDbSourceAdapter();
   const sqliteAdapter = createSqliteSourceAdapter();
-  const registry = createSourceRegistry([fileAdapter, sqliteAdapter]);
+  const registry = createSourceRegistry([fileAdapter, pgnDbAdapter, sqliteAdapter]);
 
   /**
    * Select local file source root.
@@ -37,6 +48,39 @@ export const createSourceGateway = ({ state }) => {
     if (!root) return;
     fileAdapter.applySourceRoot(root);
     state.activeSourceKind = "file";
+  };
+
+  /**
+   * Pick a resource (folder or file) and return normalized resource reference.
+   *
+   * @returns {Promise<{resourceRef: object}|null>} Selected resource descriptor.
+   */
+  const chooseResourceByPicker = async () => {
+    const selected = await fileAdapter.pickResourceTarget();
+    if (!selected) return null;
+    if (selected.type === "folder") {
+      fileAdapter.applySourceRoot(selected.sourceRoot);
+      state.activeSourceKind = "file";
+      return {
+        resourceRef: {
+          kind: "file",
+          locator: state.gameDirectoryPath || "local-files",
+        },
+      };
+    }
+    if (selected.type === "pgn-db") {
+      state.activeSourceKind = "pgn-db";
+      return {
+        resourceRef: { kind: "pgn-db", locator: selected.locator },
+      };
+    }
+    if (selected.type === "sqlite") {
+      state.activeSourceKind = "sqlite";
+      return {
+        resourceRef: { kind: "sqlite", locator: selected.locator },
+      };
+    }
+    return null;
   };
 
   /**
@@ -89,8 +133,26 @@ export const createSourceGateway = ({ state }) => {
     return adapter.save(sourceRef, pgnText, revisionToken, options);
   };
 
+  /**
+   * Create a new persisted game in a target resource.
+   *
+   * @param {object} resourceRef - Target resource reference.
+   * @param {string} pgnText - PGN content.
+   * @param {string} [titleHint=""] - Preferred game title.
+   * @returns {Promise<{sourceRef: object, revisionToken: string, titleHint: string}>} Created source payload.
+   */
+  const createGameInResource = async (resourceRef, pgnText, titleHint = "") => {
+    const adapter = registry.getAdapterForSourceRef(resourceRef || { kind: "file" });
+    if (typeof adapter.createInResource !== "function") {
+      throw new Error(`Source kind '${String(resourceRef?.kind || "")}' cannot create new games yet.`);
+    }
+    return adapter.createInResource(resourceRef, pgnText, titleHint);
+  };
+
   return {
     chooseFileSourceRoot,
+    chooseResourceByPicker,
+    createGameInResource,
     getAdapterKinds: () => registry.listKinds(),
     listGames,
     listGamesForResource: async (resourceRef) => {

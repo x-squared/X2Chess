@@ -9,6 +9,7 @@ Use this from repository root unless a section says otherwise.
 > Note: Browser mode is not used in this project. X2Chess runs as a Tauri desktop client.
 > Note: X2Chess frontend uses port `5287`.
 > Note: Developer-Tools defaults ON in `desktop:dev` and OFF in packaged PROD builds.
+> Note: The Developer Dock starts closed in all modes and must be opened by the user.
 
 ### 1) Check and remove stale dev processes (recommended before start)
 
@@ -68,6 +69,13 @@ npm run build
 ```{bash}
 cd frontend
 npm test
+```
+
+### Run regression tests (targeted)
+
+```{bash}
+cd frontend
+node --test test/app_shell/dev_dock_regression.test.js
 ```
 
 ### Stop local dev services quickly

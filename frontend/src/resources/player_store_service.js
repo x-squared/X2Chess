@@ -2,13 +2,18 @@
  * Player store service.
  *
  * Integration API:
- * - `createPlayerStoreService(deps)`
+ * - Create with `createPlayerStoreService({ state })`.
+ * - Use `loadPlayerStoreFromClientData(seedPlayers)` during startup and
+ *   `savePlayerStoreToClientData(players)` after edits.
  *
  * Configuration API:
- * - Uses active runtime root path in state for local persistence.
+ * - Storage target is configured by `state.gameRootPath` (Tauri runtime data root).
+ * - Seed/fallback data is provided by caller as `seedPlayers`.
  *
  * Communication API:
- * - Reads/writes player lists and normalizes records.
+ * - Reads player list from local runtime storage, normalizes/deduplicates entries,
+ *   writes back normalized content.
+ * - Updates `state.playerStore` with loaded or fallback values.
  */
 
 const normalizePlayerNameField = (value) => String(value ?? "").trim();

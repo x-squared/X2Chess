@@ -2,13 +2,19 @@
  * Runtime config service.
  *
  * Integration API:
- * - `createRuntimeConfigService(deps)`
+ * - Create with `createRuntimeConfigService({ state })`.
+ * - Call `loadRuntimeConfigFromClientData()` or
+ *   `loadRuntimeConfigFromClientDataAndDefaults()` from startup/resource flows.
  *
  * Configuration API:
- * - Merges default config with optional user override from local runtime data.
+ * - Built-in defaults live in `DEFAULT_APP_CONFIG`.
+ * - User overrides are loaded from `config/user-config.json` in active local
+ *   runtime data area and merged over defaults.
+ * - Supports both browser handle-based roots and Tauri path-based roots.
  *
  * Communication API:
- * - Returns config objects; caller applies them to UI runtime.
+ * - Returns resolved config objects only.
+ * - Does not mutate UI directly; caller decides when/how to apply config.
  */
 
 const DEFAULT_APP_CONFIG = {

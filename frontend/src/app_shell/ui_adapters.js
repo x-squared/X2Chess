@@ -2,13 +2,18 @@
  * App shell UI adapters.
  *
  * Integration API:
- * - `createUiAdapters(deps)`
+ * - Create adapter helpers with `createUiAdapters(deps)` and inject into modules
+ *   that should not depend directly on concrete DOM/panel implementations.
  *
  * Configuration API:
- * - Requires DOM refs and panel render helpers from caller.
+ * - Configure by passing DOM targets (`saveStatusEl`, `domViewEl`, `textEditorEl`)
+ *   and concrete renderer/status callbacks.
  *
  * Communication API:
- * - Provides small adapter functions used by composition root and runtime modules.
+ * - Outbound methods:
+ *   - `setSaveStatus(message, kind)` updates save status text/style.
+ *   - `renderDomView()` rebuilds DOM preview from the editor root.
+ * - No internal state; acts as a thin translation layer.
  */
 
 /**

@@ -2,13 +2,21 @@
  * App shell runtime configuration component.
  *
  * Integration API:
- * - `createRuntimeConfigCapabilities({ state, astWrapEl, domWrapEl })`
+ * - Create once with `createRuntimeConfigCapabilities(...)`.
+ * - Call `applyRuntimeConfig(config)` after config is loaded or when toggles
+ *   affecting visibility/styles change.
  *
  * Configuration API:
- * - Applies text editor style variables from `config.textEditor`.
+ * - Reads `config.textEditor` keys:
+ *   - `fontSizePx`, `lineHeight`, `maxHeightVh` (CSS variables)
+ *   - `showAstView`, `showDomView` (dock tab visibility)
+ * - Uses sane numeric bounds before applying values.
  *
  * Communication API:
- * - Mutates shared `state.appConfig` and updates DOM style/visibility.
+ * - Writes merged config into `state.appConfig`.
+ * - Updates CSS variables on `document.documentElement`.
+ * - Shows/hides AST/DOM panels and normalizes `state.activeDevTab` when a tab
+ *   becomes unavailable.
  */
 
 /**

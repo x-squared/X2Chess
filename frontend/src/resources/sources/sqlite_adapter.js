@@ -2,13 +2,16 @@
  * SQLite source adapter.
  *
  * Integration API:
- * - `createSqliteSourceAdapter()`
+ * - Register this adapter with the source registry to reserve the `sqlite` kind
+ *   in the uniform adapter contract.
  *
  * Configuration API:
- * - This adapter is interface-complete but currently a stub.
+ * - No runtime configuration yet; implementation is intentionally a stub until
+ *   SQLite read/write operations are introduced.
  *
  * Communication API:
- * - Exposes the same shape as file adapters for registry uniformity.
+ * - Keeps API shape consistent with other adapters (`kind`, `list`, `load`, `save`).
+ * - `list()` returns an empty result; `load()` and `save()` throw "not implemented".
  */
 
 /**

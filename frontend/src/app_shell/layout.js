@@ -5,13 +5,19 @@ import { SUPPORTED_LOCALES } from "./i18n";
  * App shell layout component.
  *
  * Integration API:
- * - `createAppLayout({ t, buildTimestampLabel })` renders shell markup and returns queried DOM refs.
+ * - Call `createAppLayout({ t, buildTimestampLabel, currentLocale, isDeveloperToolsEnabled })`
+ *   once at startup.
+ * - Receives initial shell HTML + queried DOM refs used by wiring/render modules.
  *
  * Configuration API:
- * - Uses translation callback and build timestamp label injected by caller.
+ * - Configure initial labels and selectors via:
+ *   - `t(...)` for all user-facing text,
+ *   - `buildTimestampLabel` for footer badge,
+ *   - `currentLocale` and `isDeveloperToolsEnabled` for initial control values.
  *
  * Communication API:
- * - Writes app HTML into `#app` root and exposes refs for other components.
+ * - Writes full app shell markup into `#app`.
+ * - Returns a stable object of DOM refs; does not bind events itself.
  */
 
 /**
@@ -124,6 +130,9 @@ export const createAppLayout = ({ t, buildTimestampLabel, currentLocale, isDevel
         </div>
       </aside>
       <section class="app-panel">
+        <div id="game-drop-overlay" class="game-drop-overlay" hidden aria-hidden="true">
+          <p class="game-drop-overlay-label">${t("games.dropOverlay", "Drop PGN file to open game")}</p>
+        </div>
         <button
           id="btn-menu"
           class="menu-trigger"
@@ -179,8 +188,9 @@ export const createAppLayout = ({ t, buildTimestampLabel, currentLocale, isDevel
             </div>
           </div>
         </section>
-        <div class="board-editor-box">
+        <div id="board-editor-box" class="board-editor-box">
           <div id="board" class="board merida"></div>
+          <div id="board-editor-resize-handle" class="board-editor-resize-handle" aria-hidden="true"></div>
           <div class="text-editor-wrap board-editor-pane">
             <div class="toolbar-box">
               <div class="move-toolbar">
@@ -241,6 +251,7 @@ export const createAppLayout = ({ t, buildTimestampLabel, currentLocale, isDevel
           </div>
         </div>
         <section class="resource-viewer-card">
+          <div id="resource-viewer-resize-handle" class="resource-viewer-resize-handle" aria-hidden="true"></div>
           <div class="resource-viewer-header">
             <p class="resource-viewer-title">${t("resources.title", "Resources")}</p>
             <p class="resource-viewer-subtitle">${t("resources.subtitle", "Each tab shows all games available in one resource.")}</p>
@@ -250,7 +261,6 @@ export const createAppLayout = ({ t, buildTimestampLabel, currentLocale, isDevel
         </section>
         <p id="status" class="status"></p>
         <span id="save-status" class="save-status" hidden></span>
-        <div id="moves" class="moves"></div>
       </section>
       <section id="developer-dock" class="developer-dock" hidden>
         <div id="dev-dock-resize-handle" class="developer-dock-resize-handle" aria-hidden="true"></div>
@@ -329,6 +339,12 @@ export const createAppLayout = ({ t, buildTimestampLabel, currentLocale, isDevel
     btnSaveActiveGame: document.querySelector("#btn-save-active-game"),
     saveStatusEl: document.querySelector("#save-status"),
     gameTabsEl: document.querySelector("#game-tabs"),
+    gameDropOverlayEl: document.querySelector("#game-drop-overlay"),
+    boardEditorBoxEl: document.querySelector("#board-editor-box"),
+    boardEditorResizeHandleEl: document.querySelector("#board-editor-resize-handle"),
+    boardEditorPaneEl: document.querySelector(".board-editor-pane"),
+    resourceViewerCardEl: document.querySelector(".resource-viewer-card"),
+    resourceViewerResizeHandleEl: document.querySelector("#resource-viewer-resize-handle"),
     resourceTabsEl: document.querySelector("#resource-tabs"),
     resourceTableWrapEl: document.querySelector("#resource-table-wrap"),
     runtimeBuildBadgeEl: document.querySelector("#runtime-build-badge"),

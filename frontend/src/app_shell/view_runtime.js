@@ -2,13 +2,19 @@
  * App view runtime component.
  *
  * Integration API:
- * - `syncAppViewRuntime(deps)` synchronizes render-time view state and controls.
+ * - Call `syncAppViewRuntime(deps)` at the end of each render cycle.
+ * - Provide all control refs that need enabled/disabled, selected, or hidden
+ *   synchronization with current runtime state.
  *
  * Configuration API:
- * - Uses host-provided UI refs, translation function, and board capabilities.
+ * - Behavior is configured by incoming state values (for example `isDevDockOpen`,
+ *   `activeDevTab`, `appConfig.textEditor.showAstView/showDomView`) and injected
+ *   helper callbacks (`getFirstCommentMetadata`, `focusCommentById`).
  *
  * Communication API:
- * - Mutates shared state for selection/focus cleanup and updates DOM control state.
+ * - Updates button disabled states, status labels, and dock tab visibility.
+ * - Applies pending comment focus requests and clears `state.pendingFocusCommentId`.
+ * - Keeps `state.selectedMoveId` aligned with current ply when possible.
  */
 
 /**

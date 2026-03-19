@@ -1,0 +1,21 @@
+---
+description: Add and run regression tests for bug fixes
+alwaysApply: true
+---
+
+# Regression Test Rule
+
+When a bug is fixed, add a regression test whenever it is reasonably testable.
+
+## Expectations
+
+- Add at least one test that would fail before the fix and pass after it.
+- Place the test close to the affected component/module test area.
+- Prefer focused unit/integration tests over broad end-to-end coverage.
+- If a useful regression test is not feasible, document why in the final reply.
+
+## Verification
+
+- Run the relevant test command(s) after adding/updating regression tests.
+- Report what was run and whether it passed or failed.
+

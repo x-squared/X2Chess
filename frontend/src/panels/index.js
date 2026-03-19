@@ -5,7 +5,6 @@
  * - `ast_panel.render(container, pgnModel)`
  * - `renderDomPanel(domViewEl, sourceEl)`
  * - `renderMovesPanel({ movesEl, moves, pgnModel, t })`
- * - `renderPgnGameSelect({ gameSelect, files, selectedFile, t })`
  * - `setPgnSaveStatus(saveStatusEl, message, kind)`
  *
  * Configuration API:
@@ -20,4 +19,4 @@
 export { ast_panel } from "./ast_panel";
 export { renderDomPanel } from "./dom_panel";
 export { renderMovesPanel } from "./moves_panel";
-export { renderPgnGameSelect, setPgnSaveStatus } from "./pgn_panel";
+export { setPgnSaveStatus } from "./pgn_panel";

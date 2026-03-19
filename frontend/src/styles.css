@@ -21,6 +21,7 @@
   --text-editor-font-size: 14px;
   --text-editor-line-height: 1.45;
   --text-editor-max-height: 62vh;
+  --dev-dock-height: 320px;
   --board-background-image: url("/board-assets/img/boards/merida-blue.svg");
   --piece-wp-image: url("/canvaschess/img/pieces/merida/wp.svg");
   --piece-wn-image: url("/canvaschess/img/pieces/merida/wn.svg");
@@ -55,6 +56,10 @@ body.menu-open {
   max-width: 1720px;
   margin: 0 auto;
   padding: 1.35rem 1.7rem 1.35rem 1.35rem;
+}
+
+body.dev-dock-open .app {
+  padding-bottom: calc(var(--dev-dock-height) + 3rem);
 }
 
 .menu-trigger {
@@ -178,6 +183,315 @@ body.menu-open {
   border-radius: 999px;
   padding: 0.15rem 0.45rem;
   user-select: text;
+}
+
+.game-tabs-card {
+  margin: 0.55rem 0 0.9rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: linear-gradient(180deg, var(--surface-1), var(--surface-2));
+  box-shadow: var(--shadow-s);
+  padding: 0.5rem 0.6rem 0.55rem;
+}
+
+.game-tabs-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.game-tabs-title {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.game-tabs-hint {
+  margin: 0;
+  font-size: 0.72rem;
+  color: #607389;
+}
+
+.game-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  overflow-x: auto;
+  padding-bottom: 0.15rem;
+}
+
+.game-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-1);
+  color: var(--text-primary);
+  border-radius: 999px;
+  padding: 0.2rem 0.3rem 0.2rem 0.55rem;
+  font-size: 0.78rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.game-tab.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.game-tab-title {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.game-tab-close {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+.game-tab-close:hover {
+  border-color: var(--border-subtle);
+  background: var(--surface-2);
+}
+
+.resource-viewer-card {
+  margin-top: 0.75rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: linear-gradient(180deg, var(--surface-1), var(--surface-2));
+  box-shadow: var(--shadow-s);
+  padding: 0.55rem 0.65rem 0.65rem;
+}
+
+.resource-viewer-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.45rem;
+}
+
+.resource-viewer-title {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.resource-viewer-subtitle {
+  margin: 0;
+  font-size: 0.73rem;
+  color: var(--text-secondary);
+}
+
+.resource-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  overflow-x: auto;
+  margin-bottom: 0.5rem;
+}
+
+.resource-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface-1);
+  padding: 0.18rem 0.28rem 0.18rem 0.52rem;
+}
+
+.resource-tab.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.resource-tab-title {
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.77rem;
+  padding: 0;
+}
+
+.resource-tab-close {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  width: 19px;
+  height: 19px;
+  line-height: 1;
+  border-radius: 999px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.resource-tab-close:hover {
+  border-color: var(--border-subtle);
+  background: var(--surface-2);
+}
+
+.resource-table-wrap {
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-0);
+  overflow: auto;
+}
+
+.resource-games-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.resource-games-table th,
+.resource-games-table td {
+  padding: 0.42rem 0.5rem;
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.resource-games-table thead th {
+  font-weight: 700;
+  color: var(--text-secondary);
+  background: var(--surface-1);
+}
+
+.resource-games-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.resource-viewer-empty,
+.resource-viewer-error {
+  margin: 0;
+  padding: 0.65rem;
+  font-size: 0.82rem;
+}
+
+.resource-viewer-error {
+  color: var(--danger, #b00020);
+}
+
+.developer-dock {
+  position: fixed;
+  left: 1rem;
+  right: 1rem;
+  bottom: 0.8rem;
+  z-index: 105;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: linear-gradient(180deg, #fcfdff, #f2f7ff);
+  box-shadow: var(--shadow-m);
+  height: var(--dev-dock-height);
+  min-height: 180px;
+  max-height: min(76vh, 640px);
+  display: flex;
+  flex-direction: column;
+}
+
+.developer-dock-resize-handle {
+  position: absolute;
+  top: -7px;
+  left: 0;
+  right: 0;
+  height: 14px;
+  cursor: ns-resize;
+}
+
+.developer-dock-resize-handle::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 5px;
+  width: 56px;
+  height: 4px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-1);
+}
+
+.developer-dock-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.45rem 0.55rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.developer-dock-title {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.developer-dock-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.developer-dock-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-2);
+  padding: 0.2rem;
+}
+
+.developer-dock-tab {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 6px;
+  font-size: 0.76rem;
+  line-height: 1.2;
+  padding: 0.26rem 0.45rem;
+  cursor: pointer;
+}
+
+.developer-dock-tab[aria-selected="true"] {
+  border-color: var(--border-strong);
+  background: var(--surface-1);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.developer-dock-body {
+  min-height: 0;
+  overflow: auto;
+  padding: 0.5rem 0.55rem 0.55rem;
+}
+
+.developer-dock-panel .text-editor-wrap,
+.developer-dock-panel .pgn-area {
+  margin-top: 0;
+}
+
+.developer-dock-panel .pgn-area textarea {
+  min-height: 180px;
 }
 
 .game-info-card {

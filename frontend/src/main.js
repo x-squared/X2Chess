@@ -57,6 +57,7 @@ import {
 } from "./app_shell/game_info";
 import { createPlayerAutocompleteCapabilities } from "./app_shell/player_autocomplete";
 import {
+  DEFAULT_APP_MODE,
   DEFAULT_LOCALE,
   DEFAULT_PGN,
   createInitialAppState,
@@ -65,15 +66,57 @@ import {
   ast_panel,
   renderDomPanel,
   renderMovesPanel,
-  renderPgnGameSelect,
   setPgnSaveStatus,
 } from "./panels";
+import { createGameSessionModel } from "./game_sessions/session_model";
+import { createGameSessionStore } from "./game_sessions/session_store";
+import { createSessionPersistenceService } from "./game_sessions/session_persistence";
+import { createGameTabsUi } from "./game_sessions/tabs_ui";
+import { createGameIngressHandlers } from "./game_sessions/ingress_handlers";
+import { createResourceViewerCapabilities } from "./resources_viewer";
+
+/**
+ * Main composition root.
+ *
+ * Integration API:
+ * - Initializes the full app by composing components and binding events.
+ *
+ * Configuration API:
+ * - Build/runtime mode, locale, and defaults are read during startup.
+ *
+ * Communication API:
+ * - Delegates feature behavior to Game-Viewer/resources/session services.
+ */
 
 const initialLocale = resolveLocale(window.localStorage?.getItem("x2chess.locale") || navigator.language || DEFAULT_LOCALE);
 const t = createTranslator(initialLocale);
+const MODE_STORAGE_KEY = "x2chess.developerTools";
+const BUILD_APP_MODE = (() => {
+  const raw = typeof __X2CHESS_MODE__ !== "undefined" ? String(__X2CHESS_MODE__) : DEFAULT_APP_MODE;
+  return raw === "PROD" ? "PROD" : "DEV";
+})();
+const readPersistedDeveloperToolsPreference = () => {
+  const raw = window.localStorage?.getItem(MODE_STORAGE_KEY);
+  if (raw === "true") return true;
+  if (raw === "false") return false;
+  return null;
+};
+
+const isLikelyPgnText = (value) => {
+  if (!value || typeof value !== "string") return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  return /^\s*\[[A-Za-z0-9_]+\s+".*"\]\s*$/m.test(trimmed) || /\d+\.(?:\.\.)?\s*[^\s]+/.test(trimmed);
+};
 
 const state = createInitialAppState(parsePgnToModel, DEFAULT_PGN);
 state.locale = initialLocale;
+state.appMode = BUILD_APP_MODE;
+state.isDeveloperToolsEnabled = (() => {
+  const persisted = readPersistedDeveloperToolsPreference();
+  if (persisted !== null) return persisted;
+  return state.appMode === "DEV";
+})();
 state.pgnModel = ensureRequiredPgnHeaders(state.pgnModel);
 state.pgnText = serializeModelToPgn(state.pgnModel);
 const boardCapabilities = createBoardCapabilities(state);
@@ -83,7 +126,6 @@ const BUILD_TIMESTAMP_RAW = typeof __X2CHESS_BUILD_TIMESTAMP__ !== "undefined"
   : "";
 const BUILD_TIMESTAMP_LABEL = resolveBuildTimestampLabel(BUILD_TIMESTAMP_RAW);
 
-// 1) Layout + static DOM references.
 const {
   boardEl,
   statusEl,
@@ -110,15 +152,30 @@ const {
   speedValue,
   soundInput,
   localeInput,
-  gameSelect,
-  btnPickGamesFolder,
+  saveModeInput,
+  btnSaveActiveGame,
   saveStatusEl,
+  gameTabsEl,
+  resourceTabsEl,
+  resourceTableWrapEl,
   astWrapEl,
   domWrapEl,
+  runtimeBuildBadgeEl,
   btnMenu,
   btnMenuClose,
   menuPanel,
   menuBackdrop,
+  developerToolsInput,
+  btnDevDockToggle,
+  btnDevDockClose,
+  developerDockEl,
+  devDockResizeHandleEl,
+  devTabBtnAst,
+  devTabBtnDom,
+  devTabBtnPgn,
+  devTabAstEl,
+  devTabDomEl,
+  devTabPgnEl,
   btnGameInfoEdit,
   gameInfoEditorEl,
   gameInfoPlayersValueEl,
@@ -134,6 +191,7 @@ const {
   t,
   buildTimestampLabel: BUILD_TIMESTAMP_LABEL,
   currentLocale: state.locale,
+  isDeveloperToolsEnabled: state.isDeveloperToolsEnabled,
 });
 
 const moveSoundPlayer = createMoveSoundPlayer({
@@ -149,19 +207,19 @@ let boardRuntimeCapabilities = null;
 let moveLookupCapabilities = null;
 let runtimeConfigCapabilities = null;
 let playerAutocompleteCapabilities = null;
+let gameSessionStore = null;
+let gameSessionModel = null;
+let sessionPersistenceService = null;
+let gameTabsUi = null;
+let resourceViewerCapabilities = null;
 
 state.playerStore = bundledPlayers;
 
-// 2) UI adapter helpers shared by runtime components.
 const uiAdapters = createUiAdapters({
   saveStatusEl,
-  gameSelect,
   domViewEl,
   textEditorEl,
-  state,
-  t,
   setPgnSaveStatusFn: setPgnSaveStatus,
-  renderPgnGameSelectFn: renderPgnGameSelect,
   renderDomPanelFn: renderDomPanel,
 });
 
@@ -171,10 +229,11 @@ const applyPgnModelUpdate = (nextModel, focusCommentId = null, options = {}) => 
 
 const render = () => {
   if (!renderPipelineCapabilities) return;
+  if (gameSessionStore) gameSessionStore.persistActiveSession();
   renderPipelineCapabilities.renderFull();
+  if (gameTabsUi) gameTabsUi.render();
 };
 
-// 3) Compose runtime capabilities (order matters for dependencies).
 boardRuntimeCapabilities = createBoardRuntimeCapabilities({
   state,
   boardEl,
@@ -228,6 +287,14 @@ renderPipelineCapabilities = createAppRenderPipeline({
     btnIndent,
     btnFirstCommentIntro,
     getFirstCommentMetadata: () => getFirstCommentMetadata(state.pgnModel),
+    developerDockEl,
+    devTabBtnAst,
+    devTabBtnDom,
+    devTabBtnPgn,
+    devTabAstEl,
+    devTabDomEl,
+    devTabPgnEl,
+    runtimeBuildBadgeEl,
     speedValue,
   },
   buildGameAtPly: (ply) => boardRuntimeCapabilities.buildGameAtPly(ply),
@@ -241,6 +308,9 @@ renderPipelineCapabilities = createAppRenderPipeline({
   renderTextEditor: () => text_editor.render(textEditorEl, state.pgnModel, selectionRuntimeCapabilities.getTextEditorOptions()),
   renderAstPanel: () => ast_panel.render(astViewEl, state.pgnModel),
   renderDomView: () => uiAdapters.renderDomView(),
+  renderResourceViewer: () => {
+    if (resourceViewerCapabilities) resourceViewerCapabilities.render();
+  },
   renderGameInfoSummary: () => renderGameInfoSummary({
     pgnModel: state.pgnModel,
     t,
@@ -304,26 +374,66 @@ historyCapabilities = createEditorHistoryCapabilities({
   onRender: () => render(),
 });
 
-const appShellCapabilities = createAppShellCapabilities({
+resourcesCapabilities = createResourcesCapabilities({
   state,
   t,
-  btnMenu,
-  btnMenuClose,
-  menuPanel,
-  menuBackdrop,
-  speedInput,
-  speedValue,
-  soundInput,
-  localeInput,
-  onHandleSelectedMoveArrowHotkey: (event) => boardNavigationCapabilities.handleSelectedMoveArrowHotkey(event),
-  onUndo: () => historyCapabilities.performUndo(),
-  onRedo: () => historyCapabilities.performRedo(),
-  onChangeLocale: (localeCode) => {
-    const nextLocale = resolveLocale(localeCode);
-    if (nextLocale === state.locale) return;
-    window.localStorage?.setItem("x2chess.locale", nextLocale);
-    window.location.reload();
-  },
+  onSetSaveStatus: (message, kind) => uiAdapters.setSaveStatus(message, kind),
+  onApplyRuntimeConfig: (config) => runtimeConfigCapabilities.applyRuntimeConfig(config),
+  onLoadPgn: () => pgnRuntimeCapabilities.loadPgn(),
+  onInitializeWithDefaultPgn: () => pgnRuntimeCapabilities.initializeWithDefaultPgn(),
+  pgnInput,
+});
+
+resourceViewerCapabilities = createResourceViewerCapabilities({
+  state,
+  t,
+  resourceTabsEl,
+  resourceTableWrapEl,
+  listGamesForResource: (resourceRef) => resourcesCapabilities.listGamesForResource(resourceRef),
+});
+
+const initializeResourceViewerTabs = async () => {
+  const kinds = resourcesCapabilities.getAvailableSourceKinds();
+  const tabs = kinds.map((kind) => ({
+    title: t(`resources.tab.${kind}`, kind.toUpperCase()),
+    resourceRef: {
+      kind,
+      locator: kind === "file" ? (state.gameDirectoryPath || "local-files") : `local-${kind}`,
+    },
+  }));
+  resourceViewerCapabilities.setTabs(tabs);
+  await resourceViewerCapabilities.refreshActiveTabRows();
+};
+
+gameSessionModel = createGameSessionModel({
+  state,
+  pgnInput,
+  parsePgnToModelFn: parsePgnToModel,
+  serializeModelToPgnFn: serializeModelToPgn,
+  ensureRequiredPgnHeadersFn: ensureRequiredPgnHeaders,
+  buildMovePositionByIdFn: buildMovePositionById,
+  stripAnnotationsForBoardParserFn: stripAnnotationsForBoardParser,
+  getHeaderValueFn: getHeaderValue,
+  t,
+});
+
+gameSessionStore = createGameSessionStore({
+  state,
+  captureActiveSessionSnapshot: () => gameSessionModel.captureActiveSessionSnapshot(),
+  applySessionSnapshotToState: (snapshot) => gameSessionModel.applySessionSnapshotToState(snapshot),
+  disposeSessionSnapshot: (snapshot) => gameSessionModel.disposeSessionSnapshot(snapshot),
+});
+
+sessionPersistenceService = createSessionPersistenceService({
+  state,
+  t,
+  getActiveSession: () => gameSessionStore.getActiveSession(),
+  updateActiveSessionMeta: (patch) => gameSessionStore.updateActiveSessionMeta(patch),
+  getPgnText: () => state.pgnText,
+  saveBySourceRef: (sourceRef, pgnText, revisionToken, options) => (
+    resourcesCapabilities.saveGameBySourceRef(sourceRef, pgnText, revisionToken, options)
+  ),
+  onSetSaveStatus: (message, kind) => uiAdapters.setSaveStatus(message, kind),
 });
 
 pgnRuntimeCapabilities = createPgnRuntimeCapabilities({
@@ -340,38 +450,114 @@ pgnRuntimeCapabilities = createPgnRuntimeCapabilities({
     if (!historyCapabilities) return;
     historyCapabilities.pushUndoSnapshot(historyCapabilities.captureEditorSnapshot());
     state.redoStack = [];
+    if (gameSessionStore) gameSessionStore.updateActiveSessionMeta({ dirtyState: "dirty" });
   },
   onScheduleAutosave: () => {
-    if (!resourcesCapabilities) return;
-    resourcesCapabilities.scheduleAutosave();
+    sessionPersistenceService.scheduleAutosaveForActiveSession();
   },
 });
 
-resourcesCapabilities = createResourcesCapabilities({
+const openSessionFromSnapshot = ({
+  snapshot,
+  title,
+  sourceRef = null,
+  revisionToken = "",
+  saveMode = state.defaultSaveMode,
+}) => {
+  gameSessionStore.openSession({
+    snapshot,
+    title,
+    sourceRef,
+    revisionToken,
+    saveMode,
+  });
+  state.defaultSaveMode = saveMode;
+  render();
+};
+
+const openSessionFromPgnText = (pgnText, preferredTitle = "", sourceRef = null, revisionToken = "") => {
+  const snapshot = gameSessionModel.createSessionFromPgnText(String(pgnText || ""));
+  const fallbackTitle = preferredTitle || `${t("games.tabFallback", "Game")} ${state.nextSessionSeq}`;
+  const title = gameSessionModel.deriveSessionTitle(snapshot.pgnModel, fallbackTitle);
+  openSessionFromSnapshot({
+    snapshot,
+    title,
+    sourceRef,
+    revisionToken,
+    saveMode: state.defaultSaveMode,
+  });
+};
+
+const openSessionFromSourceRef = async (sourceRef, preferredTitle = "") => {
+  const loaded = await resourcesCapabilities.loadGameBySourceRef(sourceRef);
+  openSessionFromPgnText(
+    loaded.pgnText,
+    preferredTitle || loaded.titleHint,
+    sourceRef,
+    loaded.revisionToken,
+  );
+};
+
+const appShellCapabilities = createAppShellCapabilities({
   state,
   t,
-  onRenderGameSelect: () => uiAdapters.renderGameSelect(),
-  onSetSaveStatus: (message, kind) => uiAdapters.setSaveStatus(message, kind),
-  onApplyRuntimeConfig: (config) => runtimeConfigCapabilities.applyRuntimeConfig(config),
-  onLoadPgn: () => pgnRuntimeCapabilities.loadPgn(),
-  onInitializeWithDefaultPgn: () => pgnRuntimeCapabilities.initializeWithDefaultPgn(),
-  getPgnText: () => state.pgnText,
-  pgnInput,
-  gameSelect,
+  btnMenu,
+  btnMenuClose,
+  menuPanel,
+  menuBackdrop,
+  speedInput,
+  speedValue,
+  soundInput,
+  localeInput,
+  developerToolsInput,
+  btnDevDockToggle,
+  btnDevDockClose,
+  saveModeInput,
+  btnSaveActiveGame,
+  developerDockEl,
+  devDockResizeHandleEl,
+  onHandleSelectedMoveArrowHotkey: (event) => boardNavigationCapabilities.handleSelectedMoveArrowHotkey(event),
+  onUndo: () => historyCapabilities.performUndo(),
+  onRedo: () => historyCapabilities.performRedo(),
+  onChangeLocale: (localeCode) => {
+    const nextLocale = resolveLocale(localeCode);
+    if (nextLocale === state.locale) return;
+    window.localStorage?.setItem("x2chess.locale", nextLocale);
+    window.location.reload();
+  },
+  onChangeDeveloperTools: (enabled) => {
+    window.localStorage?.setItem(MODE_STORAGE_KEY, enabled ? "true" : "false");
+    if (!enabled) state.isDevDockOpen = false;
+    runtimeConfigCapabilities.applyRuntimeConfig(state.appConfig || {});
+    render();
+  },
+  onChangeDeveloperDockOpen: () => {
+    runtimeConfigCapabilities.applyRuntimeConfig(state.appConfig || {});
+    render();
+  },
+  onSwitchDeveloperDockTab: (tabId) => {
+    const normalized = tabId === "dom" || tabId === "pgn" ? tabId : "ast";
+    state.activeDevTab = normalized;
+    appShellCapabilities.setDevDockOpen(true);
+  },
+  onChangeActiveSaveMode: (mode) => {
+    sessionPersistenceService.setActiveSessionSaveMode(mode);
+    render();
+  },
+  onSaveActiveGameNow: () => sessionPersistenceService.persistActiveSessionNow(),
 });
 
-// 4) Event-level input handler delegated from wiring component.
 const handleLivePgnInput = () => {
   if (!pgnInput) return;
   state.pgnText = pgnInput.value;
   state.pgnModel = ensureRequiredPgnHeaders(parsePgnToModel(state.pgnText));
-  // Do not keep stale parse errors while user is actively editing.
   pgnRuntimeCapabilities.syncChessParseState(state.pgnText.trim(), { clearOnFailure: true });
   if (renderPipelineCapabilities) renderPipelineCapabilities.renderLiveInput();
-  resourcesCapabilities.scheduleAutosave();
+  gameSessionStore.updateActiveSessionMeta({ dirtyState: "dirty" });
+  sessionPersistenceService.scheduleAutosaveForActiveSession();
+  if (gameTabsUi) gameTabsUi.render();
 };
 
-// 5) Wire DOM events and startup orchestration.
 const appWiringCapabilities = createAppWiringCapabilities({
   state,
   t,
@@ -392,9 +578,10 @@ const appWiringCapabilities = createAppWiringCapabilities({
     btnIndent,
     btnFirstCommentIntro,
     btnDefaultIndent,
-    btnPickGamesFolder,
-    gameSelect,
     pgnInput,
+    devTabBtnAst,
+    devTabBtnDom,
+    devTabBtnPgn,
     btnGameInfoEdit,
     gameInfoSuggestionEls,
     gameInfoInputs,
@@ -417,15 +604,35 @@ const appWiringCapabilities = createAppWiringCapabilities({
       const nextModel = toggleFirstCommentIntroRole(state.pgnModel);
       if (nextModel !== state.pgnModel) applyPgnModelUpdate(nextModel);
     },
-    chooseClientGamesFolder: () => resourcesCapabilities.chooseClientGamesFolder(),
-    loadGameByName: (fileName) => resourcesCapabilities.loadGameByName(fileName),
     setSaveStatus: (message, kind) => uiAdapters.setSaveStatus(message, kind),
     handleLivePgnInput: () => handleLivePgnInput(),
-    fetchGameFilesFromClientData: () => resourcesCapabilities.fetchGameFilesFromClientData(),
+    selectDevTab: (tabId) => {
+      const normalized = tabId === "dom" || tabId === "pgn" ? tabId : "ast";
+      state.activeDevTab = normalized;
+      appShellCapabilities.setDevDockOpen(true);
+    },
     hydrateVisualAssets: () => hydrateVisualAssets(),
     loadRuntimeConfigFromClientDataAndDefaults: () => resourcesCapabilities.loadRuntimeConfigFromClientDataAndDefaults(),
     ensureBoard: () => boardRuntimeCapabilities.ensureBoard(),
-    initializeWithDefaultPgn: () => pgnRuntimeCapabilities.initializeWithDefaultPgn(),
+    initializeWithDefaultPgn: () => {
+      const run = async () => {
+        const listed = await resourcesCapabilities.listSourceGames("file");
+        if (listed.length > 0) {
+          await openSessionFromSourceRef(
+            listed[0].sourceRef,
+            listed[0].titleHint || String(listed[0].sourceRef?.recordId || ""),
+          );
+          await resourceViewerCapabilities.refreshActiveTabRows();
+          return;
+        }
+        pgnRuntimeCapabilities.initializeWithDefaultPgn();
+        if (!gameSessionStore.getActiveSession()) {
+          openSessionFromPgnText(state.pgnText, t("games.new", "New game"));
+        }
+        await resourceViewerCapabilities.refreshActiveTabRows();
+      };
+      void run();
+    },
     toggleGameInfoEditor: () => {
       state.isGameInfoEditorOpen = !state.isGameInfoEditorOpen;
       render();
@@ -456,7 +663,47 @@ const appWiringCapabilities = createAppWiringCapabilities({
   },
 });
 
+gameTabsUi = createGameTabsUi({
+  gameTabsEl,
+  t,
+  getSessions: () => gameSessionStore.listSessions(),
+  getActiveSessionId: () => state.activeSessionId,
+  onSelectSession: (sessionId) => {
+    if (gameSessionStore.switchToSession(sessionId)) {
+      const active = gameSessionStore.getActiveSession();
+      if (active) state.defaultSaveMode = active.saveMode || state.defaultSaveMode;
+      render();
+    }
+  },
+  onCloseSession: (sessionId) => {
+    const result = gameSessionStore.closeSession(sessionId);
+    if (result.emptyAfterClose) {
+      pgnRuntimeCapabilities.initializeWithDefaultPgn();
+      openSessionFromPgnText(state.pgnText, t("games.new", "New game"));
+      return;
+    }
+    render();
+  },
+});
+
+const appPanelEl = document.querySelector(".app-panel");
+const ingressHandlers = createGameIngressHandlers({
+  appPanelEl,
+  isLikelyPgnText,
+  openGameFromIncomingText: (sourceText, preferredTitle = "") => {
+    const pgnText = String(sourceText || "").trim();
+    if (!isLikelyPgnText(pgnText)) return false;
+    openSessionFromPgnText(pgnText, preferredTitle);
+    return true;
+  },
+});
+
 appShellCapabilities.bindShellEvents();
 appWiringCapabilities.bindDomEvents();
+gameTabsUi.bindEvents();
+resourceViewerCapabilities.bindEvents();
+ingressHandlers.bindEvents();
 
+void initializeResourceViewerTabs().then(() => render());
 appWiringCapabilities.startApp();
+

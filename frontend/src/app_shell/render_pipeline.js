@@ -28,6 +28,7 @@ import { syncAppViewRuntime } from "./view_runtime";
  * @param {Function} deps.renderTextEditor - Callback `() => void` for text editor rendering.
  * @param {Function} deps.renderAstPanel - Callback `() => void` for AST panel rendering.
  * @param {Function} deps.renderDomView - Callback `() => void` for DOM panel rendering.
+ * @param {Function} deps.renderResourceViewer - Callback `() => void` for resource viewer render.
  * @param {Function} deps.renderGameInfoSummary - Callback `() => void` for metadata summary rendering.
  * @param {Function} deps.syncGameInfoEditorValues - Callback `() => void` for metadata editor value sync.
  * @param {Function} deps.syncGameInfoEditorUi - Callback `() => void` for metadata editor open/close UI.
@@ -45,6 +46,7 @@ export const createAppRenderPipeline = ({
   renderTextEditor,
   renderAstPanel,
   renderDomView,
+  renderResourceViewer,
   renderGameInfoSummary,
   syncGameInfoEditorValues,
   syncGameInfoEditorUi,
@@ -65,8 +67,15 @@ export const createAppRenderPipeline = ({
       els.errorEl.textContent = state.errorMessage;
     }
     renderTextEditor();
-    renderAstPanel();
-    renderDomView();
+    const shouldRenderAst = state.isDeveloperToolsEnabled
+      && state.isDevDockOpen
+      && state.activeDevTab === "ast";
+    const shouldRenderDom = state.isDeveloperToolsEnabled
+      && state.isDevDockOpen
+      && state.activeDevTab === "dom";
+    if (shouldRenderAst) renderAstPanel();
+    if (shouldRenderDom) renderDomView();
+    renderResourceViewer();
     renderGameInfoSummary();
     syncGameInfoEditorValues();
     syncGameInfoEditorUi();
@@ -93,6 +102,14 @@ export const createAppRenderPipeline = ({
           ? els.getFirstCommentMetadata()
           : { exists: false, isIntro: false }
       ),
+      developerDockEl: els.developerDockEl,
+      devTabBtnAst: els.devTabBtnAst,
+      devTabBtnDom: els.devTabBtnDom,
+      devTabBtnPgn: els.devTabBtnPgn,
+      devTabAstEl: els.devTabAstEl,
+      devTabDomEl: els.devTabDomEl,
+      devTabPgnEl: els.devTabPgnEl,
+      runtimeBuildBadgeEl: els.runtimeBuildBadgeEl,
       speedValue: els.speedValue,
     });
   };
@@ -102,8 +119,15 @@ export const createAppRenderPipeline = ({
    */
   const renderLiveInput = () => {
     renderTextEditor();
-    renderAstPanel();
-    renderDomView();
+    const shouldRenderAst = state.isDeveloperToolsEnabled
+      && state.isDevDockOpen
+      && state.activeDevTab === "ast";
+    const shouldRenderDom = state.isDeveloperToolsEnabled
+      && state.isDevDockOpen
+      && state.activeDevTab === "dom";
+    if (shouldRenderAst) renderAstPanel();
+    if (shouldRenderDom) renderDomView();
+    renderResourceViewer();
     renderGameInfoSummary();
     syncGameInfoEditorValues();
     syncGameInfoEditorUi();
@@ -120,6 +144,39 @@ export const createAppRenderPipeline = ({
     if (els.errorEl) {
       els.errorEl.textContent = state.errorMessage;
     }
+    syncAppViewRuntime({
+      state,
+      boardCapabilities,
+      t,
+      statusEl: els.statusEl,
+      textEditorEl: els.textEditorEl,
+      selectionRuntimeCapabilities,
+      btnFirst: els.btnFirst,
+      btnPrev: els.btnPrev,
+      btnNext: els.btnNext,
+      btnLast: els.btnLast,
+      btnUndo: els.btnUndo,
+      btnRedo: els.btnRedo,
+      btnCommentLeft: els.btnCommentLeft,
+      btnCommentRight: els.btnCommentRight,
+      btnLinebreak: els.btnLinebreak,
+      btnIndent: els.btnIndent,
+      btnFirstCommentIntro: els.btnFirstCommentIntro,
+      getFirstCommentMetadata: () => (
+        typeof els.getFirstCommentMetadata === "function"
+          ? els.getFirstCommentMetadata()
+          : { exists: false, isIntro: false }
+      ),
+      developerDockEl: els.developerDockEl,
+      devTabBtnAst: els.devTabBtnAst,
+      devTabBtnDom: els.devTabBtnDom,
+      devTabBtnPgn: els.devTabBtnPgn,
+      devTabAstEl: els.devTabAstEl,
+      devTabDomEl: els.devTabDomEl,
+      devTabPgnEl: els.devTabPgnEl,
+      runtimeBuildBadgeEl: els.runtimeBuildBadgeEl,
+      speedValue: els.speedValue,
+    });
   };
 
   return {

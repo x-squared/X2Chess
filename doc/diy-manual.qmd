@@ -8,6 +8,7 @@ Use this from repository root unless a section says otherwise.
 
 > Note: Browser mode is not used in this project. X2Chess runs as a Tauri desktop client.
 > Note: X2Chess frontend uses port `5287`.
+> Note: Developer-Tools defaults ON in `desktop:dev` and OFF in packaged PROD builds.
 
 ### 1) Check and remove stale dev processes (recommended before start)
 
@@ -43,6 +44,8 @@ npm run desktop:dev
 ```
 
 > Note: `desktop:dev` starts its own frontend dev server.
+> Tip: Use the menu toggle **Developer Tools** and then **Open Developer Dock** to access AST/DOM/Raw PGN tabs.
+> Tip: Use menu controls **Save mode** (`Autosave`/`Manual`) and **Save now** for the active game tab.
 
 ## Useful Scripts
 
@@ -58,6 +61,13 @@ npm install
 ```{bash}
 cd frontend
 npm run build
+```
+
+### Run frontend unit tests
+
+```{bash}
+cd frontend
+npm test
 ```
 
 ### Stop local dev services quickly

@@ -19,30 +19,9 @@
  * @param {Function} deps.t - Translation resolver `(key, fallback) => string`.
  * @param {object} deps.els - DOM element refs used by event binding.
  * @param {object} deps.actions - Callback action set invoked by event handlers.
- * @returns {{bindDomEvents: Function, initializeGameLibrary: Function, startApp: Function}} Wiring capabilities.
+ * @returns {{bindDomEvents: Function, startApp: Function}} Wiring capabilities.
  */
 export const createAppWiringCapabilities = ({ state, t, els, actions }) => {
-  /**
-   * Initialize game library from selected client data root.
-   *
-   * @returns {Promise<boolean>} True when at least one game was loaded.
-   */
-  const initializeGameLibrary = async () => {
-    const files = await actions.fetchGameFilesFromClientData();
-    if (files.length === 0) {
-      actions.setSaveStatus(t("pgn.source.folderHint", "Choose a local folder (for example run/DEV)."), "");
-      return false;
-    }
-    const first = files[0];
-    try {
-      await actions.loadGameByName(first);
-      return true;
-    } catch (error) {
-      actions.setSaveStatus(String(error?.message || t("pgn.save.error", "Autosave failed")), "error");
-      return false;
-    }
-  };
-
   /**
    * Bind DOM event handlers to host action callbacks.
    */
@@ -78,22 +57,19 @@ export const createAppWiringCapabilities = ({ state, t, els, actions }) => {
         actions.applyDefaultIndent();
       });
     }
-    if (els.btnPickGamesFolder) {
-      els.btnPickGamesFolder.addEventListener("click", () => {
-        void actions.chooseClientGamesFolder();
+    if (els.devTabBtnAst) {
+      els.devTabBtnAst.addEventListener("click", () => {
+        actions.selectDevTab("ast");
       });
     }
-    if (els.gameSelect) {
-      els.gameSelect.addEventListener("change", () => {
-        const fileName = els.gameSelect.value;
-        state.selectedGameFile = fileName;
-        if (!fileName) {
-          actions.setSaveStatus("", "");
-          return;
-        }
-        void actions.loadGameByName(fileName).catch((error) => {
-          actions.setSaveStatus(String(error?.message || t("pgn.save.error", "Autosave failed")), "error");
-        });
+    if (els.devTabBtnDom) {
+      els.devTabBtnDom.addEventListener("click", () => {
+        actions.selectDevTab("dom");
+      });
+    }
+    if (els.devTabBtnPgn) {
+      els.devTabBtnPgn.addEventListener("click", () => {
+        actions.selectDevTab("pgn");
       });
     }
     if (els.pgnInput) {
@@ -160,22 +136,21 @@ export const createAppWiringCapabilities = ({ state, t, els, actions }) => {
    * - hydrate visual assets
    * - load runtime config/default data root
    * - initialize board
-   * - initialize game library or fallback default PGN
+   * - initialize default PGN in active game tab
    */
   const startApp = () => {
     void actions.hydrateVisualAssets();
     actions.loadRuntimeConfigFromClientDataAndDefaults().then(() => {
       actions.loadPlayerStore().then(() => {
-        actions.ensureBoard().then(() => initializeGameLibrary().then((loadedGame) => {
-          if (!loadedGame && !state.selectedGameFile) actions.initializeWithDefaultPgn();
-        }));
+        actions.ensureBoard().then(() => {
+          actions.initializeWithDefaultPgn();
+        });
       });
     });
   };
 
   return {
     bindDomEvents,
-    initializeGameLibrary,
     startApp,
   };
 };

@@ -33,6 +33,14 @@
  * @param {HTMLButtonElement|null} deps.btnIndent - Insert-indent button.
  * @param {HTMLButtonElement|null} deps.btnFirstCommentIntro - First-comment intro toggle button.
  * @param {Function} deps.getFirstCommentMetadata - Callback returning first-comment role metadata.
+ * @param {HTMLElement|null} deps.developerDockEl - Developer dock root element.
+ * @param {HTMLButtonElement|null} deps.devTabBtnAst - AST tab button.
+ * @param {HTMLButtonElement|null} deps.devTabBtnDom - DOM tab button.
+ * @param {HTMLButtonElement|null} deps.devTabBtnPgn - PGN tab button.
+ * @param {HTMLElement|null} deps.devTabAstEl - AST tab panel.
+ * @param {HTMLElement|null} deps.devTabDomEl - DOM tab panel.
+ * @param {HTMLElement|null} deps.devTabPgnEl - PGN tab panel.
+ * @param {HTMLElement|null} deps.runtimeBuildBadgeEl - Build badge in menu footer.
  * @param {HTMLElement|null} deps.speedValue - Move speed value label.
  */
 export const syncAppViewRuntime = ({
@@ -54,6 +62,14 @@ export const syncAppViewRuntime = ({
   btnIndent,
   btnFirstCommentIntro,
   getFirstCommentMetadata,
+  developerDockEl,
+  devTabBtnAst,
+  devTabBtnDom,
+  devTabBtnPgn,
+  devTabAstEl,
+  devTabDomEl,
+  devTabPgnEl,
+  runtimeBuildBadgeEl,
   speedValue,
 }) => {
   if (!state.boardPreview) {
@@ -79,6 +95,7 @@ export const syncAppViewRuntime = ({
     statusEl.textContent = state.boardPreview
       ? `${t("status.label", "Position")}: preview`
       : `${t("status.label", "Position")}: ${currentPly}/${totalMoves}`;
+    statusEl.hidden = !state.isDeveloperToolsEnabled;
   }
 
   if (state.pendingFocusCommentId) {
@@ -116,4 +133,25 @@ export const syncAppViewRuntime = ({
     btnFirstCommentIntro.setAttribute("aria-pressed", firstCommentMeta.isIntro ? "true" : "false");
     btnFirstCommentIntro.classList.toggle("active", Boolean(firstCommentMeta.isIntro));
   }
+
+  const dockVisible = state.isDeveloperToolsEnabled && state.isDevDockOpen;
+  const textEditorConfig = state.appConfig?.textEditor && typeof state.appConfig.textEditor === "object"
+    ? state.appConfig.textEditor
+    : {};
+  const showAstView = textEditorConfig.showAstView !== false;
+  const showDomView = textEditorConfig.showDomView !== false;
+  if (developerDockEl) developerDockEl.hidden = !dockVisible;
+  if (runtimeBuildBadgeEl) runtimeBuildBadgeEl.hidden = !state.isDeveloperToolsEnabled;
+
+  const isAstTab = state.activeDevTab === "ast";
+  const isDomTab = state.activeDevTab === "dom";
+  const isPgnTab = state.activeDevTab === "pgn";
+  if (devTabBtnAst) devTabBtnAst.hidden = !showAstView;
+  if (devTabBtnDom) devTabBtnDom.hidden = !showDomView;
+  if (devTabBtnAst) devTabBtnAst.setAttribute("aria-selected", isAstTab ? "true" : "false");
+  if (devTabBtnDom) devTabBtnDom.setAttribute("aria-selected", isDomTab ? "true" : "false");
+  if (devTabBtnPgn) devTabBtnPgn.setAttribute("aria-selected", isPgnTab ? "true" : "false");
+  if (devTabAstEl) devTabAstEl.hidden = !dockVisible || !showAstView || !isAstTab;
+  if (devTabDomEl) devTabDomEl.hidden = !dockVisible || !showDomView || !isDomTab;
+  if (devTabPgnEl) devTabPgnEl.hidden = !dockVisible || !isPgnTab;
 };

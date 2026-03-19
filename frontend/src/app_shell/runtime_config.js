@@ -48,8 +48,12 @@ export const createRuntimeConfigCapabilities = ({ state, astWrapEl, domWrapEl })
     }
     const showAstView = textEditorConfig.showAstView !== false;
     const showDomView = textEditorConfig.showDomView !== false;
-    if (astWrapEl) astWrapEl.hidden = !showAstView;
-    if (domWrapEl) domWrapEl.hidden = !showDomView;
+    const canShowDevTools = Boolean(state.isDeveloperToolsEnabled && state.isDevDockOpen);
+    if (astWrapEl) astWrapEl.hidden = !canShowDevTools || !showAstView;
+    if (domWrapEl) domWrapEl.hidden = !canShowDevTools || !showDomView;
+
+    if (state.activeDevTab === "ast" && !showAstView) state.activeDevTab = showDomView ? "dom" : "pgn";
+    if (state.activeDevTab === "dom" && !showDomView) state.activeDevTab = showAstView ? "ast" : "pgn";
   };
 
   return {

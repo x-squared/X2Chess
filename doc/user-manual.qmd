@@ -1,6 +1,6 @@
 # X2Chess User Manual
 
-Last updated: 2026-03-18
+Last updated: 2026-03-19
 
 ## Who this manual is for
 
@@ -11,6 +11,7 @@ This manual is for people using the X2Chess application to read, navigate, and e
 - Use the menu icon in the top-right corner of the main panel to open the side menu.
 - The menu opens from the right and contains app-level controls (for example speed and sound).
 - Close it with the close button, by pressing `Esc`, or by clicking outside the menu.
+- The menu also contains **Developer Tools** and **Open Developer Dock** controls.
 
 ## How the text editor works
 
@@ -56,16 +57,35 @@ If a comment already exists in the requested position, X2Chess focuses the exist
 - **Cmd/Ctrl + Z**: undo editor changes.
 - **Cmd/Ctrl + Shift + Z** or **Cmd/Ctrl + Y**: redo editor changes.
 
-## Working with PGN input area
+## Working with multiple open games
 
-- Use **Choose folder** next to the **Game file** dropdown and select your local runtime folder (for example `run/DEV`).
-- X2Chess reads `.pgn` files from that folder's `games` subfolder (or from the selected folder itself if no `games` subfolder exists).
-- After selecting a folder, use the **Game file** dropdown to load a game.
-- When a game file is selected, edits are autosaved back to that same `.pgn` file.
-- Save state is shown next to the dropdown (`Saving...`, `Saved`, or error status).
-- Paste or drop PGN in the PGN input box.
-- Click **Load PGN** to parse and render in board + text editor views.
-- While typing, parsing feedback updates and stale parse errors are cleared during active edits.
+- Open games appear in a tab strip above the Game-Viewer.
+- Open a game by:
+  - Dragging and dropping `.pgn` files onto the app.
+  - Pasting PGN text onto the app.
+- Each tab can be closed individually.
+- Switching tabs restores that game's own Game-Viewer state.
+- Closing a tab frees that session's runtime snapshot resources.
+
+## Saving behavior
+
+- Save status is shown in the app (`Saving...`, `Saved`, or error).
+- In the menu, choose **Save mode** for the active game:
+  - `Autosave`: changes are written automatically.
+  - `Manual`: changes are kept local until you press **Save now**.
+- Save behavior is source-aware and always bound to the active game session.
+
+## Developer dock (AST, DOM, Raw PGN)
+
+- Enable **Developer Tools** in the menu.
+- Click **Open Developer Dock** to open the fixed bottom dock.
+- Use tabs to switch between:
+  - `AST`
+  - `DOM`
+  - `Raw PGN`
+- The dock always shows the same game/model state as the main Game-Viewer.
+- Raw PGN edits in the dock feed back into the same parse/update pipeline as the main editor.
+- Closing the dock hides these views without changing the active game.
 
 ## Personalizing text editor behavior
 
@@ -90,5 +110,5 @@ You only need to set keys you want to change. Example:
 ## Notes for effective editing
 
 - Select a move first, then apply comment/indent actions.
-- Use the text editor as the primary editing surface; keep PGN input for bulk paste/import.
+- Use the text editor as the primary editing surface; use the Raw PGN dock tab for bulk paste/import.
 - Use undo/redo frequently when restructuring comments and variations.

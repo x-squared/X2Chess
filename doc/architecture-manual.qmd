@@ -1,6 +1,6 @@
 # X2Chess Architecture Manual
 
-Last updated: 2026-03-18
+Last updated: 2026-03-19
 
 ## 1) Goals
 
@@ -19,10 +19,12 @@ Architecture decisions are maintained in `doc/architecture-adr-manual.qmd`.
 - Technology: Vite + vanilla JavaScript (ES modules).
 - Main entrypoint: `frontend/src/main.js`.
 - Responsibilities:
-  - Render board + PGN editing UI.
+  - Render the Game-Viewer (board + PGN editor UI).
   - Parse PGN into an internal model and serialize back to text.
   - Keep replay/navigation state in memory.
   - Manage chess move playback and UI interactions.
+  - Manage multiple open game sessions in parallel tabs.
+  - Route load/save through a uniform source adapter contract.
 
 ## 2.2 Backend (`backend/`)
 
@@ -56,6 +58,46 @@ Environment and toolchain setup is documented in `doc/setup-manual.qmd`.
 - Dev shell + hot reload: `cd frontend && npm run desktop:dev`
 - Packaged app profile: `cd frontend && npm run desktop:pack`
 - Artifact directory: `frontend/src-tauri/target/release/bundle/`
+
+## 3.3 Runtime modes and Developer-Tools
+
+- Build mode is injected as `__X2CHESS_MODE__` (`DEV` or `PROD`).
+- Default behavior:
+  - `DEV`: Developer-Tools starts ON.
+  - `PROD`: Developer-Tools starts OFF.
+- Developer-Tools can be toggled in the app menu and persists per user.
+- Developer-Tools exposes a bottom fixed dock with tabs:
+  - `AST`
+  - `DOM`
+  - `Raw PGN`
+- The dock is user-opened and user-closed; enabling Developer-Tools does not force the dock open.
+- Dock views always reflect the same in-memory game/model state as the main Game-Viewer.
+- DEV-only convenience:
+  - Automatic preload attempt from `run/DEV/games` (when available).
+
+## 3.4 Game sessions and source adapters
+
+- Open games are modeled as in-memory `GameSession` entries:
+  - `sessionId`
+  - `sourceRef`
+  - `revisionToken`
+  - snapshot of editor/board runtime
+  - dirty/save mode metadata
+- Session identity is independent from source identity; source references are attached metadata.
+- Source interactions are routed through adapter boundaries:
+  - `file` source adapter (active)
+  - `sqlite` source adapter (interface-complete stub, ready for implementation)
+- Supported open flows are:
+  - Drag/drop PGN text/files
+  - Paste PGN text
+  - Source-root preload (DEV convenience)
+- Save path is uniform:
+  - Active session + source reference + revision token -> source adapter `save(...)`.
+- Save policy:
+  - Default mode is autosave.
+  - User can switch active-session mode between autosave and manual from the app menu.
+- Naming convention:
+  - The conjunction of board and text editor is called **Game-Viewer**.
 
 ## 4) Constraints for Ongoing Work
 

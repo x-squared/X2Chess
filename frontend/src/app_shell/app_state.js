@@ -14,6 +14,7 @@
  */
 
 export const DEFAULT_LOCALE = "en";
+export const DEFAULT_APP_MODE = "DEV";
 
 /**
  * Default PGN used when no library game is loaded.
@@ -58,9 +59,6 @@ export const createInitialAppState = (parsePgnToModelFn, defaultPgn = DEFAULT_PG
   redoStack: [],
   isMenuOpen: false,
   isGameInfoEditorOpen: false,
-  gameFiles: [],
-  gameFileHandles: {},
-  selectedGameFile: "",
   gameDirectoryHandle: null,
   gameDirectoryPath: "",
   gameRootPath: "",
@@ -69,5 +67,17 @@ export const createInitialAppState = (parsePgnToModelFn, defaultPgn = DEFAULT_PG
   isHydratingGame: false,
   playerStore: [],
   locale: DEFAULT_LOCALE,
+  gameSessions: [],
+  activeSessionId: null,
+  nextSessionSeq: 1,
+  resourceViewerTabs: [],
+  activeResourceTabId: null,
+  activeSourceKind: "file",
+  defaultSaveMode: "auto",
+  appMode: DEFAULT_APP_MODE,
+  isDeveloperToolsEnabled: true,
+  isDevDockOpen: false,
+  activeDevTab: "ast",
+  devDockHeightPx: 320,
   appConfig: {},
 });

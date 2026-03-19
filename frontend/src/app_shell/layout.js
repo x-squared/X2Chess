@@ -21,9 +21,10 @@ import { SUPPORTED_LOCALES } from "./i18n";
  * @param {Function} deps.t - Translation callback `(key, fallback) => string`.
  * @param {string} deps.buildTimestampLabel - Human-readable build timestamp.
  * @param {string} deps.currentLocale - Active locale code used for initial locale selector value.
+ * @param {boolean} deps.isDeveloperToolsEnabled - Initial developer-tools toggle state.
  * @returns {object} Queried DOM references used by runtime components.
  */
-export const createAppLayout = ({ t, buildTimestampLabel, currentLocale }) => {
+export const createAppLayout = ({ t, buildTimestampLabel, currentLocale, isDeveloperToolsEnabled }) => {
   const app = document.querySelector("#app");
   if (!app) throw new Error("App root missing.");
   const gameInfoEditorFieldsMarkup = GAME_INFO_HEADER_FIELDS.map((field) => {
@@ -94,6 +95,23 @@ export const createAppLayout = ({ t, buildTimestampLabel, currentLocale }) => {
   )).join("")}
             </select>
           </label>
+          <label class="inline-control">
+            <input id="developer-tools-input" type="checkbox" ${isDeveloperToolsEnabled ? "checked" : ""} />
+            ${t("controls.developerTools", "Developer Tools")}
+          </label>
+          <button id="btn-dev-dock-toggle" class="source-button" type="button">
+            ${t("controls.openDeveloperDock", "Open Developer Dock")}
+          </button>
+          <label class="inline-control">
+            ${t("controls.saveMode", "Save mode")}
+            <select id="save-mode-input">
+              <option value="auto">${t("controls.saveMode.auto", "Autosave")}</option>
+              <option value="manual">${t("controls.saveMode.manual", "Manual")}</option>
+            </select>
+          </label>
+          <button id="btn-save-active-game" class="source-button" type="button">
+            ${t("controls.saveNow", "Save now")}
+          </button>
         </div>
         <div class="app-menu-footer">
           <span
@@ -116,6 +134,13 @@ export const createAppLayout = ({ t, buildTimestampLabel, currentLocale }) => {
         >
           <span class="menu-trigger-icon" aria-hidden="true"></span>
         </button>
+        <section class="game-tabs-card">
+          <div class="game-tabs-header">
+            <p class="game-tabs-title">${t("games.open", "Open games")}</p>
+            <p class="game-tabs-hint">${t("games.hint", "Drop .pgn files or paste PGN text onto the app to open games.")}</p>
+          </div>
+          <div id="game-tabs" class="game-tabs" role="tablist" aria-label="${t("games.open", "Open games")}"></div>
+        </section>
         <section class="game-info-card">
           <div class="game-info-summary-row">
             <div class="game-info-summary-grid">
@@ -215,37 +240,58 @@ export const createAppLayout = ({ t, buildTimestampLabel, currentLocale }) => {
             </div>
           </div>
         </div>
+        <section class="resource-viewer-card">
+          <div class="resource-viewer-header">
+            <p class="resource-viewer-title">${t("resources.title", "Resources")}</p>
+            <p class="resource-viewer-subtitle">${t("resources.subtitle", "Each tab shows all games available in one resource.")}</p>
+          </div>
+          <div id="resource-tabs" class="resource-tabs" role="tablist" aria-label="${t("resources.title", "Resources")}"></div>
+          <div id="resource-table-wrap" class="resource-table-wrap"></div>
+        </section>
         <p id="status" class="status"></p>
-        <div class="pgn-area">
-          <div class="pgn-source-row">
-            <label for="game-select">${t("pgn.source.label", "Game file")}</label>
-            <select id="game-select">
-              <option value="">${t("pgn.source.placeholder", "Manual / unsaved")}</option>
-            </select>
-            <button id="btn-pick-games-folder" class="source-button" type="button">
-              ${t("pgn.source.chooseFolder", "Choose folder")}
-            </button>
-            <span id="save-status" class="save-status"></span>
-          </div>
-          <label for="pgn-input">${t("pgn.label", "PGN input")}</label>
-          <textarea id="pgn-input" placeholder="${t(
-            "pgn.placeholder",
-            "Paste PGN text."
-          )}"></textarea>
-          <div class="pgn-actions">
-            <button id="btn-load" type="button">${t("pgn.load", "Load PGN")}</button>
-            <p id="error" class="error"></p>
-          </div>
-          <div id="ast-wrap" class="text-editor-wrap">
-            <p class="text-editor-title">${t("pgn.ast.label", "ast_view")}</p>
-            <div id="ast-view" class="ast-view"></div>
-          </div>
-          <div id="dom-wrap" class="text-editor-wrap">
-            <p class="text-editor-title">${t("pgn.dom.label", "dom_view")}</p>
-            <pre id="dom-view" class="dom-view"></pre>
+        <span id="save-status" class="save-status" hidden></span>
+        <div id="moves" class="moves"></div>
+      </section>
+      <section id="developer-dock" class="developer-dock" hidden>
+        <div id="dev-dock-resize-handle" class="developer-dock-resize-handle" aria-hidden="true"></div>
+        <div class="developer-dock-header">
+          <p class="developer-dock-title">${t("controls.developerTools", "Developer Tools")}</p>
+          <div class="developer-dock-controls">
+            <div class="developer-dock-tabs" role="tablist" aria-label="${t("controls.developerTools", "Developer Tools")}">
+              <button id="dev-tab-btn-ast" class="developer-dock-tab" type="button" role="tab" aria-selected="true" aria-controls="dev-tab-ast">${t("pgn.ast.label", "ast_view")}</button>
+              <button id="dev-tab-btn-dom" class="developer-dock-tab" type="button" role="tab" aria-selected="false" aria-controls="dev-tab-dom">${t("pgn.dom.label", "dom_view")}</button>
+              <button id="dev-tab-btn-pgn" class="developer-dock-tab" type="button" role="tab" aria-selected="false" aria-controls="dev-tab-pgn">${t("devDock.tab.rawPgn", "Raw PGN")}</button>
+            </div>
+            <button id="btn-dev-dock-close" class="menu-close" type="button" aria-label="${t("controls.closeDeveloperDock", "Close Developer Dock")}">×</button>
           </div>
         </div>
-        <div id="moves" class="moves"></div>
+        <div class="developer-dock-body">
+          <div id="dev-tab-ast" class="developer-dock-panel" role="tabpanel" aria-labelledby="dev-tab-btn-ast">
+            <div id="ast-wrap" class="text-editor-wrap">
+              <p class="text-editor-title">${t("pgn.ast.label", "ast_view")}</p>
+              <div id="ast-view" class="ast-view"></div>
+            </div>
+          </div>
+          <div id="dev-tab-dom" class="developer-dock-panel" role="tabpanel" aria-labelledby="dev-tab-btn-dom" hidden>
+            <div id="dom-wrap" class="text-editor-wrap">
+              <p class="text-editor-title">${t("pgn.dom.label", "dom_view")}</p>
+              <pre id="dom-view" class="dom-view"></pre>
+            </div>
+          </div>
+          <div id="dev-tab-pgn" class="developer-dock-panel" role="tabpanel" aria-labelledby="dev-tab-btn-pgn" hidden>
+            <div class="pgn-area">
+              <label for="pgn-input">${t("pgn.label", "PGN input")}</label>
+              <textarea id="pgn-input" placeholder="${t(
+                "pgn.placeholder",
+                "Paste PGN text."
+              )}"></textarea>
+              <div class="pgn-actions">
+                <button id="btn-load" type="button">${t("pgn.load", "Load PGN")}</button>
+                <p id="error" class="error"></p>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
     </main>
   `;
@@ -276,9 +322,24 @@ export const createAppLayout = ({ t, buildTimestampLabel, currentLocale }) => {
     speedValue: document.querySelector("#speed-value"),
     soundInput: document.querySelector("#sound-input"),
     localeInput: document.querySelector("#locale-input"),
-    gameSelect: document.querySelector("#game-select"),
-    btnPickGamesFolder: document.querySelector("#btn-pick-games-folder"),
+    developerToolsInput: document.querySelector("#developer-tools-input"),
+    btnDevDockToggle: document.querySelector("#btn-dev-dock-toggle"),
+    btnDevDockClose: document.querySelector("#btn-dev-dock-close"),
+    saveModeInput: document.querySelector("#save-mode-input"),
+    btnSaveActiveGame: document.querySelector("#btn-save-active-game"),
     saveStatusEl: document.querySelector("#save-status"),
+    gameTabsEl: document.querySelector("#game-tabs"),
+    resourceTabsEl: document.querySelector("#resource-tabs"),
+    resourceTableWrapEl: document.querySelector("#resource-table-wrap"),
+    runtimeBuildBadgeEl: document.querySelector("#runtime-build-badge"),
+    developerDockEl: document.querySelector("#developer-dock"),
+    devDockResizeHandleEl: document.querySelector("#dev-dock-resize-handle"),
+    devTabBtnAst: document.querySelector("#dev-tab-btn-ast"),
+    devTabBtnDom: document.querySelector("#dev-tab-btn-dom"),
+    devTabBtnPgn: document.querySelector("#dev-tab-btn-pgn"),
+    devTabAstEl: document.querySelector("#dev-tab-ast"),
+    devTabDomEl: document.querySelector("#dev-tab-dom"),
+    devTabPgnEl: document.querySelector("#dev-tab-pgn"),
     astWrapEl: document.querySelector("#ast-wrap"),
     domWrapEl: document.querySelector("#dom-wrap"),
     btnMenu: document.querySelector("#btn-menu"),

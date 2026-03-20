@@ -30,8 +30,11 @@ const BUNDLES_BY_LOCALE = {
   it,
 };
 
-export const DEFAULT_LOCALE = "en";
-export const SUPPORTED_LOCALES = Object.keys(BUNDLES_BY_LOCALE).sort();
+type LocaleBundle = Record<string, string>;
+type LocaleCode = keyof typeof BUNDLES_BY_LOCALE;
+
+export const DEFAULT_LOCALE: LocaleCode = "en";
+export const SUPPORTED_LOCALES: LocaleCode[] = (Object.keys(BUNDLES_BY_LOCALE) as LocaleCode[]).sort();
 
 /**
  * Resolve requested locale to supported locale key.
@@ -39,12 +42,12 @@ export const SUPPORTED_LOCALES = Object.keys(BUNDLES_BY_LOCALE).sort();
  * @param {string} input - Locale hint like `de`, `de-CH`, or `EN`.
  * @returns {string} Supported locale key.
  */
-export const resolveLocale = (input) => {
+export const resolveLocale = (input: string): LocaleCode => {
   const normalized = String(input ?? "").trim().toLowerCase();
   if (!normalized) return DEFAULT_LOCALE;
-  if (BUNDLES_BY_LOCALE[normalized]) return normalized;
+  if (normalized in BUNDLES_BY_LOCALE) return normalized as LocaleCode;
   const languageOnly = normalized.split("-")[0];
-  if (BUNDLES_BY_LOCALE[languageOnly]) return languageOnly;
+  if (languageOnly in BUNDLES_BY_LOCALE) return languageOnly as LocaleCode;
   return DEFAULT_LOCALE;
 };
 
@@ -54,11 +57,11 @@ export const resolveLocale = (input) => {
  * @param {string} [locale=DEFAULT_LOCALE] - Requested locale code.
  * @returns {(key: string, englishDefault?: string) => string} Translation resolver.
  */
-export const createTranslator = (locale = DEFAULT_LOCALE) => {
+export const createTranslator = (locale: string = DEFAULT_LOCALE) => {
   const effectiveLocale = resolveLocale(locale);
-  const localizedBundle = BUNDLES_BY_LOCALE[effectiveLocale] || {};
-  const fallbackBundle = BUNDLES_BY_LOCALE[DEFAULT_LOCALE] || {};
-  return (key, englishDefault) => (
+  const localizedBundle = (BUNDLES_BY_LOCALE[effectiveLocale] ?? {}) as LocaleBundle;
+  const fallbackBundle = (BUNDLES_BY_LOCALE[DEFAULT_LOCALE] ?? {}) as LocaleBundle;
+  return (key: string, englishDefault?: string): string => (
     localizedBundle[key]
     || fallbackBundle[key]
     || englishDefault

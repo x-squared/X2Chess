@@ -28,16 +28,48 @@ import {
   normalizeX2StyleValue,
   resolveEcoOpeningName,
 } from "../model";
+import type { PlayerRecord } from "./app_state";
+
+type PgnModelLike = unknown;
+type TranslatorFn = (key: string, fallback?: string) => string;
+type HeaderKey = string;
+
+type GameInfoInput = HTMLInputElement | HTMLSelectElement;
+
+type GameInfoSummaryEls = {
+  gameInfoPlayersValueEl?: HTMLElement | null;
+  gameInfoEventValueEl?: HTMLElement | null;
+  gameInfoDateValueEl?: HTMLElement | null;
+  gameInfoOpeningValueEl?: HTMLElement | null;
+};
+
+type GameInfoEditorEls = {
+  gameInfoEditorEl?: HTMLElement | null;
+  btnGameInfoEdit?: HTMLElement | null;
+  gameInfoInputs?: Element[] | null;
+};
+
+type GameInfoStateLike = {
+  isGameInfoEditorOpen: boolean;
+};
 
 /**
  * Header keys that are player-name fields and use player-store autocomplete.
  */
-export const PLAYER_NAME_HEADER_KEYS = ["White", "Black", "Annotator"];
+export const PLAYER_NAME_HEADER_KEYS: readonly HeaderKey[] = ["White", "Black", "Annotator"];
 
 /**
  * Editable game-info header fields rendered in the fold-down editor.
  */
-export const GAME_INFO_HEADER_FIELDS = [
+type GameInfoField = {
+  key: HeaderKey;
+  label: string;
+  control: "text" | "select" | "number";
+  placeholder?: string;
+  options?: string[];
+};
+
+export const GAME_INFO_HEADER_FIELDS: readonly GameInfoField[] = [
   { key: "Event", label: "Event", control: "text" },
   { key: "Site", label: "Site", control: "text" },
   { key: "Round", label: "Round", control: "text" },
@@ -102,12 +134,12 @@ export const GAME_INFO_HEADER_FIELDS = [
 
 const FALLBACK_VALUE = "-";
 
-const asDisplay = (value, fallback = FALLBACK_VALUE) => {
+const asDisplay = (value: unknown, fallback: string = FALLBACK_VALUE): string => {
   const normalized = String(value ?? "").trim();
   return normalized || fallback;
 };
 
-const normalizePersonName = (rawValue) => {
+const normalizePersonName = (rawValue: unknown): string => {
   const source = String(rawValue ?? "").trim();
   if (!source) return "";
   if (source === "?") return source;
@@ -135,7 +167,7 @@ const normalizePersonName = (rawValue) => {
   return `${last}, ${first}`.trim();
 };
 
-const normalizeAnnotatorList = (rawValue) => {
+const normalizeAnnotatorList = (rawValue: unknown): string => {
   const source = String(rawValue ?? "").trim();
   if (!source) return "";
   return source
@@ -151,7 +183,7 @@ const normalizeAnnotatorList = (rawValue) => {
  * @param {string} rawValue - Name text, expected `Last-name, First-name` after normalization.
  * @returns {{lastName: string, firstName: string}|null} Player record or null when invalid.
  */
-export const parsePlayerRecord = (rawValue) => {
+export const parsePlayerRecord = (rawValue: unknown): PlayerRecord | null => {
   const normalized = normalizePersonName(rawValue);
   if (!normalized || normalized === "?") return null;
   const [lastRaw, firstRaw = ""] = normalized.split(",", 2);
@@ -167,9 +199,16 @@ export const parsePlayerRecord = (rawValue) => {
  * @param {{lastName?: string, firstName?: string}} player - Player record.
  * @returns {string} Formatted `Last-name, First-name` (or last name only).
  */
-export const formatPlayerRecordName = (player) => {
-  const lastName = String(player?.lastName ?? "").trim();
-  const firstName = String(player?.firstName ?? "").trim();
+export const formatPlayerRecordName = (
+  player: Partial<PlayerRecord> | { name?: string } | null | undefined,
+): string => {
+  const asRecord = player && typeof player === "object" ? player : null;
+  const lastName = String(
+    asRecord && "lastName" in asRecord ? asRecord.lastName : "",
+  ).trim();
+  const firstName = String(
+    asRecord && "firstName" in asRecord ? asRecord.firstName : "",
+  ).trim();
   if (!lastName) return "";
   return firstName ? `${lastName}, ${firstName}` : lastName;
 };
@@ -180,8 +219,8 @@ export const formatPlayerRecordName = (player) => {
  * @param {Array<object|string>} records - Raw player records.
  * @returns {Array<{lastName: string, firstName: string}>} Normalized unique list.
  */
-export const normalizePlayerRecords = (records) => {
-  const byKey = new Map();
+export const normalizePlayerRecords = (records: unknown): PlayerRecord[] => {
+  const byKey = new Map<string, PlayerRecord>();
   (Array.isArray(records) ? records : []).forEach((entry) => {
     const maybeName = typeof entry === "string"
       ? entry
@@ -201,7 +240,7 @@ export const normalizePlayerRecords = (records) => {
   });
 };
 
-const scorePlayerSuggestion = (normalizedQuery, playerName) => {
+const scorePlayerSuggestion = (normalizedQuery: string, playerName: string): number => {
   const candidate = playerName.toLowerCase();
   if (!normalizedQuery) return 0;
   if (candidate.startsWith(normalizedQuery)) return 500 + normalizedQuery.length;
@@ -222,7 +261,11 @@ const scorePlayerSuggestion = (normalizedQuery, playerName) => {
  * @param {number} [limit=8] - Max results.
  * @returns {string[]} Ranked suggested names.
  */
-export const buildPlayerNameSuggestions = (playerRecords, query, limit = 8) => {
+export const buildPlayerNameSuggestions = (
+  playerRecords: unknown,
+  query: string,
+  limit = 8,
+): string[] => {
   const normalizedQuery = String(query ?? "").trim().toLowerCase();
   if (!normalizedQuery) return [];
   return normalizePlayerRecords(playerRecords)
@@ -234,7 +277,7 @@ export const buildPlayerNameSuggestions = (playerRecords, query, limit = 8) => {
     .map((entry) => entry.name);
 };
 
-const abbreviateFirstNameInDisplay = (normalizedLastFirstName) => {
+const abbreviateFirstNameInDisplay = (normalizedLastFirstName: string): string => {
   const source = String(normalizedLastFirstName ?? "").trim();
   if (!source.includes(",")) return source;
   const [lastRaw, firstRaw = ""] = source.split(",", 2);
@@ -244,7 +287,7 @@ const abbreviateFirstNameInDisplay = (normalizedLastFirstName) => {
   return `${last}, ${first.charAt(0)}.`;
 };
 
-const formatPlayerNameForHeader = (rawValue) => {
+const formatPlayerNameForHeader = (rawValue: unknown): string => {
   const normalized = normalizePersonName(rawValue);
   if (!normalized) return "";
   const MAX_HEADER_NAME_LENGTH = 20;
@@ -252,7 +295,7 @@ const formatPlayerNameForHeader = (rawValue) => {
   return abbreviateFirstNameInDisplay(normalized);
 };
 
-const getLastNameFromNormalizedPersonName = (normalizedName) => {
+const getLastNameFromNormalizedPersonName = (normalizedName: string): string => {
   const source = String(normalizedName ?? "").trim();
   if (!source) return "";
   if (source.includes(",")) {
@@ -261,7 +304,7 @@ const getLastNameFromNormalizedPersonName = (normalizedName) => {
   return source;
 };
 
-const formatPlayersSummaryForHeader = (whiteRaw, blackRaw) => {
+const formatPlayersSummaryForHeader = (whiteRaw: unknown, blackRaw: unknown): string => {
   const whiteFormatted = formatPlayerNameForHeader(whiteRaw);
   const blackFormatted = formatPlayerNameForHeader(blackRaw);
   const fullPair = [whiteFormatted, blackFormatted].filter(Boolean).join(" - ").trim();
@@ -275,7 +318,7 @@ const formatPlayersSummaryForHeader = (whiteRaw, blackRaw) => {
   return [whiteLast, blackLast].filter(Boolean).join(" - ").trim();
 };
 
-const normalizeDateValue = (rawValue) => {
+const normalizeDateValue = (rawValue: unknown): string => {
   const source = String(rawValue ?? "").trim();
   if (!source) return "";
   if (/^\d{2}\.\d{2}\.\d{4}$/.test(source)) return source;
@@ -287,7 +330,7 @@ const normalizeDateValue = (rawValue) => {
   return source;
 };
 
-const normalizeIntegerValue = (rawValue) => {
+const normalizeIntegerValue = (rawValue: unknown): string => {
   const source = String(rawValue ?? "").trim();
   if (!source) return "";
   const digitsOnly = source.replace(/[^\d]/g, "");
@@ -302,7 +345,7 @@ const normalizeIntegerValue = (rawValue) => {
  * @param {string} rawValue - Raw form value.
  * @returns {string} Normalized value.
  */
-export const normalizeGameInfoHeaderValue = (key, rawValue) => {
+export const normalizeGameInfoHeaderValue = (key: HeaderKey, rawValue: unknown): string => {
   if (key === "White" || key === "Black") {
     return normalizePersonName(rawValue);
   }
@@ -321,7 +364,15 @@ export const normalizeGameInfoHeaderValue = (key, rawValue) => {
  * @param {object} deps.els - Summary DOM refs.
  * @param {Function} deps.t - Translation callback `(key, fallback) => string`.
  */
-export const renderGameInfoSummary = ({ pgnModel, els, t }) => {
+export const renderGameInfoSummary = ({
+  pgnModel,
+  els,
+  t,
+}: {
+  pgnModel: PgnModelLike;
+  els: GameInfoSummaryEls;
+  t: TranslatorFn;
+}): void => {
   const whiteRaw = getHeaderValue(pgnModel, "White", "");
   const blackRaw = getHeaderValue(pgnModel, "Black", "");
   const playersSummary = formatPlayersSummaryForHeader(whiteRaw, blackRaw);
@@ -356,7 +407,13 @@ export const renderGameInfoSummary = ({ pgnModel, els, t }) => {
  * @param {object} deps.state - Shared app state.
  * @param {object} deps.els - Editor-related DOM refs.
  */
-export const syncGameInfoEditorUi = ({ state, els }) => {
+export const syncGameInfoEditorUi = ({
+  state,
+  els,
+}: {
+  state: GameInfoStateLike;
+  els: GameInfoEditorEls;
+}): void => {
   const isOpen = Boolean(state.isGameInfoEditorOpen);
   const cardEl = els.gameInfoEditorEl?.closest(".game-info-card");
   if (cardEl) {
@@ -382,16 +439,23 @@ export const syncGameInfoEditorUi = ({ state, els }) => {
  * @param {object} deps.pgnModel - Current PGN model.
  * @param {object} deps.els - Form DOM refs.
  */
-export const syncGameInfoEditorValues = ({ pgnModel, els }) => {
+export const syncGameInfoEditorValues = ({
+  pgnModel,
+  els,
+}: {
+  pgnModel: PgnModelLike;
+  els: GameInfoEditorEls;
+}): void => {
   if (!Array.isArray(els.gameInfoInputs)) return;
   const eco = getHeaderValue(pgnModel, "ECO", "");
+  const requiredDefaults = REQUIRED_PGN_TAG_DEFAULTS as Record<string, string>;
   for (const input of els.gameInfoInputs) {
     if (!(input instanceof HTMLInputElement || input instanceof HTMLSelectElement)) continue;
     const key = input.dataset.headerKey;
     if (!key) continue;
     let nextValue = getHeaderValue(pgnModel, key, "");
-    if (!nextValue && Object.hasOwn(REQUIRED_PGN_TAG_DEFAULTS, key)) {
-      nextValue = REQUIRED_PGN_TAG_DEFAULTS[key];
+    if (!nextValue && Object.hasOwn(requiredDefaults, key)) {
+      nextValue = requiredDefaults[key];
     }
     nextValue = normalizeGameInfoHeaderValue(key, nextValue);
     if (key === "Opening" && !nextValue) {

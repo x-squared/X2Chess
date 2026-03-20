@@ -19,6 +19,7 @@ export const DEFAULT_APP_MODE = "DEV";
 
 /** Normalized player row used by game-info autocomplete and bundled seed data. */
 export type PlayerRecord = { lastName: string; firstName: string };
+type ParsePgnToModelFn = (source: string) => unknown;
 
 /**
  * Default PGN used when no library game is loaded.
@@ -43,7 +44,10 @@ export const DEFAULT_PGN = `[Event "Sample"]
  * @param {string} [defaultPgn=DEFAULT_PGN] - Default PGN source text.
  * @returns {object} Initial runtime state.
  */
-export const createInitialAppState = (parsePgnToModelFn, defaultPgn = DEFAULT_PGN) => ({
+export const createInitialAppState = (
+  parsePgnToModelFn: ParsePgnToModelFn,
+  defaultPgn: string = DEFAULT_PGN,
+) => ({
   moves: [],
   currentPly: 0,
   pgnText: defaultPgn,

@@ -11,33 +11,49 @@
  * - Uses audio assets in `public/sounds/chess/`.
  */
 
-/**
- * Create move-sound playback capabilities.
- *
- * @param {object} deps - Host dependencies.
- * @param {Function} deps.isSoundEnabled - Callback returning current sound-enabled state.
- * @returns {{playMoveSound: Function}} Move-sound playback methods.
- */
-export const createMoveSoundPlayer = ({ isSoundEnabled }) => {
-  const SOUND_ASSET_BY_TYPE = {
+export type ChessSoundType =
+  | "move"
+  | "capture"
+  | "castling"
+  | "check"
+  | "checkmate"
+  | "stalemate";
+
+type MoveSoundPlayerDeps = {
+  isSoundEnabled: () => boolean;
+};
+
+export type MoveSoundPlayer = {
+  playMoveSound: (soundType?: ChessSoundType) => Promise<void>;
+};
+
+const SOUND_ASSET_BY_TYPE: Record<ChessSoundType, string> = {
     move: "/sounds/chess/move.mp3",
     capture: "/sounds/chess/capture.mp3",
     castling: "/sounds/chess/castling.wav",
     check: "/sounds/chess/check.wav",
     checkmate: "/sounds/chess/checkmate.wav",
     stalemate: "/sounds/chess/stalemate.wav",
-  };
-  const audioTemplateByType = new Map();
+};
+
+const isChessSoundType = (value: string): value is ChessSoundType =>
+  value in SOUND_ASSET_BY_TYPE;
+
+/**
+ * Create move-sound playback capabilities.
+ */
+export const createMoveSoundPlayer = ({
+  isSoundEnabled,
+}: MoveSoundPlayerDeps): MoveSoundPlayer => {
+  const audioTemplateByType = new Map<ChessSoundType, HTMLAudioElement>();
 
   /**
    * Get (or create) reusable audio template for one sound type.
    *
-   * @param {string} soundType - Sound type key.
-   * @returns {HTMLAudioElement|null} Audio template element or null when unsupported.
    */
-  const getAudioTemplate = (soundType) => {
+  const getAudioTemplate = (soundType: string): HTMLAudioElement | null => {
     if (typeof window === "undefined" || typeof window.Audio !== "function") return null;
-    const resolvedType = SOUND_ASSET_BY_TYPE[soundType] ? soundType : "move";
+    const resolvedType: ChessSoundType = isChessSoundType(soundType) ? soundType : "move";
     const existing = audioTemplateByType.get(resolvedType);
     if (existing) return existing;
     const src = SOUND_ASSET_BY_TYPE[resolvedType];
@@ -51,9 +67,8 @@ export const createMoveSoundPlayer = ({ isSoundEnabled }) => {
   /**
    * Play one move sound event from asset library.
    *
-   * @param {string} soundType - One of: move/capture/castling/check/checkmate/stalemate.
    */
-  const playMoveSound = async (soundType = "move") => {
+  const playMoveSound: MoveSoundPlayer["playMoveSound"] = async (soundType = "move") => {
     if (!isSoundEnabled()) return;
     const template = getAudioTemplate(soundType);
     if (!template) return;

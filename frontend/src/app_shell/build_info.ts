@@ -19,7 +19,7 @@
  * @param {string} rawTimestamp - Raw timestamp string.
  * @returns {string} Human-readable label or fallback "unknown".
  */
-export const resolveBuildTimestampLabel = (rawTimestamp) => {
+export const resolveBuildTimestampLabel = (rawTimestamp: string): string => {
   const normalized = String(rawTimestamp || "");
   if (!normalized) return "unknown";
   const parsed = new Date(normalized);

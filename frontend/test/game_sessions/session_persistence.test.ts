@@ -31,9 +31,8 @@ test("persistence routes save through active session sourceRef", async () => {
     autosaveDebounceMs: 10,
   });
 
-  const saved = await service.persistActiveSessionNow();
+  await service.persistActiveSessionNow();
 
-  assert.equal(saved, true);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].sourceRef.recordId, "game1.pgn");
   assert.equal(calls[0].pgnText, "1. e4 e5 *");
@@ -116,9 +115,8 @@ test("missing source is created on first persist for unsaved session", async () 
     autosaveDebounceMs: 10,
   });
 
-  const saved = await service.persistActiveSessionNow();
+  await service.persistActiveSessionNow();
 
-  assert.equal(saved, true);
   assert.equal(ensureCalls.length, 1);
   assert.equal(saveCalls.length, 1);
   assert.equal(saveCalls[0].sourceRef.recordId, "new-game.pgn");

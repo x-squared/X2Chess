@@ -1,5 +1,10 @@
 /**
  * Shared runtime utility contracts.
+ *
+ * These type definitions are referenced by pure-logic modules (`session_store`,
+ * `session_persistence`, `resources/index`, `resources_viewer/index`) that are
+ * kept unchanged through the migration.  The file is preserved so those modules
+ * require no edits.
  */
 
 export type SourceRefLike = {

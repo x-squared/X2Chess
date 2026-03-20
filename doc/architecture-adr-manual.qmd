@@ -1,6 +1,6 @@
 # X2Chess Architecture ADR Manual
 
-Last updated: 2026-03-20
+Last updated: 2026-03-21
 
 ## Purpose
 
@@ -109,14 +109,6 @@ This manual contains Architecture Decision Records (ADRs): why major architectur
 - Implication:
   - Defaults remain stable while users can personalize behavior entirely through client-owned local data.
 
-## Change Log
-
-- 2026-03-18:
-  - Initial ADR set captured from architecture evolution history.
-  - Includes runtime/storage, UI/component, delivery, and config decisions through ADR-011.
-  - Updated ADR-010 and ADR-011 to enforce client-owned local resource handling.
-
-
 ## ADR-012: Top-level resource library ownership and canonical kinds
 - Status: Accepted
 - Date: 2026-03-20
@@ -127,3 +119,30 @@ This manual contains Architecture Decision Records (ADRs): why major architectur
   - Keep metadata schema centralized in `resource/domain` and have frontend consumers reuse canonical constants/contracts.
 - Implication:
   - Architecture boundaries remain explicit and prevent drift of resource/domain logic into frontend-only modules.
+
+## ADR-013: React as sole frontend runtime; imperative bootstrap removed
+- Status: Accepted
+- Date: 2026-03-21
+- Decision:
+  - React owns all rendering, state, and event handling in the frontend.
+  - The single `useReducer` store (`AppStoreState`) is the sole source of UI state truth; all mutations via `dispatch(action)`.
+  - All service initialisation is owned by the `useAppStartup` hook; stable service callbacks are exposed exclusively via `ServiceContext` / `useServiceContext()`.
+  - Components read state directly from context; no CustomEvent bridging or shadow-sync is used.
+  - The imperative bootstrap layer (`start_runtime.ts`, `app_shell/`, DOM-driven runtime hooks, `src/runtime/` bootstrap files) is removed.
+  - `src/runtime/bootstrap_shared.ts` is preserved: it provides `SourceRefLike`, `SessionLike`, `EMPTY_GAME_PGN`, and `isLikelyPgnText` consumed by pure-logic modules (`session_store`, `session_persistence`, `resources/index`, `resources_viewer/index`).
+  - Pure-logic modules (`model/`, `editor/`, `board/`, `game_sessions/`, `resources/`) remain framework-free and are imported directly by hooks and components.
+- Implication:
+  - Component lifecycle governs all UI concerns; there is no parallel imperative runtime.
+  - The app-profile (Tauri) and the browser fat-client share the same React rendering path without divergence.
+  - There is one state model, one service initialisation point, and no hidden DOM-sync indirection.
+
+## Change Log
+
+- 2026-03-18:
+  - Initial ADR set captured from architecture evolution history.
+  - Includes runtime/storage, UI/component, delivery, and config decisions through ADR-011.
+  - Updated ADR-010 and ADR-011 to enforce client-owned local resource handling.
+- 2026-03-20:
+  - Added ADR-012: top-level resource library ownership and canonical kinds.
+- 2026-03-21:
+  - Added ADR-013: React as sole frontend runtime; imperative bootstrap removed.

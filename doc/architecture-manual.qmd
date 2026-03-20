@@ -1,6 +1,6 @@
 # X2Chess Architecture Manual
 
-Last updated: 2026-03-20
+Last updated: 2026-03-21
 
 ## 1) Goals
 
@@ -16,13 +16,15 @@ Architecture decisions are maintained in `doc/architecture-adr-manual.qmd`.
 
 ## 2.1 Frontend (`frontend/`)
 
-- Technology: Vite + vanilla JavaScript (ES modules).
-- Main entrypoint: `frontend/src/main.js`.
+- Technology: Vite + React 18 + TypeScript (ES modules).
+- Main entrypoint: `frontend/src/main.tsx`.
+- React state: single `useReducer` store (`AppStoreState`) owned by `AppProvider`; all mutations via `dispatch(action)`.
+- Service layer: `useAppStartup` hook initialises all pure-logic services on mount and exposes stable callbacks via `ServiceContext`; components consume them with `useServiceContext()`.
 - Responsibilities:
-  - Render the Game-Viewer (board + PGN editor UI).
+  - Render the Game-Viewer (board + PGN editor UI) as React components.
   - Parse PGN into an internal model and serialize back to text.
-  - Keep replay/navigation state in memory.
-  - Manage chess move playback and UI interactions.
+  - Keep replay/navigation state in React `useReducer`.
+  - Manage chess move playback and UI interactions via `ServiceContext` callbacks.
   - Manage multiple open game sessions in parallel tabs.
   - Route load/save through a uniform source adapter contract.
 
@@ -130,4 +132,7 @@ Environment and toolchain setup is documented in `doc/setup-manual.qmd`.
 - Keep production runtime data outside repository paths (explicit prod root or OS app-data default).
 - Keep scenario game libraries under `run/<SCENARIO>/games` for local scenarios.
 - Keep runtime configuration layered: default app config + partial user override in data area.
+- Keep all UI state in the React `useReducer` store (`AppStoreState`); never mutate state outside `dispatch`.
+- Keep service initialisation in `useAppStartup`; expose service callbacks exclusively via `ServiceContext`.
+- Pure-logic modules (`model/`, `editor/`, `board/`, `game_sessions/`, `resources/`) must remain framework-free.
 - Update this manual when architecture decisions, boundaries, or delivery paths change.

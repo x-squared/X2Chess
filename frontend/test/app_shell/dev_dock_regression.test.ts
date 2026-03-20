@@ -14,12 +14,6 @@ test("developer dock hidden attribute is enforced by CSS", async () => {
   assert.match(css, /\.developer-dock\[hidden\]\s*\{\s*display:\s*none\s*!important;/m);
 });
 
-test("bootstrap explicitly forces developer dock closed", async () => {
-  const bootstrapPath = new URL("../../src/bootstrap.ts", import.meta.url);
-  const source = await readFile(bootstrapPath, "utf8");
-  assert.match(source, /state\.isDevDockOpen\s*=\s*false;/);
-});
-
 test("resource viewer height has stable default in initial state", () => {
   const state = createInitialAppState(() => ({}));
   assert.equal(state.resourceViewerHeightPx, 260);

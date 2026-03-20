@@ -1,25 +1,46 @@
-import type { ReactElement } from "react";
-import { useSessionsRuntime } from "../hooks/useSessionsRuntime";
-import { useAppContext } from "../state/app_context";
-import { selectActiveSessionId, selectSessionCount, selectSessionTitles } from "../state/selectors";
-
 /**
- * React game sessions boundary (Slice 5 in progress).
+ * GameSessionsPanel — renders the game session tab bar.
+ *
+ * Wires `onSelect`/`onClose` to session service callbacks obtained via
+ * `useServiceContext()`.  Session state flows from `AppStoreState` populated
+ * by `useAppStartup`.
+ *
+ * Integration API:
+ * - `<GameSessionsPanel />` — rendered inside `game-tabs-card` by `AppShell`.
+ *   No props required.
+ *
+ * Configuration API:
+ * - Session data flows through `AppStoreState` context (populated by
+ *   `useAppStartup` via `set_sessions` action).
+ *
+ * Communication API:
+ * - Receives: `set_sessions` action dispatched by `useAppStartup` render callback.
+ * - Emits: `switchSession` and `closeSession` via `useServiceContext()`.
  */
+
+import type { ReactElement } from "react";
+import { useCallback } from "react";
+import { useAppContext } from "../state/app_context";
+import { selectSessions } from "../state/selectors";
+import { useServiceContext } from "../state/ServiceContext";
+import type { SessionItemState } from "../state/app_reducer";
+import { GameTabs } from "./GameTabs";
+
+/** Sessions panel: renders the game tab bar, wired to session service. */
 export const GameSessionsPanel = (): ReactElement => {
-  useSessionsRuntime();
+  const services = useServiceContext();
   const { state } = useAppContext();
-  const activeSessionId: string | null = selectActiveSessionId(state);
-  const sessionCount: number = selectSessionCount(state);
-  const sessionTitles: string[] = selectSessionTitles(state);
+  const sessions: SessionItemState[] = selectSessions(state);
+
+  const handleSelect = useCallback((sessionId: string): void => {
+    services.switchSession(sessionId);
+  }, [services]);
+
+  const handleClose = useCallback((sessionId: string): void => {
+    services.closeSession(sessionId);
+  }, [services]);
 
   return (
-    <section
-      data-react-slice="game-sessions"
-      data-active-session-id={activeSessionId || ""}
-      data-session-count={String(sessionCount)}
-      data-session-titles={sessionTitles.join("|")}
-      hidden
-    />
+    <GameTabs sessions={sessions} onSelect={handleSelect} onClose={handleClose} />
   );
 };

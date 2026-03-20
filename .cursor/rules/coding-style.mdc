@@ -1,0 +1,224 @@
+---
+description: X2Chess code style, naming conventions, and component-contract documentation rules
+globs: ["frontend/src/**/*.ts", "frontend/src/**/*.tsx", "resource/**/*.ts"]
+alwaysApply: true
+---
+
+# X2Chess Code Style and Conventions
+
+## 1. Naming Conventions
+
+### Files
+- React components: `PascalCase.tsx` — e.g. `ChessBoard.tsx`, `GameTabs.tsx`
+- React hooks: `camelCase.ts` prefixed with `use` — e.g. `useAppStartup.ts`, `useTranslator.ts`
+- Pure-logic modules: `snake_case.ts` — e.g. `pgn_model.ts`, `session_store.ts`, `move_lookup.ts`
+- CSS files: `snake_case.css` matching the module they style
+
+### Identifiers
+- Components and types: `PascalCase` — `AppStoreState`, `ChessBoard`, `GameSession`
+- Functions, variables, props: `camelCase` — `parseHeaders`, `sessionId`, `onMoveClick`
+- Constants (module-level, immutable): `SCREAMING_SNAKE_CASE` — `EMPTY_GAME_PGN`, `SUPPORTED_LOCALES`
+- CSS classes: `kebab-case` — `app-menu-panel`, `developer-dock-tab`, `source-button`
+- CSS ids: `kebab-case` — `btn-menu-close`, `dev-tab-btn-ast`
+
+### Component props
+- Event callbacks: prefix with `on` — `onCommit`, `onClose`, `onSelect`
+- Boolean flags: use `is`/`has`/`can` prefix when ambiguous — `isOpen`, `isDirty`
+
+---
+
+## 2. TypeScript Discipline
+
+- **No `any`**. Use `unknown` when the type is genuinely unknown; narrow with type guards.
+- All function parameters and return types must be explicitly annotated.
+- All `const` variable declarations must include an explicit type annotation when the inferred type would be overly broad or non-obvious.
+- No implicit `undefined` returns from functions that could plausibly return a value.
+- Prefer `type` over `interface` for object shapes unless extension via `extends` is intended.
+- Import types with `import type { ... }` when the import is only used for type annotations.
+
+```typescript
+// Good
+const resolveBuildLabel = (): string => { ... };
+const sessions: SessionItemState[] = selectSessions(state);
+const t: (key: string, fallback?: string) => string = useTranslator();
+
+// Bad
+const resolveBuildLabel = () => { ... };
+const sessions = selectSessions(state);
+```
+
+---
+
+## 3. Component-Contract Documentation
+
+Every React component file **must** open with a JSDoc block that declares:
+- A one-line description naming the component and its architectural role.
+- An **Integration API** section: how the component is embedded (element name, required wrappers).
+- A **Configuration API** section: props accepted (or "No props" if stateless from context).
+- A **Communication API** section: outbound (what it calls/dispatches) and inbound (what state it reads).
+
+### Template
+
+```tsx
+/**
+ * ComponentName — one-line description of purpose.
+ *
+ * [Optional additional detail about what the component renders or manages.]
+ *
+ * Integration API:
+ * - `<ComponentName />` — rendered inside <ParentComponent>.
+ *   Requires <ServiceContextProvider> and <AppProvider> in the ancestor tree.
+ *
+ * Configuration API:
+ * - `propName: Type` — description. (or "No props." if none)
+ *
+ * Communication API:
+ * - Outbound: service callbacks via `useServiceContext()`, e.g. `services.setMenuOpen`.
+ * - Inbound: re-renders when relevant `AppStoreState` fields change via `useAppContext()`.
+ */
+```
+
+### Real example (from MenuPanel.tsx)
+
+```tsx
+/**
+ * MenuPanel — renders the slide-in application menu sidebar.
+ *
+ * Displays locale selector, move-speed slider, sound toggle, developer-tools
+ * toggle, save-mode selector, and save/dock action buttons.
+ *
+ * Integration API:
+ * - `<MenuPanel />` — rendered directly inside `<main class="app">`.
+ *   No props required; reads all state from context.
+ *
+ * Configuration API:
+ * - No props.  Form control values are applied as `value`/`checked` for
+ *   controlled React inputs, driven by `AppStoreState`.
+ *
+ * Communication API:
+ * - Outbound: all control changes dispatched through `useServiceContext()` callbacks.
+ * - Inbound: re-renders when relevant `AppStoreState` fields change.
+ */
+```
+
+---
+
+## 4. JSX Section Dividers
+
+Divide significant logical blocks inside JSX with inline comment labels. Use em-dash style
+for comments that label a region with a note:
+
+```tsx
+{/* Backdrop — click closes menu */}
+<div id="menu-backdrop" ... />
+
+{/* Sidebar panel */}
+<aside id="app-menu-panel" ... >
+
+  {/* Move speed */}
+  <label ...> ... </label>
+
+  {/* Sound */}
+  <label ...> ... </label>
+
+  {/* Developer dock toggle */}
+  <button ...> ... </button>
+```
+
+Rules:
+- Every top-level JSX section within a component body gets a divider comment.
+- Subsections within a panel or form get shorter comments without em-dash.
+- Never leave large blocks of JSX without at least one orienting comment.
+
+---
+
+## 5. Pure-Logic Module Discipline
+
+Modules under `model/`, `editor/`, `board/`, `game_sessions/`, and `resources/` must be
+**framework-free**: no React imports, no DOM APIs, no `window`/`document` references.
+
+These modules are imported directly by hooks and components. They must never import from
+`react`, `react-dom`, or any browser-only API.
+
+```typescript
+// Good — pure-logic module
+export const parsePgnToModel = (pgn: string): PgnModel => { ... };
+
+// Bad — framework leak
+import { useState } from "react";  // forbidden in model/
+```
+
+---
+
+## 6. State and Service Access Patterns
+
+### Reading state in components
+Always use typed selectors from `src/state/selectors.ts`:
+
+```tsx
+const isOpen: boolean = selectIsMenuOpen(state);
+const sessions: SessionItemState[] = selectSessions(state);
+```
+
+Never read fields from `state` directly by key in component bodies.
+
+### Calling services in components
+All side-effects and state mutations go through `useServiceContext()` callbacks:
+
+```tsx
+const services = useServiceContext();
+<button onClick={() => services.setMenuOpen(false)}>Close</button>
+```
+
+Never call `dispatch` directly from a component for game/service logic.
+`dispatch` is permitted only for pure UI-local state (e.g. toggling an editor panel open/closed)
+that has no corresponding service abstraction.
+
+### Controlled inputs
+All form inputs driven by `AppStoreState` must be **controlled** (use `value`/`checked`, not
+`defaultValue`/`defaultChecked`):
+
+```tsx
+<input
+  type="range"
+  value={moveDelayMs}
+  onChange={(e: ChangeEvent<HTMLInputElement>): void => {
+    services.setMoveDelayMs(Number(e.target.value));
+  }}
+/>
+```
+
+---
+
+## 7. Internationalisation
+
+All user-facing strings must be resolved through the translator:
+
+```tsx
+const t: (key: string, fallback?: string) => string = useTranslator();
+
+// Good
+<p>{t("menu.title", "Menu")}</p>
+<button aria-label={t("menu.close", "Close menu")}>×</button>
+
+// Bad — hardcoded English
+<p>Menu</p>
+```
+
+`aria-label`, `title`, `placeholder`, and button text are all user-facing and must use `t()`.
+
+---
+
+## 8. Architecture Constraints (do not violate)
+
+- **Single state store**: All UI state lives in `AppStoreState` (`useReducer`). No local `useState`
+  for state that needs to be shared across components.
+- **Service initialisation**: All service singletons are created inside `useAppStartup`.
+  Services are never constructed inside components.
+- **ServiceContext**: The only channel for components to trigger service logic.
+  Do not pass service callbacks as individual props; components call `useServiceContext()`.
+- **No backend mediation for local resources**: Local file read/write stays in client code.
+- **No SQL schema in frontend**: All DB schema/migrations live in `resource/database/`.
+- **`bootstrap_shared.ts` is a shared contract file**: It must not be deleted or merged into
+  frontend-only modules; pure-logic modules (`session_store`, `session_persistence`,
+  `resources/index`) depend on it.

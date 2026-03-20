@@ -186,3 +186,17 @@ export const createCanonicalAdapter = (
     };
   },
 });
+
+
+/** Neutral compatibility aliases for transitional callers. */
+export type CompatSourceRef = LegacySourceRef;
+export type CompatListEntry = LegacyListEntry;
+export type CompatLoadResult = LegacyLoadResult;
+export type CompatSaveResult = LegacySaveResult;
+export type CompatCreateResult = LegacyCreateResult;
+export type CompatAdapter = LegacyAdapter;
+export const mapCompatKind = mapLegacyKind;
+export const toCompatKind = toLegacyKind;
+export const toCanonicalResourceRefFromCompat = toCanonicalResourceRef;
+export const toCanonicalGameRefFromCompat = toCanonicalGameRef;
+export const toCompatSourceRef = toLegacySourceRef;

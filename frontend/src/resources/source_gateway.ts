@@ -2,21 +2,20 @@ import { createDirectoryAdapter } from "../../../resource/adapters/directory/dir
 import { createFileAdapter as createCanonicalFileAdapter } from "../../../resource/adapters/file/file_adapter";
 import { createResourceClient, type ResourceClient } from "../../../resource/client/api";
 import {
-  createCanonicalAdapter,
-  mapLegacyKind,
-  toCanonicalGameRef,
-  toCanonicalResourceRef,
-  type LegacyAdapter,
-  type LegacyCreateResult,
-  type LegacyListEntry,
-  type LegacyLoadResult,
-  type LegacySourceRef,
-  type LegacySaveResult,
-} from "../../../resource/client/compatibility";
+  createSourceCanonicalAdapter,
+  mapSourceKind,
+  toCanonicalGameRefFromSource,
+  toCanonicalResourceRefFromSource,
+  type SourceAdapter,
+  type SourceCreateResult,
+  type SourceListEntry,
+  type SourceLoadResult,
+  type SourceRef,
+  type SourceSaveResult,
+} from "./source_types";
 import type { PgnGameRef } from "../../../resource/domain/game_ref";
 import type { PgnResourceRef } from "../../../resource/domain/resource_ref";
-import { createFileSourceAdapter } from "./sources/file_adapter";
-import { createDatabaseSourceAdapter } from "./sources/db_adapter";
+import { createSourcePickerAdapter } from "./source_picker_adapter";
 
 /**
  * Source Gateway module.
@@ -28,7 +27,7 @@ import { createDatabaseSourceAdapter } from "./sources/db_adapter";
  * - Injects app `state` and frontend picker/runtime dependencies.
  *
  * Communication API:
- * - Uses top-level `resource/client` as canonical boundary, while keeping legacy
+ * - Uses top-level `resource/client` as canonical boundary, while keeping
  *   picker/source-root orchestration in frontend.
  */
 
@@ -36,11 +35,35 @@ type SourceGatewayState = {
   activeSourceKind: string;
   appMode: string;
   gameDirectoryPath: string;
+  gameRootPath: string;
+  gameDirectoryHandle: unknown | null;
 };
 
 type SourceGatewayDeps = {
   state: SourceGatewayState;
 };
+
+type TauriWindowLike = Window & {
+  __TAURI_INTERNALS__?: unknown;
+  __TAURI__?: unknown;
+};
+
+const isTauriRuntime = (): boolean => {
+  const runtimeWindow = window as TauriWindowLike;
+  return Boolean(runtimeWindow.__TAURI_INTERNALS__ || runtimeWindow.__TAURI__);
+};
+
+
+const createDeferredDbSourceAdapter = (): SourceAdapter => ({
+  kind: "db",
+  list: async (): Promise<SourceListEntry[]> => [],
+  load: async (): Promise<SourceLoadResult> => {
+    throw new Error("Database source adapter is deferred in this migration phase.");
+  },
+  save: async (): Promise<SourceSaveResult> => {
+    throw new Error("Database source adapter is deferred in this migration phase.");
+  },
+});
 
 /**
  * Create source gateway boundary.
@@ -51,7 +74,7 @@ type SourceGatewayDeps = {
  * @throws {Error} Picker methods throw when an unsupported or deferred resource kind is selected.
  */
 export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
-  const fileAdapter = createFileSourceAdapter({ state }) as LegacyAdapter & {
+  const sourcePickerAdapter = createSourcePickerAdapter({ state }) as SourceAdapter & {
     pickSourceRoot: () => Promise<unknown>;
     applySourceRoot: (sourceRoot: unknown) => void;
     pickResourceTarget: () => Promise<
@@ -61,16 +84,16 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
     >;
     detectDefaultSourceRoot: () => Promise<unknown>;
   };
-  const sqliteAdapter = createDatabaseSourceAdapter() as LegacyAdapter;
+  const sqliteAdapter: SourceAdapter = createDeferredDbSourceAdapter();
   const canonicalFileAdapter = createCanonicalFileAdapter();
 
   const directoryAdapter = createDirectoryAdapter({
     listGames: async (resourceRef: PgnResourceRef) => {
-      const rows: LegacyListEntry[] = await fileAdapter.list({
+      const rows: SourceListEntry[] = await sourcePickerAdapter.list({
         sourceRef: { kind: "file", locator: resourceRef.locator },
       });
       return {
-        entries: rows.map((row: LegacyListEntry) => ({
+        entries: rows.map((row: SourceListEntry) => ({
           gameRef: {
             kind: "directory",
             locator: String(row.sourceRef?.locator || resourceRef.locator || ""),
@@ -86,7 +109,7 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
       };
     },
     loadGame: async (gameRef: PgnGameRef) => {
-      const loaded: LegacyLoadResult = await fileAdapter.load({
+      const loaded: SourceLoadResult = await sourcePickerAdapter.load({
         kind: "file",
         locator: gameRef.locator,
         recordId: gameRef.recordId,
@@ -99,7 +122,7 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
       };
     },
     saveGame: async (gameRef: PgnGameRef, pgnText: string, options) => {
-      const saved: LegacySaveResult = await fileAdapter.save(
+      const saved: SourceSaveResult = await sourcePickerAdapter.save(
         {
           kind: "file",
           locator: gameRef.locator,
@@ -115,10 +138,10 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
       };
     },
     createGame: async (resourceRef: PgnResourceRef, pgnText: string, title: string) => {
-      if (typeof fileAdapter.createInResource !== "function") {
+      if (typeof sourcePickerAdapter.createInResource !== "function") {
         throw new Error("Directory resources cannot create new games yet.");
       }
-      const created: LegacyCreateResult = await fileAdapter.createInResource(
+      const created: SourceCreateResult = await sourcePickerAdapter.createInResource(
         { kind: "file", locator: resourceRef.locator },
         pgnText,
         title,
@@ -136,10 +159,12 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
   });
 
   const resourceClient: ResourceClient = createResourceClient({
-    db: createCanonicalAdapter("db", sqliteAdapter),
+    db: createSourceCanonicalAdapter("db", sqliteAdapter),
     directory: directoryAdapter,
     file: canonicalFileAdapter,
   });
+
+  const supportsFileKind: boolean = isTauriRuntime();
 
   /**
    * Choose and apply a directory source root.
@@ -147,9 +172,9 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
    * Side effects: mutates `state.activeSourceKind` and directory state via file adapter.
    */
   const chooseFileSourceRoot = async (): Promise<void> => {
-    const root = await fileAdapter.pickSourceRoot();
+    const root = await sourcePickerAdapter.pickSourceRoot();
     if (!root) return;
-    fileAdapter.applySourceRoot(root);
+    sourcePickerAdapter.applySourceRoot(root);
     state.activeSourceKind = "directory";
   };
 
@@ -160,19 +185,22 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
    * @throws Error when deferred DB kind is selected in current migration phase.
    */
   const chooseResourceByPicker = async (): Promise<{ resourceRef: PgnResourceRef } | null> => {
-    const selected = await fileAdapter.pickResourceTarget();
+    const selected = await sourcePickerAdapter.pickResourceTarget();
     if (!selected) return null;
     if (selected.type === "folder") {
-      fileAdapter.applySourceRoot(selected.sourceRoot);
+      sourcePickerAdapter.applySourceRoot(selected.sourceRoot);
       state.activeSourceKind = "directory";
       return {
         resourceRef: {
           kind: "directory",
-          locator: state.gameDirectoryPath || "local-files",
+          locator: state.gameRootPath || state.gameDirectoryPath || "local-files",
         },
       };
     }
     if (selected.type === "file") {
+      if (!supportsFileKind) {
+        throw new Error("Single-file resources require desktop runtime. Choose a directory resource in browser mode.");
+      }
       state.activeSourceKind = "file";
       return {
         resourceRef: { kind: "file", locator: selected.locator },
@@ -188,9 +216,9 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
    */
   const maybePreloadDefaultDevSource = async (): Promise<boolean> => {
     if (state.appMode !== "DEV") return false;
-    const root = await fileAdapter.detectDefaultSourceRoot();
+    const root = await sourcePickerAdapter.detectDefaultSourceRoot();
     if (!root) return false;
-    fileAdapter.applySourceRoot(root);
+    sourcePickerAdapter.applySourceRoot(root);
     state.activeSourceKind = "directory";
     return true;
   };
@@ -198,12 +226,16 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
   /**
    * List games for one source kind through canonical client dispatch.
    *
-   * @param kind Source kind token (canonical or compatibility).
-   * @returns Legacy-shaped rows for existing frontend consumers.
+   * @param kind Source kind token resolved to canonical resource kind.
+   * @returns Source-shaped rows for existing frontend consumers.
    */
-  const listGames = async (kind: string = state.activeSourceKind || "directory"): Promise<LegacyListEntry[]> => {
+  const listGames = async (kind: string = state.activeSourceKind || "directory"): Promise<SourceListEntry[]> => {
+    const mappedKind = mapSourceKind(kind);
+    if (mappedKind === "file" && !supportsFileKind) {
+      return [];
+    }
     const listed = await resourceClient.listGames({
-      kind: mapLegacyKind(kind),
+      kind: mappedKind,
       locator: state.gameDirectoryPath || "",
     });
     return listed.entries.map((entry) => ({
@@ -222,11 +254,11 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
   /**
    * Load one game by source reference through canonical client API.
    *
-   * @param sourceRef Legacy source reference.
-   * @returns Legacy load payload with PGN text and revision token.
+   * @param sourceRef Source reference.
+   * @returns Load payload with PGN text and revision token.
    */
-  const loadBySourceRef = async (sourceRef: LegacySourceRef): Promise<LegacyLoadResult> => {
-    const loaded = await resourceClient.loadGame(toCanonicalGameRef(sourceRef));
+  const loadBySourceRef = async (sourceRef: SourceRef): Promise<SourceLoadResult> => {
+    const loaded = await resourceClient.loadGame(toCanonicalGameRefFromSource(sourceRef));
     return {
       pgnText: loaded.pgnText,
       revisionToken: loaded.revisionToken,
@@ -237,18 +269,18 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
   /**
    * Save one game by source reference through canonical client API.
    *
-   * @param sourceRef Legacy source reference.
+   * @param sourceRef Source reference.
    * @param pgnText Serialized PGN text.
    * @param revisionToken Prior revision token from last load/save.
-   * @returns Legacy save payload with next revision token.
+   * @returns Save payload with next revision token.
    */
   const saveBySourceRef = async (
-    sourceRef: LegacySourceRef,
+    sourceRef: SourceRef,
     pgnText: string,
     revisionToken: string,
     _options: Record<string, unknown> = {},
-  ): Promise<LegacySaveResult> => {
-    const saved = await resourceClient.saveGame(toCanonicalGameRef(sourceRef), pgnText, {
+  ): Promise<SourceSaveResult> => {
+    const saved = await resourceClient.saveGame(toCanonicalGameRefFromSource(sourceRef), pgnText, {
       expectedRevisionToken: revisionToken,
     });
     return { revisionToken: saved.revisionToken };
@@ -260,15 +292,15 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
    * @param resourceRef Target resource reference.
    * @param pgnText New game PGN text.
    * @param titleHint Title hint used by adapters as filename/title seed.
-   * @returns Legacy create payload with source reference and revision token.
+   * @returns Create payload with source reference and revision token.
    */
   const createGameInResource = async (
-    resourceRef: LegacySourceRef,
+    resourceRef: SourceRef,
     pgnText: string,
     titleHint: string = "",
-  ): Promise<LegacyCreateResult> => {
+  ): Promise<SourceCreateResult> => {
     const created = await resourceClient.createGame(
-      toCanonicalResourceRef(resourceRef || { kind: state.activeSourceKind || "directory", locator: state.gameDirectoryPath || "" }),
+      toCanonicalResourceRefFromSource(resourceRef || { kind: state.activeSourceKind || "directory", locator: state.gameDirectoryPath || "" }),
       pgnText,
       titleHint,
     );
@@ -287,11 +319,11 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
     chooseFileSourceRoot,
     chooseResourceByPicker,
     createGameInResource,
-    getAdapterKinds: (): string[] => ["file", "directory"],
+    getAdapterKinds: (): string[] => (supportsFileKind ? ["file", "directory"] : ["directory"]),
     listGames,
-    listGamesForResource: async (resourceRef: LegacySourceRef): Promise<LegacyListEntry[]> => {
+    listGamesForResource: async (resourceRef: SourceRef): Promise<SourceListEntry[]> => {
       const listed = await resourceClient.listGames(
-        toCanonicalResourceRef(resourceRef || { kind: "directory", locator: "" }),
+        toCanonicalResourceRefFromSource(resourceRef || { kind: "directory", locator: "" }),
       );
       return listed.entries.map((entry) => ({
         sourceRef: {

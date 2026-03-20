@@ -24,7 +24,7 @@ export const DEFAULT_APP_MODE = "DEV";
 export type PlayerRecord = { lastName: string; firstName: string };
 type ParsePgnToModelFn = (source: string) => unknown;
 
-type AppState = {
+export type AppState = {
   moves: string[];
   currentPly: number;
   pgnText: string;

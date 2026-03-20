@@ -13,18 +13,27 @@
  *   exported function signatures and typed callback contracts.
  */
 
-/**
- * Create game tabs UI helpers.
- *
- * @param {object} deps - Dependencies.
- * @param {HTMLElement|null} deps.gameTabsEl - Tabs container element.
- * @param {Function} deps.t - Translation callback.
- * @param {Function} deps.getSessions - `() => session[]`.
- * @param {Function} deps.getActiveSessionId - `() => string|null`.
- * @param {Function} deps.onSelectSession - `(sessionId) => void`.
- * @param {Function} deps.onCloseSession - `(sessionId) => void`.
- * @returns {{bindEvents: Function, render: Function}} UI helpers.
- */
+type SaveMode = "auto" | "manual";
+
+type DirtyState = "clean" | "dirty" | "saving" | "error" | string;
+
+type GameSessionTab = {
+  sessionId: string;
+  title: string;
+  sourceRef?: unknown | null;
+  dirtyState?: DirtyState;
+  saveMode?: SaveMode;
+};
+
+type GameTabsUiDeps = {
+  gameTabsEl: Element | null;
+  t: (key: string, fallback?: string) => string;
+  getSessions: () => unknown[];
+  getActiveSessionId: () => string | null;
+  onSelectSession: (sessionId: string) => void;
+  onCloseSession: (sessionId: string) => void;
+};
+
 export const createGameTabsUi = ({
   gameTabsEl,
   t,
@@ -32,35 +41,32 @@ export const createGameTabsUi = ({
   getActiveSessionId,
   onSelectSession,
   onCloseSession,
-}: any): any => {
-  /**
-   * Render all session tabs.
-   */
-  const render = (): any => {
-    if (!gameTabsEl) return;
-    const sessions = getSessions();
-    const activeSessionId = getActiveSessionId();
+}: GameTabsUiDeps) => {
+  const render = (): void => {
+    if (!(gameTabsEl instanceof HTMLElement)) return;
+    const sessions: GameSessionTab[] = getSessions() as GameSessionTab[];
+    const activeSessionId: string | null = getActiveSessionId();
     gameTabsEl.innerHTML = "";
-    sessions.forEach((session: any): any => {
-      const tab = document.createElement("div");
-      const isUnsaved = !session.sourceRef;
+    sessions.forEach((session: GameSessionTab): void => {
+      const tab: HTMLDivElement = document.createElement("div");
+      const isUnsaved: boolean = !session.sourceRef;
       tab.className = `game-tab${session.sessionId === activeSessionId ? " active" : ""}${isUnsaved ? " unsaved" : ""}`;
       tab.setAttribute("role", "tab");
       tab.setAttribute("aria-selected", session.sessionId === activeSessionId ? "true" : "false");
       tab.dataset.sessionId = session.sessionId;
 
-      const selectButton = document.createElement("button");
+      const selectButton: HTMLButtonElement = document.createElement("button");
       selectButton.type = "button";
       selectButton.className = "game-tab-title";
       selectButton.dataset.gameAction = "select";
       selectButton.dataset.sessionId = session.sessionId;
-      const dirtyMarker = session.dirtyState === "dirty" ? "*" : "";
-      const unsavedMarker = isUnsaved ? " (unsaved)" : "";
-      const manualMarker = session.saveMode === "manual" ? " (M)" : "";
+      const dirtyMarker: string = session.dirtyState === "dirty" ? "*" : "";
+      const unsavedMarker: string = isUnsaved ? " (unsaved)" : "";
+      const manualMarker: string = session.saveMode === "manual" ? " (M)" : "";
       selectButton.textContent = `${session.title}${dirtyMarker}${unsavedMarker}${manualMarker}`;
       tab.appendChild(selectButton);
 
-      const closeButton = document.createElement("button");
+      const closeButton: HTMLButtonElement = document.createElement("button");
       closeButton.type = "button";
       closeButton.className = "game-tab-close";
       closeButton.dataset.gameAction = "close";
@@ -73,16 +79,13 @@ export const createGameTabsUi = ({
     });
   };
 
-  /**
-   * Bind click delegation for tab selection and close.
-   */
-  const bindEvents = (): any => {
-    if (!gameTabsEl) return;
-    gameTabsEl.addEventListener("click", (event: any): any => {
-      const target = event.target;
+  const bindEvents = (): void => {
+    if (!(gameTabsEl instanceof HTMLElement)) return;
+    gameTabsEl.addEventListener("click", (event: MouseEvent): void => {
+      const target: EventTarget | null = event.target;
       if (!(target instanceof HTMLElement)) return;
-      const action = target.dataset.gameAction;
-      const sessionId = target.dataset.sessionId;
+      const action: string | undefined = target.dataset.gameAction;
+      const sessionId: string | undefined = target.dataset.sessionId;
       if (!action || !sessionId) return;
       if (action === "close") {
         onCloseSession(sessionId);
@@ -97,4 +100,3 @@ export const createGameTabsUi = ({
     render,
   };
 };
-

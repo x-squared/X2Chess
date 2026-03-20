@@ -2,28 +2,26 @@ import type { ReactElement } from "react";
 import { BoardPanel } from "./BoardPanel";
 import { DevDock } from "./DevDock";
 import { EditorPanel } from "./EditorPanel";
-import { MenuPanel } from "./MenuPanel";
 import { GameSessionsPanel } from "./GameSessionsPanel";
+import { RuntimeHost } from "./RuntimeHost";
+import { MenuPanel } from "./MenuPanel";
 import { ResourceViewer } from "./ResourceViewer";
-import { useLegacyBootstrap } from "../hooks/useLegacyBootstrap";
 
 /**
  * Root React app-shell component.
  *
- * During migration, legacy runtime remains mounted via `#app` while this tree
- * becomes the long-term composition boundary.
+ * Migration step:
+ * - React owns high-level shell composition and the runtime mount host.
+ * - Runtime startup still drives live UI while each boundary migrates to React.
  */
-export const AppShell = (): ReactElement => {
-  useLegacyBootstrap();
-
-  return (
-    <>
-      <MenuPanel />
-      <DevDock />
-      <GameSessionsPanel />
-      <BoardPanel />
-      <EditorPanel />
-      <ResourceViewer />
-    </>
-  );
-};
+export const AppShell = (): ReactElement => (
+  <>
+    <MenuPanel />
+    <DevDock />
+    <GameSessionsPanel />
+    <BoardPanel />
+    <EditorPanel />
+    <ResourceViewer />
+    <RuntimeHost />
+  </>
+);

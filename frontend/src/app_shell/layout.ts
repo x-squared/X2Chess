@@ -38,8 +38,8 @@ type LocaleCode = (typeof SUPPORTED_LOCALES)[number];
  * @returns {object} Queried DOM references used by runtime components.
  */
 export const createAppLayout = ({ t, buildTimestampLabel, currentLocale, isDeveloperToolsEnabled }: LayoutDeps) => {
-  const app = document.querySelector("#app");
-  if (!app) throw new Error("App root missing.");
+  const app = document.querySelector("#app") || document.querySelector("#root");
+  if (!app) throw new Error("App root missing (#app or #root).");
   const gameInfoEditorFieldsMarkup = GAME_INFO_HEADER_FIELDS.map((field: GameInfoField): string => {
     const id = `game-info-${field.key.toLowerCase()}`;
     const control = field.control || "text";
@@ -80,6 +80,18 @@ export const createAppLayout = ({ t, buildTimestampLabel, currentLocale, isDevel
     `;
   }).join("");
 
+  const hasRuntimeLayout: boolean = Boolean(
+    document.querySelector("#board")
+    && document.querySelector("#text-editor")
+    && document.querySelector("#resource-tabs")
+    && document.querySelector("#resource-table-wrap")
+    && document.querySelector("#game-tabs")
+    && document.querySelector("#pgn-input")
+    && document.querySelector("#btn-load")
+    && document.querySelector("#developer-dock"),
+  );
+
+  if (!hasRuntimeLayout) {
   app.innerHTML = `
     <main class="app">
       <div id="menu-backdrop" class="app-menu-backdrop" hidden></div>
@@ -350,6 +362,7 @@ export const createAppLayout = ({ t, buildTimestampLabel, currentLocale, isDevel
       </section>
     </main>
   `;
+  }
 
   return {
     boardEl: document.querySelector<HTMLElement>("#board"),

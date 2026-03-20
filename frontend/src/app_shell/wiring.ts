@@ -204,9 +204,33 @@ export const createAppWiringCapabilities = ({ state, t: _t, els, actions }: AppW
   const startApp = (): void => {
     void actions.hydrateVisualAssets();
     void (async (): Promise<void> => {
-      await actions.loadRuntimeConfigFromClientDataAndDefaults();
-      await actions.loadPlayerStore();
-      await actions.ensureBoard();
+      try {
+        await actions.loadRuntimeConfigFromClientDataAndDefaults();
+      } catch (error: unknown) {
+        if (actions.setSaveStatus) {
+          const message: string = error instanceof Error ? error.message : String(error);
+          actions.setSaveStatus(message || "Unable to load runtime config.", "error");
+        }
+      }
+
+      try {
+        await actions.loadPlayerStore();
+      } catch (error: unknown) {
+        if (actions.setSaveStatus) {
+          const message: string = error instanceof Error ? error.message : String(error);
+          actions.setSaveStatus(message || "Unable to load player store.", "error");
+        }
+      }
+
+      try {
+        await actions.ensureBoard();
+      } catch (error: unknown) {
+        if (actions.setSaveStatus) {
+          const message: string = error instanceof Error ? error.message : String(error);
+          actions.setSaveStatus(message || "Unable to initialize board.", "error");
+        }
+      }
+
       actions.initializeWithDefaultPgn();
     })();
   };

@@ -1,28 +1,37 @@
-const INDENT_DIRECTIVE_PREFIX = /^(\s*(?:\\i(?:\s+|$))+)/;
+import type {
+  PgnCommentNode,
+  PgnEntryNode,
+  PgnModel,
+  PgnMoveNode,
+  PgnPostItem,
+  PgnVariationNode,
+} from "./pgn_model";
 
-const encodeCommentLayout = (raw: any): any => {
-  const source = String(raw ?? "");
-  const encodeBody = (text: any): any => text
+const INDENT_DIRECTIVE_PREFIX: RegExp = /^(\s*(?:\\i(?:\s+|$))+)/;
+
+const encodeCommentLayout = (raw: string): string => {
+  const source: string = String(raw ?? "");
+  const encodeBody = (text: string): string => text
     .replaceAll("\\", "\\\\")
     .replaceAll("\t", "\\t")
     .replaceAll("\n", "\\n");
-  const match = source.match(INDENT_DIRECTIVE_PREFIX);
+  const match: RegExpMatchArray | null = source.match(INDENT_DIRECTIVE_PREFIX);
   if (!match) return encodeBody(source);
-  const prefix = match[1];
-  const rest = source.slice(prefix.length);
+  const prefix: string = match[1];
+  const rest: string = source.slice(prefix.length);
   return `${prefix}${encodeBody(rest)}`;
 };
 
-const serializeComment = (comment: any): any => `{${encodeCommentLayout(comment.raw)}}`;
+const serializeComment = (comment: PgnCommentNode): string => `{${encodeCommentLayout(comment.raw)}}`;
 
-const serializeVariation = (variation: any): any => {
+const serializeVariation = (variation: PgnVariationNode): string => {
   const parts: string[] = [];
-  const hoistedBeforeCommentMoveIds = new Set();
-  variation.entries.forEach((entry: any, idx: any): any => {
+  const hoistedBeforeCommentMoveIds: Set<string> = new Set<string>();
+  variation.entries.forEach((entry: PgnEntryNode, idx: number): void => {
     if (entry.type === "move_number") {
-      const nextEntry = variation.entries[idx + 1];
+      const nextEntry: PgnEntryNode | undefined = variation.entries[idx + 1];
       if (nextEntry?.type === "move" && Array.isArray(nextEntry.commentsBefore) && nextEntry.commentsBefore.length > 0) {
-        nextEntry.commentsBefore.forEach((comment: any): any => parts.push(serializeComment(comment)));
+        nextEntry.commentsBefore.forEach((comment: PgnCommentNode): void => { parts.push(serializeComment(comment)); });
         hoistedBeforeCommentMoveIds.add(nextEntry.id);
       }
     }
@@ -40,13 +49,14 @@ const serializeVariation = (variation: any): any => {
     }
     if (entry.type !== "move") return;
 
-    if (!hoistedBeforeCommentMoveIds.has(entry.id)) {
-      entry.commentsBefore.forEach((comment: any): any => parts.push(serializeComment(comment)));
+    const moveEntry: PgnMoveNode = entry;
+    if (!hoistedBeforeCommentMoveIds.has(moveEntry.id)) {
+      moveEntry.commentsBefore.forEach((comment: PgnCommentNode): void => { parts.push(serializeComment(comment)); });
     }
-    parts.push(entry.san);
-    entry.nags.forEach((nag: any): any => parts.push(nag));
-    if (Array.isArray(entry.postItems) && entry.postItems.length > 0) {
-      entry.postItems.forEach((item: any): any => {
+    parts.push(moveEntry.san);
+    moveEntry.nags.forEach((nag: string): void => { parts.push(nag); });
+    if (Array.isArray(moveEntry.postItems) && moveEntry.postItems.length > 0) {
+      moveEntry.postItems.forEach((item: PgnPostItem): void => {
         if (item.type === "comment" && item.comment) {
           parts.push(serializeComment(item.comment));
           return;
@@ -56,21 +66,22 @@ const serializeVariation = (variation: any): any => {
         }
       });
     } else {
-      entry.commentsAfter.forEach((comment: any): any => parts.push(serializeComment(comment)));
-      entry.ravs.forEach((child: any): any => parts.push(`(${serializeVariation(child)})`));
+      moveEntry.commentsAfter.forEach((comment: PgnCommentNode): void => { parts.push(serializeComment(comment)); });
+      moveEntry.ravs.forEach((child: PgnVariationNode): void => { parts.push(`(${serializeVariation(child)})`); });
     }
   });
-  variation.trailingComments.forEach((comment: any): any => parts.push(serializeComment(comment)));
+  variation.trailingComments.forEach((comment: PgnCommentNode): void => { parts.push(serializeComment(comment)); });
   return parts
-    .map((part: any): any => String(part ?? ""))
-    .filter((part: any): any => part.length > 0)
+    .map((part: string): string => String(part ?? ""))
+    .filter((part: string): boolean => part.length > 0)
     .join(" ")
     .trim();
 };
 
-export const serializeModelToPgn = (model: any): any => {
-  const headerLines = model.headers.map((header: any): any => `[${header.key} "${header.value}"]`);
-  const moveText = serializeVariation(model.root);
+export const serializeModelToPgn = (model: unknown): string => {
+  const typedModel: PgnModel = model as PgnModel;
+  const headerLines: string[] = (typedModel.headers || []).map((header: { key: string; value: string }): string => `[${header.key} "${header.value}"]`);
+  const moveText: string = typedModel.root ? serializeVariation(typedModel.root) : "";
   if (headerLines.length === 0) return moveText;
   return `${headerLines.join("\n")}\n\n${moveText}`.trim();
 };

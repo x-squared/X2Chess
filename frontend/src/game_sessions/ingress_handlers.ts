@@ -13,144 +13,184 @@
  *   exported function signatures and typed callback contracts.
  */
 
+type SourceRefLike = {
+  kind: string;
+  locator: string;
+  recordId?: string;
+};
+
+type OpenGameOptions = {
+  preferredTitle?: string;
+  sourceRef?: SourceRefLike | null;
+  resourceRef?: SourceRefLike | null;
+  preferInsertIntoActiveResource?: boolean;
+};
+
+type IngressDeps = {
+  appPanelEl: Element | null;
+  isLikelyPgnText: (value: string) => boolean;
+  openGameFromIncomingText: (pgnText: string, options?: OpenGameOptions) => boolean | Promise<boolean>;
+  setDropOverlayVisible?: (isVisible: boolean) => void;
+};
+
+type DropSourceHints = {
+  sourceRef: SourceRefLike;
+  resourceRef: SourceRefLike;
+};
+
+type FileWithOptionalPath = File & {
+  path?: string;
+  webkitRelativePath?: string;
+};
+
+const inferGameTitleFromFileName = (fileName: string): string => String(fileName || "").replace(/\.[^.]+$/, "").trim();
+
+const getParentPath = (pathValue: string): string => {
+  const normalized = String(pathValue || "").trim().replaceAll("\\", "/");
+  const slashIndex = normalized.lastIndexOf("/");
+  if (slashIndex <= 0) return "";
+  return normalized.slice(0, slashIndex);
+};
+
+const inferDropSourceRefs = (file: FileWithOptionalPath): DropSourceHints | null => {
+  const maybeAbsolutePath: string = String(file?.path || "").trim();
+  if (maybeAbsolutePath) {
+    const folderPath: string = getParentPath(maybeAbsolutePath);
+    const fileName: string = String(file?.name || "").trim();
+    if (folderPath && fileName) {
+      return {
+        sourceRef: { kind: "file", locator: folderPath, recordId: fileName },
+        resourceRef: { kind: "file", locator: folderPath },
+      };
+    }
+  }
+
+  const relativePath: string = String(file?.webkitRelativePath || "").trim();
+  if (relativePath.includes("/")) {
+    const folderPath: string = getParentPath(relativePath);
+    const fileName: string = String(file?.name || "").trim();
+    if (folderPath && fileName) {
+      return {
+        sourceRef: { kind: "file", locator: folderPath, recordId: fileName },
+        resourceRef: { kind: "file", locator: folderPath },
+      };
+    }
+  }
+
+  return null;
+};
+
+const hasTransferFiles = (transfer: DataTransfer | null): boolean => {
+  const types: string[] = Array.from(transfer?.types || []);
+  return Boolean(transfer?.files?.length) || types.includes("Files");
+};
+
+const collectDroppedFiles = (transfer: DataTransfer | null): File[] => {
+  const directFiles: File[] = transfer?.files ? Array.from(transfer.files) : [];
+  if (directFiles.length > 0) return directFiles;
+  const itemSource: DataTransferItemList | undefined = transfer?.items;
+  const rawItems: DataTransferItem[] = itemSource ? Array.from(itemSource) : [];
+  const fromItems: File[] = rawItems
+    .filter((item: DataTransferItem): boolean => item?.kind === "file" && typeof item.getAsFile === "function")
+    .map((item: DataTransferItem): File | null => item.getAsFile())
+    .filter((file: File | null): file is File => Boolean(file));
+  return fromItems;
+};
+
+const hasAcceptedTransfer = (transfer: DataTransfer | null): boolean => {
+  const hasText: boolean = Array.from(transfer?.types || []).includes("text/plain");
+  return hasTransferFiles(transfer) || hasText;
+};
+
 /**
  * Create ingress handlers for drop/paste game creation.
- *
- * @param {object} deps - Dependencies.
- * @param {HTMLElement|null} deps.appPanelEl - App panel root.
- * @param {Function} deps.isLikelyPgnText - `(value) => boolean`.
- * @param {Function} deps.openGameFromIncomingText - `(pgnText, options?) => boolean|Promise<boolean>`.
- * @param {Function} [deps.setDropOverlayVisible] - Optional callback `(isVisible) => void`.
- * @returns {{bindEvents: Function}} Ingress handlers API.
  */
 export const createGameIngressHandlers = ({
   appPanelEl,
   isLikelyPgnText,
   openGameFromIncomingText,
   setDropOverlayVisible,
-}: any): any => {
-  const inferGameTitleFromFileName = (fileName: any): any => (
-    String(fileName || "").replace(/\.[^.]+$/, "").trim()
-  );
-  const getParentPath = (pathValue: any): any => {
-    const normalized = String(pathValue || "").trim().replaceAll("\\", "/");
-    const slashIndex = normalized.lastIndexOf("/");
-    if (slashIndex <= 0) return "";
-    return normalized.slice(0, slashIndex);
-  };
-  const inferDropSourceRefs = (file: any): any => {
-    const maybeAbsolutePath = String(file?.path || "").trim();
-    if (maybeAbsolutePath) {
-      const folderPath = getParentPath(maybeAbsolutePath);
-      const fileName = String(file?.name || "").trim();
-      if (folderPath && fileName) {
-        return {
-          sourceRef: { kind: "file", locator: folderPath, recordId: fileName },
-          resourceRef: { kind: "file", locator: folderPath },
-        };
-      }
-    }
-    const relativePath = String(file?.webkitRelativePath || "").trim();
-    if (relativePath.includes("/")) {
-      const folderPath = getParentPath(relativePath);
-      const fileName = String(file?.name || "").trim();
-      if (folderPath && fileName) {
-        return {
-          sourceRef: { kind: "file", locator: folderPath, recordId: fileName },
-          resourceRef: { kind: "file", locator: folderPath },
-        };
-      }
-    }
-    return null;
-  };
-  const hasTransferFiles = (transfer: any): any => {
-    const types = Array.from(transfer?.types || []);
-    return Boolean(transfer?.files?.length) || types.includes("Files");
-  };
-  const collectDroppedFiles = (transfer: any): File[] => {
-    const directFiles: File[] = transfer?.files ? Array.from(transfer.files) : [];
-    if (directFiles.length > 0) return directFiles;
-    const itemSource = transfer?.items;
-    const rawItems: DataTransferItem[] = itemSource ? Array.from(itemSource) : [];
-    const fromItems = rawItems
-      .filter((item: any): any => item?.kind === "file" && typeof item.getAsFile === "function")
-      .map((item: any): any => item.getAsFile())
-      .filter((file: any): file is File => Boolean(file));
-    return fromItems;
-  };
+}: IngressDeps) => {
   let dragDepth = 0;
   let isDropOverlayVisible = false;
-  const setOverlayVisible = (visible: any): any => {
-    const next = Boolean(visible);
+
+  const setOverlayVisible = (visible: boolean): void => {
+    const next: boolean = Boolean(visible);
     if (isDropOverlayVisible === next) return;
     isDropOverlayVisible = next;
     if (typeof setDropOverlayVisible === "function") setDropOverlayVisible(next);
   };
-  const hasAcceptedTransfer = (transfer: any): any => {
-    const hasText = Array.from(transfer?.types || []).includes("text/plain");
-    return hasTransferFiles(transfer) || hasText;
-  };
 
-  /**
-   * Bind drop and paste event handlers.
-   */
-  const bindEvents = (): any => {
+  const bindEvents = (): void => {
     if (appPanelEl) {
-      appPanelEl.addEventListener("dragenter", (event: any): any => {
-        const transfer = event.dataTransfer;
+      appPanelEl.addEventListener("dragenter", (event: Event): void => {
+        const dragEvent: DragEvent = event as DragEvent;
+        const transfer: DataTransfer | null = dragEvent.dataTransfer || null;
         if (!hasAcceptedTransfer(transfer)) return;
-        event.preventDefault();
+        dragEvent.preventDefault();
         dragDepth += 1;
         setOverlayVisible(true);
       });
-      appPanelEl.addEventListener("dragover", (event: any): any => {
-        const transfer = event.dataTransfer;
+
+      appPanelEl.addEventListener("dragover", (event: Event): void => {
+        const dragEvent: DragEvent = event as DragEvent;
+        const transfer: DataTransfer | null = dragEvent.dataTransfer || null;
         if (!hasAcceptedTransfer(transfer)) return;
-        event.preventDefault();
+        dragEvent.preventDefault();
         setOverlayVisible(true);
       });
-      appPanelEl.addEventListener("dragleave", (): any => {
+
+      appPanelEl.addEventListener("dragleave", (): void => {
         dragDepth = Math.max(0, dragDepth - 1);
         if (dragDepth === 0) setOverlayVisible(false);
       });
-      appPanelEl.addEventListener("drop", (event: any): any => {
+
+      appPanelEl.addEventListener("drop", (event: Event): void => {
+        const dragEvent: DragEvent = event as DragEvent;
         dragDepth = 0;
         setOverlayVisible(false);
-        event.preventDefault();
-        const dt = event.dataTransfer;
-        if (!dt) return;
-        const files = collectDroppedFiles(dt);
+        dragEvent.preventDefault();
+
+        const transfer: DataTransfer | null = dragEvent.dataTransfer || null;
+        if (!transfer) return;
+
+        const files: File[] = collectDroppedFiles(transfer);
         if (files.length > 0) {
-          void Promise.all(files.map(async (file: File): Promise<any> => {
-            if (!/\.pgn$/i.test(file.name) && !/^text\//i.test(file.type || "")) return;
-            const text = await file.text();
-            if (!isLikelyPgnText(text)) return;
-            const sourceHints = inferDropSourceRefs(file) as Record<string, unknown> | null;
-            const hints = sourceHints || {};
-            openGameFromIncomingText(text, {
-              preferredTitle: inferGameTitleFromFileName(file.name),
-              sourceRef: (hints.sourceRef as object | null | undefined) || null,
-              resourceRef: (hints.resourceRef as object | null | undefined) || null,
-              preferInsertIntoActiveResource: false,
-            });
-          }));
+          void Promise.all(
+            files.map(async (file: File): Promise<void> => {
+              if (!/\.pgn$/i.test(file.name) && !/^text\//i.test(file.type || "")) return;
+              const text: string = await file.text();
+              if (!isLikelyPgnText(text)) return;
+              const sourceHints: DropSourceHints | null = inferDropSourceRefs(file as FileWithOptionalPath);
+              const hints: OpenGameOptions = sourceHints
+                ? { sourceRef: sourceHints.sourceRef, resourceRef: sourceHints.resourceRef }
+                : {};
+              void openGameFromIncomingText(text, {
+                preferredTitle: inferGameTitleFromFileName(file.name),
+                sourceRef: hints.sourceRef || null,
+                resourceRef: hints.resourceRef || null,
+                preferInsertIntoActiveResource: false,
+              });
+            }),
+          );
           return;
         }
-        const plainText = dt.getData("text/plain");
+
+        const plainText: string = transfer.getData("text/plain");
         if (!isLikelyPgnText(plainText)) return;
-        openGameFromIncomingText(plainText, { preferInsertIntoActiveResource: true });
+        void openGameFromIncomingText(plainText, { preferInsertIntoActiveResource: true });
       });
     }
 
-    window.addEventListener("paste", (event: any): any => {
-      const target = event.target;
+    window.addEventListener("paste", (event: ClipboardEvent): void => {
+      const target: EventTarget | null = event.target;
       if (target instanceof HTMLElement) {
-        const tag = target.tagName.toLowerCase();
+        const tag: string = target.tagName.toLowerCase();
         if (tag === "input" || tag === "textarea" || target.isContentEditable) return;
       }
-      const plainText = event.clipboardData?.getData("text/plain") || "";
+      const plainText: string = event.clipboardData?.getData("text/plain") || "";
       if (!isLikelyPgnText(plainText)) return;
-      openGameFromIncomingText(plainText, { preferInsertIntoActiveResource: true });
+      void openGameFromIncomingText(plainText, { preferInsertIntoActiveResource: true });
     });
   };
 
@@ -158,4 +198,3 @@ export const createGameIngressHandlers = ({
     bindEvents,
   };
 };
-

@@ -13,89 +13,80 @@
  *   exported function signatures and typed callback contracts.
  */
 
-/**
- * Create editor history capabilities for undo/redo and snapshot restore.
- *
- * @param {object} deps - Host dependencies.
- * @param {object} deps.state - Shared application state object.
- * @param {HTMLTextAreaElement|null} deps.pgnInput - PGN textarea element.
- * @param {Function} deps.onSyncChessParseState - Callback `(source: string) => void` to rebuild parse state.
- * @param {Function} deps.onRender - Callback to re-render UI.
- * @param {number} [deps.historyLimit=200] - Maximum undo snapshot count to retain.
- * @returns {object} History capability methods.
- */
+type EditorSnapshot = {
+  pgnModel: unknown;
+  pgnText: string;
+  currentPly: number;
+  selectedMoveId: string | null;
+};
+
+type EditorHistoryState = {
+  pgnModel: unknown;
+  pgnText: string;
+  currentPly: number;
+  selectedMoveId: string | null;
+  animationRunId: number;
+  isAnimating: boolean;
+  boardPreview: unknown | null;
+  undoStack: EditorSnapshot[];
+  redoStack: EditorSnapshot[];
+};
+
+type EditorHistoryDeps = {
+  state: Record<string, unknown>;
+  pgnInput: Element | null;
+  onSyncChessParseState: (source: string) => void;
+  onRender: () => void;
+  historyLimit?: number;
+};
+
 export const createEditorHistoryCapabilities = ({
   state,
   pgnInput,
   onSyncChessParseState,
   onRender,
   historyLimit = 200,
-}: any): any => {
-  /**
-   * Deep-clone PGN model snapshot state.
-   *
-   * @param {object} model - PGN model object.
-   * @returns {object} Cloned model.
-   */
-  const cloneModelState = (model: any): any => JSON.parse(JSON.stringify(model));
+}: EditorHistoryDeps) => {
+  const runtimeState: EditorHistoryState = state as EditorHistoryState;
 
-  /**
-   * Capture current editor snapshot.
-   *
-   * @returns {{pgnModel: object, pgnText: string, currentPly: number, selectedMoveId: (string|null)}} Snapshot object.
-   */
-  const captureEditorSnapshot = (): any => ({
-    pgnModel: cloneModelState(state.pgnModel),
-    pgnText: state.pgnText,
-    currentPly: state.currentPly,
-    selectedMoveId: state.selectedMoveId,
+  const cloneModelState = <TValue>(model: TValue): TValue => JSON.parse(JSON.stringify(model)) as TValue;
+
+  const captureEditorSnapshot = (): EditorSnapshot => ({
+    pgnModel: cloneModelState(runtimeState.pgnModel),
+    pgnText: runtimeState.pgnText,
+    currentPly: runtimeState.currentPly,
+    selectedMoveId: runtimeState.selectedMoveId,
   });
 
-  /**
-   * Push snapshot onto undo stack and enforce size cap.
-   *
-   * @param {object} snapshot - Snapshot captured by `captureEditorSnapshot`.
-   */
-  const pushUndoSnapshot = (snapshot: any): any => {
-    state.undoStack.push(snapshot);
-    if (state.undoStack.length > historyLimit) state.undoStack.shift();
+  const pushUndoSnapshot = (snapshot: EditorSnapshot): void => {
+    runtimeState.undoStack.push(snapshot);
+    if (runtimeState.undoStack.length > historyLimit) runtimeState.undoStack.shift();
   };
 
-  /**
-   * Apply a snapshot into state, then rebuild parse state and render.
-   *
-   * @param {object|null|undefined} snapshot - Snapshot to restore.
-   */
-  const applyEditorSnapshot = (snapshot: any): any => {
+  const applyEditorSnapshot = (snapshot: EditorSnapshot | null | undefined): void => {
     if (!snapshot) return;
-    state.animationRunId += 1;
-    state.isAnimating = false;
-    state.boardPreview = null;
-    state.pgnModel = cloneModelState(snapshot.pgnModel);
-    state.pgnText = snapshot.pgnText;
-    state.currentPly = snapshot.currentPly;
-    state.selectedMoveId = snapshot.selectedMoveId ?? null;
-    if (pgnInput) pgnInput.value = state.pgnText;
-    onSyncChessParseState(state.pgnText);
+    runtimeState.animationRunId += 1;
+    runtimeState.isAnimating = false;
+    runtimeState.boardPreview = null;
+    runtimeState.pgnModel = cloneModelState(snapshot.pgnModel);
+    runtimeState.pgnText = snapshot.pgnText;
+    runtimeState.currentPly = snapshot.currentPly;
+    runtimeState.selectedMoveId = snapshot.selectedMoveId ?? null;
+    if (pgnInput instanceof HTMLTextAreaElement) pgnInput.value = runtimeState.pgnText;
+    onSyncChessParseState(runtimeState.pgnText);
     onRender();
   };
 
-  /**
-   * Restore previous snapshot from undo stack and push current state to redo.
-   */
-  const performUndo = (): any => {
-    if (state.undoStack.length === 0) return;
-    const previous = state.undoStack.pop();
-    state.redoStack.push(captureEditorSnapshot());
+  const performUndo = (): void => {
+    if (runtimeState.undoStack.length === 0) return;
+    const previous: EditorSnapshot | undefined = runtimeState.undoStack.pop();
+    runtimeState.redoStack.push(captureEditorSnapshot());
     applyEditorSnapshot(previous);
   };
 
-  /**
-   * Restore next snapshot from redo stack and push current state to undo.
-   */
-  const performRedo = (): any => {
-    if (state.redoStack.length === 0) return;
-    const next = state.redoStack.pop();
+  const performRedo = (): void => {
+    if (runtimeState.redoStack.length === 0) return;
+    const next: EditorSnapshot | undefined = runtimeState.redoStack.pop();
     pushUndoSnapshot(captureEditorSnapshot());
     applyEditorSnapshot(next);
   };

@@ -1,13 +1,13 @@
 let modelIdCounter = 0;
 
-const nextId = (prefix: any): any => `${prefix}_${++modelIdCounter}`;
+const nextId = (prefix: string): string => `${prefix}_${++modelIdCounter}`;
 
-const decodeCommentLayout = (source: any): any => {
+const decodeCommentLayout = (source: string): string => {
   let out = "";
-  for (let i = 0; i < source.length; i += 1) {
-    const ch = source[i];
+  for (let i: number = 0; i < source.length; i += 1) {
+    const ch: string = source[i];
     if (ch === "\\" && i + 1 < source.length) {
-      const next = source[i + 1];
+      const next: string = source[i + 1];
       if (next === "n") {
         out += "\n";
         i += 1;
@@ -29,21 +29,25 @@ const decodeCommentLayout = (source: any): any => {
   return out;
 };
 
-type MoveTextToken = { type: string; value?: string };
+type MoveTextToken =
+  | { type: "comment"; value: string }
+  | { type: "variation_start" }
+  | { type: "variation_end" }
+  | { type: "symbol"; value: string };
 
-const tokenizeMoveText = (source: any): any => {
+const tokenizeMoveText = (source: string): MoveTextToken[] => {
   const tokens: MoveTextToken[] = [];
-  let i = 0;
+  let i: number = 0;
   while (i < source.length) {
-    const ch = source[i];
+    const ch: string = source[i];
     if (/\s/.test(ch)) {
       i += 1;
       continue;
     }
     if (ch === "{") {
-      let j = i + 1;
+      let j: number = i + 1;
       while (j < source.length && source[j] !== "}") j += 1;
-      const body = decodeCommentLayout(source.slice(i + 1, j));
+      const body: string = decodeCommentLayout(source.slice(i + 1, j));
       tokens.push({ type: "comment", value: body });
       i = Math.min(j + 1, source.length);
       continue;
@@ -58,7 +62,7 @@ const tokenizeMoveText = (source: any): any => {
       i += 1;
       continue;
     }
-    let j = i + 1;
+    let j: number = i + 1;
     while (j < source.length && !/[\s{}()]/.test(source[j])) j += 1;
     tokens.push({ type: "symbol", value: source.slice(i, j) });
     i = j;
@@ -66,11 +70,11 @@ const tokenizeMoveText = (source: any): any => {
   return tokens;
 };
 
-const isMoveNumber = (value: any): any => /^\d+\.(\.\.)?$|^\d+\.\.\.$/.test(value);
-const isResult = (value: any): any => /^(1-0|0-1|1\/2-1\/2|\*)$/.test(value);
-const isNag = (value: any): any => /^\$\d+$/.test(value);
+const isMoveNumber = (value: string): boolean => /^\d+\.(\.\.)?$|^\d+\.\.\.$/.test(value);
+const isResult = (value: string): boolean => /^(1-0|0-1|1\/2-1\/2|\*)$/.test(value);
+const isNag = (value: string): boolean => /^\$\d+$/.test(value);
 
-type CommentRun = {
+export type CommentRun = {
   text: string;
   bold: boolean;
   italic: boolean;
@@ -78,21 +82,22 @@ type CommentRun = {
   underline?: boolean;
 };
 
-export const parseCommentRuns = (raw: any): any => {
+export const parseCommentRuns = (raw: string): CommentRun[] => {
+  const source: string = String(raw ?? "");
   const runs: CommentRun[] = [];
-  const pattern = /(`[^`]+`|\*\*[^*]+\*\*|__[^_]+__|\*[^*]+\*)/g;
-  let lastIndex = 0;
-  let match = pattern.exec(raw);
+  const pattern: RegExp = /(`[^`]+`|\*\*[^*]+\*\*|__[^_]+__|\*[^*]+\*)/g;
+  let lastIndex: number = 0;
+  let match: RegExpExecArray | null = pattern.exec(source);
   while (match) {
     if (match.index > lastIndex) {
       runs.push({
-        text: raw.slice(lastIndex, match.index),
+        text: source.slice(lastIndex, match.index),
         bold: false,
         italic: false,
         code: false,
       });
     }
-    const token = match[0];
+    const token: string = match[0];
     if (token.startsWith("**") && token.endsWith("**")) {
       runs.push({ text: token.slice(2, -2), bold: true, italic: false, code: false });
     } else if (token.startsWith("__") && token.endsWith("__")) {
@@ -111,78 +116,142 @@ export const parseCommentRuns = (raw: any): any => {
       runs.push({ text: token, bold: false, italic: false, code: false });
     }
     lastIndex = pattern.lastIndex;
-    match = pattern.exec(raw);
+    match = pattern.exec(source);
   }
-  if (lastIndex < raw.length) {
-    runs.push({ text: raw.slice(lastIndex), bold: false, italic: false, code: false });
+  if (lastIndex < source.length) {
+    runs.push({ text: source.slice(lastIndex), bold: false, italic: false, code: false });
   }
   return runs;
 };
 
-const parseHeaders = (rawPgn: any): any => {
-  const headers: Array<{ key: string; value: string }> = [];
-  const lines = rawPgn.split("\n");
+type PgnHeader = { key: string; value: string };
+
+export type PgnCommentNode = {
+  id: string;
+  type: "comment";
+  raw: string;
+  runs: CommentRun[];
+};
+
+export type PgnPostItem =
+  | { type: "comment"; comment: PgnCommentNode }
+  | { type: "rav"; rav: PgnVariationNode };
+
+export type PgnMoveNode = {
+  id: string;
+  type: "move";
+  san: string;
+  nags: string[];
+  commentsBefore: PgnCommentNode[];
+  commentsAfter: PgnCommentNode[];
+  ravs: PgnVariationNode[];
+  postItems: PgnPostItem[];
+};
+
+export type PgnMoveNumberNode = {
+  id: string;
+  type: "move_number";
+  text: string;
+};
+
+export type PgnResultNode = {
+  id: string;
+  type: "result";
+  text: string;
+};
+
+export type PgnNagNode = {
+  id: string;
+  type: "nag";
+  text: string;
+};
+
+export type PgnVariationNode = {
+  id: string;
+  type: "variation";
+  depth: number;
+  parentMoveId: string | null;
+  entries: PgnEntryNode[];
+  trailingComments: PgnCommentNode[];
+};
+
+export type PgnEntryNode =
+  | PgnMoveNode
+  | PgnMoveNumberNode
+  | PgnResultNode
+  | PgnNagNode
+  | PgnCommentNode
+  | PgnVariationNode;
+
+export type PgnModel = {
+  id: string;
+  type: "game";
+  headers: PgnHeader[];
+  root: PgnVariationNode;
+  rawPgn: string;
+};
+
+const parseHeaders = (rawPgn: string): PgnHeader[] => {
+  const headers: PgnHeader[] = [];
+  const lines: string[] = rawPgn.split("\n");
   for (const line of lines) {
-    const match = line.match(/^\s*\[([A-Za-z0-9_]+)\s+"(.*)"\]\s*$/);
+    const match: RegExpMatchArray | null = line.match(/^\s*\[([A-Za-z0-9_]+)\s+"(.*)"\]\s*$/);
     if (match) headers.push({ key: match[1], value: match[2] });
   }
   return headers;
 };
 
-const stripHeaders = (rawPgn: any): any => rawPgn
+const stripHeaders = (rawPgn: string): string => rawPgn
   .split("\n")
-  .filter((line: any): any => !/^\s*\[[^\]]+\]\s*$/.test(line))
+  .filter((line: string): boolean => !/^\s*\[[^\]]+\]\s*$/.test(line))
   .join("\n")
   .trim();
 
-const createVariation = (depth: any, parentMoveId: string | null = null): any => ({
+const createVariation = (depth: number, parentMoveId: string | null = null): PgnVariationNode => ({
   id: nextId("variation"),
   type: "variation",
   depth,
   parentMoveId,
-  entries: [] as unknown[],
-  trailingComments: [] as unknown[],
+  entries: [],
+  trailingComments: [],
 });
 
-const createComment = (raw: any): any => ({
+const createComment = (raw: string): PgnCommentNode => ({
   id: nextId("comment"),
   type: "comment",
   raw,
   runs: parseCommentRuns(raw),
 });
 
-const createMove = (san: any): any => ({
+const createMove = (san: string): PgnMoveNode => ({
   id: nextId("move"),
   type: "move",
   san,
-  nags: [] as string[],
-  commentsBefore: [] as unknown[],
-  commentsAfter: [] as unknown[],
-  ravs: [] as unknown[],
-  postItems: [] as unknown[],
+  nags: [],
+  commentsBefore: [],
+  commentsAfter: [],
+  ravs: [],
+  postItems: [],
 });
 
-type VariationNode = ReturnType<typeof createVariation>;
-type MoveNode = ReturnType<typeof createMove>;
-type CommentNode = ReturnType<typeof createComment>;
-
 type ParseStackFrame = {
-  variation: VariationNode;
-  lastMove: MoveNode | null;
-  pendingComments: CommentNode[];
+  variation: PgnVariationNode;
+  lastMove: PgnMoveNode | null;
+  pendingComments: PgnCommentNode[];
 };
 
-export const parsePgnToModel = (rawPgn: any): any => {
+export const parsePgnToModel = (rawPgn: string): PgnModel => {
+  const source: string = String(rawPgn ?? "");
   modelIdCounter = 0;
-  const headers = parseHeaders(rawPgn);
-  const moveText = stripHeaders(rawPgn);
-  const root = createVariation(0, null);
-  const model = {
+  const headers: PgnHeader[] = parseHeaders(source);
+  const moveText: string = stripHeaders(source);
+  const root: PgnVariationNode = createVariation(0, null);
+  const model: PgnModel = {
     id: nextId("game"),
     type: "game",
     headers,
     root,
-    rawPgn,
+    rawPgn: source,
   };
   if (!moveText) return model;
 
@@ -192,13 +261,13 @@ export const parsePgnToModel = (rawPgn: any): any => {
     pendingComments: [],
   }];
 
-  const tokens = tokenizeMoveText(moveText);
+  const tokens: MoveTextToken[] = tokenizeMoveText(moveText);
   for (const token of tokens) {
-    const frame = stack[stack.length - 1];
+    const frame: ParseStackFrame | undefined = stack[stack.length - 1];
     if (!frame) break;
 
     if (token.type === "variation_start") {
-      const child = createVariation(frame.variation.depth + 1, frame.lastMove?.id ?? null);
+      const child: PgnVariationNode = createVariation(frame.variation.depth + 1, frame.lastMove?.id ?? null);
       if (frame.lastMove) {
         frame.lastMove.ravs.push(child);
         frame.lastMove.postItems.push({ type: "rav", rav: child });
@@ -210,7 +279,7 @@ export const parsePgnToModel = (rawPgn: any): any => {
     }
 
     if (token.type === "variation_end") {
-      const closing = stack.pop();
+      const closing: ParseStackFrame | undefined = stack.pop();
       if (closing && closing.pendingComments.length > 0) {
         closing.variation.trailingComments.push(...closing.pendingComments);
       }
@@ -218,7 +287,7 @@ export const parsePgnToModel = (rawPgn: any): any => {
     }
 
     if (token.type === "comment") {
-      const comment = createComment(token.value);
+      const comment: PgnCommentNode = createComment(token.value);
       if (frame.lastMove) {
         frame.lastMove.commentsAfter.push(comment);
         frame.lastMove.postItems.push({ type: "comment", comment });
@@ -228,7 +297,7 @@ export const parsePgnToModel = (rawPgn: any): any => {
       continue;
     }
 
-    const symbol = token.value ?? "";
+    const symbol: string = token.value ?? "";
     if (!symbol) continue;
     if (isMoveNumber(symbol)) {
       frame.variation.entries.push({
@@ -247,8 +316,9 @@ export const parsePgnToModel = (rawPgn: any): any => {
       continue;
     }
     if (isNag(symbol)) {
-      if (frame.lastMove) frame.lastMove.nags.push(symbol);
-      else {
+      if (frame.lastMove) {
+        frame.lastMove.nags.push(symbol);
+      } else {
         frame.variation.entries.push({
           id: nextId("nag"),
           type: "nag",
@@ -258,7 +328,7 @@ export const parsePgnToModel = (rawPgn: any): any => {
       continue;
     }
 
-    const move = createMove(symbol);
+    const move: PgnMoveNode = createMove(symbol);
     if (frame.pendingComments.length > 0) {
       move.commentsBefore.push(...frame.pendingComments);
       frame.pendingComments = [];
@@ -268,7 +338,7 @@ export const parsePgnToModel = (rawPgn: any): any => {
   }
 
   while (stack.length > 0) {
-    const frame = stack.pop();
+    const frame: ParseStackFrame | undefined = stack.pop();
     if (frame && frame.pendingComments.length > 0) {
       frame.variation.trailingComments.push(...frame.pendingComments);
     }

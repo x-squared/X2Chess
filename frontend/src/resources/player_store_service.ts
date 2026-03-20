@@ -16,118 +16,101 @@
 import type { PlayerRecord } from "../app_shell/app_state";
 import type { TauriInvokeFn } from "./tauri_invoke_types";
 
-const normalizePlayerNameField = (value: any): any => String(value ?? "").trim();
+type PlayerStoreState = {
+  gameRootPath: string;
+  playerStore: PlayerRecord[];
+};
 
-const normalizePlayerRecord = (record: any): any => {
+type RuntimeWindow = Window & {
+  __TAURI_INTERNALS__?: unknown;
+  __TAURI__?: unknown;
+};
+
+const normalizePlayerNameField = (value: unknown): string => String(value ?? "").trim();
+
+const normalizePlayerRecord = (record: unknown): PlayerRecord | null => {
   if (!record || typeof record !== "object") return null;
-  const lastName = normalizePlayerNameField(record.lastName || record.name || "");
-  const firstName = normalizePlayerNameField(record.firstName || "");
+  const candidate: Record<string, unknown> = record as Record<string, unknown>;
+  const lastName: string = normalizePlayerNameField(candidate.lastName || candidate.name || "");
+  const firstName: string = normalizePlayerNameField(candidate.firstName || "");
   if (!lastName) return null;
   return { lastName, firstName };
 };
 
-const normalizePlayerRecords = (records: any): any => {
-  const byKey = new Map();
-  (Array.isArray(records) ? records : []).forEach((record: any): any => {
-    const normalized = normalizePlayerRecord(record);
+const normalizePlayerRecords = (records: unknown): PlayerRecord[] => {
+  const byKey: Map<string, PlayerRecord> = new Map<string, PlayerRecord>();
+  (Array.isArray(records) ? records : []).forEach((record: unknown): void => {
+    const normalized: PlayerRecord | null = normalizePlayerRecord(record);
     if (!normalized) return;
-    const key = `${normalized.lastName.toLowerCase()}|${normalized.firstName.toLowerCase()}`;
+    const key: string = `${normalized.lastName.toLowerCase()}|${normalized.firstName.toLowerCase()}`;
     if (!byKey.has(key)) byKey.set(key, normalized);
   });
-  return [...byKey.values()].sort((left: any, right: any): any => {
-    const lastCmp = left.lastName.localeCompare(right.lastName);
+  return [...byKey.values()].sort((left: PlayerRecord, right: PlayerRecord): number => {
+    const lastCmp: number = left.lastName.localeCompare(right.lastName);
     if (lastCmp !== 0) return lastCmp;
     return left.firstName.localeCompare(right.firstName);
   });
 };
 
-/**
- * Detect whether runtime is Tauri webview.
- *
- * @returns {boolean} True in Tauri runtime.
- */
-const isTauriRuntime = (): any => Boolean(window.__TAURI_INTERNALS__ || window.__TAURI__);
+const isTauriRuntime = (): boolean => {
+  const runtimeWindow: RuntimeWindow = window as RuntimeWindow;
+  return Boolean(runtimeWindow.__TAURI_INTERNALS__ || runtimeWindow.__TAURI__);
+};
 
 let tauriInvokeFnPromise: Promise<TauriInvokeFn> | null = null;
-/**
- * Lazily load Tauri invoke function.
- *
- * @returns {Promise<Function>} Invoke function.
- */
-const getTauriInvoke = async (): Promise<any> => {
+
+const getTauriInvoke = async (): Promise<TauriInvokeFn> => {
   if (!tauriInvokeFnPromise) {
-    tauriInvokeFnPromise = import("@tauri-apps/api/core").then((mod: any): any => mod.invoke);
+    tauriInvokeFnPromise = import("@tauri-apps/api/core").then((mod): TauriInvokeFn => mod.invoke as TauriInvokeFn);
   }
   return tauriInvokeFnPromise;
 };
 
-/**
- * Invoke Tauri command.
- *
- * @param {string} command - Command name.
- * @param {object} payload - Command payload.
- * @returns {Promise<unknown>} Command result.
- */
-const tauriInvoke = async (command: any, payload: any = {}): Promise<any> => {
-  const invoke = await getTauriInvoke();
-  return invoke(command, payload);
+const tauriInvoke = async (command: string, payload: Record<string, unknown> = {}): Promise<unknown> => {
+  const invokeFn: TauriInvokeFn = await getTauriInvoke();
+  return invokeFn(command, payload);
 };
 
-/**
- * Create player store service.
- *
- * @param {object} deps - Service dependencies.
- * @param {object} deps.state - Shared app state.
- * @returns {{loadPlayerStoreFromClientData: Function, savePlayerStoreToClientData: Function}} Service API.
- */
-export const createPlayerStoreService = ({ state }: any): any => {
-  /**
-   * Persist player store into active local data area.
-   *
-   * @param {Array<{lastName: string, firstName: string}>} players - Player records to persist.
-   */
-  const savePlayerStoreToClientData = async (players: any): Promise<any> => {
-    const normalizedPlayers = normalizePlayerRecords(players);
+export const createPlayerStoreService = ({ state }: { state: PlayerStoreState }) => {
+  const savePlayerStoreToClientData = async (players: PlayerRecord[]): Promise<void> => {
+    const normalizedPlayers: PlayerRecord[] = normalizePlayerRecords(players);
     if (!(state.gameRootPath && isTauriRuntime())) return;
     try {
       await tauriInvoke("save_player_list", {
         rootDirectory: state.gameRootPath,
         content: JSON.stringify(normalizedPlayers, null, 2),
       });
-    } catch (error) {
+    } catch (error: unknown) {
       console.warn("[X2Chess] unable to save player list:", error);
     }
   };
 
-  /**
-   * Load player store from local data area, with seed fallback.
-   *
-   * @param {Array<{lastName: string, firstName: string}>} seedPlayers - Seed list.
-   * @returns {Promise<Array<{lastName: string, firstName: string}>>} Loaded/initialized players.
-   */
-  const loadPlayerStoreFromClientData = async (seedPlayers: PlayerRecord[] = []): Promise<any> => {
-    const normalizedSeedPlayers = normalizePlayerRecords(seedPlayers);
+  const loadPlayerStoreFromClientData = async (seedPlayers: PlayerRecord[] = []): Promise<PlayerRecord[]> => {
+    const normalizedSeedPlayers: PlayerRecord[] = normalizePlayerRecords(seedPlayers);
     if (!(state.gameRootPath && isTauriRuntime())) {
       state.playerStore = normalizedSeedPlayers;
       return state.playerStore;
     }
+
     try {
-      const rawPlayerList = await tauriInvoke("load_player_list", {
+      const rawPlayerList: unknown = await tauriInvoke("load_player_list", {
         rootDirectory: state.gameRootPath,
       });
       if (rawPlayerList) {
-        const parsed = JSON.parse(String(rawPlayerList));
+        const parsed: unknown = JSON.parse(String(rawPlayerList));
         state.playerStore = normalizePlayerRecords(parsed);
       } else {
         state.playerStore = normalizedSeedPlayers;
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.warn("[X2Chess] unable to load player list, using seed list:", error);
       state.playerStore = normalizedSeedPlayers;
     }
+
     if (state.playerStore.length === 0 && normalizedSeedPlayers.length > 0) {
       state.playerStore = normalizedSeedPlayers;
     }
+
     await savePlayerStoreToClientData(state.playerStore);
     return state.playerStore;
   };
@@ -137,4 +120,3 @@ export const createPlayerStoreService = ({ state }: any): any => {
     savePlayerStoreToClientData,
   };
 };
-

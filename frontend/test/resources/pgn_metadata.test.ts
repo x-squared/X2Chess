@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   extractPgnMetadata,
   PGN_STANDARD_METADATA_KEYS,
-} from "../../src/resources/sources/pgn_metadata.js";
+} from "../../../resource/domain/metadata";
 
 test("extractPgnMetadata returns normalized map and keys", () => {
   const pgn = `[Event "Rapid"]

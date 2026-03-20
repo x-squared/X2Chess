@@ -13,52 +13,73 @@
  *   exported function signatures and typed callback contracts.
  */
 
-/**
- * Create game session store.
- *
- * @param {object} deps - Store dependencies.
- * @param {object} deps.state - Shared app state.
- * @param {Function} deps.captureActiveSessionSnapshot - Snapshot capture callback.
- * @param {Function} deps.applySessionSnapshotToState - Snapshot apply callback.
- * @param {Function} deps.disposeSessionSnapshot - Snapshot dispose callback.
- * @returns {{closeSession: Function, getActiveSession: Function, listSessions: Function, openSession: Function, persistActiveSession: Function, switchToSession: Function, updateActiveSessionMeta: Function}} Store API.
- */
-export const createGameSessionStore = ({
+import type { SourceRefLike } from "../runtime/bootstrap_shared";
+
+type SaveMode = "auto" | "manual";
+
+type DirtyState = "clean" | "dirty" | string;
+
+type SessionSnapshot = unknown;
+
+type GameSession = {
+  sessionId: string;
+  title: string;
+  sourceRef: SourceRefLike | null;
+  pendingResourceRef: SourceRefLike | null;
+  revisionToken: string;
+  dirtyState: DirtyState;
+  saveMode: SaveMode;
+  snapshot: SessionSnapshot;
+};
+
+type SessionStoreState = {
+  gameSessions: unknown[];
+  activeSessionId: string | null;
+  nextSessionSeq: number;
+};
+
+type OpenSessionInput = {
+  snapshot: SessionSnapshot;
+  title: string;
+  sourceRef?: SourceRefLike | null;
+  pendingResourceRef?: SourceRefLike | null;
+  revisionToken?: string;
+  saveMode?: string;
+};
+
+type ActiveSessionPatch = {
+  title?: string;
+  sourceRef?: SourceRefLike | null;
+  pendingResourceRef?: SourceRefLike | null;
+  revisionToken?: string;
+  dirtyState?: DirtyState;
+  saveMode?: string;
+};
+
+type SessionStoreDeps<TState extends SessionStoreState> = {
+  state: TState;
+  captureActiveSessionSnapshot: () => SessionSnapshot;
+  applySessionSnapshotToState: (snapshot: unknown) => void;
+  disposeSessionSnapshot: (snapshot: unknown) => void;
+};
+
+export const createGameSessionStore = <TState extends SessionStoreState>({
   state,
   captureActiveSessionSnapshot,
   applySessionSnapshotToState,
   disposeSessionSnapshot,
-}: any): any => {
-  /**
-   * Read active session object.
-   *
-   * @returns {object|null} Active session.
-   */
-  const getActiveSession = (): any => (
-    state.gameSessions.find((session: any): any => session.sessionId === state.activeSessionId) || null
-  );
+}: SessionStoreDeps<TState>) => {
+  const getSessions = (): GameSession[] => (Array.isArray(state.gameSessions) ? state.gameSessions : []) as GameSession[];
 
-  /**
-   * Persist active state back into active session snapshot.
-   */
-  const persistActiveSession = (): any => {
-    const active = getActiveSession();
+  const getActiveSession = (): GameSession | null =>
+    getSessions().find((session: GameSession): boolean => session.sessionId === state.activeSessionId) || null;
+
+  const persistActiveSession = (): void => {
+    const active: GameSession | null = getActiveSession();
     if (!active) return;
     active.snapshot = captureActiveSessionSnapshot();
   };
 
-  /**
-   * Open session and activate it.
-   *
-   * @param {object} input - Session creation payload.
-   * @param {object} input.snapshot - Session snapshot.
-   * @param {string} input.title - Tab title.
-   * @param {object|null} [input.sourceRef=null] - Source reference.
-   * @param {object|null} [input.pendingResourceRef=null] - Preferred resource for first save when source is missing.
-   * @param {string} [input.revisionToken=""] - Source revision token.
-   * @param {"auto"|"manual"} [input.saveMode="auto"] - Session save mode.
-   * @returns {object} Opened session.
-   */
   const openSession = ({
     snapshot,
     title,
@@ -66,11 +87,13 @@ export const createGameSessionStore = ({
     pendingResourceRef = null,
     revisionToken = "",
     saveMode = "auto",
-  }: any): any => {
+  }: OpenSessionInput): GameSession => {
     persistActiveSession();
-    const session = {
-      sessionId: `session-${state.nextSessionSeq++}`,
-      title: String(title || "").trim() || `Game ${state.nextSessionSeq - 1}`,
+    const currentSessionSeq: number = state.nextSessionSeq;
+    state.nextSessionSeq += 1;
+    const session: GameSession = {
+      sessionId: `session-${currentSessionSeq}`,
+      title: String(title || "").trim() || `Game ${currentSessionSeq}`,
       sourceRef,
       pendingResourceRef,
       revisionToken: String(revisionToken || ""),
@@ -78,21 +101,17 @@ export const createGameSessionStore = ({
       saveMode: saveMode === "manual" ? "manual" : "auto",
       snapshot,
     };
-    state.gameSessions.push(session);
+    getSessions().push(session);
     state.activeSessionId = session.sessionId;
     applySessionSnapshotToState(snapshot);
     return session;
   };
 
-  /**
-   * Switch active session.
-   *
-   * @param {string} sessionId - Target session id.
-   * @returns {boolean} True when switch succeeded.
-   */
-  const switchToSession = (sessionId: any): any => {
+  const switchToSession = (sessionId: string): boolean => {
     if (!sessionId || sessionId === state.activeSessionId) return false;
-    const target = state.gameSessions.find((session: any): any => session.sessionId === sessionId);
+    const target: GameSession | undefined = getSessions().find(
+      (session: GameSession): boolean => session.sessionId === sessionId,
+    );
     if (!target) return false;
     persistActiveSession();
     state.activeSessionId = target.sessionId;
@@ -100,35 +119,27 @@ export const createGameSessionStore = ({
     return true;
   };
 
-  /**
-   * Close session and activate adjacent session if needed.
-   *
-   * @param {string} sessionId - Session id to close.
-   * @returns {{closed: boolean, emptyAfterClose: boolean}} Close result.
-   */
-  const closeSession = (sessionId: any): any => {
-    const index = state.gameSessions.findIndex((session: any): any => session.sessionId === sessionId);
-    if (index < 0) return { closed: false, emptyAfterClose: state.gameSessions.length === 0 };
-    const [removed] = state.gameSessions.splice(index, 1);
-    disposeSessionSnapshot(removed.snapshot);
-    if (state.gameSessions.length === 0) {
+  const closeSession = (sessionId: string): { closed: boolean; emptyAfterClose: boolean } => {
+    const sessions = getSessions();
+    const index: number = sessions.findIndex((session: GameSession): boolean => session.sessionId === sessionId);
+    if (index < 0) return { closed: false, emptyAfterClose: getSessions().length === 0 };
+    const removed: GameSession | undefined = sessions.splice(index, 1)[0];
+    if (removed) {
+      disposeSessionSnapshot(removed.snapshot);
+    }
+    if (sessions.length === 0) {
       state.activeSessionId = null;
       return { closed: true, emptyAfterClose: true };
     }
-    const nextIndex = Math.min(index, state.gameSessions.length - 1);
-    const next = state.gameSessions[nextIndex];
+    const nextIndex: number = Math.min(index, sessions.length - 1);
+    const next: GameSession = sessions[nextIndex];
     state.activeSessionId = next.sessionId;
     applySessionSnapshotToState(next.snapshot);
     return { closed: true, emptyAfterClose: false };
   };
 
-  /**
-   * Update active session metadata.
-   *
-   * @param {object} patch - Partial metadata update.
-   */
-  const updateActiveSessionMeta = (patch: any): any => {
-    const active = getActiveSession();
+  const updateActiveSessionMeta = (patch: ActiveSessionPatch): void => {
+    const active: GameSession | null = getActiveSession();
     if (!active || !patch || typeof patch !== "object") return;
     if ("title" in patch) active.title = String(patch.title || active.title);
     if ("sourceRef" in patch) active.sourceRef = patch.sourceRef || null;
@@ -141,11 +152,10 @@ export const createGameSessionStore = ({
   return {
     closeSession,
     getActiveSession,
-    listSessions: (): any => [...state.gameSessions],
+    listSessions: (): GameSession[] => [...getSessions()],
     openSession,
     persistActiveSession,
     switchToSession,
     updateActiveSessionMeta,
   };
 };
-

@@ -442,7 +442,7 @@ export const applyDefaultIndentDirectives = (model: unknown): PgnModel => {
       if (Number.isFinite(numeric)) maxId = Math.max(maxId, numeric);
     },
   );
-  const createIndentComment = (): any => makeComment(`comment_${++maxId}`, "\\i");
+  const createIndentComment = (): PgnComment => makeComment(`comment_${++maxId}`, "\\i");
 
   const walkVariation = (variation: PgnVariation): void => {
     for (let idx = 0; idx < variation.entries.length; idx += 1) {

@@ -1,4 +1,5 @@
 import { createResourceMetadataPrefs } from "./resource_metadata_prefs.js";
+import type { SourceRefLike } from "../runtime/bootstrap_shared";
 
 /**
  * Index module.
@@ -15,39 +16,138 @@ import { createResourceMetadataPrefs } from "./resource_metadata_prefs.js";
  *   exported function signatures and typed callback contracts.
  */
 
-/**
- * Build a deterministic tab id from source reference.
- *
- * @param {{kind?: string, locator?: string}} resourceRef - Resource reference.
- * @returns {string} Stable tab id.
- */
-const buildResourceTabId = (resourceRef: any): any => {
-  const kind = String(resourceRef?.kind || "unknown");
-  const locator = String(resourceRef?.locator || "default");
+type ResourceRefLike = SourceRefLike;
+
+type ResourceRow = {
+  game: string;
+  identifier: string;
+  source: string;
+  revision: string;
+  metadata: Record<string, unknown>;
+  sourceRef: ResourceRefLike | null;
+};
+
+type ResourceTab = {
+  tabId: string;
+  title: string;
+  resourceRef: ResourceRefLike;
+  rows: ResourceRow[];
+  availableMetadataKeys: string[];
+  visibleMetadataKeys: string[];
+  metadataColumnOrder: string[];
+  columnWidths: Record<string, number>;
+  errorMessage: string;
+  isLoading: boolean;
+};
+
+type ResourceViewerState = {
+  resourceViewerTabs: unknown[];
+  resourceViewerDefaultMetadataKeys: string[];
+  activeResourceTabId: string | null;
+};
+
+type ResourceTabInput = {
+  title?: string;
+  resourceRef: ResourceRefLike;
+  visibleMetadataKeys?: string[];
+};
+
+type ResourceViewerDeps = {
+  state: ResourceViewerState;
+  t: (key: string, fallback?: string) => string;
+  btnResourceMetadata: Element | null;
+  btnOpenResource: Element | null;
+  resourceMetadataDialogEl: Element | null;
+  resourceMetadataFieldsEl: Element | null;
+  resourceMetadataApplyAllEl: Element | null;
+  btnResourceMetadataReset: Element | null;
+  btnResourceMetadataCancel: Element | null;
+  btnResourceMetadataSave: Element | null;
+  resourceTabsEl: Element | null;
+  resourceTableWrapEl: Element | null;
+  listGamesForResource: (resourceRef: ResourceRefLike) => Promise<unknown[]>;
+  onRequestOpenResource?: () => void | Promise<void>;
+  onOpenGameBySourceRef?: (sourceRef: ResourceRefLike) => void | Promise<void>;
+};
+
+type ColumnResizeState = {
+  key: string;
+  startClientX: number;
+  startWidth: number;
+};
+
+const buildResourceTabId = (resourceRef: ResourceRefLike): string => {
+  const kind: string = String(resourceRef?.kind || "unknown");
+  const locator: string = String(resourceRef?.locator || "default");
   return `resource-${kind}-${locator}`.replace(/[^a-zA-Z0-9_-]/g, "_");
 };
 
-/**
- * Create Resource-Viewer capabilities.
- *
- * @param {object} deps - Host dependencies.
- * @param {object} deps.state - Shared runtime state.
- * @param {Function} deps.t - Translation callback `(key, fallback) => string`.
- * @param {HTMLElement|null} deps.btnResourceMetadata - Metadata-column picker trigger.
- * @param {HTMLElement|null} deps.btnOpenResource - Resource picker trigger button.
- * @param {HTMLDialogElement|null} deps.resourceMetadataDialogEl - Metadata picker dialog element.
- * @param {HTMLElement|null} deps.resourceMetadataFieldsEl - Metadata checkbox list container.
- * @param {HTMLInputElement|null} deps.resourceMetadataApplyAllEl - Apply-to-all checkbox.
- * @param {HTMLElement|null} deps.btnResourceMetadataReset - Dialog reset button.
- * @param {HTMLElement|null} deps.btnResourceMetadataCancel - Dialog cancel button.
- * @param {HTMLElement|null} deps.btnResourceMetadataSave - Dialog apply button.
- * @param {HTMLElement|null} deps.resourceTabsEl - Tabs container.
- * @param {HTMLElement|null} deps.resourceTableWrapEl - Table container.
- * @param {Function} deps.listGamesForResource - Callback `(resourceRef) => Promise<Array<object>>`.
- * @param {Function} [deps.onRequestOpenResource] - Callback `() => void|Promise<void>`.
- * @param {Function} [deps.onOpenGameBySourceRef] - Callback `(sourceRef) => void|Promise<void>`.
- * @returns {{bindEvents: Function, closeTab: Function, getActiveResourceRef: Function, refreshActiveTabRows: Function, render: Function, selectTab: Function, setTabs: Function, upsertTab: Function}} Capabilities that own resource-tab lifecycle, table rendering, metadata-column UI, and row-open callbacks.
- */
+const normalizeResourceLocator = (locator: unknown): string => String(locator || "").replaceAll("\\", "/").trim();
+
+const deriveDirectoryLabel = (locator: unknown): string => {
+  const normalizedLocator: string = normalizeResourceLocator(locator);
+  if (!normalizedLocator || normalizedLocator === "local-files") {
+    return "Directory";
+  }
+  const segments: string[] = normalizedLocator.split("/").filter(Boolean);
+  const leaf: string = segments[segments.length - 1] || "";
+  return leaf || normalizedLocator;
+};
+
+const deriveResourceNameLabel = (locator: string, fallback: string): string => {
+  if (!locator) return fallback;
+  const segments: string[] = locator.split("/").filter(Boolean);
+  const leaf: string = segments[segments.length - 1] || "";
+  return leaf || fallback;
+};
+
+const resolveTabTitleText = (tab: ResourceTab): { label: string; tooltip: string } => {
+  const kind: string = String(tab?.resourceRef?.kind || "");
+  const locator: string = normalizeResourceLocator(tab?.resourceRef?.locator || "");
+  if (kind === "directory") {
+    return {
+      label: deriveDirectoryLabel(locator),
+      tooltip: locator,
+    };
+  }
+  if (kind === "file" || kind === "db") {
+    const fallback: string = String(tab?.title || tab?.resourceRef?.kind || "Resource");
+    return {
+      label: deriveResourceNameLabel(locator, fallback),
+      tooltip: locator,
+    };
+  }
+  return {
+    label: String(tab?.title || tab?.resourceRef?.kind || "Resource"),
+    tooltip: locator,
+  };
+};
+
+const toResourceRef = (value: unknown): ResourceRefLike | null => {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  return {
+    kind: typeof record.kind === "string" ? record.kind : undefined,
+    locator: typeof record.locator === "string" ? record.locator : undefined,
+    recordId: typeof record.recordId === "string" ? record.recordId : undefined,
+  };
+};
+
+const toResourceTab = (tab: ResourceTabInput, state: ResourceViewerState): ResourceTab => ({
+  tabId: buildResourceTabId(tab.resourceRef),
+  title: String(tab.title || tab.resourceRef?.kind || "Resource"),
+  resourceRef: tab.resourceRef || { kind: "file", locator: "default" },
+  rows: [],
+  availableMetadataKeys: [],
+  visibleMetadataKeys: Array.isArray(tab.visibleMetadataKeys)
+    ? [...tab.visibleMetadataKeys]
+    : [...state.resourceViewerDefaultMetadataKeys],
+  metadataColumnOrder: ["game"],
+  columnWidths: {},
+  errorMessage: "",
+  isLoading: false,
+});
+
 export const createResourceViewerCapabilities = ({
   state,
   t,
@@ -64,161 +164,122 @@ export const createResourceViewerCapabilities = ({
   listGamesForResource,
   onRequestOpenResource,
   onOpenGameBySourceRef,
-}: any): any => {
-  const metadataPrefs = createResourceMetadataPrefs({ state });
+}: ResourceViewerDeps) => {
+  const metadataPrefs = createResourceMetadataPrefs({
+    state: state as Parameters<typeof createResourceMetadataPrefs>[0]["state"],
+  });
   let draggedColumnKey = "";
 
-  /**
-   * Set resource tabs and ensure active tab exists.
-   *
-   * @param {Array<{title: string, resourceRef: object}>} tabs - Tab descriptors.
-   */
-  const setTabs = (tabs: any): any => {
-    const normalized = (Array.isArray(tabs) ? tabs : []).map((tab: any): any => ({
-      tabId: buildResourceTabId(tab.resourceRef),
-      title: String(tab.title || tab.resourceRef?.kind || "Resource"),
-      resourceRef: tab.resourceRef || { kind: "file", locator: "default" },
-      rows: [],
-      availableMetadataKeys: [],
-      visibleMetadataKeys: Array.isArray(tab.visibleMetadataKeys)
-        ? [...tab.visibleMetadataKeys]
-        : [...state.resourceViewerDefaultMetadataKeys],
-      metadataColumnOrder: ["game"],
-      columnWidths: {},
-      errorMessage: "",
-      isLoading: false,
-    }));
-    normalized.forEach((tab: any): any => {
+  const getTabs = (): ResourceTab[] =>
+    (Array.isArray(getTabs()) ? getTabs() : []) as ResourceTab[];
+
+  const setTabs = (tabs: ResourceTabInput[]): void => {
+    const normalized: ResourceTab[] = (Array.isArray(tabs) ? tabs : []).map((tab: ResourceTabInput): ResourceTab =>
+      toResourceTab(tab, state),
+    );
+    normalized.forEach((tab: ResourceTab): void => {
       metadataPrefs.initializeTab(tab);
     });
     state.resourceViewerTabs = normalized;
-    if (!normalized.find((tab: any): any => tab.tabId === state.activeResourceTabId)) {
+    if (!normalized.find((tab: ResourceTab): boolean => tab.tabId === state.activeResourceTabId)) {
       state.activeResourceTabId = normalized[0]?.tabId || null;
     }
   };
 
-  /**
-   * Add missing tab for a resource or update an existing one.
-   *
-   * @param {{title?: string, resourceRef: object, select?: boolean}} input - Tab input.
-   * @returns {string|null} Upserted tab id.
-   */
-  const upsertTab = ({ title = "", resourceRef, select = false }: any): any => {
+  const upsertTab = ({
+    title,
+    resourceRef,
+    select,
+  }: {
+    title: string;
+    resourceRef: ResourceRefLike;
+    select: boolean;
+  }): string | null => {
     if (!resourceRef || typeof resourceRef !== "object") return null;
-    const tabId = buildResourceTabId(resourceRef);
-    const existing = state.resourceViewerTabs.find((tab: any): any => tab.tabId === tabId);
+    const tabId: string = buildResourceTabId(resourceRef);
+    const existing: ResourceTab | undefined = getTabs().find((tab: ResourceTab): boolean => tab.tabId === tabId);
     if (existing) {
       if (title) existing.title = String(title);
       if (select) state.activeResourceTabId = existing.tabId;
       return existing.tabId;
     }
-    const nextTab = {
-      tabId,
-      title: String(title || resourceRef.kind || "Resource"),
-      resourceRef,
-      rows: [],
-      availableMetadataKeys: [],
-      visibleMetadataKeys: [...state.resourceViewerDefaultMetadataKeys],
-      metadataColumnOrder: ["game"],
-      columnWidths: {},
-      errorMessage: "",
-      isLoading: false,
-    };
+    const nextTab: ResourceTab = toResourceTab({ title, resourceRef }, state);
     metadataPrefs.initializeTab(nextTab);
-    state.resourceViewerTabs.push(nextTab);
+    getTabs().push(nextTab);
     if (select || !state.activeResourceTabId) state.activeResourceTabId = nextTab.tabId;
     return nextTab.tabId;
   };
 
-  /**
-   * Select active resource tab.
-   *
-   * @param {string} tabId - Target tab id.
-   */
-  const selectTab = (tabId: any): any => {
+  const selectTab = (tabId: string): void => {
     if (!tabId) return;
-    const exists = state.resourceViewerTabs.some((tab: any): any => tab.tabId === tabId);
+    const exists: boolean = getTabs().some((tab: ResourceTab): boolean => tab.tabId === tabId);
     if (!exists) return;
     state.activeResourceTabId = tabId;
   };
 
-  /**
-   * Close a resource tab.
-   *
-   * @param {string} tabId - Tab id to close.
-   */
-  const closeTab = (tabId: any): any => {
-    const index = state.resourceViewerTabs.findIndex((tab: any): any => tab.tabId === tabId);
+  const closeTab = (tabId: string): void => {
+    const index: number = getTabs().findIndex((tab: ResourceTab): boolean => tab.tabId === tabId);
     if (index < 0) return;
-    state.resourceViewerTabs.splice(index, 1);
+    getTabs().splice(index, 1);
     if (state.activeResourceTabId !== tabId) return;
-    const next = state.resourceViewerTabs[Math.min(index, state.resourceViewerTabs.length - 1)];
+    const next: ResourceTab | undefined = getTabs()[Math.min(index, getTabs().length - 1)];
     state.activeResourceTabId = next?.tabId || null;
   };
 
-  /**
-   * Refresh rows for active tab from host source callback.
-   */
-  const refreshActiveTabRows = async (): Promise<any> => {
-    const active = state.resourceViewerTabs.find((tab: any): any => tab.tabId === state.activeResourceTabId);
+  const refreshActiveTabRows = async (): Promise<void> => {
+    const active: ResourceTab | undefined = getTabs().find((tab: ResourceTab): boolean => tab.tabId === state.activeResourceTabId);
     if (!active) return;
     active.isLoading = true;
     active.errorMessage = "";
     try {
-      const entries = await listGamesForResource(active.resourceRef);
+      const entries: unknown[] = await listGamesForResource(active.resourceRef);
       metadataPrefs.hydrateRowsIntoTab(active, entries, t);
     } catch (error: unknown) {
       active.rows = [];
       active.availableMetadataKeys = [];
-      const msg = error instanceof Error ? error.message : String(error);
+      const msg: string = error instanceof Error ? error.message : String(error);
       active.errorMessage = msg || t("resources.error", "Unable to load resource games.");
     } finally {
       active.isLoading = false;
     }
   };
 
-  /**
-   * Read currently active resource reference.
-   *
-   * @returns {object|null} Active resource ref.
-   */
-  const getActiveResourceRef = (): any => {
-    const active = state.resourceViewerTabs.find((tab: any): any => tab.tabId === state.activeResourceTabId);
+  const getActiveResourceRef = (): ResourceRefLike | null => {
+    const active: ResourceTab | undefined = getTabs().find((tab: ResourceTab): boolean => tab.tabId === state.activeResourceTabId);
     return active?.resourceRef || null;
   };
 
-  const openActiveRowByIndex = (rowIndex: any): any => {
+  const openActiveRowByIndex = (rowIndex: number): void => {
     if (!Number.isInteger(rowIndex) || rowIndex < 0) return;
-    const active = state.resourceViewerTabs.find((tab: any): any => tab.tabId === state.activeResourceTabId);
-    const row = active?.rows?.[rowIndex];
+    const active: ResourceTab | undefined = getTabs().find((tab: ResourceTab): boolean => tab.tabId === state.activeResourceTabId);
+    const row: ResourceRow | undefined = active?.rows?.[rowIndex];
     if (!row?.sourceRef) return;
     if (typeof onOpenGameBySourceRef === "function") {
-      void Promise.resolve(onOpenGameBySourceRef(row.sourceRef)).catch((): any => {});
+      void Promise.resolve(onOpenGameBySourceRef(row.sourceRef)).catch((): void => {});
     }
   };
 
-  /**
-   * Render tabs and table body.
-   */
-  const render = (): any => {
-    if (resourceTabsEl) {
+  const render = (): void => {
+    if (resourceTabsEl instanceof HTMLElement) {
       resourceTabsEl.innerHTML = "";
-      state.resourceViewerTabs.forEach((tab: any): any => {
-        const active = tab.tabId === state.activeResourceTabId;
-        const tabEl = document.createElement("div");
+      getTabs().forEach((tab: ResourceTab): void => {
+        const active: boolean = tab.tabId === state.activeResourceTabId;
+        const tabEl: HTMLDivElement = document.createElement("div");
         tabEl.className = `resource-tab${active ? " active" : ""}`;
         tabEl.setAttribute("role", "tab");
         tabEl.setAttribute("aria-selected", active ? "true" : "false");
 
-        const titleBtn = document.createElement("button");
+        const titleBtn: HTMLButtonElement = document.createElement("button");
         titleBtn.type = "button";
         titleBtn.className = "resource-tab-title";
         titleBtn.dataset.resourceAction = "select";
         titleBtn.dataset.resourceTabId = tab.tabId;
-        titleBtn.textContent = tab.title;
+        const resolvedTabTitle = resolveTabTitleText(tab);
+        titleBtn.textContent = resolvedTabTitle.label;
+        if (resolvedTabTitle.tooltip) titleBtn.title = resolvedTabTitle.tooltip;
         tabEl.appendChild(titleBtn);
 
-        const closeBtn = document.createElement("button");
+        const closeBtn: HTMLButtonElement = document.createElement("button");
         closeBtn.type = "button";
         closeBtn.className = "resource-tab-close";
         closeBtn.dataset.resourceAction = "close";
@@ -231,8 +292,8 @@ export const createResourceViewerCapabilities = ({
       });
     }
 
-    if (!resourceTableWrapEl) return;
-    const active = state.resourceViewerTabs.find((tab: any): any => tab.tabId === state.activeResourceTabId);
+    if (!(resourceTableWrapEl instanceof HTMLElement)) return;
+    const active: ResourceTab | undefined = getTabs().find((tab: ResourceTab): boolean => tab.tabId === state.activeResourceTabId);
     if (!active) {
       resourceTableWrapEl.innerHTML = `<p class="resource-viewer-empty">${t("resources.noTabs", "No resource tab is open.")}</p>`;
       return;
@@ -249,39 +310,56 @@ export const createResourceViewerCapabilities = ({
       resourceTableWrapEl.innerHTML = `<p class="resource-viewer-empty">${t("resources.empty", "No games found in this resource.")}</p>`;
       return;
     }
-    const headerGame = t("resources.table.game", "Game");
-    const resolveMetadataLabel = (fieldKey: any): any => {
+
+    const headerGame: string = t("resources.table.game", "Game");
+    const resolveMetadataLabel = (fieldKey: string): string => {
       if (fieldKey === "identifier") return t("resources.table.identifier", "Identifier");
       if (fieldKey === "source") return t("resources.table.source", "Source");
       if (fieldKey === "revision") return t("resources.table.revision", "Revision");
       return fieldKey;
     };
-    const selectedColumnKeys = metadataPrefs.reconcileTabColumnState(active);
-    const selectedMetadataHeadersMarkup = selectedColumnKeys.map((fieldKey: any): any => (
-      `<th draggable="true" data-resource-col-key="${fieldKey}">
+
+    const selectedColumnKeys: string[] = metadataPrefs.reconcileTabColumnState(active);
+    const selectedMetadataHeadersMarkup: string = selectedColumnKeys
+      .map(
+        (fieldKey: string): string =>
+          `<th draggable="true" data-resource-col-key="${fieldKey}">
         <span>${fieldKey === "game" ? headerGame : resolveMetadataLabel(fieldKey)}</span>
         <span class="resource-col-resize-handle" data-resource-resize-key="${fieldKey}" aria-hidden="true"></span>
-      </th>`
-    )).join("");
-    const colGroupMarkup = selectedColumnKeys.map((fieldKey: any): any => (
-      `<col data-resource-col-key="${fieldKey}" style="width:${metadataPrefs.clampColumnWidth(active.columnWidths?.[fieldKey])}px;" />`
-    )).join("");
-    const rowsMarkup = active.rows.map((row: any, index: any): any => `
+      </th>`,
+      )
+      .join("");
+
+    const colGroupMarkup: string = selectedColumnKeys
+      .map(
+        (fieldKey: string): string =>
+          `<col data-resource-col-key="${fieldKey}" style="width:${metadataPrefs.clampColumnWidth(active.columnWidths?.[fieldKey])}px;" />`,
+      )
+      .join("");
+
+    const rowsMarkup: string = active.rows
+      .map(
+        (row: ResourceRow, index: number): string => `
       <tr data-resource-row-index="${index}" class="resource-game-row">
-        ${selectedColumnKeys.map((fieldKey: any): any => {
-    if (fieldKey === "game") {
-      return `
+        ${selectedColumnKeys
+          .map((fieldKey: string): string => {
+            if (fieldKey === "game") {
+              return `
             <td>
               <button class="resource-open-button" type="button" data-resource-row-index="${index}">
                 ${row.game}
               </button>
             </td>
           `;
-    }
-    return `<td>${row?.metadata?.[fieldKey] || "-"}</td>`;
-  }).join("")}
+            }
+            return `<td>${String(row?.metadata?.[fieldKey] || "-")}</td>`;
+          })
+          .join("")}
       </tr>
-    `).join("");
+    `,
+      )
+      .join("");
+
     resourceTableWrapEl.innerHTML = `
       <table class="resource-games-table">
         <colgroup>
@@ -297,21 +375,24 @@ export const createResourceViewerCapabilities = ({
         </tbody>
       </table>
     `;
-    resourceTableWrapEl.querySelectorAll("[data-resource-row-index]").forEach((rowEl: any): any => {
+
+    resourceTableWrapEl.querySelectorAll("[data-resource-row-index]").forEach((rowEl: Element): void => {
       if (!(rowEl instanceof HTMLElement)) return;
-      rowEl.addEventListener("pointerup", (): any => {
-        const rowIndex = Number(rowEl.dataset.resourceRowIndex);
+      rowEl.addEventListener("pointerup", (): void => {
+        const rowIndex: number = Number(rowEl.dataset.resourceRowIndex);
         openActiveRowByIndex(rowIndex);
       });
     });
   };
 
-  const openMetadataDialogForActiveTab = (): any => {
-    const active = state.resourceViewerTabs.find((tab: any): any => tab.tabId === state.activeResourceTabId);
-    if (!active || !resourceMetadataDialogEl || !resourceMetadataFieldsEl) return;
+  const openMetadataDialogForActiveTab = (): void => {
+    const active: ResourceTab | undefined = getTabs().find((tab: ResourceTab): boolean => tab.tabId === state.activeResourceTabId);
+    if (!active || !(resourceMetadataDialogEl instanceof HTMLElement) || !(resourceMetadataFieldsEl instanceof HTMLElement)) return;
     const catalog = metadataPrefs.buildAvailableMetadataCatalog(active);
-    const selected = new Set(active.visibleMetadataKeys || []);
-    resourceMetadataFieldsEl.innerHTML = catalog.map((field: any): any => `
+    const selected: Set<string> = new Set<string>(active.visibleMetadataKeys || []);
+    resourceMetadataFieldsEl.innerHTML = catalog
+      .map(
+        (field: { key: string; label: string }): string => `
       <label class="resource-metadata-option">
         <input
           type="checkbox"
@@ -320,81 +401,86 @@ export const createResourceViewerCapabilities = ({
         />
         <span>${field.label}</span>
       </label>
-    `).join("");
-    if (resourceMetadataApplyAllEl) resourceMetadataApplyAllEl.checked = false;
-    if (typeof resourceMetadataDialogEl.showModal === "function") {
+    `,
+      )
+      .join("");
+    if (resourceMetadataApplyAllEl instanceof HTMLInputElement) resourceMetadataApplyAllEl.checked = false;
+    if (resourceMetadataDialogEl instanceof HTMLDialogElement && typeof resourceMetadataDialogEl.showModal === "function") {
       resourceMetadataDialogEl.showModal();
     } else {
       resourceMetadataDialogEl.setAttribute("open", "");
     }
   };
 
-  const closeMetadataDialog = (): any => {
-    if (!resourceMetadataDialogEl) return;
-    if (typeof resourceMetadataDialogEl.close === "function") {
+  const closeMetadataDialog = (): void => {
+    if (!(resourceMetadataDialogEl instanceof HTMLElement)) return;
+    if (resourceMetadataDialogEl instanceof HTMLDialogElement && typeof resourceMetadataDialogEl.close === "function") {
       resourceMetadataDialogEl.close();
     } else {
       resourceMetadataDialogEl.removeAttribute("open");
     }
   };
 
-  const applyMetadataDialogSelection = (): any => {
-    const active = state.resourceViewerTabs.find((tab: any): any => tab.tabId === state.activeResourceTabId);
-    if (!active || !resourceMetadataFieldsEl) return;
-    const selectedKeys = Array.from(
+  const applyMetadataDialogSelection = (): void => {
+    const active: ResourceTab | undefined = getTabs().find((tab: ResourceTab): boolean => tab.tabId === state.activeResourceTabId);
+    if (!active || !(resourceMetadataFieldsEl instanceof HTMLElement)) return;
+    const selectedKeys: string[] = Array.from(
       resourceMetadataFieldsEl.querySelectorAll("input[data-resource-metadata-key]:checked"),
-    ).map((input: any): any => String((input as Element).getAttribute("data-resource-metadata-key") || ""));
-    metadataPrefs.applySelection(active, selectedKeys, Boolean(resourceMetadataApplyAllEl?.checked));
+    ).map((input: Element): string => String(input.getAttribute("data-resource-metadata-key") || ""));
+    metadataPrefs.applySelection(active, selectedKeys, Boolean(resourceMetadataApplyAllEl instanceof HTMLInputElement ? resourceMetadataApplyAllEl.checked : false));
     closeMetadataDialog();
     render();
   };
 
-  const resetMetadataColumnsForActiveTab = (): any => {
-    const active = state.resourceViewerTabs.find((tab: any): any => tab.tabId === state.activeResourceTabId);
+  const resetMetadataColumnsForActiveTab = (): void => {
+    const active: ResourceTab | undefined = getTabs().find((tab: ResourceTab): boolean => tab.tabId === state.activeResourceTabId);
     if (!active) return;
     metadataPrefs.resetTabToDefaults(active);
     closeMetadataDialog();
     render();
   };
 
-  /**
-   * Bind tab click events.
-   */
-  const bindEvents = (): any => {
+  const bindEvents = (): void => {
     if (btnResourceMetadata) {
-      btnResourceMetadata.addEventListener("click", (): any => {
+      btnResourceMetadata.addEventListener("click", (): void => {
         openMetadataDialogForActiveTab();
       });
     }
+
     if (btnOpenResource) {
-      btnOpenResource.addEventListener("click", (): any => {
+      btnOpenResource.addEventListener("click", (): void => {
         if (typeof onRequestOpenResource === "function") {
           void Promise.resolve(onRequestOpenResource());
         }
       });
     }
+
     if (btnResourceMetadataCancel) {
-      btnResourceMetadataCancel.addEventListener("click", (): any => {
+      btnResourceMetadataCancel.addEventListener("click", (): void => {
         closeMetadataDialog();
       });
     }
+
     if (btnResourceMetadataReset) {
-      btnResourceMetadataReset.addEventListener("click", (): any => {
+      btnResourceMetadataReset.addEventListener("click", (): void => {
         resetMetadataColumnsForActiveTab();
       });
     }
+
     if (btnResourceMetadataSave) {
-      btnResourceMetadataSave.addEventListener("click", (event: any): any => {
+      btnResourceMetadataSave.addEventListener("click", (event: Event): void => {
         event.preventDefault();
         applyMetadataDialogSelection();
       });
     }
+
     if (!resourceTabsEl) return;
-    resourceTabsEl.addEventListener("click", (event: any): any => {
-      const target = event.target;
+
+    resourceTabsEl.addEventListener("click", (event: Event): void => {
+      const target: EventTarget | null = event.target;
       if (!(target instanceof HTMLElement)) return;
-      const action = target.dataset.resourceAction;
-      const tabId = target.dataset.resourceTabId;
+      const action: string = String(target.dataset.resourceAction || "");
+      const tabId: string = String(target.dataset.resourceTabId || "");
       if (!action || !tabId) return;
       if (action === "close") {
         closeTab(tabId);
@@ -403,41 +489,48 @@ export const createResourceViewerCapabilities = ({
       }
       if (action === "select") {
         selectTab(tabId);
-        void refreshActiveTabRows().then((): any => render());
+        void refreshActiveTabRows().then((): void => render());
       }
     });
-    if (resourceTableWrapEl) {
-      let activeColumnResize: { key: string; startClientX: number; startWidth: number } | null = null;
-      const resolveActiveTab = (): any => state.resourceViewerTabs.find((tab: any): any => tab.tabId === state.activeResourceTabId);
-      const applyLiveColumnWidth = (columnKey: any, widthPx: any): any => {
+
+    if (resourceTableWrapEl instanceof HTMLElement) {
+      let activeColumnResize: ColumnResizeState | null = null;
+
+      const resolveActiveTab = (): ResourceTab | undefined =>
+        getTabs().find((tab: ResourceTab): boolean => tab.tabId === state.activeResourceTabId);
+
+      const applyLiveColumnWidth = (columnKey: string, widthPx: number): void => {
         const colEls = resourceTableWrapEl.querySelectorAll("col[data-resource-col-key]");
-        colEls.forEach((colEl: any): any => {
+        colEls.forEach((colEl: Element): void => {
           if (!(colEl instanceof HTMLElement)) return;
           if (String(colEl.dataset.resourceColKey || "") !== String(columnKey || "")) return;
           colEl.style.width = `${metadataPrefs.clampColumnWidth(widthPx)}px`;
         });
       };
-      const resolveRowIndexFromEvent = (event: any): any => {
-        const path = typeof event.composedPath === "function" ? event.composedPath() : [];
+
+      const resolveRowIndexFromEvent = (event: Event): number => {
+        const eventWithPath = event as Event & { composedPath?: () => EventTarget[] };
+        const path: EventTarget[] = typeof eventWithPath.composedPath === "function" ? eventWithPath.composedPath() : [];
         for (const entry of path) {
           if (!(entry instanceof HTMLElement)) continue;
-          const rawIndex = entry.dataset.resourceRowIndex;
+          const rawIndex: string | undefined = entry.dataset.resourceRowIndex;
           if (rawIndex == null) continue;
-          const parsed = Number(rawIndex);
+          const parsed: number = Number(rawIndex);
           if (Number.isInteger(parsed) && parsed >= 0) return parsed;
         }
-        const target = event.target;
+        const target: EventTarget | null = event.target;
         if (!(target instanceof HTMLElement)) return -1;
-        const rowEl = target.closest("[data-resource-row-index]");
+        const rowEl: HTMLElement | null = target.closest("[data-resource-row-index]");
         if (!(rowEl instanceof HTMLElement)) return -1;
-        const parsed = Number(rowEl.dataset.resourceRowIndex);
+        const parsed: number = Number(rowEl.dataset.resourceRowIndex);
         if (!Number.isInteger(parsed) || parsed < 0) return -1;
         return parsed;
       };
-      resourceTableWrapEl.addEventListener("dragstart", (event: any): any => {
-        const target = event.target;
+
+      resourceTableWrapEl.addEventListener("dragstart", (event: DragEvent): void => {
+        const target: EventTarget | null = event.target;
         if (!(target instanceof HTMLElement)) return;
-        const headerEl = target.closest("th[data-resource-col-key]");
+        const headerEl: HTMLElement | null = target.closest("th[data-resource-col-key]");
         if (!(headerEl instanceof HTMLElement)) return;
         draggedColumnKey = String(headerEl.dataset.resourceColKey || "");
         if (!draggedColumnKey) return;
@@ -446,26 +539,28 @@ export const createResourceViewerCapabilities = ({
           event.dataTransfer.effectAllowed = "move";
         }
       });
-      resourceTableWrapEl.addEventListener("dragover", (event: any): any => {
-        const target = event.target;
+
+      resourceTableWrapEl.addEventListener("dragover", (event: DragEvent): void => {
+        const target: EventTarget | null = event.target;
         if (!(target instanceof HTMLElement)) return;
-        const headerEl = target.closest("th[data-resource-col-key]");
+        const headerEl: HTMLElement | null = target.closest("th[data-resource-col-key]");
         if (!(headerEl instanceof HTMLElement)) return;
         event.preventDefault();
       });
-      resourceTableWrapEl.addEventListener("drop", (event: any): any => {
-        const target = event.target;
+
+      resourceTableWrapEl.addEventListener("drop", (event: DragEvent): void => {
+        const target: EventTarget | null = event.target;
         if (!(target instanceof HTMLElement)) return;
-        const headerEl = target.closest("th[data-resource-col-key]");
+        const headerEl: HTMLElement | null = target.closest("th[data-resource-col-key]");
         if (!(headerEl instanceof HTMLElement)) return;
         event.preventDefault();
-        const targetKey = String(headerEl.dataset.resourceColKey || "");
+        const targetKey: string = String(headerEl.dataset.resourceColKey || "");
         if (!draggedColumnKey || !targetKey || draggedColumnKey === targetKey) return;
-        const activeTab = resolveActiveTab();
+        const activeTab: ResourceTab | undefined = resolveActiveTab();
         if (!activeTab) return;
-        const nextOrder = [...metadataPrefs.reconcileTabColumnState(activeTab)];
-        const fromIndex = nextOrder.indexOf(draggedColumnKey);
-        const toIndex = nextOrder.indexOf(targetKey);
+        const nextOrder: string[] = [...metadataPrefs.reconcileTabColumnState(activeTab)];
+        const fromIndex: number = nextOrder.indexOf(draggedColumnKey);
+        const toIndex: number = nextOrder.indexOf(targetKey);
         if (fromIndex < 0 || toIndex < 0) return;
         nextOrder.splice(fromIndex, 1);
         nextOrder.splice(toIndex, 0, draggedColumnKey);
@@ -473,20 +568,22 @@ export const createResourceViewerCapabilities = ({
         metadataPrefs.persistTabPrefs(activeTab);
         render();
       });
-      resourceTableWrapEl.addEventListener("dragend", (): any => {
+
+      resourceTableWrapEl.addEventListener("dragend", (): void => {
         draggedColumnKey = "";
       });
-      resourceTableWrapEl.addEventListener("pointerdown", (event: any): any => {
-        const target = event.target;
+
+      resourceTableWrapEl.addEventListener("pointerdown", (event: PointerEvent): void => {
+        const target: EventTarget | null = event.target;
         if (!(target instanceof HTMLElement)) return;
-        const handle = target.closest("[data-resource-resize-key]");
+        const handle: HTMLElement | null = target.closest("[data-resource-resize-key]");
         if (!(handle instanceof HTMLElement)) return;
-        const resizeKey = String(handle.dataset.resourceResizeKey || "");
+        const resizeKey: string = String(handle.dataset.resourceResizeKey || "");
         if (!resizeKey) return;
-        const activeTab = resolveActiveTab();
+        const activeTab: ResourceTab | undefined = resolveActiveTab();
         if (!activeTab) return;
         event.preventDefault();
-        const startWidth = metadataPrefs.clampColumnWidth(activeTab.columnWidths?.[resizeKey]);
+        const startWidth: number = metadataPrefs.clampColumnWidth(activeTab.columnWidths?.[resizeKey]);
         activeColumnResize = {
           key: resizeKey,
           startClientX: event.clientX,
@@ -494,34 +591,40 @@ export const createResourceViewerCapabilities = ({
         };
         handle.setPointerCapture?.(event.pointerId);
       });
-      window.addEventListener("pointermove", (event: any): any => {
+
+      window.addEventListener("pointermove", (event: PointerEvent): void => {
         if (!activeColumnResize) return;
-        const activeTab = resolveActiveTab();
+        const activeTab: ResourceTab | undefined = resolveActiveTab();
         if (!activeTab) return;
-        const delta = event.clientX - activeColumnResize.startClientX;
-        const widthPx = metadataPrefs.clampColumnWidth(activeColumnResize.startWidth + delta);
+        const delta: number = event.clientX - activeColumnResize.startClientX;
+        const widthPx: number = metadataPrefs.clampColumnWidth(activeColumnResize.startWidth + delta);
         activeTab.columnWidths[activeColumnResize.key] = widthPx;
         applyLiveColumnWidth(activeColumnResize.key, widthPx);
       });
-      const finishColumnResize = (): any => {
+
+      const finishColumnResize = (): void => {
         if (!activeColumnResize) return;
-        const activeTab = resolveActiveTab();
+        const activeTab: ResourceTab | undefined = resolveActiveTab();
         if (activeTab) metadataPrefs.persistTabPrefs(activeTab);
         activeColumnResize = null;
       };
+
       window.addEventListener("pointerup", finishColumnResize);
       window.addEventListener("pointercancel", finishColumnResize);
-      resourceTableWrapEl.addEventListener("click", (event: any): any => {
-        const rowIndex = resolveRowIndexFromEvent(event);
+
+      resourceTableWrapEl.addEventListener("click", (event: Event): void => {
+        const rowIndex: number = resolveRowIndexFromEvent(event);
         openActiveRowByIndex(rowIndex);
       });
-      resourceTableWrapEl.addEventListener("dblclick", (event: any): any => {
-        const rowIndex = resolveRowIndexFromEvent(event);
+
+      resourceTableWrapEl.addEventListener("dblclick", (event: Event): void => {
+        const rowIndex: number = resolveRowIndexFromEvent(event);
         openActiveRowByIndex(rowIndex);
       });
-      resourceTableWrapEl.addEventListener("keydown", (event: any): any => {
+
+      resourceTableWrapEl.addEventListener("keydown", (event: KeyboardEvent): void => {
         if (event.key !== "Enter" && event.key !== " ") return;
-        const rowIndex = resolveRowIndexFromEvent(event);
+        const rowIndex: number = resolveRowIndexFromEvent(event);
         if (rowIndex < 0) return;
         event.preventDefault();
         openActiveRowByIndex(rowIndex);
@@ -540,4 +643,3 @@ export const createResourceViewerCapabilities = ({
     upsertTab,
   };
 };
-

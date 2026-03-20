@@ -1,28 +1,25 @@
 /**
- * Source adapter domain types.
+ * Types module.
  *
  * Integration API:
- * - Import `SOURCE_KIND` for kind-safe comparisons (`file`, `sqlite`, ...).
- * - Use `isSourceRef(value)` when validating external/untyped source objects.
+ * - Primary exports from this module: `SOURCE_KIND`, `DEFAULT_PGN_METADATA_KEYS`, `isMetadataMap`, `isSourceRef`.
  *
  * Configuration API:
- * - Source references are plain serializable objects with at least:
- *   - `kind` (adapter key)
- *   - `locator` (resource/container identifier)
- *   - optional `recordId` (entry identifier inside resource)
+ * - Configuration is provided via typed function parameters/options in these exports
+ *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - Shared by gateway/registry/session modules as lightweight runtime guards.
- * - No side effects; constants + validation helpers only.
+ * - This module communicates through typed return values and callbacks; interactions are explicit in
+ *   exported function signatures and typed callback contracts.
  */
 
 /**
  * Supported game source kinds.
  */
 export const SOURCE_KIND = Object.freeze({
+  DIRECTORY: "directory",
   FILE: "file",
-  PGN_DB: "pgn-db",
-  SQLITE: "sqlite",
+  DB: "db",
 });
 
 /**
@@ -51,7 +48,7 @@ export const DEFAULT_PGN_METADATA_KEYS = Object.freeze([
  * @param {unknown} value - Candidate metadata object.
  * @returns {boolean} True when metadata is a plain object.
  */
-export const isMetadataMap = (value) => Boolean(value && typeof value === "object" && !Array.isArray(value));
+export const isMetadataMap = (value: any): any => Boolean(value && typeof value === "object" && !Array.isArray(value));
 
 /**
  * Validate source reference shape.
@@ -59,7 +56,7 @@ export const isMetadataMap = (value) => Boolean(value && typeof value === "objec
  * @param {unknown} value - Candidate value.
  * @returns {boolean} True when the value is a valid source reference.
  */
-export const isSourceRef = (value) => {
+export const isSourceRef = (value: any): any => {
   if (!value || typeof value !== "object") return false;
   const source = /** @type {{kind?: unknown, locator?: unknown}} */ (value);
   return (

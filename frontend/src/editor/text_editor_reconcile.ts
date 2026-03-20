@@ -9,33 +9,33 @@
  * - `reconcileTextEditor(container, blocks, options)` mutates editor DOM to match plan.
  */
 
-const syncClassName = (el, className) => {
+const syncClassName = (el: any, className: any): any => {
   if (el.className !== className) el.className = className;
 };
 
-const toSegmentKind = (token) => {
+const toSegmentKind = (token: any): any => {
   if (token.kind === "comment") return "comment";
   return "move";
 };
 
-const syncDataset = (el, dataset) => {
+const syncDataset = (el: any, dataset: any): any => {
   const next = dataset || {};
-  Object.keys(el.dataset).forEach((key) => {
+  Object.keys(el.dataset).forEach((key: any): any => {
     if (!(key in next)) delete el.dataset[key];
   });
-  Object.entries(next).forEach(([key, value]) => {
+  Object.entries(next).forEach(([key, value]: any): any => {
     const normalized = String(value);
     if (el.dataset[key] !== normalized) el.dataset[key] = normalized;
   });
 };
 
-const createInlineEl = (token, options) => {
+const createInlineEl = (token: any, options: any): any => {
   const span = document.createElement("span");
   syncInlineEl(span, token, options);
   return span;
 };
 
-const syncInlineEl = (el, token, options) => {
+const syncInlineEl = (el: any, token: any, options: any): any => {
   const isSelectedMove = token.tokenType === "move"
     && token.dataset?.nodeId
     && options?.selectedMoveId
@@ -52,7 +52,7 @@ const syncInlineEl = (el, token, options) => {
   el.onclick = null;
   el.onpointerdown = null;
   if (token.tokenType === "move" && token.dataset?.nodeId) {
-    const handleSelect = (event) => {
+    const handleSelect = (event: any): any => {
       const moveId = token.dataset?.nodeId || "";
       if (!moveId) return;
       const onMoveSelect = options?.onMoveSelect;
@@ -64,13 +64,13 @@ const syncInlineEl = (el, token, options) => {
   }
 };
 
-const createCommentEl = (token, options) => {
+const createCommentEl = (token: any, options: any): any => {
   const span = document.createElement("span");
   syncCommentEl(span, token, options);
   return span;
 };
 
-const syncCommentEl = (el, token, options) => {
+const syncCommentEl = (el: any, token: any, options: any): any => {
   const isHighlighted = options?.highlightCommentId && options.highlightCommentId === token.commentId;
   const introClass = token.introStyling ? " text-editor-comment-intro" : "";
   syncClassName(
@@ -92,13 +92,13 @@ const syncCommentEl = (el, token, options) => {
   el.onfocus = null;
   if (el.innerHTML !== rawCommentToHtml(token.text)) el.innerHTML = rawCommentToHtml(token.text);
   if (options?.onCommentFocus) {
-    el.onfocus = () => {
+    el.onfocus = (): any => {
       options.onCommentFocus(token.commentId, {
         focusFirstCommentAtStart: Boolean(token.focusFirstCommentAtStart),
       });
     };
   }
-  el.onkeydown = (event) => {
+  el.onkeydown = (event: any): any => {
     if (event.key === "Tab") {
       event.preventDefault();
       if (event.shiftKey) {
@@ -123,7 +123,7 @@ const syncCommentEl = (el, token, options) => {
     }
   };
   if (options?.onCommentEdit) {
-    el.onblur = () => {
+    el.onblur = (): any => {
       const nextDisplay = htmlCommentToRaw(el);
       if (token.plainLiteralComment) {
         const nextValue = nextDisplay;
@@ -146,17 +146,17 @@ const syncCommentEl = (el, token, options) => {
   }
 };
 
-const createTokenEl = (token, options) => {
+const createTokenEl = (token: any, options: any): any => {
   if (token.kind === "comment") return createCommentEl(token, options);
   return createInlineEl(token, options);
 };
 
-const syncTokenEl = (el, token, options) => {
+const syncTokenEl = (el: any, token: any, options: any): any => {
   if (token.kind === "comment") syncCommentEl(el, token, options);
   else syncInlineEl(el, token, options);
 };
 
-const createAnchorEl = (anchorId) => {
+const createAnchorEl = (anchorId: any): any => {
   const anchor = document.createElement("span");
   anchor.className = "text-editor-anchor";
   syncDataset(anchor, {
@@ -166,7 +166,7 @@ const createAnchorEl = (anchorId) => {
   return anchor;
 };
 
-const syncAnchorEl = (el, anchorId) => {
+const syncAnchorEl = (el: any, anchorId: any): any => {
   syncClassName(el, "text-editor-anchor");
   syncDataset(el, {
     kind: "anchor",
@@ -179,18 +179,20 @@ type DesiredChild =
   | { kind: "anchor"; anchorId: string }
   | { kind: "token"; token: unknown };
 
-const reconcileTokenChildren = (blockEl: HTMLElement, tokens, blockKey, options) => {
+const reconcileTokenChildren = (blockEl: HTMLElement, tokens: any, blockKey: any, options: any): any => {
   const desired: DesiredChild[] = [];
   for (let idx = 0; idx <= tokens.length; idx += 1) {
     desired.push({ kind: "anchor", anchorId: `${blockKey}:${idx}` });
     if (idx < tokens.length) desired.push({ kind: "token", token: tokens[idx] });
   }
   const children = Array.from(blockEl.children) as HTMLElement[];
-  desired.forEach((entry, idx) => {
+  desired.forEach((entry: any, idx: any): any => {
     let child: HTMLElement | undefined = children[idx];
     if (!child) {
-      child = entry.kind === "anchor" ? createAnchorEl(entry.anchorId) : createTokenEl(entry.token, options);
-      blockEl.appendChild(child);
+      const created = entry.kind === "anchor"
+        ? createAnchorEl(entry.anchorId)
+        : createTokenEl(entry.token, options);
+      blockEl.appendChild(created);
       return;
     }
     if (entry.kind === "anchor") {
@@ -216,14 +218,14 @@ const reconcileTokenChildren = (blockEl: HTMLElement, tokens, blockKey, options)
   }
 };
 
-const createBlockEl = (block, options) => {
+const createBlockEl = (block: any, options: any): any => {
   const el = document.createElement("div");
   syncBlockEl(el, block, options);
   reconcileTokenChildren(el, block.tokens, block.key, options);
   return el;
 };
 
-const syncBlockEl = (el, block, options) => {
+const syncBlockEl = (el: any, block: any, options: any): any => {
   const depthClass = Number(block.indentDepth) > 0 ? ` text-editor-block-indent-${block.indentDepth}` : "";
   const nextClassName = `text-editor-block${depthClass}`;
   if (el.className !== nextClassName) el.className = nextClassName;
@@ -237,12 +239,12 @@ type ContainerWithEditorExtras = HTMLElement & {
   _hideMoveInsertOverlay?: () => void;
 };
 
-export const reconcileTextEditor = (container: HTMLElement, blocks, options: Record<string, unknown> = {}) => {
+export const reconcileTextEditor = (container: HTMLElement, blocks: any, options: Record<string, unknown> = {}): any => {
   const host = container as ContainerWithEditorExtras;
   const currentBlocks = Array.from(container.children).filter(
-    (child) => (child as HTMLElement).dataset.blockKey,
+    (child: any): any => (child as HTMLElement).dataset.blockKey,
   ) as HTMLElement[];
-  const appendBlockEl = (blockEl) => {
+  const appendBlockEl = (blockEl: any): any => {
     const overlay = host._textEditorOverlay;
     if (overlay && overlay.parentElement === host) {
       host.insertBefore(blockEl, overlay);
@@ -250,7 +252,7 @@ export const reconcileTextEditor = (container: HTMLElement, blocks, options: Rec
       host.appendChild(blockEl);
     }
   };
-  blocks.forEach((block, idx) => {
+  blocks.forEach((block: any, idx: any): any => {
     let blockEl = currentBlocks[idx];
     if (!blockEl) {
       blockEl = createBlockEl(block, options);
@@ -258,7 +260,7 @@ export const reconcileTextEditor = (container: HTMLElement, blocks, options: Rec
       return;
     }
     if (blockEl.dataset.blockKey !== block.key) {
-      const found = currentBlocks.find((candidate, candidateIdx) => candidateIdx > idx && (candidate as HTMLElement).dataset.blockKey === block.key);
+      const found = currentBlocks.find((candidate: any, candidateIdx: any): any => candidateIdx > idx && (candidate as HTMLElement).dataset.blockKey === block.key);
       if (found) {
         host.insertBefore(found, blockEl);
         blockEl = found;
@@ -270,14 +272,14 @@ export const reconcileTextEditor = (container: HTMLElement, blocks, options: Rec
     }
     syncBlockEl(blockEl, block, options);
   });
-  const latestBlocks = Array.from(container.children).filter((child) => (child as HTMLElement).dataset.blockKey);
+  const latestBlocks = Array.from(container.children).filter((child: any): any => (child as HTMLElement).dataset.blockKey);
   for (let idx = latestBlocks.length - 1; idx >= blocks.length; idx -= 1) {
     latestBlocks[idx].remove();
   }
   setupMoveInsertOverlay(container as ContainerWithEditorExtras, options);
 };
 
-const createMoveInsertOverlay = (container: HTMLElement) => {
+const createMoveInsertOverlay = (container: HTMLElement): any => {
   const overlay = document.createElement("div");
   overlay.className = "text-editor-move-insert-overlay";
   overlay.innerHTML = `
@@ -288,7 +290,7 @@ const createMoveInsertOverlay = (container: HTMLElement) => {
   return overlay;
 };
 
-const getMoveTokenFromEvent = (container, event) => {
+const getMoveTokenFromEvent = (container: any, event: any): any => {
   if (typeof event.composedPath === "function") {
     const path = event.composedPath();
     for (const item of path) {
@@ -311,14 +313,14 @@ const getMoveTokenFromEvent = (container, event) => {
   return moveEl as HTMLElement;
 };
 
-const getElementTargetFromEvent = (event) => {
+const getElementTargetFromEvent = (event: any): any => {
   const rawTarget = event.target;
   if (rawTarget instanceof Element) return rawTarget;
   if (rawTarget instanceof Node) return rawTarget.parentElement;
   return null;
 };
 
-const trySelectMoveFromEvent = (container: ContainerWithEditorExtras, event) => {
+const trySelectMoveFromEvent = (container: ContainerWithEditorExtras, event: any): any => {
   const moveEl = getMoveTokenFromEvent(container, event);
   if (!moveEl) return false;
   const moveId = moveEl.dataset.nodeId || "";
@@ -328,7 +330,7 @@ const trySelectMoveFromEvent = (container: ContainerWithEditorExtras, event) => 
   return true;
 };
 
-const positionOverlayAtMove = (container: HTMLElement, overlay: HTMLElement, moveEl: HTMLElement) => {
+const positionOverlayAtMove = (container: HTMLElement, overlay: HTMLElement, moveEl: HTMLElement): any => {
   const containerRect = container.getBoundingClientRect();
   const moveRect = moveEl.getBoundingClientRect();
   const horizontalPadding = 6;
@@ -340,39 +342,39 @@ const positionOverlayAtMove = (container: HTMLElement, overlay: HTMLElement, mov
   overlay.classList.add("visible");
 };
 
-const setupMoveInsertOverlay = (container: ContainerWithEditorExtras, options) => {
+const setupMoveInsertOverlay = (container: ContainerWithEditorExtras, options: any): any => {
   if (!container) return;
   container._textEditorOptions = options;
   const overlayEl = container._textEditorOverlay ?? createMoveInsertOverlay(container);
   container._textEditorOverlay = overlayEl;
   let hideTimer: ReturnType<typeof setTimeout> | null = null;
   let activeMoveEl: HTMLElement | null = null;
-  const hideNow = () => {
+  const hideNow = (): any => {
     clearHideTimer();
     overlayEl.classList.remove("visible");
     overlayEl.dataset.moveId = "";
     activeMoveEl = null;
   };
   container._hideMoveInsertOverlay = hideNow;
-  const clearHideTimer = () => {
+  const clearHideTimer = (): any => {
     if (!hideTimer) return;
     window.clearTimeout(hideTimer);
     hideTimer = null;
   };
-  const showForMove = (moveEl: HTMLElement) => {
+  const showForMove = (moveEl: HTMLElement): any => {
     activeMoveEl = moveEl;
     clearHideTimer();
     positionOverlayAtMove(container, overlayEl, moveEl);
   };
-  const scheduleHide = () => {
+  const scheduleHide = (): any => {
     clearHideTimer();
-    hideTimer = window.setTimeout(() => {
+    hideTimer = window.setTimeout((): any => {
       hideNow();
     }, 110);
   };
   const leftBtn = overlayEl.querySelector(".text-editor-insert-icon.left");
   const rightBtn = overlayEl.querySelector(".text-editor-insert-icon.right");
-  const triggerInsertAtSide = (moveId, side) => {
+  const triggerInsertAtSide = (moveId: any, side: any): any => {
     if (!moveId) return;
     const resolveExisting = container._textEditorOptions?.onResolveExistingComment as
       | ((moveId: string, side: string) => string | null | undefined)
@@ -384,7 +386,7 @@ const setupMoveInsertOverlay = (container: ContainerWithEditorExtras, options) =
       | undefined;
     if (callback) callback(moveId, side);
   };
-  const focusCommentById = (commentId) => {
+  const focusCommentById = (commentId: any): any => {
     if (!commentId) return false;
     const commentEl = container.querySelector(`[data-kind="comment"][data-comment-id="${commentId}"]`);
     if (!commentEl) return false;
@@ -399,32 +401,32 @@ const setupMoveInsertOverlay = (container: ContainerWithEditorExtras, options) =
       selection.removeAllRanges();
       selection.addRange(range);
     }
-    window.setTimeout(() => commentHtml.classList.remove("text-editor-comment-new"), 1400);
+    window.setTimeout((): any => commentHtml.classList.remove("text-editor-comment-new"), 1400);
     return true;
   };
-  leftBtn?.addEventListener("click", (event) => {
+  leftBtn?.addEventListener("click", (event: any): any => {
     event.preventDefault();
     event.stopPropagation();
     const moveId = overlayEl.dataset.moveId || "";
     triggerInsertAtSide(moveId, "before");
     hideNow();
   });
-  rightBtn?.addEventListener("click", (event) => {
+  rightBtn?.addEventListener("click", (event: any): any => {
     event.preventDefault();
     event.stopPropagation();
     const moveId = overlayEl.dataset.moveId || "";
     triggerInsertAtSide(moveId, "after");
     hideNow();
   });
-  overlayEl.addEventListener("mouseenter", () => {
+  overlayEl.addEventListener("mouseenter", (): any => {
     clearHideTimer();
     if (activeMoveEl) positionOverlayAtMove(container, overlayEl, activeMoveEl);
     else overlayEl.classList.add("visible");
   });
-  overlayEl.addEventListener("mouseleave", () => {
+  overlayEl.addEventListener("mouseleave", (): any => {
     scheduleHide();
   });
-  container.addEventListener("mousemove", (event) => {
+  container.addEventListener("mousemove", (event: any): any => {
     if (event.target instanceof Element && overlayEl.contains(event.target)) {
       clearHideTimer();
       return;
@@ -436,17 +438,17 @@ const setupMoveInsertOverlay = (container: ContainerWithEditorExtras, options) =
     }
     showForMove(moveEl);
   });
-  container.addEventListener("mouseleave", () => {
+  container.addEventListener("mouseleave", (): any => {
     scheduleHide();
   });
-  container.addEventListener("click", (event) => {
+  container.addEventListener("click", (event: any): any => {
     const targetEl = getElementTargetFromEvent(event);
     if (targetEl?.closest(".text-editor-insert-icon")) return;
     const selected = trySelectMoveFromEvent(container, event);
     if (!selected) return;
-    window.setTimeout(() => hideNow(), 0);
+    window.setTimeout((): any => hideNow(), 0);
   });
-  container.addEventListener("pointerdown", (event) => {
+  container.addEventListener("pointerdown", (event: any): any => {
     const targetEl = getElementTargetFromEvent(event);
     if (targetEl?.closest(".text-editor-insert-icon")) return;
     const selected = trySelectMoveFromEvent(container, event);
@@ -456,12 +458,12 @@ const setupMoveInsertOverlay = (container: ContainerWithEditorExtras, options) =
   }, true);
 };
 
-const escapeHtml = (value) => String(value ?? "")
+const escapeHtml = (value: any): any => String(value ?? "")
   .replaceAll("&", "&amp;")
   .replaceAll("<", "&lt;")
   .replaceAll(">", "&gt;");
 
-const rawCommentToHtml = (raw) => {
+const rawCommentToHtml = (raw: any): any => {
   let html = escapeHtml(raw);
   html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   html = html.replace(/__([^_]+)__/g, "<u>$1</u>");
@@ -470,13 +472,13 @@ const rawCommentToHtml = (raw) => {
   return html;
 };
 
-const htmlCommentToRawFromNode = (node) => {
+const htmlCommentToRawFromNode = (node: any): any => {
   if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? "";
   if (node.nodeType !== Node.ELEMENT_NODE) return "";
   const tag = node.tagName.toLowerCase();
   if (tag === "br") return "\n";
 
-  const parts = Array.from(node.childNodes).map((child) => htmlCommentToRawFromNode(child)).join("");
+  const parts = Array.from(node.childNodes).map((child: any): any => htmlCommentToRawFromNode(child)).join("");
   if (tag === "strong" || tag === "b") return `**${parts}**`;
   if (tag === "em" || tag === "i") return `*${parts}*`;
   if (tag === "u") return `__${parts}__`;
@@ -484,7 +486,7 @@ const htmlCommentToRawFromNode = (node) => {
   return parts;
 };
 
-const htmlCommentToRaw = (element) => {
-  const raw = Array.from(element.childNodes).map((node) => htmlCommentToRawFromNode(node)).join("");
+const htmlCommentToRaw = (element: any): any => {
+  const raw = Array.from(element.childNodes).map((node: any): any => htmlCommentToRawFromNode(node)).join("");
   return raw.replace(/\r/g, "").replace(/\n{3,}/g, "\n\n");
 };

@@ -3,41 +3,25 @@ import { createRuntimeConfigService } from "./runtime_config_service";
 import { createSourceGateway } from "./source_gateway";
 
 /**
- * Resources composition component.
+ * Index module.
  *
  * Integration API:
- * - Create once via `createResourcesCapabilities(deps)`.
- * - Use returned methods directly from composition root/session flows:
- *   - `chooseClientGamesFolder()`
- *   - `listSourceGames(kind)` / `listGamesForResource(resourceRef)`
- *   - `loadGameBySourceRef(sourceRef)` / `saveGameBySourceRef(...)`
- *   - `loadRuntimeConfigFromClientDataAndDefaults()`
- *   - player store load/save helpers.
+ * - Primary exports from this module: `createResourcesCapabilities`.
  *
  * Configuration API:
- * - Required injected dependencies:
- *   - `state` for active runtime/source context,
- *   - `t` for user-facing status texts,
- *   - `onSetSaveStatus(message, kind)` for save/load feedback,
- *   - `onApplyRuntimeConfig(config)` to apply loaded runtime config.
- * - Optional compatibility bridge:
- *   - `onLoadPgn` and `pgnInput` to hydrate legacy raw-PGN flow after load.
- * - Source behavior is configured by adapters registered in source gateway.
+ * - Configuration is provided via typed function parameters/options in these exports
+ *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - Inbound:
- *   - Host calls methods like `listSourceGames`, `loadGameBySourceRef`,
- *     and `loadRuntimeConfigFromClientDataAndDefaults`.
- * - Outbound:
- *   - Calls `onSetSaveStatus(...)` for success/error/progress messages.
- *   - Calls `onApplyRuntimeConfig(...)` after config resolution.
- *   - Calls `onLoadPgn()` after writing loaded PGN into `pgnInput` (if provided).
- * - Side effects:
- *   - Reads/writes local resources and shared resource state; no direct rendering.
+ * - This module communicates through shared `state`; interactions are explicit in
+ *   exported function signatures and typed callback contracts.
  */
 
 /**
- * Create resources capabilities.
+ * Create resources facade used by bootstrap/session flows.
+ *
+ * This factory composes source selection, PGN load/save bridge behavior,
+ * runtime-config loading, and player-store persistence behind one boundary API.
  *
  * @param {object} deps - Dependencies.
  * @param {object} deps.state - Shared app state.
@@ -70,20 +54,33 @@ export const createResourcesCapabilities = ({
   onLoadPgn,
   onInitializeWithDefaultPgn,
   pgnInput,
-}) => {
+}: any): any => {
   const runtimeConfigService = createRuntimeConfigService({ state });
   const playerStoreService = createPlayerStoreService({ state });
   const sourceGateway = createSourceGateway({ state });
 
-  const listSourceGames = async (kind = "file") => sourceGateway.listGames(kind);
-  const listGamesForResource = async (resourceRef) => sourceGateway.listGamesForResource(resourceRef);
+  /**
+   * List games for one source kind via gateway.
+   *
+   * @param kind Canonical or compatibility kind token.
+   * @returns Resource game rows for the selected kind.
+   */
+  const listSourceGames = async (kind: any = "file"): Promise<any> => sourceGateway.listGames(kind);
+
+  /**
+   * List games for one explicit resource reference.
+   *
+   * @param resourceRef Resource reference containing `kind` and `locator`.
+   * @returns Resource game rows for the target resource.
+   */
+  const listGamesForResource = async (resourceRef: any): Promise<any> => sourceGateway.listGamesForResource(resourceRef);
 
   /**
    * Choose local file source root and refresh listed games.
    *
    * @returns {Promise<Array<{sourceRef: object, titleHint: string, revisionToken: string}>>} Listed game descriptors.
    */
-  const chooseClientGamesFolder = async () => {
+  const chooseClientGamesFolder = async (): Promise<any> => {
     try {
       await sourceGateway.chooseFileSourceRoot();
       const runtimeConfig = await runtimeConfigService.loadRuntimeConfigFromClientData();
@@ -107,7 +104,7 @@ export const createResourcesCapabilities = ({
    *
    * @returns {Promise<{resourceRef: object}|null>} Picked resource descriptor.
    */
-  const chooseResourceByPicker = async () => {
+  const chooseResourceByPicker = async (): Promise<any> => {
     try {
       const selected = await sourceGateway.chooseResourceByPicker();
       if (!selected) return null;
@@ -126,7 +123,7 @@ export const createResourcesCapabilities = ({
    * @param {object} sourceRef - Source reference.
    * @returns {Promise<{pgnText: string, revisionToken: string, titleHint: string}>} Load result.
    */
-  const loadGameBySourceRef = async (sourceRef) => {
+  const loadGameBySourceRef = async (sourceRef: any): Promise<any> => {
     const payload = await sourceGateway.loadBySourceRef(sourceRef);
     if (pgnInput) pgnInput.value = payload.pgnText;
     if (typeof onLoadPgn === "function") onLoadPgn();
@@ -142,7 +139,7 @@ export const createResourcesCapabilities = ({
    * @param {string} [titleHint=""] - Preferred title/file name stem.
    * @returns {Promise<{sourceRef: object, revisionToken: string, titleHint: string}>} Created source payload.
    */
-  const createGameInResource = async (resourceRef, pgnText, titleHint = "") => (
+  const createGameInResource = async (resourceRef: any, pgnText: any, titleHint: any = ""): Promise<any> => (
     sourceGateway.createGameInResource(resourceRef, pgnText, titleHint)
   );
 
@@ -155,14 +152,19 @@ export const createResourcesCapabilities = ({
    * @param {object} [options={}] - Save options.
    * @returns {Promise<{revisionToken: string}>} Save result.
    */
-  const saveGameBySourceRef = async (sourceRef, pgnText, revisionToken, options = {}) => (
+  const saveGameBySourceRef = async (sourceRef: any, pgnText: any, revisionToken: any, options: any = {}): Promise<any> => (
     sourceGateway.saveBySourceRef(sourceRef, pgnText, revisionToken, options)
   );
 
   /**
    * Load runtime config from source-root aware services.
    */
-  const loadRuntimeConfigFromClientDataAndDefaults = async () => {
+  /**
+   * Load runtime config after optional default-source preload.
+   *
+   * @returns Runtime config object applied through `onApplyRuntimeConfig`.
+   */
+  const loadRuntimeConfigFromClientDataAndDefaults = async (): Promise<any> => {
     await sourceGateway.maybePreloadDefaultDevSource();
     const runtimeConfig = await runtimeConfigService.loadRuntimeConfigFromClientDataAndDefaults();
     onApplyRuntimeConfig(runtimeConfig);
@@ -172,12 +174,12 @@ export const createResourcesCapabilities = ({
   /**
    * Compatibility no-op. Autosave is now handled by session persistence.
    */
-  const scheduleAutosave = () => {};
+  const scheduleAutosave = (): any => {};
 
   return {
     chooseClientGamesFolder,
     chooseResourceByPicker,
-    getAvailableSourceKinds: () => sourceGateway.getAdapterKinds(),
+    getAvailableSourceKinds: (): any => sourceGateway.getAdapterKinds(),
     listGamesForResource,
     listSourceGames,
     createGameInResource,

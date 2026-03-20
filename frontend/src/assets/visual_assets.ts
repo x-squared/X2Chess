@@ -1,18 +1,16 @@
 /**
- * Visual assets component.
- *
- * Intent:
- * - Hydrate board and piece visuals from remote sources when available.
- * - Fall back to local cache and bundled local assets for deterministic rendering.
+ * Visual Assets module.
  *
  * Integration API:
- * - `hydrateVisualAssets()` applies asset URLs to CSS variables on `:root`.
+ * - Primary exports from this module: `hydrateVisualAssets`.
  *
  * Configuration API:
- * - Asset list and timeout values are defined in this module.
+ * - Configuration is provided via typed function parameters/options in these exports
+ *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - Uses DOM CSS variables and localStorage cache entries.
+ * - This module communicates through DOM, browser storage, external I/O; interactions are explicit in
+ *   exported function signatures and typed callback contracts.
  */
 
 const VISUAL_ASSET_STORAGE_PREFIX = "chess-app:visual-asset:v2:";
@@ -105,7 +103,7 @@ const VISUAL_ASSETS = [
  * @param {string} url - Asset URL or data URL.
  * @returns {string} CSS-compatible url() wrapper.
  */
-const toCssUrlValue = (url) => `url("${String(url).replace(/"/g, '\\"')}")`;
+const toCssUrlValue = (url: any): any => `url("${String(url).replace(/"/g, '\\"')}")`;
 
 /**
  * Read cached asset data URL from localStorage.
@@ -113,7 +111,7 @@ const toCssUrlValue = (url) => `url("${String(url).replace(/"/g, '\\"')}")`;
  * @param {string} cacheKey - Asset cache key suffix.
  * @returns {string|null} Cached data URL or null when unavailable.
  */
-const readAssetCache = (cacheKey) => {
+const readAssetCache = (cacheKey: any): any => {
   try {
     return window.localStorage.getItem(`${VISUAL_ASSET_STORAGE_PREFIX}${cacheKey}`);
   } catch {
@@ -127,7 +125,7 @@ const readAssetCache = (cacheKey) => {
  * @param {string} cacheKey - Asset cache key suffix.
  * @param {string} value - Data URL payload.
  */
-const writeAssetCache = (cacheKey, value) => {
+const writeAssetCache = (cacheKey: any, value: any): any => {
   try {
     window.localStorage.setItem(`${VISUAL_ASSET_STORAGE_PREFIX}${cacheKey}`, value);
   } catch {
@@ -141,10 +139,10 @@ const writeAssetCache = (cacheKey, value) => {
  * @param {Blob} blob - Binary payload fetched from remote source.
  * @returns {Promise<string>} Data URL.
  */
-const asDataUrl = (blob) => new Promise((resolve, reject) => {
+const asDataUrl = (blob: any): any => new Promise((resolve: any, reject: any): any => {
   const reader = new FileReader();
-  reader.onload = () => resolve(String(reader.result || ""));
-  reader.onerror = () => reject(reader.error || new Error("Failed to read resource blob."));
+  reader.onload = (): any => resolve(String(reader.result || ""));
+  reader.onerror = (): any => reject(reader.error || new Error("Failed to read resource blob."));
   reader.readAsDataURL(blob);
 });
 
@@ -154,11 +152,11 @@ const asDataUrl = (blob) => new Promise((resolve, reject) => {
  * @param {string} url - Remote asset URL.
  * @returns {Promise<string>} Data URL fetched from remote source.
  */
-const fetchAssetDataUrl = async (url) => {
+const fetchAssetDataUrl = async (url: any): Promise<any> => {
   const response = (await Promise.race([
     window.fetch(url, { cache: "no-store", mode: "cors" }),
-    new Promise<Response>((_, reject) => {
-      window.setTimeout(() => reject(new Error("Asset request timed out.")), VISUAL_ASSET_FETCH_TIMEOUT_MS);
+    new Promise<Response>((_: any, reject: any): any => {
+      window.setTimeout((): any => reject(new Error("Asset request timed out.")), VISUAL_ASSET_FETCH_TIMEOUT_MS);
     }),
   ])) as Response;
   if (!response.ok) {
@@ -176,7 +174,7 @@ const fetchAssetDataUrl = async (url) => {
  * @param {{cssVar: string}} asset - Asset descriptor containing CSS variable key.
  * @param {string} cssUrlValue - CSS `url(...)` value.
  */
-const applyVisualAsset = (asset, cssUrlValue) => {
+const applyVisualAsset = (asset: any, cssUrlValue: any): any => {
   if (!document.documentElement) return;
   document.documentElement.style.setProperty(asset.cssVar, cssUrlValue);
 };
@@ -186,7 +184,7 @@ const applyVisualAsset = (asset, cssUrlValue) => {
  *
  * @param {{key: string, cssVar: string, remoteUrl: string, localUrl: string}} asset - Asset descriptor.
  */
-const hydrateVisualAsset = async (asset) => {
+const hydrateVisualAsset = async (asset: any): Promise<any> => {
   try {
     const dataUrl = await fetchAssetDataUrl(asset.remoteUrl);
     writeAssetCache(asset.key, dataUrl);
@@ -212,6 +210,6 @@ const hydrateVisualAsset = async (asset) => {
  *
  * @returns {Promise<void>} Settles after all asset attempts complete.
  */
-export const hydrateVisualAssets = async () => {
-  await Promise.allSettled(VISUAL_ASSETS.map((asset) => hydrateVisualAsset(asset)));
+export const hydrateVisualAssets = async (): Promise<any> => {
+  await Promise.allSettled(VISUAL_ASSETS.map((asset: any): any => hydrateVisualAsset(asset)));
 };

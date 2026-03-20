@@ -1,17 +1,28 @@
 /**
- * Board Component-Contract
+ * Index module.
  *
  * Integration API:
- * - `createBoardCapabilities(state)` exposes board/navigation capabilities from shared state.
+ * - Primary exports from this module: `createBoardCapabilities`.
  *
  * Configuration API:
- * - Consumers provide current state and can opt into future board options through this factory.
+ * - `createBoardCapabilities(state)` expects a board state object containing
+ *   `currentPly` and `moves`.
  *
  * Communication API:
- * - Returned methods are imperative commands used by toolbar and keyboard handlers.
+ * - Read-only accessors over shared board state; no mutation or side effects.
  */
 
-export const createBoardCapabilities = (state) => ({
-  getCurrentPly: () => state.currentPly,
-  getMoveCount: () => state.moves.length,
+type BoardState = {
+  currentPly: number;
+  moves: string[];
+};
+
+type BoardCapabilities = {
+  getCurrentPly: () => number;
+  getMoveCount: () => number;
+};
+
+export const createBoardCapabilities = (state: BoardState): BoardCapabilities => ({
+  getCurrentPly: (): number => state.currentPly,
+  getMoveCount: (): number => state.moves.length,
 });

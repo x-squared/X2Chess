@@ -1,16 +1,18 @@
 import { Chess } from "chess.js";
 
 /**
- * Editor PGN runtime component.
+ * Pgn Runtime module.
  *
  * Integration API:
- * - `createPgnRuntimeCapabilities(deps)` returns PGN parse/load/update methods.
+ * - Primary exports from this module: `createPgnRuntimeCapabilities`.
  *
  * Configuration API:
- * - Uses caller-provided parser/serializer and default PGN text.
+ * - Configuration is provided via typed function parameters/options in these exports
+ *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - Mutates shared state and invokes callbacks for render/history/autosave.
+ * - This module communicates through shared `state`; interactions are explicit in
+ *   exported function signatures and typed callback contracts.
  */
 
 /**
@@ -42,14 +44,14 @@ export const createPgnRuntimeCapabilities = ({
   onRender,
   onRecordHistory,
   onScheduleAutosave,
-}) => {
+}: any): any => {
   /**
    * Synchronize chess-derived runtime fields from PGN source text.
    *
    * @param {string} source - PGN source text.
    * @param {{clearOnFailure?: boolean}} options - Sync options.
    */
-  const syncChessParseState = (source, { clearOnFailure = false } = {}) => {
+  const syncChessParseState = (source: any, { clearOnFailure = false }: any = {}): any => {
     if (!source) {
       state.moves = [];
       state.verboseMoves = [];
@@ -104,7 +106,7 @@ export const createPgnRuntimeCapabilities = ({
    * @param {string|null} focusCommentId - Optional comment id to focus after render.
    * @param {{recordHistory?: boolean}} options - Update options.
    */
-  const applyPgnModelUpdate = (nextModel, focusCommentId = null, { recordHistory = true } = {}) => {
+  const applyPgnModelUpdate = (nextModel: any, focusCommentId: any = null, { recordHistory = true }: any = {}): any => {
     const nextPgnText = serializeModelToPgnFn(nextModel);
     if (recordHistory && nextPgnText !== state.pgnText) {
       onRecordHistory();
@@ -121,7 +123,7 @@ export const createPgnRuntimeCapabilities = ({
   /**
    * Parse current PGN input into model and refresh runtime state.
    */
-  const loadPgn = () => {
+  const loadPgn = (): any => {
     state.animationRunId += 1;
     state.isAnimating = false;
     const source = pgnInput ? pgnInput.value.trim() : "";
@@ -135,7 +137,7 @@ export const createPgnRuntimeCapabilities = ({
   /**
    * Initialize textarea and model from default PGN.
    */
-  const initializeWithDefaultPgn = () => {
+  const initializeWithDefaultPgn = (): any => {
     if (pgnInput) pgnInput.value = defaultPgn;
     loadPgn();
   };

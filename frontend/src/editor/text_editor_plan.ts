@@ -12,13 +12,13 @@
 
 const NEWLINE_PATTERN = /(?:\[\[br\]\]|<br\s*\/?>|\\n|\n)/gi;
 
-const createBlock = (index, indentDepth = 0) => ({
+const createBlock = (index: any, indentDepth: any = 0): any => ({
   key: `block_${index}`,
   indentDepth,
   tokens: [] as unknown[],
 });
 
-const createPlanState = (layoutMode = "text") => ({
+const createPlanState = (layoutMode: any = "text"): any => ({
   blocks: [createBlock(0, 0)],
   blockIndex: 0,
   tokenIndex: 0,
@@ -27,16 +27,16 @@ const createPlanState = (layoutMode = "text") => ({
   layoutMode,
 });
 
-const currentBlock = (state) => state.blocks[state.blocks.length - 1];
+const currentBlock = (state: any): any => state.blocks[state.blocks.length - 1];
 
-const nextBlock = (state) => {
+const nextBlock = (state: any): any => {
   state.blockIndex += 1;
   state.blocks.push(createBlock(state.blockIndex, state.indentDepth));
 };
 
-const normalizeAtBlockStart = (block, text) => (block.tokens.length === 0 ? text.replace(/^\s+/, "") : text);
+const normalizeAtBlockStart = (block: any, text: any): any => (block.tokens.length === 0 ? text.replace(/^\s+/, "") : text);
 
-const addInlineToken = (state, text, className, tokenType, dataset = {}) => {
+const addInlineToken = (state: any, text: any, className: any, tokenType: any, dataset: any = {}): any => {
   if (text === null || text === undefined) return;
   const block = currentBlock(state);
   const normalized = normalizeAtBlockStart(block, String(text));
@@ -52,7 +52,7 @@ const addInlineToken = (state, text, className, tokenType, dataset = {}) => {
   });
 };
 
-const addSpace = (state) => {
+const addSpace = (state: any): any => {
   const block = currentBlock(state);
   block.tokens.push({
     key: `token_${state.tokenIndex++}`,
@@ -64,7 +64,7 @@ const addSpace = (state) => {
   });
 };
 
-const splitByBreakHints = (text) => {
+const splitByBreakHints = (text: any): any => {
   const source = String(text ?? "");
   NEWLINE_PATTERN.lastIndex = 0;
   const chunks: Array<{ text: string; hasBreakAfter: boolean }> = [];
@@ -79,15 +79,15 @@ const splitByBreakHints = (text) => {
   return chunks;
 };
 
-const addTextWithBreaks = (state, text, className, tokenType, dataset = {}) => {
+const addTextWithBreaks = (state: any, text: any, className: any, tokenType: any, dataset: any = {}): any => {
   const chunks = splitByBreakHints(text);
-  chunks.forEach((chunk) => {
+  chunks.forEach((chunk: any): any => {
     if (chunk.text) addInlineToken(state, chunk.text, className, tokenType, dataset);
     if (chunk.hasBreakAfter) nextBlock(state);
   });
 };
 
-const parseMoveNumberToken = (raw) => {
+const parseMoveNumberToken = (raw: any): any => {
   const text = String(raw ?? "");
   const white = text.match(/^(\d+)\.$/);
   if (white) return { displayText: white[1], side: "white", simplified: true };
@@ -97,16 +97,16 @@ const parseMoveNumberToken = (raw) => {
 };
 
 const addCommentToken = (
-  state,
-  comment,
-  text,
-  rawText,
-  hasIndentDirective = false,
-  indentDirectiveDepth = 0,
-  introStyling = false,
-  plainLiteralComment = false,
-  focusFirstCommentAtStart = false,
-) => {
+  state: any,
+  comment: any,
+  text: any,
+  rawText: any,
+  hasIndentDirective: any = false,
+  indentDirectiveDepth: any = 0,
+  introStyling: any = false,
+  plainLiteralComment: any = false,
+  focusFirstCommentAtStart: any = false,
+): any => {
   const block = currentBlock(state);
   block.tokens.push({
     key: `token_${state.tokenIndex++}`,
@@ -125,23 +125,23 @@ const addCommentToken = (
 
 const INDENT_BLOCK_DIRECTIVE_PREFIX = /^\s*(?:\\i(?:\s+|$))+/;
 const INTRO_DIRECTIVE_PREFIX = /^\s*\\intro(?:\s+|$)/i;
-const getIndentDirectiveDepth = (comment) => {
+const getIndentDirectiveDepth = (comment: any): any => {
   const raw = String(comment?.raw ?? "");
   const match = raw.match(INDENT_BLOCK_DIRECTIVE_PREFIX);
   if (!match) return 0;
   const tokens = match[0].match(/\\i/g);
   return tokens ? tokens.length : 0;
 };
-const hasIndentBlockDirective = (comment) => getIndentDirectiveDepth(comment) > 0;
-const hasIntroDirective = (comment) => INTRO_DIRECTIVE_PREFIX.test(String(comment?.raw ?? ""));
-const stripIntroDirective = (rawText) => String(rawText ?? "")
+const hasIndentBlockDirective = (comment: any): any => getIndentDirectiveDepth(comment) > 0;
+const hasIntroDirective = (comment: any): any => INTRO_DIRECTIVE_PREFIX.test(String(comment?.raw ?? ""));
+const stripIntroDirective = (rawText: any): any => String(rawText ?? "")
   .replace(INTRO_DIRECTIVE_PREFIX, "")
   .replace(/^\s+/, "");
-const stripIndentDirectives = (rawText) => String(rawText ?? "")
+const stripIndentDirectives = (rawText: any): any => String(rawText ?? "")
   .replace(INDENT_BLOCK_DIRECTIVE_PREFIX, "")
   .replace(/^\s+/, "");
 
-const addComment = (state, comment) => {
+const addComment = (state: any, comment: any): any => {
   const layoutMode = state.layoutMode || "text";
   const rawText = String(comment.raw ?? "");
   const isFirstComment = !state.firstCommentId;
@@ -186,7 +186,7 @@ const addComment = (state, comment) => {
   addSpace(state);
 };
 
-const emitIndentedBlock = (state, levels, emitContent) => {
+const emitIndentedBlock = (state: any, levels: any, emitContent: any): any => {
   const previousDepth = state.indentDepth;
   state.indentDepth = previousDepth + Math.max(1, Number(levels) || 1);
   nextBlock(state);
@@ -195,7 +195,7 @@ const emitIndentedBlock = (state, levels, emitContent) => {
   nextBlock(state);
 };
 
-const emitVariation = (variation, state, strategyRegistry) => {
+const emitVariation = (variation: any, state: any, strategyRegistry: any): any => {
   const flow = {
     nextMoveSide: "white",
     hoistedBeforeCommentMoveIds: new Set(),
@@ -208,7 +208,7 @@ const emitVariation = (variation, state, strategyRegistry) => {
     }
     const nextEntry = variation.entries[idx + 1];
     if (entry.type === "comment" && nextEntry?.type === "variation" && hasIndentBlockDirective(entry)) {
-      emitIndentedBlock(state, getIndentDirectiveDepth(entry), () => {
+      emitIndentedBlock(state, getIndentDirectiveDepth(entry), (): any => {
         addComment(state, entry);
         emitVariation(nextEntry, state, strategyRegistry);
       });
@@ -218,7 +218,7 @@ const emitVariation = (variation, state, strategyRegistry) => {
     if (entry.type === "move_number") {
       const nextEntry = variation.entries[idx + 1];
       if (nextEntry?.type === "move" && Array.isArray(nextEntry.commentsBefore) && nextEntry.commentsBefore.length > 0) {
-        nextEntry.commentsBefore.forEach((comment) => addComment(state, comment));
+        nextEntry.commentsBefore.forEach((comment: any): any => addComment(state, comment));
         flow.hoistedBeforeCommentMoveIds.add(nextEntry.id);
       }
     }
@@ -235,16 +235,16 @@ const emitVariation = (variation, state, strategyRegistry) => {
       flow.nextMoveSide = flow.nextMoveSide === "white" ? "black" : "white";
     }
   }
-  variation.trailingComments.forEach((comment) => addComment(state, comment));
+  variation.trailingComments.forEach((comment: any): any => addComment(state, comment));
 };
 
-const emitMove = (entry, variation, state, strategyRegistry, flow) => {
+const emitMove = (entry: any, variation: any, state: any, strategyRegistry: any, flow: any): any => {
   const moveSide = flow?.nextMoveSide === "black" ? "black" : "white";
   const moveClass = variation.depth === 0
     ? `text-editor-main-move move-${moveSide}`
     : `text-editor-variation-move move-${moveSide}`;
   if (!flow?.hoistedBeforeCommentMoveIds?.has(entry.id)) {
-    entry.commentsBefore.forEach((comment) => addComment(state, comment));
+    entry.commentsBefore.forEach((comment: any): any => addComment(state, comment));
   }
   addTextWithBreaks(
     state,
@@ -254,7 +254,7 @@ const emitMove = (entry, variation, state, strategyRegistry, flow) => {
     { nodeId: entry.id, variationDepth: variation.depth, moveSide },
   );
   addSpace(state);
-  entry.nags.forEach((nag) => {
+  entry.nags.forEach((nag: any): any => {
     addTextWithBreaks(state, nag, "text-editor-nag", "nag", { moveId: entry.id });
     addSpace(state);
   });
@@ -265,7 +265,7 @@ const emitMove = (entry, variation, state, strategyRegistry, flow) => {
       if (item.type === "comment" && item.comment) {
         const nextItem = entry.postItems[idx + 1];
         if (nextItem?.type === "rav" && nextItem.rav && hasIndentBlockDirective(item.comment)) {
-          emitIndentedBlock(state, getIndentDirectiveDepth(item.comment), () => {
+          emitIndentedBlock(state, getIndentDirectiveDepth(item.comment), (): any => {
             addComment(state, item.comment);
             emitVariation(nextItem.rav, state, strategyRegistry);
           });
@@ -280,16 +280,16 @@ const emitMove = (entry, variation, state, strategyRegistry, flow) => {
       }
     }
   } else {
-    entry.commentsAfter.forEach((comment) => addComment(state, comment));
-    entry.ravs.forEach((child) => emitVariation(child, state, strategyRegistry));
+    entry.commentsAfter.forEach((comment: any): any => addComment(state, comment));
+    entry.ravs.forEach((child: any): any => emitVariation(child, state, strategyRegistry));
   }
 };
 
 const strategyRegistry = {
-  comment: (entry, _variation, state) => {
+  comment: (entry: any, _variation: any, state: any): any => {
     addComment(state, entry);
   },
-  move_number: (entry, variation, state) => {
+  move_number: (entry: any, variation: any, state: any): any => {
     const parsed = parseMoveNumberToken(entry.text);
     addTextWithBreaks(
       state,
@@ -300,27 +300,27 @@ const strategyRegistry = {
     );
     if (!parsed.simplified) addSpace(state);
   },
-  result: (entry, _variation, state) => {
+  result: (entry: any, _variation: any, state: any): any => {
     addTextWithBreaks(state, entry.text, "text-editor-result", "result", { nodeId: entry.id });
     addSpace(state);
   },
-  nag: (entry, _variation, state) => {
+  nag: (entry: any, _variation: any, state: any): any => {
     addTextWithBreaks(state, entry.text, "text-editor-nag", "nag", { nodeId: entry.id });
     addSpace(state);
   },
   move: emitMove,
 };
 
-export const buildTextEditorPlan = (pgnModel, options: Record<string, unknown> = {}) => {
+export const buildTextEditorPlan = (pgnModel: any, options: Record<string, unknown> = {}): any => {
   const layoutMode = options.layoutMode === "plain" || options.layoutMode === "text" || options.layoutMode === "tree"
     ? options.layoutMode
     : "plain";
   const state = createPlanState(layoutMode);
   if (!pgnModel || !pgnModel.root) return state.blocks;
   emitVariation(pgnModel.root, state, strategyRegistry);
-  const firstNonEmpty = state.blocks.findIndex((block) => block.tokens.length > 0);
+  const firstNonEmpty = state.blocks.findIndex((block: any): any => block.tokens.length > 0);
   if (firstNonEmpty === -1) return [createBlock(0, 0)];
-  const lastNonEmpty = (() => {
+  const lastNonEmpty = ((): any => {
     for (let i = state.blocks.length - 1; i >= 0; i -= 1) {
       if (state.blocks[i].tokens.length > 0) return i;
     }

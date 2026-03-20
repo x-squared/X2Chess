@@ -1,25 +1,18 @@
 import { Chess } from "chess.js";
 
 /**
- * Game session model utilities.
+ * Session Model module.
  *
  * Integration API:
- * - Create once with `createGameSessionModel(deps)`.
- * - Use returned helpers for three operations:
- *   - capture current runtime into a session snapshot,
- *   - apply a snapshot into active runtime,
- *   - create/dispose snapshot payloads for session lifecycle.
+ * - Primary exports from this module: `createGameSessionModel`.
  *
  * Configuration API:
- * - Parsing/serialization/chess mapping logic is injected (`parsePgnToModelFn`,
- *   `serializeModelToPgnFn`, `buildMovePositionByIdFn`, ...), so this module stays
- *   independent from concrete parser implementations.
- * - Translation callback configures parse-error fallback text.
+ * - Configuration is provided via typed function parameters/options in these exports
+ *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - Reads/writes shared runtime state when capturing/applying snapshots.
- * - Produces plain snapshot objects stored by the session store.
- * - Clears snapshot internals in `disposeSessionSnapshot` to free memory eagerly.
+ * - This module communicates through shared `state`; interactions are explicit in
+ *   exported function signatures and typed callback contracts.
  */
 
 /**
@@ -47,15 +40,15 @@ export const createGameSessionModel = ({
   stripAnnotationsForBoardParserFn,
   getHeaderValueFn,
   t,
-}) => {
-  const cloneModelState = (model) => JSON.parse(JSON.stringify(model));
+}: any): any => {
+  const cloneModelState = (model: any): any => JSON.parse(JSON.stringify(model));
 
   /**
    * Capture active editor runtime as session snapshot.
    *
    * @returns {object} Captured snapshot.
    */
-  const captureActiveSessionSnapshot = () => ({
+  const captureActiveSessionSnapshot = (): any => ({
     pgnModel: cloneModelState(state.pgnModel),
     pgnText: state.pgnText,
     moves: [...state.moves],
@@ -66,13 +59,13 @@ export const createGameSessionModel = ({
     selectedMoveId: state.selectedMoveId,
     errorMessage: state.errorMessage,
     statusMessage: state.statusMessage,
-    undoStack: state.undoStack.map((snapshot) => ({
+    undoStack: state.undoStack.map((snapshot: any): any => ({
       pgnModel: cloneModelState(snapshot.pgnModel),
       pgnText: snapshot.pgnText,
       currentPly: snapshot.currentPly,
       selectedMoveId: snapshot.selectedMoveId,
     })),
-    redoStack: state.redoStack.map((snapshot) => ({
+    redoStack: state.redoStack.map((snapshot: any): any => ({
       pgnModel: cloneModelState(snapshot.pgnModel),
       pgnText: snapshot.pgnText,
       currentPly: snapshot.currentPly,
@@ -85,7 +78,7 @@ export const createGameSessionModel = ({
    *
    * @param {object} snapshot - Session snapshot.
    */
-  const applySessionSnapshotToState = (snapshot) => {
+  const applySessionSnapshotToState = (snapshot: any): any => {
     state.pgnModel = cloneModelState(snapshot.pgnModel);
     state.pgnText = snapshot.pgnText;
     state.moves = [...snapshot.moves];
@@ -96,13 +89,13 @@ export const createGameSessionModel = ({
     state.selectedMoveId = snapshot.selectedMoveId ?? null;
     state.errorMessage = snapshot.errorMessage || "";
     state.statusMessage = snapshot.statusMessage || "";
-    state.undoStack = snapshot.undoStack.map((entry) => ({
+    state.undoStack = snapshot.undoStack.map((entry: any): any => ({
       pgnModel: cloneModelState(entry.pgnModel),
       pgnText: entry.pgnText,
       currentPly: entry.currentPly,
       selectedMoveId: entry.selectedMoveId,
     }));
-    state.redoStack = snapshot.redoStack.map((entry) => ({
+    state.redoStack = snapshot.redoStack.map((entry: any): any => ({
       pgnModel: cloneModelState(entry.pgnModel),
       pgnText: entry.pgnText,
       currentPly: entry.currentPly,
@@ -118,7 +111,7 @@ export const createGameSessionModel = ({
    * @param {string} fallbackTitle - Fallback title.
    * @returns {string} Human-friendly title.
    */
-  const deriveSessionTitle = (pgnModel, fallbackTitle) => {
+  const deriveSessionTitle = (pgnModel: any, fallbackTitle: any): any => {
     const white = getHeaderValueFn(pgnModel, "White", "").trim();
     const black = getHeaderValueFn(pgnModel, "Black", "").trim();
     if (white && black) return `${white} - ${black}`;
@@ -133,7 +126,7 @@ export const createGameSessionModel = ({
    * @param {string} pgnText - Raw PGN source.
    * @returns {object} Session snapshot.
    */
-  const createSessionFromPgnText = (pgnText) => {
+  const createSessionFromPgnText = (pgnText: any): any => {
     const pgnModel = ensureRequiredPgnHeadersFn(parsePgnToModelFn(pgnText));
     const normalizedPgnText = serializeModelToPgnFn(pgnModel);
     const movePositionById = buildMovePositionByIdFn(pgnModel);
@@ -176,7 +169,7 @@ export const createGameSessionModel = ({
    *
    * @param {object} snapshot - Session snapshot.
    */
-  const disposeSessionSnapshot = (snapshot) => {
+  const disposeSessionSnapshot = (snapshot: any): any => {
     if (!snapshot) return;
     snapshot.pgnModel = null;
     snapshot.pgnText = "";

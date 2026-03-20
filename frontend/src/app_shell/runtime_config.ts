@@ -1,23 +1,34 @@
 /**
- * App shell runtime configuration component.
+ * Runtime Config module.
  *
  * Integration API:
- * - Create once with `createRuntimeConfigCapabilities(...)`.
- * - Call `applyRuntimeConfig(config)` after config is loaded or when toggles
- *   affecting visibility/styles change.
+ * - Primary exports from this module: `createRuntimeConfigCapabilities`.
  *
  * Configuration API:
- * - Reads `config.textEditor` keys:
- *   - `fontSizePx`, `lineHeight`, `maxHeightVh` (CSS variables)
- *   - `showAstView`, `showDomView` (dock tab visibility)
- * - Uses sane numeric bounds before applying values.
+ * - Configuration is provided via typed function parameters/options in these exports
+ *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - Writes merged config into `state.appConfig`.
- * - Updates CSS variables on `document.documentElement`.
- * - Shows/hides AST/DOM panels and normalizes `state.activeDevTab` when a tab
- *   becomes unavailable.
+ * - This module communicates through shared `state`, DOM; interactions are explicit in
+ *   exported function signatures and typed callback contracts.
  */
+
+type RuntimeConfigState = {
+  appConfig: Record<string, unknown>;
+  isDeveloperToolsEnabled: boolean;
+  isDevDockOpen: boolean;
+  activeDevTab: string;
+};
+
+type RuntimeConfigDeps = {
+  state: RuntimeConfigState;
+  astWrapEl: HTMLElement | null;
+  domWrapEl: HTMLElement | null;
+};
+
+type RuntimeConfigCapabilities = {
+  applyRuntimeConfig: (config?: Record<string, unknown>) => void;
+};
 
 /**
  * Create runtime configuration capabilities for UI-facing config application.
@@ -28,13 +39,13 @@
  * @param {HTMLElement|null} deps.domWrapEl - DOM panel wrapper element.
  * @returns {{applyRuntimeConfig: Function}} Runtime config methods.
  */
-export const createRuntimeConfigCapabilities = ({ state, astWrapEl, domWrapEl }) => {
+export const createRuntimeConfigCapabilities = ({ state, astWrapEl, domWrapEl }: RuntimeConfigDeps): RuntimeConfigCapabilities => {
   /**
    * Apply merged runtime config to app state and UI.
    *
    * @param {object} [config={}] - Merged runtime config.
    */
-  const applyRuntimeConfig = (config: Record<string, unknown> = {}) => {
+  const applyRuntimeConfig = (config: Record<string, unknown> = {}): void => {
     state.appConfig = config;
     const textEditorConfig = config?.textEditor && typeof config.textEditor === "object"
       ? (config.textEditor as Record<string, unknown>)

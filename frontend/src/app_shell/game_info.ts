@@ -1,24 +1,16 @@
 /**
- * App shell game-info component.
+ * Game Info module.
  *
  * Integration API:
- * - Exposes `GAME_INFO_HEADER_FIELDS` and `PLAYER_NAME_HEADER_KEYS` for layout
- *   generation and input wiring.
- * - Exposes render/sync helpers used each frame:
- *   - `renderGameInfoSummary(...)`
- *   - `syncGameInfoEditorUi(...)`
- *   - `syncGameInfoEditorValues(...)`
- * - Exposes normalization helpers for header/player name handling.
+ * - Primary exports from this module: `PLAYER_NAME_HEADER_KEYS`, `GAME_INFO_HEADER_FIELDS`, `parsePlayerRecord`, `formatPlayerRecordName`, `normalizePlayerRecords`, `buildPlayerNameSuggestions`, `normalizeGameInfoHeaderValue`, `renderGameInfoSummary`, ....
  *
  * Configuration API:
- * - Configure editable tags, control types, placeholders, and option lists via
- *   `GAME_INFO_HEADER_FIELDS`.
- * - ECO lookup behavior is configured through model helpers (`resolveEcoOpeningName`).
+ * - Configuration is provided via typed function parameters/options in these exports
+ *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - Reads header values from `pgnModel`.
- * - Writes summary/editor values to supplied DOM refs.
- * - Does not bind events itself; wiring modules call these helpers.
+ * - This module communicates through shared `state`, DOM; interactions are explicit in
+ *   exported function signatures and typed callback contracts.
  */
 
 import {
@@ -172,7 +164,7 @@ const normalizeAnnotatorList = (rawValue: unknown): string => {
   if (!source) return "";
   return source
     .split(":")
-    .map((entry) => normalizePersonName(entry))
+    .map((entry: string): string => normalizePersonName(entry))
     .filter(Boolean)
     .join(":");
 };
@@ -221,19 +213,21 @@ export const formatPlayerRecordName = (
  */
 export const normalizePlayerRecords = (records: unknown): PlayerRecord[] => {
   const byKey = new Map<string, PlayerRecord>();
-  (Array.isArray(records) ? records : []).forEach((entry) => {
+  (Array.isArray(records) ? records : []).forEach((entry: unknown): void => {
+    const entryObject: Record<string, unknown> | null =
+      entry && typeof entry === "object" ? (entry as Record<string, unknown>) : null;
     const maybeName = typeof entry === "string"
       ? entry
       : formatPlayerRecordName({
-        lastName: entry?.lastName || entry?.name || "",
-        firstName: entry?.firstName || "",
+        lastName: String(entryObject?.lastName ?? entryObject?.name ?? ""),
+        firstName: String(entryObject?.firstName ?? ""),
       });
     const parsed = parsePlayerRecord(maybeName);
     if (!parsed) return;
     const key = `${parsed.lastName.toLowerCase()}|${parsed.firstName.toLowerCase()}`;
     if (!byKey.has(key)) byKey.set(key, parsed);
   });
-  return [...byKey.values()].sort((left, right) => {
+  return [...byKey.values()].sort((left: PlayerRecord, right: PlayerRecord): number => {
     const lastCmp = left.lastName.localeCompare(right.lastName);
     if (lastCmp !== 0) return lastCmp;
     return left.firstName.localeCompare(right.firstName);
@@ -264,17 +258,17 @@ const scorePlayerSuggestion = (normalizedQuery: string, playerName: string): num
 export const buildPlayerNameSuggestions = (
   playerRecords: unknown,
   query: string,
-  limit = 8,
+  limit: number = 8,
 ): string[] => {
   const normalizedQuery = String(query ?? "").trim().toLowerCase();
   if (!normalizedQuery) return [];
   return normalizePlayerRecords(playerRecords)
-    .map((player) => formatPlayerRecordName(player))
-    .map((name) => ({ name, score: scorePlayerSuggestion(normalizedQuery, name) }))
-    .filter((entry) => entry.score >= 0)
-    .sort((left, right) => right.score - left.score || left.name.localeCompare(right.name))
+    .map((player: PlayerRecord): string => formatPlayerRecordName(player))
+    .map((name: string): {name: string; score: number} => ({ name, score: scorePlayerSuggestion(normalizedQuery, name) }))
+    .filter((entry: {name: string; score: number}): boolean => entry.score >= 0)
+    .sort((left: {name: string; score: number}, right: {name: string; score: number}): number => right.score - left.score || left.name.localeCompare(right.name))
     .slice(0, Math.max(1, limit))
-    .map((entry) => entry.name);
+    .map((entry: {name: string; score: number}): string => entry.name);
 };
 
 const abbreviateFirstNameInDisplay = (normalizedLastFirstName: string): string => {

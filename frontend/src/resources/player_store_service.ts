@@ -1,27 +1,24 @@
 /**
- * Player store service.
+ * Player Store Service module.
  *
  * Integration API:
- * - Create with `createPlayerStoreService({ state })`.
- * - Use `loadPlayerStoreFromClientData(seedPlayers)` during startup and
- *   `savePlayerStoreToClientData(players)` after edits.
+ * - Primary exports from this module: `createPlayerStoreService`.
  *
  * Configuration API:
- * - Storage target is configured by `state.gameRootPath` (Tauri runtime data root).
- * - Seed/fallback data is provided by caller as `seedPlayers`.
+ * - Configuration is provided via typed function parameters/options in these exports
+ *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - Reads player list from local runtime storage, normalizes/deduplicates entries,
- *   writes back normalized content.
- * - Updates `state.playerStore` with loaded or fallback values.
+ * - This module communicates through shared `state`, external I/O; interactions are explicit in
+ *   exported function signatures and typed callback contracts.
  */
 
 import type { PlayerRecord } from "../app_shell/app_state";
 import type { TauriInvokeFn } from "./tauri_invoke_types";
 
-const normalizePlayerNameField = (value) => String(value ?? "").trim();
+const normalizePlayerNameField = (value: any): any => String(value ?? "").trim();
 
-const normalizePlayerRecord = (record) => {
+const normalizePlayerRecord = (record: any): any => {
   if (!record || typeof record !== "object") return null;
   const lastName = normalizePlayerNameField(record.lastName || record.name || "");
   const firstName = normalizePlayerNameField(record.firstName || "");
@@ -29,15 +26,15 @@ const normalizePlayerRecord = (record) => {
   return { lastName, firstName };
 };
 
-const normalizePlayerRecords = (records) => {
+const normalizePlayerRecords = (records: any): any => {
   const byKey = new Map();
-  (Array.isArray(records) ? records : []).forEach((record) => {
+  (Array.isArray(records) ? records : []).forEach((record: any): any => {
     const normalized = normalizePlayerRecord(record);
     if (!normalized) return;
     const key = `${normalized.lastName.toLowerCase()}|${normalized.firstName.toLowerCase()}`;
     if (!byKey.has(key)) byKey.set(key, normalized);
   });
-  return [...byKey.values()].sort((left, right) => {
+  return [...byKey.values()].sort((left: any, right: any): any => {
     const lastCmp = left.lastName.localeCompare(right.lastName);
     if (lastCmp !== 0) return lastCmp;
     return left.firstName.localeCompare(right.firstName);
@@ -49,7 +46,7 @@ const normalizePlayerRecords = (records) => {
  *
  * @returns {boolean} True in Tauri runtime.
  */
-const isTauriRuntime = () => Boolean(window.__TAURI_INTERNALS__ || window.__TAURI__);
+const isTauriRuntime = (): any => Boolean(window.__TAURI_INTERNALS__ || window.__TAURI__);
 
 let tauriInvokeFnPromise: Promise<TauriInvokeFn> | null = null;
 /**
@@ -57,9 +54,9 @@ let tauriInvokeFnPromise: Promise<TauriInvokeFn> | null = null;
  *
  * @returns {Promise<Function>} Invoke function.
  */
-const getTauriInvoke = async () => {
+const getTauriInvoke = async (): Promise<any> => {
   if (!tauriInvokeFnPromise) {
-    tauriInvokeFnPromise = import("@tauri-apps/api/core").then((mod) => mod.invoke);
+    tauriInvokeFnPromise = import("@tauri-apps/api/core").then((mod: any): any => mod.invoke);
   }
   return tauriInvokeFnPromise;
 };
@@ -71,7 +68,7 @@ const getTauriInvoke = async () => {
  * @param {object} payload - Command payload.
  * @returns {Promise<unknown>} Command result.
  */
-const tauriInvoke = async (command, payload = {}) => {
+const tauriInvoke = async (command: any, payload: any = {}): Promise<any> => {
   const invoke = await getTauriInvoke();
   return invoke(command, payload);
 };
@@ -83,13 +80,13 @@ const tauriInvoke = async (command, payload = {}) => {
  * @param {object} deps.state - Shared app state.
  * @returns {{loadPlayerStoreFromClientData: Function, savePlayerStoreToClientData: Function}} Service API.
  */
-export const createPlayerStoreService = ({ state }) => {
+export const createPlayerStoreService = ({ state }: any): any => {
   /**
    * Persist player store into active local data area.
    *
    * @param {Array<{lastName: string, firstName: string}>} players - Player records to persist.
    */
-  const savePlayerStoreToClientData = async (players) => {
+  const savePlayerStoreToClientData = async (players: any): Promise<any> => {
     const normalizedPlayers = normalizePlayerRecords(players);
     if (!(state.gameRootPath && isTauriRuntime())) return;
     try {
@@ -108,7 +105,7 @@ export const createPlayerStoreService = ({ state }) => {
    * @param {Array<{lastName: string, firstName: string}>} seedPlayers - Seed list.
    * @returns {Promise<Array<{lastName: string, firstName: string}>>} Loaded/initialized players.
    */
-  const loadPlayerStoreFromClientData = async (seedPlayers: PlayerRecord[] = []) => {
+  const loadPlayerStoreFromClientData = async (seedPlayers: PlayerRecord[] = []): Promise<any> => {
     const normalizedSeedPlayers = normalizePlayerRecords(seedPlayers);
     if (!(state.gameRootPath && isTauriRuntime())) {
       state.playerStore = normalizedSeedPlayers;

@@ -1,20 +1,30 @@
 /**
- * App shell UI adapters.
+ * Ui Adapters module.
  *
  * Integration API:
- * - Create adapter helpers with `createUiAdapters(deps)` and inject into modules
- *   that should not depend directly on concrete DOM/panel implementations.
+ * - Primary exports from this module: `createUiAdapters`.
  *
  * Configuration API:
- * - Configure by passing DOM targets (`saveStatusEl`, `domViewEl`, `textEditorEl`)
- *   and concrete renderer/status callbacks.
+ * - Configuration is provided via typed function parameters/options in these exports
+ *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - Outbound methods:
- *   - `setSaveStatus(message, kind)` updates save status text/style.
- *   - `renderDomView()` rebuilds DOM preview from the editor root.
- * - No internal state; acts as a thin translation layer.
+ * - This module communicates through shared `state`, DOM; interactions are explicit in
+ *   exported function signatures and typed callback contracts.
  */
+
+type UiAdapterDeps = {
+  saveStatusEl: HTMLElement | null;
+  domViewEl: HTMLElement | null;
+  textEditorEl: HTMLElement | null;
+  setPgnSaveStatusFn: (saveStatusEl: HTMLElement | null, message: string, kind: string) => void;
+  renderDomPanelFn: (domViewEl: HTMLElement | null, sourceEl: HTMLElement | null) => void;
+};
+
+type UiAdapters = {
+  renderDomView: () => void;
+  setSaveStatus: (message?: string, kind?: string) => void;
+};
 
 /**
  * Create UI adapter callbacks used across runtime components.
@@ -35,21 +45,21 @@ export const createUiAdapters = ({
   textEditorEl,
   setPgnSaveStatusFn,
   renderDomPanelFn,
-}) => {
+}: UiAdapterDeps): UiAdapters => {
   /**
    * Update save status label and style.
    *
    * @param {string} [message=""] - Status message.
    * @param {string} [kind=""] - Status kind (`saving`, `saved`, `error`, or empty).
    */
-  const setSaveStatus = (message = "", kind = "") => {
+  const setSaveStatus = (message: string = "", kind: string = ""): void => {
     setPgnSaveStatusFn(saveStatusEl, message, kind);
   };
 
   /**
    * Render DOM panel preview from text editor content.
    */
-  const renderDomView = () => {
+  const renderDomView = (): void => {
     renderDomPanelFn(domViewEl, textEditorEl);
   };
 

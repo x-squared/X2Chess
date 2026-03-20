@@ -1,24 +1,67 @@
 import { syncAppViewRuntime } from "./view_runtime";
+import type { MovePositionRecord } from "../board/move_position";
+
+type RenderPipelineState = {
+  currentPly: number;
+  moves: string[];
+  pgnModel: unknown;
+  errorMessage: string;
+  isDeveloperToolsEnabled: boolean;
+  isDevDockOpen: boolean;
+  activeDevTab: string;
+  boardPreview: unknown | null;
+  selectedMoveId: string | null;
+  movePositionById: Record<string, MovePositionRecord>;
+  pendingFocusCommentId: string | null;
+  undoStack: unknown[];
+  redoStack: unknown[];
+  moveDelayMs: number;
+  pgnLayoutMode: string;
+  appConfig: Record<string, unknown>;
+  isAnimating: boolean;
+};
+
+type RenderPipelineDeps = {
+  state: RenderPipelineState;
+  t: (key: string, fallback?: string) => string;
+  boardCapabilities: unknown;
+  selectionRuntimeCapabilities: unknown;
+  els: Record<string, Element | null>;
+  buildGameAtPly: (ply: number) => unknown;
+  renderBoard: (game: unknown) => void;
+  renderMovesPanel: (params: {
+    movesEl: Element | null;
+    moves: string[];
+    pgnModel: unknown;
+    t: (key: string, fallback?: string) => string;
+  }) => void;
+  renderTextEditor: () => void;
+  renderAstPanel: () => void;
+  renderDomView: () => void;
+  renderResourceViewer: () => void;
+  renderGameInfoSummary: () => void;
+  syncGameInfoEditorValues: () => void;
+  syncGameInfoEditorUi: () => void;
+};
+
+type RenderPipelineCapabilities = {
+  renderFull: () => void;
+  renderLiveInput: () => void;
+};
 
 /**
- * App render pipeline component.
+ * Render Pipeline module.
  *
  * Integration API:
- * - Create with `createAppRenderPipeline(deps)` in composition root.
- * - Use returned methods:
- *   - `renderFull()` for normal frame rendering
- *   - `renderLiveInput()` for lightweight updates while editing raw PGN
+ * - Primary exports from this module: `createAppRenderPipeline`.
  *
  * Configuration API:
- * - Host configures what is rendered by passing callbacks (`renderBoard`,
- *   `renderTextEditor`, `renderResourceViewer`, etc.) and element refs in `deps.els`.
- * - Developer-dock panel rendering depends on `state.isDeveloperToolsEnabled`,
- *   `state.isDevDockOpen`, and `state.activeDevTab`.
+ * - Configuration is provided via typed function parameters/options in these exports
+ *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - Calls downstream component renderers in a defined order.
- * - Writes error/status text through provided DOM refs.
- * - Delegates final control-state synchronization to `syncAppViewRuntime(...)`.
+ * - This module communicates through shared `state`, DOM; interactions are explicit in
+ *   exported function signatures and typed callback contracts.
  */
 
 /**
@@ -58,11 +101,11 @@ export const createAppRenderPipeline = ({
   renderGameInfoSummary,
   syncGameInfoEditorValues,
   syncGameInfoEditorUi,
-}) => {
+}: RenderPipelineDeps): RenderPipelineCapabilities => {
   /**
    * Render full app frame and synchronize render-time runtime UI state.
    */
-  const renderFull = () => {
+  const renderFull = (): void => {
     const game = buildGameAtPly(state.currentPly);
     renderBoard(game);
     renderMovesPanel({
@@ -122,7 +165,7 @@ export const createAppRenderPipeline = ({
   /**
    * Render lightweight frame used while PGN text input is actively edited.
    */
-  const renderLiveInput = () => {
+  const renderLiveInput = (): void => {
     renderTextEditor();
     const shouldRenderAst = state.isDeveloperToolsEnabled
       && state.isDevDockOpen

@@ -1,23 +1,30 @@
 import { GAME_INFO_HEADER_FIELDS, PLAYER_NAME_HEADER_KEYS } from "./game_info";
 import { SUPPORTED_LOCALES } from "./i18n";
 
+type LayoutDeps = {
+  t: (key: string, fallback?: string) => string;
+  buildTimestampLabel: string;
+  currentLocale: string;
+  isDeveloperToolsEnabled: boolean;
+};
+
+type GameInfoField = (typeof GAME_INFO_HEADER_FIELDS)[number];
+
+type LocaleCode = (typeof SUPPORTED_LOCALES)[number];
+
 /**
- * App shell layout component.
+ * Layout module.
  *
  * Integration API:
- * - Call `createAppLayout({ t, buildTimestampLabel, currentLocale, isDeveloperToolsEnabled })`
- *   once at startup.
- * - Receives initial shell HTML + queried DOM refs used by wiring/render modules.
+ * - Primary exports from this module: `createAppLayout`.
  *
  * Configuration API:
- * - Configure initial labels and selectors via:
- *   - `t(...)` for all user-facing text,
- *   - `buildTimestampLabel` for footer badge,
- *   - `currentLocale` and `isDeveloperToolsEnabled` for initial control values.
+ * - Configuration is provided via typed function parameters/options in these exports
+ *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - Writes full app shell markup into `#app`.
- * - Returns a stable object of DOM refs; does not bind events itself.
+ * - This module communicates through shared `state`, DOM; interactions are explicit in
+ *   exported function signatures and typed callback contracts.
  */
 
 /**
@@ -30,17 +37,17 @@ import { SUPPORTED_LOCALES } from "./i18n";
  * @param {boolean} deps.isDeveloperToolsEnabled - Initial developer-tools toggle state.
  * @returns {object} Queried DOM references used by runtime components.
  */
-export const createAppLayout = ({ t, buildTimestampLabel, currentLocale, isDeveloperToolsEnabled }) => {
+export const createAppLayout = ({ t, buildTimestampLabel, currentLocale, isDeveloperToolsEnabled }: LayoutDeps) => {
   const app = document.querySelector("#app");
   if (!app) throw new Error("App root missing.");
-  const gameInfoEditorFieldsMarkup = GAME_INFO_HEADER_FIELDS.map((field) => {
+  const gameInfoEditorFieldsMarkup = GAME_INFO_HEADER_FIELDS.map((field: GameInfoField): string => {
     const id = `game-info-${field.key.toLowerCase()}`;
     const control = field.control || "text";
     const placeholder = field.placeholder || field.label;
     const controlMarkup = control === "select"
       ? `
       <select id="${id}" data-header-key="${field.key}">
-        ${(field.options || []).map((optionValue) => `
+        ${(field.options || []).map((optionValue: string): string => `
           <option value="${optionValue}">${optionValue || "-"}</option>
         `).join("")}
       </select>
@@ -96,7 +103,7 @@ export const createAppLayout = ({ t, buildTimestampLabel, currentLocale, isDevel
           <label class="inline-control">
             ${t("controls.language", "Language")}
             <select id="locale-input">
-              ${SUPPORTED_LOCALES.map((localeCode) => (
+              ${SUPPORTED_LOCALES.map((localeCode: LocaleCode): string => (
     `<option value="${localeCode}" ${localeCode === currentLocale ? "selected" : ""}>${localeCode.toUpperCase()}</option>`
   )).join("")}
             </select>
@@ -345,7 +352,7 @@ export const createAppLayout = ({ t, buildTimestampLabel, currentLocale, isDevel
   `;
 
   return {
-    boardEl: document.querySelector("#board"),
+    boardEl: document.querySelector<HTMLElement>("#board"),
     statusEl: document.querySelector("#status"),
     movesEl: document.querySelector("#moves"),
     errorEl: document.querySelector("#error"),
@@ -368,23 +375,23 @@ export const createAppLayout = ({ t, buildTimestampLabel, currentLocale, isDevel
     btnCommentRight: document.querySelector("#btn-comment-right"),
     btnLinebreak: document.querySelector("#btn-linebreak"),
     btnIndent: document.querySelector("#btn-indent"),
-    speedInput: document.querySelector("#speed-input"),
-    speedValue: document.querySelector("#speed-value"),
-    soundInput: document.querySelector("#sound-input"),
-    localeInput: document.querySelector("#locale-input"),
-    developerToolsInput: document.querySelector("#developer-tools-input"),
-    btnDevDockToggle: document.querySelector("#btn-dev-dock-toggle"),
-    btnDevDockClose: document.querySelector("#btn-dev-dock-close"),
-    saveModeInput: document.querySelector("#save-mode-input"),
-    btnSaveActiveGame: document.querySelector("#btn-save-active-game"),
-    saveStatusEl: document.querySelector("#save-status"),
+    speedInput: document.querySelector<HTMLInputElement>("#speed-input"),
+    speedValue: document.querySelector<HTMLElement>("#speed-value"),
+    soundInput: document.querySelector<HTMLInputElement>("#sound-input"),
+    localeInput: document.querySelector<HTMLSelectElement>("#locale-input"),
+    developerToolsInput: document.querySelector<HTMLInputElement>("#developer-tools-input"),
+    btnDevDockToggle: document.querySelector<HTMLButtonElement>("#btn-dev-dock-toggle"),
+    btnDevDockClose: document.querySelector<HTMLButtonElement>("#btn-dev-dock-close"),
+    saveModeInput: document.querySelector<HTMLSelectElement>("#save-mode-input"),
+    btnSaveActiveGame: document.querySelector<HTMLButtonElement>("#btn-save-active-game"),
+    saveStatusEl: document.querySelector<HTMLElement>("#save-status"),
     gameTabsEl: document.querySelector("#game-tabs"),
     gameDropOverlayEl: document.querySelector("#game-drop-overlay"),
-    boardEditorBoxEl: document.querySelector("#board-editor-box"),
-    boardEditorResizeHandleEl: document.querySelector("#board-editor-resize-handle"),
+    boardEditorBoxEl: document.querySelector<HTMLElement>("#board-editor-box"),
+    boardEditorResizeHandleEl: document.querySelector<HTMLElement>("#board-editor-resize-handle"),
     boardEditorPaneEl: document.querySelector(".board-editor-pane"),
-    resourceViewerCardEl: document.querySelector(".resource-viewer-card"),
-    resourceViewerResizeHandleEl: document.querySelector("#resource-viewer-resize-handle"),
+    resourceViewerCardEl: document.querySelector<HTMLElement>(".resource-viewer-card"),
+    resourceViewerResizeHandleEl: document.querySelector<HTMLElement>("#resource-viewer-resize-handle"),
     btnOpenResource: document.querySelector("#btn-open-resource"),
     btnResourceMetadata: document.querySelector("#btn-resource-metadata"),
     resourceMetadataDialogEl: document.querySelector("#resource-metadata-dialog"),
@@ -396,30 +403,30 @@ export const createAppLayout = ({ t, buildTimestampLabel, currentLocale, isDevel
     resourceTabsEl: document.querySelector("#resource-tabs"),
     resourceTableWrapEl: document.querySelector("#resource-table-wrap"),
     runtimeBuildBadgeEl: document.querySelector("#runtime-build-badge"),
-    developerDockEl: document.querySelector("#developer-dock"),
-    devDockResizeHandleEl: document.querySelector("#dev-dock-resize-handle"),
+    developerDockEl: document.querySelector<HTMLElement>("#developer-dock"),
+    devDockResizeHandleEl: document.querySelector<HTMLElement>("#dev-dock-resize-handle"),
     devTabBtnAst: document.querySelector("#dev-tab-btn-ast"),
     devTabBtnDom: document.querySelector("#dev-tab-btn-dom"),
     devTabBtnPgn: document.querySelector("#dev-tab-btn-pgn"),
     devTabAstEl: document.querySelector("#dev-tab-ast"),
     devTabDomEl: document.querySelector("#dev-tab-dom"),
     devTabPgnEl: document.querySelector("#dev-tab-pgn"),
-    astWrapEl: document.querySelector("#ast-wrap"),
-    domWrapEl: document.querySelector("#dom-wrap"),
-    btnMenu: document.querySelector("#btn-menu"),
-    btnMenuClose: document.querySelector("#btn-menu-close"),
-    menuPanel: document.querySelector("#app-menu-panel"),
-    menuBackdrop: document.querySelector("#menu-backdrop"),
-    btnGameInfoEdit: document.querySelector("#btn-game-info-edit"),
-    gameInfoEditorEl: document.querySelector("#game-info-editor"),
-    gameInfoPlayersValueEl: document.querySelector("#game-info-players-value"),
-    gameInfoEventValueEl: document.querySelector("#game-info-event-value"),
-    gameInfoDateValueEl: document.querySelector("#game-info-date-value"),
-    gameInfoOpeningValueEl: document.querySelector("#game-info-opening-value"),
-    gameInfoSuggestionEls: Array.from(document.querySelectorAll("[data-player-suggestions-for]")),
-    gameInfoInputs: Array.from(document.querySelectorAll("[data-header-key]")),
-    textEditorEl: document.querySelector("#text-editor"),
+    astWrapEl: document.querySelector<HTMLElement>("#ast-wrap"),
+    domWrapEl: document.querySelector<HTMLElement>("#dom-wrap"),
+    btnMenu: document.querySelector<HTMLButtonElement>("#btn-menu"),
+    btnMenuClose: document.querySelector<HTMLButtonElement>("#btn-menu-close"),
+    menuPanel: document.querySelector<HTMLElement>("#app-menu-panel"),
+    menuBackdrop: document.querySelector<HTMLElement>("#menu-backdrop"),
+    btnGameInfoEdit: document.querySelector<HTMLElement>("#btn-game-info-edit"),
+    gameInfoEditorEl: document.querySelector<HTMLElement>("#game-info-editor"),
+    gameInfoPlayersValueEl: document.querySelector<HTMLElement>("#game-info-players-value"),
+    gameInfoEventValueEl: document.querySelector<HTMLElement>("#game-info-event-value"),
+    gameInfoDateValueEl: document.querySelector<HTMLElement>("#game-info-date-value"),
+    gameInfoOpeningValueEl: document.querySelector<HTMLElement>("#game-info-opening-value"),
+    gameInfoSuggestionEls: Array.from(document.querySelectorAll<HTMLElement>("[data-player-suggestions-for]")),
+    gameInfoInputs: Array.from(document.querySelectorAll<HTMLInputElement | HTMLSelectElement>("[data-header-key]")),
+    textEditorEl: document.querySelector<HTMLElement>("#text-editor"),
     astViewEl: document.querySelector("#ast-view"),
-    domViewEl: document.querySelector("#dom-view"),
+    domViewEl: document.querySelector<HTMLElement>("#dom-view"),
   };
 };

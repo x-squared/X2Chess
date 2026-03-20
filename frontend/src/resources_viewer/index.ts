@@ -1,17 +1,18 @@
 import { createResourceMetadataPrefs } from "./resource_metadata_prefs.js";
 
 /**
- * Resource-Viewer component.
+ * Index module.
  *
  * Integration API:
- * - `createResourceViewerCapabilities(deps)` returns tab + table render/event helpers.
+ * - Primary exports from this module: `createResourceViewerCapabilities`.
  *
  * Configuration API:
- * - Host provides shared state, i18n callback, DOM refs, and list callback per resource.
+ * - Configuration is provided via typed function parameters/options in these exports
+ *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - Mutates `state.resourceViewerTabs` and `state.activeResourceTabId`.
- * - Requests game lists from host via `deps.listGamesForResource`.
+ * - This module communicates through shared `state`, DOM; interactions are explicit in
+ *   exported function signatures and typed callback contracts.
  */
 
 /**
@@ -20,7 +21,7 @@ import { createResourceMetadataPrefs } from "./resource_metadata_prefs.js";
  * @param {{kind?: string, locator?: string}} resourceRef - Resource reference.
  * @returns {string} Stable tab id.
  */
-const buildResourceTabId = (resourceRef) => {
+const buildResourceTabId = (resourceRef: any): any => {
   const kind = String(resourceRef?.kind || "unknown");
   const locator = String(resourceRef?.locator || "default");
   return `resource-${kind}-${locator}`.replace(/[^a-zA-Z0-9_-]/g, "_");
@@ -45,7 +46,7 @@ const buildResourceTabId = (resourceRef) => {
  * @param {Function} deps.listGamesForResource - Callback `(resourceRef) => Promise<Array<object>>`.
  * @param {Function} [deps.onRequestOpenResource] - Callback `() => void|Promise<void>`.
  * @param {Function} [deps.onOpenGameBySourceRef] - Callback `(sourceRef) => void|Promise<void>`.
- * @returns {{bindEvents: Function, closeTab: Function, getActiveResourceRef: Function, refreshActiveTabRows: Function, render: Function, selectTab: Function, setTabs: Function, upsertTab: Function}} Capabilities.
+ * @returns {{bindEvents: Function, closeTab: Function, getActiveResourceRef: Function, refreshActiveTabRows: Function, render: Function, selectTab: Function, setTabs: Function, upsertTab: Function}} Capabilities that own resource-tab lifecycle, table rendering, metadata-column UI, and row-open callbacks.
  */
 export const createResourceViewerCapabilities = ({
   state,
@@ -63,7 +64,7 @@ export const createResourceViewerCapabilities = ({
   listGamesForResource,
   onRequestOpenResource,
   onOpenGameBySourceRef,
-}) => {
+}: any): any => {
   const metadataPrefs = createResourceMetadataPrefs({ state });
   let draggedColumnKey = "";
 
@@ -72,8 +73,8 @@ export const createResourceViewerCapabilities = ({
    *
    * @param {Array<{title: string, resourceRef: object}>} tabs - Tab descriptors.
    */
-  const setTabs = (tabs) => {
-    const normalized = (Array.isArray(tabs) ? tabs : []).map((tab) => ({
+  const setTabs = (tabs: any): any => {
+    const normalized = (Array.isArray(tabs) ? tabs : []).map((tab: any): any => ({
       tabId: buildResourceTabId(tab.resourceRef),
       title: String(tab.title || tab.resourceRef?.kind || "Resource"),
       resourceRef: tab.resourceRef || { kind: "file", locator: "default" },
@@ -87,11 +88,11 @@ export const createResourceViewerCapabilities = ({
       errorMessage: "",
       isLoading: false,
     }));
-    normalized.forEach((tab) => {
+    normalized.forEach((tab: any): any => {
       metadataPrefs.initializeTab(tab);
     });
     state.resourceViewerTabs = normalized;
-    if (!normalized.find((tab) => tab.tabId === state.activeResourceTabId)) {
+    if (!normalized.find((tab: any): any => tab.tabId === state.activeResourceTabId)) {
       state.activeResourceTabId = normalized[0]?.tabId || null;
     }
   };
@@ -102,10 +103,10 @@ export const createResourceViewerCapabilities = ({
    * @param {{title?: string, resourceRef: object, select?: boolean}} input - Tab input.
    * @returns {string|null} Upserted tab id.
    */
-  const upsertTab = ({ title = "", resourceRef, select = false }) => {
+  const upsertTab = ({ title = "", resourceRef, select = false }: any): any => {
     if (!resourceRef || typeof resourceRef !== "object") return null;
     const tabId = buildResourceTabId(resourceRef);
-    const existing = state.resourceViewerTabs.find((tab) => tab.tabId === tabId);
+    const existing = state.resourceViewerTabs.find((tab: any): any => tab.tabId === tabId);
     if (existing) {
       if (title) existing.title = String(title);
       if (select) state.activeResourceTabId = existing.tabId;
@@ -134,9 +135,9 @@ export const createResourceViewerCapabilities = ({
    *
    * @param {string} tabId - Target tab id.
    */
-  const selectTab = (tabId) => {
+  const selectTab = (tabId: any): any => {
     if (!tabId) return;
-    const exists = state.resourceViewerTabs.some((tab) => tab.tabId === tabId);
+    const exists = state.resourceViewerTabs.some((tab: any): any => tab.tabId === tabId);
     if (!exists) return;
     state.activeResourceTabId = tabId;
   };
@@ -146,8 +147,8 @@ export const createResourceViewerCapabilities = ({
    *
    * @param {string} tabId - Tab id to close.
    */
-  const closeTab = (tabId) => {
-    const index = state.resourceViewerTabs.findIndex((tab) => tab.tabId === tabId);
+  const closeTab = (tabId: any): any => {
+    const index = state.resourceViewerTabs.findIndex((tab: any): any => tab.tabId === tabId);
     if (index < 0) return;
     state.resourceViewerTabs.splice(index, 1);
     if (state.activeResourceTabId !== tabId) return;
@@ -158,8 +159,8 @@ export const createResourceViewerCapabilities = ({
   /**
    * Refresh rows for active tab from host source callback.
    */
-  const refreshActiveTabRows = async () => {
-    const active = state.resourceViewerTabs.find((tab) => tab.tabId === state.activeResourceTabId);
+  const refreshActiveTabRows = async (): Promise<any> => {
+    const active = state.resourceViewerTabs.find((tab: any): any => tab.tabId === state.activeResourceTabId);
     if (!active) return;
     active.isLoading = true;
     active.errorMessage = "";
@@ -181,28 +182,28 @@ export const createResourceViewerCapabilities = ({
    *
    * @returns {object|null} Active resource ref.
    */
-  const getActiveResourceRef = () => {
-    const active = state.resourceViewerTabs.find((tab) => tab.tabId === state.activeResourceTabId);
+  const getActiveResourceRef = (): any => {
+    const active = state.resourceViewerTabs.find((tab: any): any => tab.tabId === state.activeResourceTabId);
     return active?.resourceRef || null;
   };
 
-  const openActiveRowByIndex = (rowIndex) => {
+  const openActiveRowByIndex = (rowIndex: any): any => {
     if (!Number.isInteger(rowIndex) || rowIndex < 0) return;
-    const active = state.resourceViewerTabs.find((tab) => tab.tabId === state.activeResourceTabId);
+    const active = state.resourceViewerTabs.find((tab: any): any => tab.tabId === state.activeResourceTabId);
     const row = active?.rows?.[rowIndex];
     if (!row?.sourceRef) return;
     if (typeof onOpenGameBySourceRef === "function") {
-      void Promise.resolve(onOpenGameBySourceRef(row.sourceRef)).catch(() => {});
+      void Promise.resolve(onOpenGameBySourceRef(row.sourceRef)).catch((): any => {});
     }
   };
 
   /**
    * Render tabs and table body.
    */
-  const render = () => {
+  const render = (): any => {
     if (resourceTabsEl) {
       resourceTabsEl.innerHTML = "";
-      state.resourceViewerTabs.forEach((tab) => {
+      state.resourceViewerTabs.forEach((tab: any): any => {
         const active = tab.tabId === state.activeResourceTabId;
         const tabEl = document.createElement("div");
         tabEl.className = `resource-tab${active ? " active" : ""}`;
@@ -231,7 +232,7 @@ export const createResourceViewerCapabilities = ({
     }
 
     if (!resourceTableWrapEl) return;
-    const active = state.resourceViewerTabs.find((tab) => tab.tabId === state.activeResourceTabId);
+    const active = state.resourceViewerTabs.find((tab: any): any => tab.tabId === state.activeResourceTabId);
     if (!active) {
       resourceTableWrapEl.innerHTML = `<p class="resource-viewer-empty">${t("resources.noTabs", "No resource tab is open.")}</p>`;
       return;
@@ -249,25 +250,25 @@ export const createResourceViewerCapabilities = ({
       return;
     }
     const headerGame = t("resources.table.game", "Game");
-    const resolveMetadataLabel = (fieldKey) => {
+    const resolveMetadataLabel = (fieldKey: any): any => {
       if (fieldKey === "identifier") return t("resources.table.identifier", "Identifier");
       if (fieldKey === "source") return t("resources.table.source", "Source");
       if (fieldKey === "revision") return t("resources.table.revision", "Revision");
       return fieldKey;
     };
     const selectedColumnKeys = metadataPrefs.reconcileTabColumnState(active);
-    const selectedMetadataHeadersMarkup = selectedColumnKeys.map((fieldKey) => (
+    const selectedMetadataHeadersMarkup = selectedColumnKeys.map((fieldKey: any): any => (
       `<th draggable="true" data-resource-col-key="${fieldKey}">
         <span>${fieldKey === "game" ? headerGame : resolveMetadataLabel(fieldKey)}</span>
         <span class="resource-col-resize-handle" data-resource-resize-key="${fieldKey}" aria-hidden="true"></span>
       </th>`
     )).join("");
-    const colGroupMarkup = selectedColumnKeys.map((fieldKey) => (
+    const colGroupMarkup = selectedColumnKeys.map((fieldKey: any): any => (
       `<col data-resource-col-key="${fieldKey}" style="width:${metadataPrefs.clampColumnWidth(active.columnWidths?.[fieldKey])}px;" />`
     )).join("");
-    const rowsMarkup = active.rows.map((row, index) => `
+    const rowsMarkup = active.rows.map((row: any, index: any): any => `
       <tr data-resource-row-index="${index}" class="resource-game-row">
-        ${selectedColumnKeys.map((fieldKey) => {
+        ${selectedColumnKeys.map((fieldKey: any): any => {
     if (fieldKey === "game") {
       return `
             <td>
@@ -296,21 +297,21 @@ export const createResourceViewerCapabilities = ({
         </tbody>
       </table>
     `;
-    resourceTableWrapEl.querySelectorAll("[data-resource-row-index]").forEach((rowEl) => {
+    resourceTableWrapEl.querySelectorAll("[data-resource-row-index]").forEach((rowEl: any): any => {
       if (!(rowEl instanceof HTMLElement)) return;
-      rowEl.addEventListener("pointerup", () => {
+      rowEl.addEventListener("pointerup", (): any => {
         const rowIndex = Number(rowEl.dataset.resourceRowIndex);
         openActiveRowByIndex(rowIndex);
       });
     });
   };
 
-  const openMetadataDialogForActiveTab = () => {
-    const active = state.resourceViewerTabs.find((tab) => tab.tabId === state.activeResourceTabId);
+  const openMetadataDialogForActiveTab = (): any => {
+    const active = state.resourceViewerTabs.find((tab: any): any => tab.tabId === state.activeResourceTabId);
     if (!active || !resourceMetadataDialogEl || !resourceMetadataFieldsEl) return;
     const catalog = metadataPrefs.buildAvailableMetadataCatalog(active);
     const selected = new Set(active.visibleMetadataKeys || []);
-    resourceMetadataFieldsEl.innerHTML = catalog.map((field) => `
+    resourceMetadataFieldsEl.innerHTML = catalog.map((field: any): any => `
       <label class="resource-metadata-option">
         <input
           type="checkbox"
@@ -328,7 +329,7 @@ export const createResourceViewerCapabilities = ({
     }
   };
 
-  const closeMetadataDialog = () => {
+  const closeMetadataDialog = (): any => {
     if (!resourceMetadataDialogEl) return;
     if (typeof resourceMetadataDialogEl.close === "function") {
       resourceMetadataDialogEl.close();
@@ -337,19 +338,19 @@ export const createResourceViewerCapabilities = ({
     }
   };
 
-  const applyMetadataDialogSelection = () => {
-    const active = state.resourceViewerTabs.find((tab) => tab.tabId === state.activeResourceTabId);
+  const applyMetadataDialogSelection = (): any => {
+    const active = state.resourceViewerTabs.find((tab: any): any => tab.tabId === state.activeResourceTabId);
     if (!active || !resourceMetadataFieldsEl) return;
     const selectedKeys = Array.from(
       resourceMetadataFieldsEl.querySelectorAll("input[data-resource-metadata-key]:checked"),
-    ).map((input) => String((input as Element).getAttribute("data-resource-metadata-key") || ""));
+    ).map((input: any): any => String((input as Element).getAttribute("data-resource-metadata-key") || ""));
     metadataPrefs.applySelection(active, selectedKeys, Boolean(resourceMetadataApplyAllEl?.checked));
     closeMetadataDialog();
     render();
   };
 
-  const resetMetadataColumnsForActiveTab = () => {
-    const active = state.resourceViewerTabs.find((tab) => tab.tabId === state.activeResourceTabId);
+  const resetMetadataColumnsForActiveTab = (): any => {
+    const active = state.resourceViewerTabs.find((tab: any): any => tab.tabId === state.activeResourceTabId);
     if (!active) return;
     metadataPrefs.resetTabToDefaults(active);
     closeMetadataDialog();
@@ -359,37 +360,37 @@ export const createResourceViewerCapabilities = ({
   /**
    * Bind tab click events.
    */
-  const bindEvents = () => {
+  const bindEvents = (): any => {
     if (btnResourceMetadata) {
-      btnResourceMetadata.addEventListener("click", () => {
+      btnResourceMetadata.addEventListener("click", (): any => {
         openMetadataDialogForActiveTab();
       });
     }
     if (btnOpenResource) {
-      btnOpenResource.addEventListener("click", () => {
+      btnOpenResource.addEventListener("click", (): any => {
         if (typeof onRequestOpenResource === "function") {
           void Promise.resolve(onRequestOpenResource());
         }
       });
     }
     if (btnResourceMetadataCancel) {
-      btnResourceMetadataCancel.addEventListener("click", () => {
+      btnResourceMetadataCancel.addEventListener("click", (): any => {
         closeMetadataDialog();
       });
     }
     if (btnResourceMetadataReset) {
-      btnResourceMetadataReset.addEventListener("click", () => {
+      btnResourceMetadataReset.addEventListener("click", (): any => {
         resetMetadataColumnsForActiveTab();
       });
     }
     if (btnResourceMetadataSave) {
-      btnResourceMetadataSave.addEventListener("click", (event) => {
+      btnResourceMetadataSave.addEventListener("click", (event: any): any => {
         event.preventDefault();
         applyMetadataDialogSelection();
       });
     }
     if (!resourceTabsEl) return;
-    resourceTabsEl.addEventListener("click", (event) => {
+    resourceTabsEl.addEventListener("click", (event: any): any => {
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;
       const action = target.dataset.resourceAction;
@@ -402,21 +403,21 @@ export const createResourceViewerCapabilities = ({
       }
       if (action === "select") {
         selectTab(tabId);
-        void refreshActiveTabRows().then(() => render());
+        void refreshActiveTabRows().then((): any => render());
       }
     });
     if (resourceTableWrapEl) {
       let activeColumnResize: { key: string; startClientX: number; startWidth: number } | null = null;
-      const resolveActiveTab = () => state.resourceViewerTabs.find((tab) => tab.tabId === state.activeResourceTabId);
-      const applyLiveColumnWidth = (columnKey, widthPx) => {
+      const resolveActiveTab = (): any => state.resourceViewerTabs.find((tab: any): any => tab.tabId === state.activeResourceTabId);
+      const applyLiveColumnWidth = (columnKey: any, widthPx: any): any => {
         const colEls = resourceTableWrapEl.querySelectorAll("col[data-resource-col-key]");
-        colEls.forEach((colEl) => {
+        colEls.forEach((colEl: any): any => {
           if (!(colEl instanceof HTMLElement)) return;
           if (String(colEl.dataset.resourceColKey || "") !== String(columnKey || "")) return;
           colEl.style.width = `${metadataPrefs.clampColumnWidth(widthPx)}px`;
         });
       };
-      const resolveRowIndexFromEvent = (event) => {
+      const resolveRowIndexFromEvent = (event: any): any => {
         const path = typeof event.composedPath === "function" ? event.composedPath() : [];
         for (const entry of path) {
           if (!(entry instanceof HTMLElement)) continue;
@@ -433,7 +434,7 @@ export const createResourceViewerCapabilities = ({
         if (!Number.isInteger(parsed) || parsed < 0) return -1;
         return parsed;
       };
-      resourceTableWrapEl.addEventListener("dragstart", (event) => {
+      resourceTableWrapEl.addEventListener("dragstart", (event: any): any => {
         const target = event.target;
         if (!(target instanceof HTMLElement)) return;
         const headerEl = target.closest("th[data-resource-col-key]");
@@ -445,14 +446,14 @@ export const createResourceViewerCapabilities = ({
           event.dataTransfer.effectAllowed = "move";
         }
       });
-      resourceTableWrapEl.addEventListener("dragover", (event) => {
+      resourceTableWrapEl.addEventListener("dragover", (event: any): any => {
         const target = event.target;
         if (!(target instanceof HTMLElement)) return;
         const headerEl = target.closest("th[data-resource-col-key]");
         if (!(headerEl instanceof HTMLElement)) return;
         event.preventDefault();
       });
-      resourceTableWrapEl.addEventListener("drop", (event) => {
+      resourceTableWrapEl.addEventListener("drop", (event: any): any => {
         const target = event.target;
         if (!(target instanceof HTMLElement)) return;
         const headerEl = target.closest("th[data-resource-col-key]");
@@ -472,10 +473,10 @@ export const createResourceViewerCapabilities = ({
         metadataPrefs.persistTabPrefs(activeTab);
         render();
       });
-      resourceTableWrapEl.addEventListener("dragend", () => {
+      resourceTableWrapEl.addEventListener("dragend", (): any => {
         draggedColumnKey = "";
       });
-      resourceTableWrapEl.addEventListener("pointerdown", (event) => {
+      resourceTableWrapEl.addEventListener("pointerdown", (event: any): any => {
         const target = event.target;
         if (!(target instanceof HTMLElement)) return;
         const handle = target.closest("[data-resource-resize-key]");
@@ -493,7 +494,7 @@ export const createResourceViewerCapabilities = ({
         };
         handle.setPointerCapture?.(event.pointerId);
       });
-      window.addEventListener("pointermove", (event) => {
+      window.addEventListener("pointermove", (event: any): any => {
         if (!activeColumnResize) return;
         const activeTab = resolveActiveTab();
         if (!activeTab) return;
@@ -502,7 +503,7 @@ export const createResourceViewerCapabilities = ({
         activeTab.columnWidths[activeColumnResize.key] = widthPx;
         applyLiveColumnWidth(activeColumnResize.key, widthPx);
       });
-      const finishColumnResize = () => {
+      const finishColumnResize = (): any => {
         if (!activeColumnResize) return;
         const activeTab = resolveActiveTab();
         if (activeTab) metadataPrefs.persistTabPrefs(activeTab);
@@ -510,15 +511,15 @@ export const createResourceViewerCapabilities = ({
       };
       window.addEventListener("pointerup", finishColumnResize);
       window.addEventListener("pointercancel", finishColumnResize);
-      resourceTableWrapEl.addEventListener("click", (event) => {
+      resourceTableWrapEl.addEventListener("click", (event: any): any => {
         const rowIndex = resolveRowIndexFromEvent(event);
         openActiveRowByIndex(rowIndex);
       });
-      resourceTableWrapEl.addEventListener("dblclick", (event) => {
+      resourceTableWrapEl.addEventListener("dblclick", (event: any): any => {
         const rowIndex = resolveRowIndexFromEvent(event);
         openActiveRowByIndex(rowIndex);
       });
-      resourceTableWrapEl.addEventListener("keydown", (event) => {
+      resourceTableWrapEl.addEventListener("keydown", (event: any): any => {
         if (event.key !== "Enter" && event.key !== " ") return;
         const rowIndex = resolveRowIndexFromEvent(event);
         if (rowIndex < 0) return;

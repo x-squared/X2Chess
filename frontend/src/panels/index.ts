@@ -1,19 +1,16 @@
 /**
- * Panels Component-Contract
+ * Index module.
  *
  * Integration API:
- * - `ast_panel.render(container, pgnModel)`
- * - `renderDomPanel(domViewEl, sourceEl)`
- * - `renderMovesPanel({ movesEl, moves, pgnModel, t })`
- * - `setPgnSaveStatus(saveStatusEl, message, kind)`
+ * - Primary exports from this module: `(no direct exports)`.
  *
  * Configuration API:
- * - Panel presentation is owned by `panels/styles.css`.
- * - Consumer supplies target elements and translation function.
+ * - Configuration is provided via typed function parameters/options in these exports
+ *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - PGN panel helpers communicate through DOM updates and explicit arguments.
- * - AST/DOM panels communicate through render function calls.
+ * - This module communicates through typed return values and callbacks; interactions are explicit in
+ *   exported function signatures and typed callback contracts.
  */
 
 export { ast_panel } from "./ast_panel";

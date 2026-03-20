@@ -1,26 +1,18 @@
 import { DEFAULT_PGN_METADATA_KEYS } from "../resources/sources/types.js";
 
 /**
- * Resource metadata preference service for Resource-Viewer tabs.
+ * Resource Metadata Prefs module.
  *
  * Integration API:
- * - Create once via `createResourceMetadataPrefs({ state })`.
- * - Call `initializeTab(tab)` when tabs are created/restored.
- * - Call `hydrateRowsIntoTab(tab, entries, t)` after resource rows are listed.
- * - Use `persistTabPrefs(tab)`, `applySelection(tab, keys, applyToAll)`, and
- *   `resetTabToDefaults(tab)` from metadata-dialog and column interaction flows.
+ * - Primary exports from this module: `createResourceMetadataPrefs`.
  *
  * Configuration API:
- * - Uses `state.resourceViewerDefaultMetadataKeys` as default/fallback selection.
- * - Persists per-tab prefs into localStorage key
- *   `x2chess.resourceViewerColumnPrefs.v1`.
- * - Width constraints: min 90px, max 560px, default 160px.
+ * - Configuration is provided via typed function parameters/options in these exports
+ *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - Mutates tab objects in place (`visibleMetadataKeys`, `metadataColumnOrder`,
- *   `columnWidths`, `rows`, `availableMetadataKeys`).
- * - May update `state.resourceViewerDefaultMetadataKeys` when apply-to-all is used.
- * - No DOM access; pure state/persistence operations.
+ * - This module communicates through shared `state`, browser storage; interactions are explicit in
+ *   exported function signatures and typed callback contracts.
  */
 
 const RESOURCE_COLUMN_PREFS_STORAGE_KEY = "x2chess.resourceViewerColumnPrefs.v1";
@@ -34,16 +26,16 @@ const BUILTIN_METADATA_FIELDS = Object.freeze([
   { key: "identifier", label: "Identifier" },
   { key: "source", label: "Source" },
   { key: "revision", label: "Revision" },
-  ...PGN_METADATA_FIELDS.map((field) => ({ key: field, label: field })),
+  ...PGN_METADATA_FIELDS.map((field: any): any => ({ key: field, label: field })),
 ]);
 
 const normalizeMetadataSelection = (
-  rawKeys,
-  fallbackKeys = ["White", "Black", "Date", "Event", "ECO", "Opening", "Result"],
-) => {
+  rawKeys: any,
+  fallbackKeys: any = ["White", "Black", "Date", "Event", "ECO", "Opening", "Result"],
+): any => {
   const source = Array.isArray(rawKeys) ? rawKeys : fallbackKeys;
   const out: string[] = [];
-  source.forEach((value) => {
+  source.forEach((value: any): any => {
     const key = String(value || "").trim();
     if (!key || out.includes(key) || key === "game") return;
     out.push(key);
@@ -52,17 +44,17 @@ const normalizeMetadataSelection = (
   return out;
 };
 
-const normalizeColumnOrder = (order, allowedKeys) => {
-  const allowed = Array.isArray(allowedKeys) ? allowedKeys.map((key) => String(key || "")) : [];
+const normalizeColumnOrder = (order: any, allowedKeys: any): any => {
+  const allowed = Array.isArray(allowedKeys) ? allowedKeys.map((key: any): any => String(key || "")) : [];
   const seen = new Set<string>();
   const normalized: string[] = [];
-  (Array.isArray(order) ? order : []).forEach((key) => {
+  (Array.isArray(order) ? order : []).forEach((key: any): any => {
     const cleanKey = String(key || "");
     if (!cleanKey || seen.has(cleanKey) || !allowed.includes(cleanKey)) return;
     seen.add(cleanKey);
     normalized.push(cleanKey);
   });
-  allowed.forEach((key) => {
+  allowed.forEach((key: any): any => {
     if (seen.has(key)) return;
     seen.add(key);
     normalized.push(key);
@@ -70,13 +62,13 @@ const normalizeColumnOrder = (order, allowedKeys) => {
   return normalized;
 };
 
-const clampColumnWidth = (value) => {
+const clampColumnWidth = (value: any): any => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return DEFAULT_COLUMN_WIDTH_PX;
   return Math.max(MIN_COLUMN_WIDTH_PX, Math.min(MAX_COLUMN_WIDTH_PX, Math.round(parsed)));
 };
 
-const readColumnPrefsMap = () => {
+const readColumnPrefsMap = (): any => {
   try {
     const raw = window.localStorage?.getItem(RESOURCE_COLUMN_PREFS_STORAGE_KEY);
     if (!raw) return {};
@@ -88,7 +80,7 @@ const readColumnPrefsMap = () => {
   }
 };
 
-const writeColumnPrefsMap = (prefsMap) => {
+const writeColumnPrefsMap = (prefsMap: any): any => {
   try {
     window.localStorage?.setItem(RESOURCE_COLUMN_PREFS_STORAGE_KEY, JSON.stringify(prefsMap || {}));
   } catch {
@@ -96,16 +88,24 @@ const writeColumnPrefsMap = (prefsMap) => {
   }
 };
 
-export const createResourceMetadataPrefs = ({ state }) => {
+/**
+ * Create metadata preference helpers for resource viewer tabs.
+ *
+ * @param deps Factory dependencies.
+ * @param deps.state Shared resource-viewer state containing tabs and defaults.
+ * @returns Methods that initialize tab metadata columns, hydrate row metadata, persist
+ * column preferences, and apply/reset selections.
+ */
+export const createResourceMetadataPrefs = ({ state }: any): any => {
   const columnPrefsByTabId = readColumnPrefsMap();
 
-  const getPersistedPrefs = (tabId) => {
+  const getPersistedPrefs = (tabId: any): any => {
     const prefs = columnPrefsByTabId[String(tabId || "")];
     if (!prefs || typeof prefs !== "object") return null;
     return prefs;
   };
 
-  const reconcileTabColumnState = (tab) => {
+  const reconcileTabColumnState = (tab: any): any => {
     if (!tab) return [];
     const visibleMetadataKeys = normalizeMetadataSelection(
       tab.visibleMetadataKeys,
@@ -115,14 +115,14 @@ export const createResourceMetadataPrefs = ({ state }) => {
     const allowedColumnKeys = ["game", ...visibleMetadataKeys];
     tab.metadataColumnOrder = normalizeColumnOrder(tab.metadataColumnOrder, allowedColumnKeys);
     if (!tab.columnWidths || typeof tab.columnWidths !== "object") tab.columnWidths = {};
-    tab.metadataColumnOrder.forEach((columnKey) => {
+    tab.metadataColumnOrder.forEach((columnKey: any): any => {
       if (tab.columnWidths[columnKey] == null) tab.columnWidths[columnKey] = DEFAULT_COLUMN_WIDTH_PX;
       tab.columnWidths[columnKey] = clampColumnWidth(tab.columnWidths[columnKey]);
     });
     return tab.metadataColumnOrder;
   };
 
-  const applyPersistedPrefsToTab = (tab) => {
+  const applyPersistedPrefsToTab = (tab: any): any => {
     if (!tab?.tabId) return;
     const prefs = getPersistedPrefs(tab.tabId);
     if (!prefs) return;
@@ -134,15 +134,15 @@ export const createResourceMetadataPrefs = ({ state }) => {
     }
     if (prefs.columnWidths && typeof prefs.columnWidths === "object") {
       tab.columnWidths = Object.fromEntries(
-        Object.entries(prefs.columnWidths).map(([key, value]) => [String(key), clampColumnWidth(value)]),
+        Object.entries(prefs.columnWidths).map(([key, value]: any): any => [String(key), clampColumnWidth(value)]),
       );
     }
     if (Array.isArray(prefs.metadataColumnOrder)) {
-      tab.metadataColumnOrder = prefs.metadataColumnOrder.map((key) => String(key || "")).filter(Boolean);
+      tab.metadataColumnOrder = prefs.metadataColumnOrder.map((key: any): any => String(key || "")).filter(Boolean);
     }
   };
 
-  const persistTabPrefs = (tab) => {
+  const persistTabPrefs = (tab: any): any => {
     if (!tab?.tabId) return;
     columnPrefsByTabId[tab.tabId] = {
       visibleMetadataKeys: normalizeMetadataSelection(
@@ -151,28 +151,40 @@ export const createResourceMetadataPrefs = ({ state }) => {
       ),
       metadataColumnOrder: Array.isArray(tab.metadataColumnOrder) ? [...tab.metadataColumnOrder] : ["game"],
       columnWidths: Object.fromEntries(
-        Object.entries(tab.columnWidths || {}).map(([key, value]) => [String(key), clampColumnWidth(value)]),
+        Object.entries(tab.columnWidths || {}).map(([key, value]: any): any => [String(key), clampColumnWidth(value)]),
       ),
     };
     writeColumnPrefsMap(columnPrefsByTabId);
   };
 
-  const clearPersistedPrefsForTab = (tabId) => {
+  const clearPersistedPrefsForTab = (tabId: any): any => {
     const key = String(tabId || "");
     if (!key) return;
     delete columnPrefsByTabId[key];
     writeColumnPrefsMap(columnPrefsByTabId);
   };
 
-  const initializeTab = (tab) => {
+  /**
+   * Initialize one resource tab with persisted/default metadata preferences.
+   *
+   * @param tab Mutable resource tab object.
+   */
+  const initializeTab = (tab: any): any => {
     if (!tab) return;
     applyPersistedPrefsToTab(tab);
     reconcileTabColumnState(tab);
   };
 
-  const hydrateRowsIntoTab = (tab, entries, t) => {
+  /**
+   * Hydrate UI rows and discovered metadata keys for one tab.
+   *
+   * @param tab Target mutable tab object.
+   * @param entries Raw resource rows from source gateway.
+   * @param t Translation callback for fallback labels.
+   */
+  const hydrateRowsIntoTab = (tab: any, entries: any, t: any): any => {
     const discoveredKeys = new Set();
-    const rows = (Array.isArray(entries) ? entries : []).map((entry) => {
+    const rows = (Array.isArray(entries) ? entries : []).map((entry: any): any => {
       const sourceRef = entry?.sourceRef || {};
       const identifier = String(sourceRef.recordId || entry?.identifier || "");
       const metadata: Record<string, unknown> = {};
@@ -180,7 +192,7 @@ export const createResourceMetadataPrefs = ({ state }) => {
       metadata.source = String(sourceRef.kind || tab?.resourceRef?.kind || "");
       metadata.revision = String(entry?.revisionToken || "");
       if (entry?.metadata && typeof entry.metadata === "object") {
-        Object.entries(entry.metadata).forEach(([key, value]) => {
+        Object.entries(entry.metadata).forEach(([key, value]: any): any => {
           const cleanKey = String(key || "").trim();
           if (!cleanKey || cleanKey === "game") return;
           metadata[cleanKey] = value == null ? "" : String(value);
@@ -188,7 +200,7 @@ export const createResourceMetadataPrefs = ({ state }) => {
         });
       }
       if (Array.isArray(entry?.availableMetadataKeys)) {
-        entry.availableMetadataKeys.forEach((fieldKey) => {
+        entry.availableMetadataKeys.forEach((fieldKey: any): any => {
           const cleanKey = String(fieldKey || "").trim();
           if (!cleanKey || cleanKey === "game") return;
           discoveredKeys.add(cleanKey);
@@ -208,26 +220,39 @@ export const createResourceMetadataPrefs = ({ state }) => {
     reconcileTabColumnState(tab);
   };
 
-  const buildAvailableMetadataCatalog = (tab) => {
+  /**
+   * Build metadata-field catalog shown in metadata selection dialog.
+   *
+   * @param tab Resource tab object.
+   * @returns Ordered catalog entries (`key`, `label`).
+   */
+  const buildAvailableMetadataCatalog = (tab: any): any => {
     const catalog = [...BUILTIN_METADATA_FIELDS];
-    const known = new Set(catalog.map((field) => field.key));
+    const known = new Set(catalog.map((field: any): any => field.key));
     const dynamicKeys = new Set();
-    (tab?.availableMetadataKeys || []).forEach((fieldKey) => dynamicKeys.add(String(fieldKey || "")));
-    (tab?.rows || []).forEach((row) => {
+    (tab?.availableMetadataKeys || []).forEach((fieldKey: any): any => dynamicKeys.add(String(fieldKey || "")));
+    (tab?.rows || []).forEach((row: any): any => {
       if (!row?.metadata || typeof row.metadata !== "object") return;
-      Object.keys(row.metadata).forEach((fieldKey) => dynamicKeys.add(String(fieldKey || "")));
+      Object.keys(row.metadata).forEach((fieldKey: any): any => dynamicKeys.add(String(fieldKey || "")));
     });
     [...dynamicKeys]
-      .map((fieldKey) => String(fieldKey || "").trim())
-      .filter((fieldKey) => fieldKey && fieldKey !== "game" && !known.has(fieldKey))
-      .sort((left, right) => left.localeCompare(right))
-      .forEach((fieldKey) => {
+      .map((fieldKey: any): any => String(fieldKey || "").trim())
+      .filter((fieldKey: any): any => fieldKey && fieldKey !== "game" && !known.has(fieldKey))
+      .sort((left: any, right: any): any => left.localeCompare(right))
+      .forEach((fieldKey: any): any => {
         catalog.push({ key: fieldKey, label: fieldKey });
       });
     return catalog;
   };
 
-  const applySelection = (tab, selectedKeys, applyToAll = false) => {
+  /**
+   * Apply selected metadata columns to one tab (optionally all tabs).
+   *
+   * @param tab Target resource tab.
+   * @param selectedKeys Selected metadata keys.
+   * @param applyToAll Whether to apply the selection to all tabs and defaults.
+   */
+  const applySelection = (tab: any, selectedKeys: any, applyToAll: any = false): any => {
     if (!tab) return;
     const normalized = normalizeMetadataSelection(selectedKeys, state.resourceViewerDefaultMetadataKeys);
     tab.visibleMetadataKeys = normalized;
@@ -235,14 +260,19 @@ export const createResourceMetadataPrefs = ({ state }) => {
     persistTabPrefs(tab);
     if (!applyToAll) return;
     state.resourceViewerDefaultMetadataKeys = [...normalized];
-    state.resourceViewerTabs.forEach((candidate) => {
+    state.resourceViewerTabs.forEach((candidate: any): any => {
       candidate.visibleMetadataKeys = [...normalized];
       reconcileTabColumnState(candidate);
       persistTabPrefs(candidate);
     });
   };
 
-  const resetTabToDefaults = (tab) => {
+  /**
+   * Reset one tab metadata-column preferences to current defaults.
+   *
+   * @param tab Target resource tab.
+   */
+  const resetTabToDefaults = (tab: any): any => {
     if (!tab) return;
     clearPersistedPrefsForTab(tab.tabId);
     tab.visibleMetadataKeys = normalizeMetadataSelection(null, state.resourceViewerDefaultMetadataKeys);

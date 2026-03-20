@@ -1,21 +1,68 @@
+import type { MovePositionRecord } from "../board/move_position";
+
 /**
- * App view runtime component.
+ * View Runtime module.
  *
  * Integration API:
- * - Call `syncAppViewRuntime(deps)` at the end of each render cycle.
- * - Provide all control refs that need enabled/disabled, selected, or hidden
- *   synchronization with current runtime state.
+ * - Primary exports from this module: `syncAppViewRuntime`.
  *
  * Configuration API:
- * - Behavior is configured by incoming state values (for example `isDevDockOpen`,
- *   `activeDevTab`, `appConfig.textEditor.showAstView/showDomView`) and injected
- *   helper callbacks (`getFirstCommentMetadata`, `focusCommentById`).
+ * - Configuration is provided via typed function parameters/options in these exports
+ *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - Updates button disabled states, status labels, and dock tab visibility.
- * - Applies pending comment focus requests and clears `state.pendingFocusCommentId`.
- * - Keeps `state.selectedMoveId` aligned with current ply when possible.
+ * - This module communicates through shared `state`, DOM; interactions are explicit in
+ *   exported function signatures and typed callback contracts.
  */
+
+type ViewRuntimeState = {
+  boardPreview: unknown | null;
+  selectedMoveId: string | null;
+  currentPly: number;
+  movePositionById: Record<string, MovePositionRecord>;
+  isDeveloperToolsEnabled: boolean;
+  pendingFocusCommentId: string | null;
+  moves: string[];
+  isAnimating: boolean;
+  undoStack: unknown[];
+  redoStack: unknown[];
+  moveDelayMs: number;
+  pgnLayoutMode: string;
+  appConfig: Record<string, unknown> | null | undefined;
+  isDevDockOpen: boolean;
+  activeDevTab: string;
+};
+
+type ViewRuntimeDeps = {
+  state: ViewRuntimeState;
+  boardCapabilities: unknown;
+  t: (key: string, fallback?: string) => string;
+  statusEl: Element | null;
+  textEditorEl: Element | null;
+  selectionRuntimeCapabilities: unknown;
+  btnFirst: Element | null;
+  btnPrev: Element | null;
+  btnNext: Element | null;
+  btnLast: Element | null;
+  btnUndo: Element | null;
+  btnRedo: Element | null;
+  btnCommentLeft: Element | null;
+  btnCommentRight: Element | null;
+  btnLinebreak: Element | null;
+  btnIndent: Element | null;
+  btnPgnLayoutPlain: Element | null;
+  btnPgnLayoutText: Element | null;
+  btnPgnLayoutTree: Element | null;
+  developerDockEl: Element | null;
+  devTabBtnAst: Element | null;
+  devTabBtnDom: Element | null;
+  devTabBtnPgn: Element | null;
+  devTabAstEl: Element | null;
+  devTabDomEl: Element | null;
+  devTabPgnEl: Element | null;
+  runtimeBuildBadgeEl: Element | null;
+  speedValue: Element | null;
+};
 
 /**
  * Synchronize render-time UI state (selection alignment, status text, control disabled states, and pending focus).
@@ -79,14 +126,24 @@ export const syncAppViewRuntime = ({
   devTabPgnEl,
   runtimeBuildBadgeEl,
   speedValue,
-}) => {
+}: ViewRuntimeDeps): void => {
+  const boardApi = boardCapabilities as { getCurrentPly: () => number; getMoveCount: () => number };
+  const selectionApi = selectionRuntimeCapabilities as { focusCommentById: (commentId: string) => boolean };
+  const setHidden = (el: Element | null, hidden: boolean): void => {
+    if (el instanceof HTMLElement) el.hidden = hidden;
+  };
+
+  const setButtonDisabled = (el: Element | null, disabled: boolean): void => {
+    if (el instanceof HTMLButtonElement) el.disabled = disabled;
+  };
+
   if (!state.boardPreview) {
     if (!state.selectedMoveId) {
       if (state.currentPly <= 0) {
         state.selectedMoveId = null;
       } else {
         const selectedFromPly = Object.entries(state.movePositionById || {})
-          .find(([, position]) => {
+          .find(([, position]: [string, MovePositionRecord]): boolean => {
             const pos = position as { mainlinePly?: number };
             return Number.isInteger(pos?.mainlinePly) && pos.mainlinePly === state.currentPly;
           })?.[0] ?? null;
@@ -94,7 +151,7 @@ export const syncAppViewRuntime = ({
       }
     } else if (state.selectedMoveId && state.movePositionById?.[state.selectedMoveId]) {
       const selectedFromPly = Object.entries(state.movePositionById || {})
-        .find(([, position]) => {
+        .find(([, position]: [string, MovePositionRecord]): boolean => {
           const pos = position as { mainlinePly?: number };
           return Number.isInteger(pos?.mainlinePly) && pos.mainlinePly === state.currentPly;
         })?.[0] ?? null;
@@ -104,19 +161,19 @@ export const syncAppViewRuntime = ({
   }
 
   if (statusEl) {
-    const currentPly = boardCapabilities.getCurrentPly();
-    const totalMoves = boardCapabilities.getMoveCount();
+    const currentPly = boardApi.getCurrentPly();
+    const totalMoves = boardApi.getMoveCount();
     statusEl.textContent = state.boardPreview
       ? `${t("status.label", "Position")}: preview`
       : `${t("status.label", "Position")}: ${currentPly}/${totalMoves}`;
-    statusEl.hidden = !state.isDeveloperToolsEnabled;
+    if (statusEl instanceof HTMLElement) statusEl.hidden = !state.isDeveloperToolsEnabled;
   }
 
   if (state.pendingFocusCommentId) {
     const focusTarget = state.pendingFocusCommentId;
-    window.requestAnimationFrame(() => {
-      if (selectionRuntimeCapabilities.focusCommentById(focusTarget)) {
-        window.setTimeout(() => {
+    window.requestAnimationFrame((): void => {
+      if (selectionApi.focusCommentById(focusTarget)) {
+        window.setTimeout((): void => {
           const current = textEditorEl?.querySelector(`[data-comment-id="${focusTarget}"]`);
           if (current) current.classList.remove("text-editor-comment-new");
         }, 1600);
@@ -127,22 +184,22 @@ export const syncAppViewRuntime = ({
 
   const atStart = state.currentPly === 0;
   const atEnd = state.currentPly === state.moves.length;
-  if (btnFirst) btnFirst.disabled = atStart || state.isAnimating;
-  if (btnPrev) btnPrev.disabled = atStart || state.isAnimating;
-  if (btnNext) btnNext.disabled = atEnd || state.isAnimating;
-  if (btnLast) btnLast.disabled = atEnd || state.isAnimating;
-  if (btnUndo) btnUndo.disabled = state.undoStack.length === 0;
-  if (btnRedo) btnRedo.disabled = state.redoStack.length === 0;
+  setButtonDisabled(btnFirst, atStart || state.isAnimating);
+  setButtonDisabled(btnPrev, atStart || state.isAnimating);
+  setButtonDisabled(btnNext, atEnd || state.isAnimating);
+  setButtonDisabled(btnLast, atEnd || state.isAnimating);
+  setButtonDisabled(btnUndo, state.undoStack.length === 0);
+  setButtonDisabled(btnRedo, state.redoStack.length === 0);
   if (speedValue) speedValue.textContent = String(state.moveDelayMs);
   const hasSelectedMove = Boolean(state.selectedMoveId);
-  if (btnCommentLeft) btnCommentLeft.disabled = !hasSelectedMove;
-  if (btnCommentRight) btnCommentRight.disabled = !hasSelectedMove;
-  if (btnLinebreak) btnLinebreak.disabled = !hasSelectedMove;
-  if (btnIndent) btnIndent.disabled = !hasSelectedMove;
+  setButtonDisabled(btnCommentLeft, !hasSelectedMove);
+  setButtonDisabled(btnCommentRight, !hasSelectedMove);
+  setButtonDisabled(btnLinebreak, !hasSelectedMove);
+  setButtonDisabled(btnIndent, !hasSelectedMove);
   const pgnLayoutMode = state.pgnLayoutMode === "plain" || state.pgnLayoutMode === "text" || state.pgnLayoutMode === "tree"
     ? state.pgnLayoutMode
     : "plain";
-  const syncPgnLayoutButton = (btn) => {
+  const syncPgnLayoutButton = (btn: Element | null): void => {
     if (!btn || !(btn instanceof HTMLElement)) return;
     const mode = btn.dataset.pgnLayout;
     if (!mode) return;
@@ -155,23 +212,23 @@ export const syncAppViewRuntime = ({
   syncPgnLayoutButton(btnPgnLayoutTree);
 
   const dockVisible = state.isDeveloperToolsEnabled && state.isDevDockOpen;
-  const textEditorConfig = state.appConfig?.textEditor && typeof state.appConfig.textEditor === "object"
-    ? state.appConfig.textEditor
+  const textEditorConfig: Record<string, unknown> = state.appConfig?.textEditor && typeof state.appConfig.textEditor === "object"
+    ? (state.appConfig.textEditor as Record<string, unknown>)
     : {};
   const showAstView = textEditorConfig.showAstView !== false;
   const showDomView = textEditorConfig.showDomView !== false;
-  if (developerDockEl) developerDockEl.hidden = !dockVisible;
-  if (runtimeBuildBadgeEl) runtimeBuildBadgeEl.hidden = !state.isDeveloperToolsEnabled;
+  setHidden(developerDockEl, !dockVisible);
+  setHidden(runtimeBuildBadgeEl, !state.isDeveloperToolsEnabled);
 
   const isAstTab = state.activeDevTab === "ast";
   const isDomTab = state.activeDevTab === "dom";
   const isPgnTab = state.activeDevTab === "pgn";
-  if (devTabBtnAst) devTabBtnAst.hidden = !showAstView;
-  if (devTabBtnDom) devTabBtnDom.hidden = !showDomView;
+  setHidden(devTabBtnAst, !showAstView);
+  setHidden(devTabBtnDom, !showDomView);
   if (devTabBtnAst) devTabBtnAst.setAttribute("aria-selected", isAstTab ? "true" : "false");
   if (devTabBtnDom) devTabBtnDom.setAttribute("aria-selected", isDomTab ? "true" : "false");
   if (devTabBtnPgn) devTabBtnPgn.setAttribute("aria-selected", isPgnTab ? "true" : "false");
-  if (devTabAstEl) devTabAstEl.hidden = !dockVisible || !showAstView || !isAstTab;
-  if (devTabDomEl) devTabDomEl.hidden = !dockVisible || !showDomView || !isDomTab;
-  if (devTabPgnEl) devTabPgnEl.hidden = !dockVisible || !isPgnTab;
+  setHidden(devTabAstEl, !dockVisible || !showAstView || !isAstTab);
+  setHidden(devTabDomEl, !dockVisible || !showDomView || !isDomTab);
+  setHidden(devTabPgnEl, !dockVisible || !isPgnTab);
 };

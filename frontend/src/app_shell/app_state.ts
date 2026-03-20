@@ -1,18 +1,20 @@
 /**
- * App state/bootstrap constants component.
+ * App State module.
  *
  * Integration API:
- * - Import `DEFAULT_LOCALE`, `DEFAULT_APP_MODE`, and `DEFAULT_PGN` for startup defaults.
- * - Call `createInitialAppState(parsePgnToModelFn, defaultPgn?)` once during bootstrap.
+ * - Primary exports from this module: `DEFAULT_LOCALE`, `DEFAULT_APP_MODE`, `PlayerRecord`, `DEFAULT_PGN`, `createInitialAppState`.
  *
  * Configuration API:
- * - Caller can override default PGN text by passing `defaultPgn`.
- * - PGN parser function is injected, so state creation stays parser-agnostic.
+ * - Configuration is provided via typed function parameters/options in these exports
+ *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - Returns plain initial state object only.
- * - No DOM access, no storage access, no side effects.
+ * - This module communicates through shared `state`; interactions are explicit in
+ *   exported function signatures and typed callback contracts.
  */
+
+import type { MovePositionIndex, PgnModelForMoves } from "../board/move_position";
+import type { BoardPreviewLike } from "../board/runtime";
 
 export const DEFAULT_LOCALE = "en";
 export const DEFAULT_APP_MODE = "DEV";
@@ -20,6 +22,53 @@ export const DEFAULT_APP_MODE = "DEV";
 /** Normalized player row used by game-info autocomplete and bundled seed data. */
 export type PlayerRecord = { lastName: string; firstName: string };
 type ParsePgnToModelFn = (source: string) => unknown;
+
+type AppState = {
+  moves: string[];
+  currentPly: number;
+  pgnText: string;
+  pgnModel: PgnModelForMoves;
+  moveDelayMs: number;
+  soundEnabled: boolean;
+  isAnimating: boolean;
+  animationRunId: number;
+  verboseMoves: Array<{ flags?: string; from?: string; to?: string }>;
+  movePositionById: MovePositionIndex;
+  boardPreview: BoardPreviewLike | null;
+  statusMessage: string;
+  errorMessage: string;
+  pendingFocusCommentId: string | null;
+  selectedMoveId: string | null;
+  undoStack: unknown[];
+  redoStack: unknown[];
+  isMenuOpen: boolean;
+  isGameInfoEditorOpen: boolean;
+  gameDirectoryHandle: unknown;
+  gameDirectoryPath: string;
+  gameRootPath: string;
+  autosaveTimer: number | null;
+  saveRequestSeq: number;
+  isHydratingGame: boolean;
+  playerStore: PlayerRecord[];
+  locale: string;
+  gameSessions: unknown[];
+  activeSessionId: string | null;
+  nextSessionSeq: number;
+  resourceViewerTabs: unknown[];
+  activeResourceTabId: string | null;
+  resourceViewerDefaultMetadataKeys: string[];
+  activeSourceKind: string;
+  defaultSaveMode: string;
+  appMode: string;
+  isDeveloperToolsEnabled: boolean;
+  isDevDockOpen: boolean;
+  activeDevTab: string;
+  devDockHeightPx: number;
+  resourceViewerHeightPx: number;
+  boardColumnWidthPx: number;
+  pgnLayoutMode: string;
+  appConfig: Record<string, unknown>;
+};
 
 /**
  * Default PGN used when no library game is loaded.
@@ -47,11 +96,11 @@ export const DEFAULT_PGN = `[Event "Sample"]
 export const createInitialAppState = (
   parsePgnToModelFn: ParsePgnToModelFn,
   defaultPgn: string = DEFAULT_PGN,
-) => ({
+): AppState => ({
   moves: [],
   currentPly: 0,
   pgnText: defaultPgn,
-  pgnModel: parsePgnToModelFn(defaultPgn),
+  pgnModel: parsePgnToModelFn(defaultPgn) as PgnModelForMoves,
   moveDelayMs: 220,
   soundEnabled: true,
   isAnimating: false,
@@ -81,7 +130,7 @@ export const createInitialAppState = (
   resourceViewerTabs: [],
   activeResourceTabId: null,
   resourceViewerDefaultMetadataKeys: ["White", "Black", "Date", "Event", "ECO", "Opening", "Result"],
-  activeSourceKind: "file",
+  activeSourceKind: "directory",
   defaultSaveMode: "auto",
   appMode: DEFAULT_APP_MODE,
   isDeveloperToolsEnabled: true,

@@ -80,16 +80,18 @@ import { createResourceViewerCapabilities } from "./resources_viewer";
 export function bootstrap(): void {
 
 /**
- * Main composition root.
+ * Bootstrap module.
  *
  * Integration API:
- * - Initializes the full app by composing components and binding events.
+ * - Primary exports from this module: `bootstrap`.
  *
  * Configuration API:
- * - Build/runtime mode, locale, and defaults are read during startup.
+ * - Configuration is provided via typed function parameters/options in these exports
+ *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - Delegates feature behavior to Game-Viewer/resources/session services.
+ * - This module communicates through shared `state`, DOM, browser storage; interactions are explicit in
+ *   exported function signatures and typed callback contracts.
  */
 
 const initialLocale = resolveLocale(window.localStorage?.getItem("x2chess.locale") || navigator.language || DEFAULT_LOCALE);
@@ -97,35 +99,49 @@ const t = createTranslator(initialLocale);
 const MODE_STORAGE_KEY = "x2chess.developerTools";
 const RESOURCE_VIEWER_HEIGHT_STORAGE_KEY = "x2chess.resourceViewerHeightPx";
 const BOARD_COLUMN_WIDTH_STORAGE_KEY = "x2chess.boardColumnWidthPx";
-const BUILD_APP_MODE = (() => {
+const BUILD_APP_MODE = ((): "DEV" | "PROD" => {
   const raw = typeof __X2CHESS_MODE__ !== "undefined" ? String(__X2CHESS_MODE__) : DEFAULT_APP_MODE;
   return raw === "PROD" ? "PROD" : "DEV";
 })();
-const readPersistedDeveloperToolsPreference = () => {
+const readPersistedDeveloperToolsPreference = (): boolean | null => {
   const raw = window.localStorage?.getItem(MODE_STORAGE_KEY);
   if (raw === "true") return true;
   if (raw === "false") return false;
   return null;
 };
-const readPersistedResourceViewerHeight = () => {
+const readPersistedResourceViewerHeight = (): number | null => {
   const raw = window.localStorage?.getItem(RESOURCE_VIEWER_HEIGHT_STORAGE_KEY);
   const parsed = Number(raw);
   if (!Number.isFinite(parsed)) return null;
   return parsed;
 };
-const readPersistedBoardColumnWidth = () => {
+const readPersistedBoardColumnWidth = (): number | null => {
   const raw = window.localStorage?.getItem(BOARD_COLUMN_WIDTH_STORAGE_KEY);
   const parsed = Number(raw);
   if (!Number.isFinite(parsed)) return null;
   return parsed;
 };
 
-const isLikelyPgnText = (value) => {
+const isLikelyPgnText = (value: unknown): boolean => {
   if (!value || typeof value !== "string") return false;
   const trimmed = value.trim();
   if (!trimmed) return false;
   return /^\s*\[[A-Za-z0-9_]+\s+".*"\]\s*$/m.test(trimmed) || /\d+\.(?:\.\.)?\s*[^\s]+/.test(trimmed);
 };
+
+type SourceRefLike = {
+  kind?: string;
+  locator?: string;
+  recordId?: string | number;
+};
+
+type SessionLike = {
+  sessionId: string;
+  sourceRef?: SourceRefLike | null;
+  pendingResourceRef?: SourceRefLike | null;
+  title?: string;
+};
+
 const EMPTY_GAME_PGN = `[Event "?"]
 [Site "?"]
 [Date "????.??.??"]
@@ -138,7 +154,7 @@ const EMPTY_GAME_PGN = `[Event "?"]
 const state = createInitialAppState(parsePgnToModel, DEFAULT_PGN);
 state.locale = initialLocale;
 state.appMode = BUILD_APP_MODE;
-state.isDeveloperToolsEnabled = (() => {
+state.isDeveloperToolsEnabled = ((): boolean => {
   const persisted = readPersistedDeveloperToolsPreference();
   if (persisted !== null) return persisted;
   return state.appMode === "DEV";
@@ -248,7 +264,7 @@ const {
 });
 
 const moveSoundPlayer = createMoveSoundPlayer({
-  isSoundEnabled: () => state.soundEnabled,
+  isSoundEnabled: (): boolean => state.soundEnabled,
 });
 
 let historyCapabilities!: ReturnType<typeof createEditorHistoryCapabilities>;
@@ -276,12 +292,12 @@ const uiAdapters = createUiAdapters({
   renderDomPanelFn: renderDomPanel,
 });
 
-const applyPgnModelUpdate = (nextModel, focusCommentId = null, options = {}) => {
+const applyPgnModelUpdate = (nextModel: unknown, focusCommentId: string | null = null, options: Record<string, unknown> = {}): void => {
   pgnRuntimeCapabilities.applyPgnModelUpdate(nextModel, focusCommentId, options);
   state.pgnLayoutMode = getX2StyleFromModel(state.pgnModel);
 };
 
-const render = () => {
+const render = (): void => {
   if (!renderPipelineCapabilities) return;
   if (gameSessionStore) gameSessionStore.persistActiveSession();
   renderPipelineCapabilities.renderFull();
@@ -312,15 +328,22 @@ moveLookupCapabilities = createMoveLookupCapabilities({
 selectionRuntimeCapabilities = createSelectionRuntimeCapabilities({
   state,
   textEditorEl,
-  getMovePositionById: (moveId, options) => moveLookupCapabilities.getMovePositionById(moveId, options),
+  getMovePositionById: (
+    moveId: string | null,
+    options: { allowResolve: boolean },
+  ): ReturnType<typeof selectionRuntimeCapabilities.getMovePositionById> => {
+    const lookupResult = moveLookupCapabilities.getMovePositionById(moveId, options);
+    if (!lookupResult) return null;
+    return "variationFirstMoveIds" in lookupResult ? lookupResult : null;
+  },
   buildMainlinePlyByMoveIdFn: buildMainlinePlyByMoveId,
   findExistingCommentIdAroundMoveFn: findExistingCommentIdAroundMove,
   insertCommentAroundMoveFn: insertCommentAroundMove,
   removeCommentByIdFn: removeCommentById,
   setCommentTextByIdFn: setCommentTextById,
   resolveOwningMoveIdForCommentFn: resolveOwningMoveIdForCommentId,
-  applyPgnModelUpdate: (nextModel, focusCommentId, options) => applyPgnModelUpdate(nextModel, focusCommentId, options),
-  onRender: () => render(),
+  applyPgnModelUpdate,
+  onRender: render,
 });
 
 renderPipelineCapabilities = createAppRenderPipeline({
@@ -356,21 +379,18 @@ renderPipelineCapabilities = createAppRenderPipeline({
     runtimeBuildBadgeEl,
     speedValue,
   },
-  buildGameAtPly: (ply) => boardRuntimeCapabilities.buildGameAtPly(ply),
-  renderBoard: (game) => boardRuntimeCapabilities.renderBoard(game),
-  renderMovesPanel: ({ movesEl: targetMovesEl, moves, pgnModel, t: translate }) => renderMovesPanel({
-    movesEl: targetMovesEl,
-    moves,
-    pgnModel,
-    t: translate,
-  }),
-  renderTextEditor: () => text_editor.render(textEditorEl, state.pgnModel, selectionRuntimeCapabilities.getTextEditorOptions()),
-  renderAstPanel: () => ast_panel.render(astViewEl, state.pgnModel),
-  renderDomView: () => uiAdapters.renderDomView(),
-  renderResourceViewer: () => {
+  buildGameAtPly: boardRuntimeCapabilities.buildGameAtPly,
+  renderBoard: (game: unknown): void => {
+    boardRuntimeCapabilities.renderBoard(game as Parameters<typeof boardRuntimeCapabilities.renderBoard>[0]);
+  },
+  renderMovesPanel,
+  renderTextEditor: (): void => { text_editor.render(textEditorEl, state.pgnModel, selectionRuntimeCapabilities.getTextEditorOptions()); },
+  renderAstPanel: (): void => { ast_panel.render(astViewEl, state.pgnModel); },
+  renderDomView: uiAdapters.renderDomView,
+  renderResourceViewer: (): void => {
     if (resourceViewerCapabilities) resourceViewerCapabilities.render();
   },
-  renderGameInfoSummary: () => renderGameInfoSummary({
+  renderGameInfoSummary: (): void => { renderGameInfoSummary({
     pgnModel: state.pgnModel,
     t,
     els: {
@@ -379,18 +399,18 @@ renderPipelineCapabilities = createAppRenderPipeline({
       gameInfoDateValueEl,
       gameInfoOpeningValueEl,
     },
-  }),
-  syncGameInfoEditorValues: () => syncGameInfoEditorValues({
+  }); },
+  syncGameInfoEditorValues: (): void => { syncGameInfoEditorValues({
     pgnModel: state.pgnModel,
     els: { gameInfoInputs },
-  }),
-  syncGameInfoEditorUi: () => syncGameInfoEditorUi({
+  }); },
+  syncGameInfoEditorUi: (): void => { syncGameInfoEditorUi({
     state,
     els: {
       gameInfoEditorEl,
       btnGameInfoEdit,
     },
-  }),
+  }); },
 });
 
 playerAutocompleteCapabilities = createPlayerAutocompleteCapabilities({
@@ -398,19 +418,19 @@ playerAutocompleteCapabilities = createPlayerAutocompleteCapabilities({
   gameInfoSuggestionEls,
   gameInfoInputs,
   playerNameHeaderKeys: PLAYER_NAME_HEADER_KEYS,
-  normalizePlayerRecordsFn: (records) => normalizePlayerRecords(records),
-  parsePlayerRecordFn: (value) => parsePlayerRecord(value),
-  buildPlayerNameSuggestionsFn: (records, query) => buildPlayerNameSuggestions(records, query),
-  normalizeGameInfoHeaderValueFn: (key, value) => normalizeGameInfoHeaderValue(key, value),
-  getHeaderValueFn: (model, key, fallback) => getHeaderValue(model, key, fallback),
-  setHeaderValueFn: (model, key, value) => setHeaderValue(model, key, value),
-  ensureRequiredPgnHeadersFn: (model) => ensureRequiredPgnHeaders(model),
-  applyPgnModelUpdate: (nextModel) => applyPgnModelUpdate(nextModel),
-  loadPlayerStore: async () => {
+  normalizePlayerRecordsFn: normalizePlayerRecords,
+  parsePlayerRecordFn: parsePlayerRecord,
+  buildPlayerNameSuggestionsFn: buildPlayerNameSuggestions,
+  normalizeGameInfoHeaderValueFn: normalizeGameInfoHeaderValue,
+  getHeaderValueFn: getHeaderValue,
+  setHeaderValueFn: setHeaderValue,
+  ensureRequiredPgnHeadersFn: ensureRequiredPgnHeaders,
+  applyPgnModelUpdate: (nextModel: unknown): void => { applyPgnModelUpdate(nextModel); },
+  loadPlayerStore: async (): Promise<void> => {
     if (!resourcesCapabilities) return;
     state.playerStore = await resourcesCapabilities.loadPlayerStoreFromClientData(bundledPlayers);
   },
-  savePlayerStore: async () => {
+  savePlayerStore: async (): Promise<void> => {
     if (!resourcesCapabilities) return;
     await resourcesCapabilities.savePlayerStoreToClientData(state.playerStore);
   },
@@ -418,28 +438,35 @@ playerAutocompleteCapabilities = createPlayerAutocompleteCapabilities({
 
 const boardNavigationCapabilities = createBoardNavigationCapabilities({
   state,
-  getMovePositionById: (moveId, options) => moveLookupCapabilities.getMovePositionById(moveId, options),
-  selectMoveById: (moveId) => selectionRuntimeCapabilities.selectMoveById(moveId),
-  findCommentIdAroundMove: (moveId, position) => findExistingCommentIdAroundMove(state.pgnModel, moveId, position),
-  focusCommentById: (commentId) => selectionRuntimeCapabilities.focusCommentById(commentId),
-  playMoveSound: (soundType) => moveSoundPlayer.playMoveSound(soundType),
-  render: () => render(),
+  getMovePositionById: (
+    moveId: string | null,
+    options: { allowResolve: boolean },
+  ): ReturnType<typeof selectionRuntimeCapabilities.getMovePositionById> => {
+    const lookupResult = moveLookupCapabilities.getMovePositionById(moveId, options);
+    if (!lookupResult) return null;
+    return "variationFirstMoveIds" in lookupResult ? lookupResult : null;
+  },
+  selectMoveById: selectionRuntimeCapabilities.selectMoveById,
+  findCommentIdAroundMove: (moveId: string, position: "before" | "after"): string | null => findExistingCommentIdAroundMove(state.pgnModel, moveId, position),
+  focusCommentById: selectionRuntimeCapabilities.focusCommentById,
+  playMoveSound: moveSoundPlayer.playMoveSound,
+  render,
 });
 
 historyCapabilities = createEditorHistoryCapabilities({
   state,
   pgnInput,
-  onSyncChessParseState: (source) => pgnRuntimeCapabilities.syncChessParseState(source),
-  onRender: () => render(),
+  onSyncChessParseState: pgnRuntimeCapabilities.syncChessParseState,
+  onRender: render,
 });
 
 resourcesCapabilities = createResourcesCapabilities({
   state,
   t,
-  onSetSaveStatus: (message, kind) => uiAdapters.setSaveStatus(message, kind),
-  onApplyRuntimeConfig: (config) => runtimeConfigCapabilities.applyRuntimeConfig(config),
-  onLoadPgn: () => pgnRuntimeCapabilities.loadPgn(),
-  onInitializeWithDefaultPgn: () => pgnRuntimeCapabilities.initializeWithDefaultPgn(),
+  onSetSaveStatus: uiAdapters.setSaveStatus,
+  onApplyRuntimeConfig: runtimeConfigCapabilities.applyRuntimeConfig,
+  onLoadPgn: pgnRuntimeCapabilities.loadPgn,
+  onInitializeWithDefaultPgn: pgnRuntimeCapabilities.initializeWithDefaultPgn,
   pgnInput,
 });
 
@@ -456,15 +483,15 @@ resourceViewerCapabilities = createResourceViewerCapabilities({
   btnResourceMetadataSave,
   resourceTabsEl,
   resourceTableWrapEl,
-  listGamesForResource: (resourceRef) => resourcesCapabilities.listGamesForResource(resourceRef),
-  onRequestOpenResource: async () => {
+  listGamesForResource: resourcesCapabilities.listGamesForResource,
+  onRequestOpenResource: async (): Promise<void> => {
     const selected = await resourcesCapabilities.chooseResourceByPicker();
     if (!selected?.resourceRef) return;
     await ensureResourceTabVisible(selected.resourceRef, true);
     render();
   },
-  onOpenGameBySourceRef: async (sourceRef) => {
-    const existing = findOpenSessionBySourceRef(sourceRef);
+  onOpenGameBySourceRef: async (sourceRef: SourceRefLike): Promise<void> => {
+    const existing: SessionLike | null = findOpenSessionBySourceRef(sourceRef);
     if (existing) {
       if (gameSessionStore.switchToSession(existing.sessionId)) render();
       return;
@@ -474,13 +501,13 @@ resourceViewerCapabilities = createResourceViewerCapabilities({
   },
 });
 
-const initializeResourceViewerTabs = async () => {
-  const kinds = resourcesCapabilities.getAvailableSourceKinds().filter((kind) => kind !== "pgn-db");
-  const tabs = kinds.map((kind) => ({
+const initializeResourceViewerTabs = async (): Promise<void> => {
+  const kinds: string[] = resourcesCapabilities.getAvailableSourceKinds().filter((kind: string): boolean => kind !== "pgn-db");
+  const tabs = kinds.map((kind: string): { title: string; resourceRef: { kind: string; locator: string } } => ({
     title: t(`resources.tab.${kind}`, kind.toUpperCase()),
     resourceRef: {
       kind,
-      locator: kind === "file" ? (state.gameDirectoryPath || "local-files") : `local-${kind}`,
+      locator: kind === "directory" ? (state.gameDirectoryPath || "local-files") : `local-${kind}`,
     },
   }));
   resourceViewerCapabilities.setTabs(tabs);
@@ -501,31 +528,29 @@ gameSessionModel = createGameSessionModel({
 
 gameSessionStore = createGameSessionStore({
   state,
-  captureActiveSessionSnapshot: () => gameSessionModel.captureActiveSessionSnapshot(),
-  applySessionSnapshotToState: (snapshot) => gameSessionModel.applySessionSnapshotToState(snapshot),
-  disposeSessionSnapshot: (snapshot) => gameSessionModel.disposeSessionSnapshot(snapshot),
+  captureActiveSessionSnapshot: gameSessionModel.captureActiveSessionSnapshot,
+  applySessionSnapshotToState: gameSessionModel.applySessionSnapshotToState,
+  disposeSessionSnapshot: gameSessionModel.disposeSessionSnapshot,
 });
 
 sessionPersistenceService = createSessionPersistenceService({
   state,
   t,
-  getActiveSession: () => gameSessionStore.getActiveSession(),
-  updateActiveSessionMeta: (patch) => gameSessionStore.updateActiveSessionMeta(patch),
-  getPgnText: () => state.pgnText,
-  saveBySourceRef: (sourceRef, pgnText, revisionToken, options) => (
-    resourcesCapabilities.saveGameBySourceRef(sourceRef, pgnText, revisionToken, options)
-  ),
-  ensureSourceForActiveSession: async (session, pgnText) => {
+  getActiveSession: gameSessionStore.getActiveSession,
+  updateActiveSessionMeta: gameSessionStore.updateActiveSessionMeta,
+  getPgnText: (): string => state.pgnText,
+  saveBySourceRef: resourcesCapabilities.saveGameBySourceRef,
+  ensureSourceForActiveSession: async (session: unknown, pgnText: string): Promise<unknown | null> => {
     const pendingResourceRef = normalizeResourceRefForInsert(
-      session?.pendingResourceRef
+      (session as SessionLike | null | undefined)?.pendingResourceRef as SourceRefLike | null | undefined
         || resourceViewerCapabilities.getActiveResourceRef()
-        || { kind: state.activeSourceKind || "file", locator: state.gameDirectoryPath || "" },
+        || { kind: state.activeSourceKind || "directory", locator: state.gameDirectoryPath || "" },
     );
     if (!pendingResourceRef) return null;
     const created = await resourcesCapabilities.createGameInResource(
       pendingResourceRef,
       pgnText,
-      session?.title || "new-game",
+      ((session as SessionLike | null | undefined)?.title) || "new-game",
     );
     await ensureResourceTabVisible(
       {
@@ -536,7 +561,7 @@ sessionPersistenceService = createSessionPersistenceService({
     );
     return created;
   },
-  onSetSaveStatus: (message, kind) => uiAdapters.setSaveStatus(message, kind),
+  onSetSaveStatus: uiAdapters.setSaveStatus,
 });
 
 pgnRuntimeCapabilities = createPgnRuntimeCapabilities({
@@ -544,18 +569,18 @@ pgnRuntimeCapabilities = createPgnRuntimeCapabilities({
   pgnInput,
   t,
   defaultPgn: DEFAULT_PGN,
-  parsePgnToModelFn: (source) => ensureRequiredPgnHeaders(parsePgnToModel(source)),
+  parsePgnToModelFn: (source: string): unknown => ensureRequiredPgnHeaders(parsePgnToModel(source)),
   serializeModelToPgnFn: serializeModelToPgn,
   buildMovePositionByIdFn: buildMovePositionById,
   stripAnnotationsForBoardParserFn: stripAnnotationsForBoardParser,
-  onRender: () => render(),
-  onRecordHistory: () => {
+  onRender: render,
+  onRecordHistory: (): void => {
     if (!historyCapabilities) return;
     historyCapabilities.pushUndoSnapshot(historyCapabilities.captureEditorSnapshot());
     state.redoStack = [];
     if (gameSessionStore) gameSessionStore.updateActiveSessionMeta({ dirtyState: "dirty" });
   },
-  onScheduleAutosave: () => {
+  onScheduleAutosave: (): void => {
     sessionPersistenceService.scheduleAutosaveForActiveSession();
   },
 });
@@ -567,7 +592,14 @@ const openSessionFromSnapshot = ({
   pendingResourceRef = null,
   revisionToken = "",
   saveMode = state.defaultSaveMode,
-}) => {
+}: {
+  snapshot: unknown;
+  title: string;
+  sourceRef?: SourceRefLike | null;
+  pendingResourceRef?: SourceRefLike | null;
+  revisionToken?: string;
+  saveMode?: string;
+}): void => {
   gameSessionStore.openSession({
     snapshot,
     title,
@@ -580,7 +612,7 @@ const openSessionFromSnapshot = ({
   render();
 };
 
-const openSessionFromPgnText = (pgnText, preferredTitle = "", sourceRef = null, revisionToken = "") => {
+const openSessionFromPgnText = (pgnText: string, preferredTitle: string = "", sourceRef: SourceRefLike | null = null, revisionToken: string = ""): void => {
   const snapshot = gameSessionModel.createSessionFromPgnText(String(pgnText || ""));
   const fallbackTitle = preferredTitle || `${t("games.tabFallback", "Game")} ${state.nextSessionSeq}`;
   const title = gameSessionModel.deriveSessionTitle(snapshot.pgnModel, fallbackTitle);
@@ -593,7 +625,7 @@ const openSessionFromPgnText = (pgnText, preferredTitle = "", sourceRef = null, 
   });
 };
 
-const openUnsavedSessionFromPgnText = (pgnText, preferredTitle = "", pendingResourceRef = null) => {
+const openUnsavedSessionFromPgnText = (pgnText: string, preferredTitle: string = "", pendingResourceRef: SourceRefLike | null = null): void => {
   const snapshot = gameSessionModel.createSessionFromPgnText(String(pgnText || ""));
   openSessionFromSnapshot({
     snapshot,
@@ -606,7 +638,7 @@ const openUnsavedSessionFromPgnText = (pgnText, preferredTitle = "", pendingReso
   gameSessionStore.updateActiveSessionMeta({ dirtyState: "dirty" });
 };
 
-const openSessionFromSourceRef = async (sourceRef, preferredTitle = "") => {
+const openSessionFromSourceRef = async (sourceRef: SourceRefLike, preferredTitle: string = ""): Promise<void> => {
   const loaded = await resourcesCapabilities.loadGameBySourceRef(sourceRef);
   openSessionFromPgnText(
     loaded.pgnText,
@@ -614,31 +646,31 @@ const openSessionFromSourceRef = async (sourceRef, preferredTitle = "") => {
     sourceRef,
     loaded.revisionToken,
   );
-  if (sourceRef?.kind && sourceRef.kind !== "file") {
+  if (sourceRef?.kind && sourceRef.kind === "file") {
     gameSessionStore.updateActiveSessionMeta({ saveMode: "manual" });
   }
 };
 
-const toResourceTabTitle = (resourceRef) => {
-  if (!resourceRef || typeof resourceRef !== "object") return t("resources.title", "Resources");
+const toResourceTabTitle = (resourceRef: SourceRefLike | null): string => {
+  if (!resourceRef) return t("resources.title", "Resources");
   const locator = String(resourceRef.locator || "").replaceAll("\\", "/");
   const shortLocator = locator.split("/").filter(Boolean).pop() || locator;
-  if (resourceRef.kind === "file" && shortLocator) return shortLocator;
+  if (resourceRef.kind === "directory" && shortLocator) return shortLocator;
   return t(`resources.tab.${String(resourceRef.kind || "").toLowerCase()}`, String(resourceRef.kind || "Resource").toUpperCase());
 };
 
-const normalizeResourceRefForInsert = (resourceRef) => {
-  if (!resourceRef || typeof resourceRef !== "object") return null;
-  if (resourceRef.kind !== "file") return resourceRef;
+const normalizeResourceRefForInsert = (resourceRef: SourceRefLike | null): SourceRefLike | null => {
+  if (!resourceRef) return null;
+  if (resourceRef.kind !== "directory") return resourceRef;
   const rawLocator = String(resourceRef.locator || "").trim();
   if (rawLocator && rawLocator !== "local-files") return resourceRef;
-  if (state.gameDirectoryPath) return { kind: "file", locator: state.gameDirectoryPath };
-  if (state.gameDirectoryHandle) return { kind: "file", locator: "browser-handle" };
+  if (state.gameDirectoryPath) return { kind: "directory", locator: state.gameDirectoryPath };
+  if (state.gameDirectoryHandle) return { kind: "directory", locator: "browser-handle" };
   return null;
 };
 
-const ensureResourceTabVisible = async (resourceRef, select = true) => {
-  if (!resourceRef || typeof resourceRef !== "object") return;
+const ensureResourceTabVisible = async (resourceRef: SourceRefLike | null, select: boolean = true): Promise<void> => {
+  if (!resourceRef) return;
   resourceViewerCapabilities.upsertTab({
     title: toResourceTabTitle(resourceRef),
     resourceRef,
@@ -646,13 +678,13 @@ const ensureResourceTabVisible = async (resourceRef, select = true) => {
   });
   await resourceViewerCapabilities.refreshActiveTabRows();
 };
-const isSameSourceRef = (left, right) => (
+const isSameSourceRef = (left: SourceRefLike | null | undefined, right: SourceRefLike | null | undefined): boolean => (
   left?.kind === right?.kind
   && String(left?.locator || "") === String(right?.locator || "")
   && String(left?.recordId || "") === String(right?.recordId || "")
 );
-const findOpenSessionBySourceRef = (sourceRef) => (
-  gameSessionStore.listSessions().find((session) => isSameSourceRef(session.sourceRef, sourceRef)) || null
+const findOpenSessionBySourceRef = (sourceRef: SourceRefLike | null): SessionLike | null => (
+  gameSessionStore.listSessions().find((session: SessionLike): boolean => isSameSourceRef(session.sourceRef, sourceRef)) || null
 );
 
 const appShellCapabilities = createAppShellCapabilities({
@@ -677,45 +709,45 @@ const appShellCapabilities = createAppShellCapabilities({
   boardEditorResizeHandleEl,
   resourceViewerResizeHandleEl,
   resourceViewerCardEl,
-  onHandleSelectedMoveArrowHotkey: (event) => boardNavigationCapabilities.handleSelectedMoveArrowHotkey(event),
-  onUndo: () => historyCapabilities.performUndo(),
-  onRedo: () => historyCapabilities.performRedo(),
-  onChangeLocale: (localeCode) => {
+  onHandleSelectedMoveArrowHotkey: boardNavigationCapabilities.handleSelectedMoveArrowHotkey,
+  onUndo: historyCapabilities.performUndo,
+  onRedo: historyCapabilities.performRedo,
+  onChangeLocale: (localeCode: string): void => {
     const nextLocale = resolveLocale(localeCode);
     if (nextLocale === state.locale) return;
     window.localStorage?.setItem("x2chess.locale", nextLocale);
     window.location.reload();
   },
-  onChangeDeveloperTools: (enabled) => {
+  onChangeDeveloperTools: (enabled: boolean): void => {
     window.localStorage?.setItem(MODE_STORAGE_KEY, enabled ? "true" : "false");
     if (!enabled) state.isDevDockOpen = false;
     runtimeConfigCapabilities.applyRuntimeConfig(state.appConfig || {});
     render();
   },
-  onChangeDeveloperDockOpen: () => {
+  onChangeDeveloperDockOpen: (): void => {
     runtimeConfigCapabilities.applyRuntimeConfig(state.appConfig || {});
     render();
   },
-  onSwitchDeveloperDockTab: (tabId) => {
+  onSwitchDeveloperDockTab: (tabId: "ast" | "dom" | "pgn"): void => {
     const normalized = tabId === "dom" || tabId === "pgn" ? tabId : "ast";
     state.activeDevTab = normalized;
     appShellCapabilities.setDevDockOpen(true);
   },
-  onChangeActiveSaveMode: (mode) => {
+  onChangeActiveSaveMode: (mode: "auto" | "manual"): void => {
     sessionPersistenceService.setActiveSessionSaveMode(mode);
     render();
   },
-  onChangeBoardColumnWidth: (widthPx) => {
+  onChangeBoardColumnWidth: (widthPx: number): void => {
     window.localStorage?.setItem(BOARD_COLUMN_WIDTH_STORAGE_KEY, String(widthPx));
     render();
   },
-  onChangeResourceViewerHeight: (heightPx) => {
+  onChangeResourceViewerHeight: (heightPx: number): void => {
     window.localStorage?.setItem(RESOURCE_VIEWER_HEIGHT_STORAGE_KEY, String(heightPx));
   },
-  onSaveActiveGameNow: () => sessionPersistenceService.persistActiveSessionNow(),
+  onSaveActiveGameNow: sessionPersistenceService.persistActiveSessionNow,
 });
 
-const handleLivePgnInput = () => {
+const handleLivePgnInput = (): void => {
   if (!pgnInput) return;
   state.pgnText = (pgnInput as HTMLInputElement).value;
   state.pgnModel = ensureRequiredPgnHeaders(parsePgnToModel(state.pgnText));
@@ -757,37 +789,39 @@ const appWiringCapabilities = createAppWiringCapabilities({
     gameInfoInputs,
   },
   actions: {
-    gotoPly: (nextPly, options) => boardNavigationCapabilities.gotoPly(nextPly, options),
-    gotoRelativeStep: (direction) => boardNavigationCapabilities.gotoRelativeStep(direction),
-    loadPgn: () => pgnRuntimeCapabilities.loadPgn(),
-    performUndo: () => historyCapabilities.performUndo(),
-    performRedo: () => historyCapabilities.performRedo(),
-    formatCommentStyle: (style) => {
+    gotoPly: (nextPly: number, options?: { animate?: boolean }): Promise<void> => boardNavigationCapabilities.gotoPly(nextPly, options),
+    gotoRelativeStep: (direction: number): Promise<void> => boardNavigationCapabilities.gotoRelativeStep(direction),
+    loadPgn: pgnRuntimeCapabilities.loadPgn,
+    performUndo: historyCapabilities.performUndo,
+    performRedo: historyCapabilities.performRedo,
+    formatCommentStyle: (style: "bold" | "italic" | "underline"): void => {
       selectionRuntimeCapabilities.formatFocusedComment(style);
     },
-    insertAroundSelectedMove: (position, rawText) => selectionRuntimeCapabilities.insertAroundSelectedMove(position, rawText),
-    applyDefaultIndent: () => {
+    insertAroundSelectedMove: (position: "before" | "after", rawText: string): void => selectionRuntimeCapabilities.insertAroundSelectedMove(position, rawText),
+    applyDefaultIndent: (): void => {
       const nextModel = applyDefaultIndentDirectives(state.pgnModel);
       applyPgnModelUpdate(nextModel);
     },
-    setPgnLayoutMode: (mode) => {
+    setPgnLayoutMode: (mode: "plain" | "text" | "tree"): void => {
       const next = normalizeX2StyleValue(mode);
       const nextModel = setHeaderValue(state.pgnModel, X2_STYLE_HEADER_KEY, next);
       applyPgnModelUpdate(nextModel);
     },
-    setSaveStatus: (message, kind) => uiAdapters.setSaveStatus(message, kind),
-    handleLivePgnInput: () => handleLivePgnInput(),
-    selectDevTab: (tabId) => {
+    setSaveStatus: uiAdapters.setSaveStatus,
+    handleLivePgnInput,
+    selectDevTab: (tabId: "ast" | "dom" | "pgn"): void => {
       const normalized = tabId === "dom" || tabId === "pgn" ? tabId : "ast";
       state.activeDevTab = normalized;
       appShellCapabilities.setDevDockOpen(true);
     },
-    hydrateVisualAssets: () => hydrateVisualAssets(),
-    loadRuntimeConfigFromClientDataAndDefaults: () => resourcesCapabilities.loadRuntimeConfigFromClientDataAndDefaults(),
-    ensureBoard: () => boardRuntimeCapabilities.ensureBoard(),
-    initializeWithDefaultPgn: () => {
-      const run = async () => {
-        const listed = await resourcesCapabilities.listSourceGames("file");
+    hydrateVisualAssets,
+    loadRuntimeConfigFromClientDataAndDefaults: resourcesCapabilities.loadRuntimeConfigFromClientDataAndDefaults,
+    ensureBoard: async (): Promise<void> => {
+      await boardRuntimeCapabilities.ensureBoard();
+    },
+    initializeWithDefaultPgn: (): void => {
+      const run = async (): Promise<void> => {
+        const listed = await resourcesCapabilities.listSourceGames("directory");
         if (listed.length > 0) {
           await openSessionFromSourceRef(
             listed[0].sourceRef,
@@ -806,11 +840,11 @@ const appWiringCapabilities = createAppWiringCapabilities({
       };
       void run();
     },
-    toggleGameInfoEditor: () => {
+    toggleGameInfoEditor: (): void => {
       state.isGameInfoEditorOpen = !state.isGameInfoEditorOpen;
       render();
     },
-    updateGameInfoHeader: (key, value) => {
+    updateGameInfoHeader: (key: string, value: string): void => {
       const normalizedValue = normalizeGameInfoHeaderValue(key, value);
       const currentValue = normalizeGameInfoHeaderValue(key, getHeaderValue(state.pgnModel, key, ""));
       if (currentValue === normalizedValue) return;
@@ -827,33 +861,33 @@ const appWiringCapabilities = createAppWiringCapabilities({
       nextModel = ensureRequiredPgnHeaders(nextModel);
       applyPgnModelUpdate(nextModel);
     },
-    isPlayerNameField: (key) => playerAutocompleteCapabilities.isPlayerNameField(key),
-    loadPlayerStore: () => playerAutocompleteCapabilities.loadPlayerStore(),
-    handlePlayerNameInput: (key, input, event) => playerAutocompleteCapabilities.handlePlayerNameInput(key, input, event),
-    handlePlayerNameKeydown: (event, key, input) => playerAutocompleteCapabilities.handlePlayerNameKeydown(event, key, input),
-    commitPlayerNameInput: (key, value) => playerAutocompleteCapabilities.commitPlayerNameInput(key, value),
-    pickPlayerNameSuggestion: (key, playerName) => playerAutocompleteCapabilities.pickPlayerNameSuggestion(key, playerName),
+    isPlayerNameField: playerAutocompleteCapabilities.isPlayerNameField,
+    loadPlayerStore: playerAutocompleteCapabilities.loadPlayerStore,
+    handlePlayerNameInput: playerAutocompleteCapabilities.handlePlayerNameInput,
+    handlePlayerNameKeydown: playerAutocompleteCapabilities.handlePlayerNameKeydown,
+    commitPlayerNameInput: playerAutocompleteCapabilities.commitPlayerNameInput,
+    pickPlayerNameSuggestion: playerAutocompleteCapabilities.pickPlayerNameSuggestion,
   },
 });
 
 gameTabsUi = createGameTabsUi({
   gameTabsEl,
   t,
-  getSessions: () => gameSessionStore.listSessions(),
-  getActiveSessionId: () => state.activeSessionId,
-  onSelectSession: (sessionId) => {
+  getSessions: gameSessionStore.listSessions,
+  getActiveSessionId: (): string | null => state.activeSessionId,
+  onSelectSession: (sessionId: string): void => {
     if (gameSessionStore.switchToSession(sessionId)) {
       const active = gameSessionStore.getActiveSession();
       if (active) state.defaultSaveMode = active.saveMode || state.defaultSaveMode;
       render();
     }
   },
-  onCloseSession: (sessionId) => {
+  onCloseSession: (sessionId: string): void => {
     const result = gameSessionStore.closeSession(sessionId);
     if (result.emptyAfterClose) {
       const pendingResourceRef = normalizeResourceRefForInsert(
         resourceViewerCapabilities.getActiveResourceRef()
-          || { kind: state.activeSourceKind || "file", locator: state.gameDirectoryPath || "" },
+          || { kind: state.activeSourceKind || "directory", locator: state.gameDirectoryPath || "" },
       );
       openUnsavedSessionFromPgnText(EMPTY_GAME_PGN, t("games.new", "New game"), pendingResourceRef);
       return;
@@ -866,10 +900,10 @@ const appPanelEl = document.querySelector(".app-panel");
 const ingressHandlers = createGameIngressHandlers({
   appPanelEl,
   isLikelyPgnText,
-  setDropOverlayVisible: (isVisible) => {
+  setDropOverlayVisible: (isVisible: boolean): void => {
     if (gameDropOverlayEl) (gameDropOverlayEl as HTMLElement).hidden = !isVisible;
   },
-  openGameFromIncomingText: async (sourceText, options: Record<string, unknown> = {}) => {
+  openGameFromIncomingText: async (sourceText: string, options: Record<string, unknown> = {}): Promise<boolean> => {
     const pgnText = String(sourceText || "").trim();
     if (!isLikelyPgnText(pgnText)) return false;
     const preferredTitle = String(options?.preferredTitle || "").trim();
@@ -887,9 +921,9 @@ const ingressHandlers = createGameIngressHandlers({
       return true;
     }
     if (options?.preferInsertIntoActiveResource) {
-      const activeResourceRef = normalizeResourceRefForInsert(
+      const activeResourceRef: SourceRefLike | null = normalizeResourceRefForInsert(
         resourceViewerCapabilities.getActiveResourceRef()
-          || { kind: state.activeSourceKind || "file", locator: state.gameDirectoryPath || "" },
+          || { kind: state.activeSourceKind || "directory", locator: state.gameDirectoryPath || "" },
       );
       if (activeResourceRef) {
         try {
@@ -924,8 +958,8 @@ gameTabsUi.bindEvents();
 resourceViewerCapabilities.bindEvents();
 ingressHandlers.bindEvents();
 
-window.addEventListener("resize", () => {
-  window.requestAnimationFrame(() => {
+window.addEventListener("resize", (): void => {
+  window.requestAnimationFrame((): void => {
     const boardHeight = Math.round(boardEl?.getBoundingClientRect?.().height || 0);
     if (boardEditorPaneEl && boardHeight > 0) {
       (boardEditorPaneEl as HTMLElement).style.maxHeight = `${boardHeight}px`;
@@ -933,7 +967,7 @@ window.addEventListener("resize", () => {
   });
 });
 
-void initializeResourceViewerTabs().then(() => render());
+void initializeResourceViewerTabs().then((): void => render());
 appWiringCapabilities.startApp();
 
 }

@@ -4,7 +4,7 @@ import { reconcileTextEditor } from "./text_editor_reconcile";
 const lastPlanByContainer = new WeakMap();
 
 export const text_editor = {
-  render(container, pgnModel, options: Record<string, unknown> = {}) {
+  render(container: any, pgnModel: any, options: Record<string, unknown> = {}) {
     if (!container) return;
     const layoutMode = options.layoutMode === "plain" || options.layoutMode === "text" || options.layoutMode === "tree"
       ? options.layoutMode
@@ -13,7 +13,7 @@ export const text_editor = {
     reconcileTextEditor(container, nextPlan, options);
     lastPlanByContainer.set(container, nextPlan);
   },
-  getLastPlan(container) {
+  getLastPlan(container: any) {
     return lastPlanByContainer.get(container) ?? [];
   },
 };

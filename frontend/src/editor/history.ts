@@ -1,14 +1,16 @@
 /**
- * Editor history component.
+ * History module.
  *
  * Integration API:
- * - `createEditorHistoryCapabilities(deps)` returns undo/redo capabilities.
+ * - Primary exports from this module: `createEditorHistoryCapabilities`.
  *
  * Configuration API:
- * - `deps.historyLimit` controls maximum undo stack size.
+ * - Configuration is provided via typed function parameters/options in these exports
+ *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - Mutates shared editor state and invokes host sync/render callbacks after restore.
+ * - This module communicates through shared `state`; interactions are explicit in
+ *   exported function signatures and typed callback contracts.
  */
 
 /**
@@ -28,21 +30,21 @@ export const createEditorHistoryCapabilities = ({
   onSyncChessParseState,
   onRender,
   historyLimit = 200,
-}) => {
+}: any): any => {
   /**
    * Deep-clone PGN model snapshot state.
    *
    * @param {object} model - PGN model object.
    * @returns {object} Cloned model.
    */
-  const cloneModelState = (model) => JSON.parse(JSON.stringify(model));
+  const cloneModelState = (model: any): any => JSON.parse(JSON.stringify(model));
 
   /**
    * Capture current editor snapshot.
    *
    * @returns {{pgnModel: object, pgnText: string, currentPly: number, selectedMoveId: (string|null)}} Snapshot object.
    */
-  const captureEditorSnapshot = () => ({
+  const captureEditorSnapshot = (): any => ({
     pgnModel: cloneModelState(state.pgnModel),
     pgnText: state.pgnText,
     currentPly: state.currentPly,
@@ -54,7 +56,7 @@ export const createEditorHistoryCapabilities = ({
    *
    * @param {object} snapshot - Snapshot captured by `captureEditorSnapshot`.
    */
-  const pushUndoSnapshot = (snapshot) => {
+  const pushUndoSnapshot = (snapshot: any): any => {
     state.undoStack.push(snapshot);
     if (state.undoStack.length > historyLimit) state.undoStack.shift();
   };
@@ -64,7 +66,7 @@ export const createEditorHistoryCapabilities = ({
    *
    * @param {object|null|undefined} snapshot - Snapshot to restore.
    */
-  const applyEditorSnapshot = (snapshot) => {
+  const applyEditorSnapshot = (snapshot: any): any => {
     if (!snapshot) return;
     state.animationRunId += 1;
     state.isAnimating = false;
@@ -81,7 +83,7 @@ export const createEditorHistoryCapabilities = ({
   /**
    * Restore previous snapshot from undo stack and push current state to redo.
    */
-  const performUndo = () => {
+  const performUndo = (): any => {
     if (state.undoStack.length === 0) return;
     const previous = state.undoStack.pop();
     state.redoStack.push(captureEditorSnapshot());
@@ -91,7 +93,7 @@ export const createEditorHistoryCapabilities = ({
   /**
    * Restore next snapshot from redo stack and push current state to undo.
    */
-  const performRedo = () => {
+  const performRedo = (): any => {
     if (state.redoStack.length === 0) return;
     const next = state.redoStack.pop();
     pushUndoSnapshot(captureEditorSnapshot());

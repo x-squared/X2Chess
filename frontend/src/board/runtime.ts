@@ -1,38 +1,62 @@
 import { Chess } from "chess.js";
 import { Chessground } from "chessground";
-
 type ChessgroundApi = ReturnType<typeof Chessground>;
+type File = "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h";
+type Rank = "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8";
+type Key = `${File}${Rank}`;
+type KeyPair = [Key, Key];
+
+type VerboseMoveLike = { from?: string; to?: string };
+
+const isBoardKey = (value: string): value is Key => /^[a-h][1-8]$/.test(value);
+export type BoardPreviewLike = { fen: string; lastMove?: KeyPair | null };
+
+type BoardRuntimeState = {
+  moveDelayMs: number;
+  moves: string[];
+  verboseMoves: VerboseMoveLike[];
+  currentPly: number;
+  boardPreview: BoardPreviewLike | null;
+};
+
+type CreateBoardRuntimeDeps = {
+  state: BoardRuntimeState;
+  boardEl: HTMLElement | null;
+};
+
+type BoardRuntimeCapabilities = {
+  buildGameAtPly: (ply: number) => Chess;
+  ensureBoard: () => Promise<boolean>;
+  renderBoard: (game: Chess) => void;
+};
 
 /**
- * Board runtime component.
+ * Runtime module.
  *
  * Integration API:
- * - `createBoardRuntimeCapabilities({ state, boardEl })`
+ * - Primary exports from this module: `createBoardRuntimeCapabilities`.
  *
  * Configuration API:
- * - Board animation duration is read from `state.moveDelayMs`.
+ * - Configuration is provided via typed function parameters/options in these exports
+ *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - Maintains an internal Chessground instance and renders board state from shared app state.
+ * - This module communicates through shared `state`, DOM; interactions are explicit in
+ *   exported function signatures and typed callback contracts.
  */
 
 /**
  * Create board runtime capabilities for board init/render/game reconstruction.
- *
- * @param {object} deps - Host dependencies.
- * @param {object} deps.state - Shared application state.
- * @param {HTMLElement|null} deps.boardEl - Board container element.
- * @returns {{buildGameAtPly: Function, ensureBoard: Function, renderBoard: Function}} Board runtime methods.
  */
-export const createBoardRuntimeCapabilities = ({ state, boardEl }) => {
+export const createBoardRuntimeCapabilities = (
+  deps: CreateBoardRuntimeDeps,
+): BoardRuntimeCapabilities => {
+  const state: BoardRuntimeState = deps.state;
+  const boardEl: HTMLElement | null = deps.boardEl;
   let board: ChessgroundApi | null = null;
 
-  /**
-   * Ensure Chessground board is created once.
-   *
-   * @returns {Promise<boolean>} True when board is ready.
-   */
-  const ensureBoard = async () => {
+  /** Ensure Chessground board is created once. */
+  const ensureBoard: () => Promise<boolean> = async (): Promise<boolean> => {
     if (!boardEl) return false;
     if (board) return true;
     board = Chessground(boardEl, {
@@ -47,24 +71,15 @@ export const createBoardRuntimeCapabilities = ({ state, boardEl }) => {
     return true;
   };
 
-  /**
-   * Build a Chess instance at a target ply from current mainline moves.
-   *
-   * @param {number} ply - Target ply.
-   * @returns {Chess} Reconstructed chess position.
-   */
-  const buildGameAtPly = (ply) => {
-    const game = new Chess();
-    for (let i = 0; i < ply; i += 1) game.move(state.moves[i]);
+  /** Build a Chess instance at a target ply from current mainline moves. */
+  const buildGameAtPly: (ply: number) => Chess = (ply: number): Chess => {
+    const game: Chess = new Chess();
+    for (let i: number = 0; i < ply; i += 1) game.move(state.moves[i]);
     return game;
   };
 
-  /**
-   * Render board position from game or board preview state.
-   *
-   * @param {Chess} game - Reconstructed game object for current ply.
-   */
-  const renderBoard = (game) => {
+  /** Render board position from game or board preview state. */
+  const renderBoard: (game: Chess) => void = (game: Chess): void => {
     if (!board) return;
     if (state.boardPreview) {
       board.set({
@@ -74,10 +89,12 @@ export const createBoardRuntimeCapabilities = ({ state, boardEl }) => {
       });
       return;
     }
-    const lastMove = state.currentPly > 0
-      ? (() => {
-        const vm = state.verboseMoves[state.currentPly - 1];
-        return vm?.from && vm?.to ? [vm.from, vm.to] : undefined;
+    const lastMove: KeyPair | undefined = state.currentPly > 0
+      ? ((): KeyPair | undefined => {
+        const vm: VerboseMoveLike | undefined = state.verboseMoves[state.currentPly - 1];
+        return vm?.from && vm?.to && isBoardKey(vm.from) && isBoardKey(vm.to)
+          ? [vm.from, vm.to]
+          : undefined;
       })()
       : undefined;
     board.set({

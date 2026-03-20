@@ -1,14 +1,16 @@
 /**
- * Board move-sound component.
+ * Move Sound module.
  *
  * Integration API:
- * - `createMoveSoundPlayer({ isSoundEnabled })` returns a `playMoveSound` function.
+ * - Primary exports from this module: `ChessSoundType`, `MoveSoundPlayer`, `createMoveSoundPlayer`.
  *
  * Configuration API:
- * - Sound enablement is controlled by `isSoundEnabled()` callback.
+ * - Configuration is provided via typed function parameters/options in these exports
+ *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - Uses audio assets in `public/sounds/chess/`.
+ * - This module communicates through typed return values and callbacks; interactions are explicit in
+ *   exported function signatures and typed callback contracts.
  */
 
 export type ChessSoundType =
@@ -68,7 +70,7 @@ export const createMoveSoundPlayer = ({
    * Play one move sound event from asset library.
    *
    */
-  const playMoveSound: MoveSoundPlayer["playMoveSound"] = async (soundType = "move") => {
+  const playMoveSound: MoveSoundPlayer["playMoveSound"] = async (soundType: ChessSoundType = "move"): Promise<void> => {
     if (!isSoundEnabled()) return;
     const template = getAudioTemplate(soundType);
     if (!template) return;

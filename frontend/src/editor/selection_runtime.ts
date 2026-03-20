@@ -1,14 +1,16 @@
 /**
- * Editor selection runtime component.
+ * Selection Runtime module.
  *
  * Integration API:
- * - `createSelectionRuntimeCapabilities(deps)` returns selection/focus/editor-option methods.
+ * - Primary exports from this module: `createSelectionRuntimeCapabilities`.
  *
  * Configuration API:
- * - Uses shared state and host callbacks for rendering and model updates.
+ * - Configuration is provided via typed function parameters/options in these exports
+ *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - Mutates selection/focus-related state and triggers render/model updates via callbacks.
+ * - This module communicates through shared `state`, DOM; interactions are explicit in
+ *   exported function signatures and typed callback contracts.
  */
 
 /**
@@ -40,14 +42,14 @@ export const createSelectionRuntimeCapabilities = ({
   resolveOwningMoveIdForCommentFn,
   applyPgnModelUpdate,
   onRender,
-}) => {
+}: any): any => {
   /**
    * Select move and synchronize board preview/mainline ply position.
    *
    * @param {string} moveId - Target move id.
    * @returns {boolean} True when selection processing completed.
    */
-  const selectMoveById = (moveId) => {
+  const selectMoveById = (moveId: any): any => {
     state.selectedMoveId = moveId;
     const target = getMovePositionById(moveId, { allowResolve: true });
     if (!target) {
@@ -94,7 +96,7 @@ export const createSelectionRuntimeCapabilities = ({
    * @param {string|null|undefined} commentId - Comment id to focus.
    * @returns {boolean} True when focus target exists (or selection unavailable but focus succeeded).
    */
-  const focusCommentById = (commentId) => {
+  const focusCommentById = (commentId: any): any => {
     if (!textEditorEl || !commentId) return false;
     const el = textEditorEl.querySelector(`[data-comment-id="${commentId}"]`);
     if (!el) return false;
@@ -115,7 +117,7 @@ export const createSelectionRuntimeCapabilities = ({
    * @param {"bold"|"italic"|"underline"} style - Formatting style.
    * @returns {boolean} True when a comment context was found and command executed.
    */
-  const formatFocusedComment = (style) => {
+  const formatFocusedComment = (style: any): any => {
     if (!textEditorEl) return false;
     const allowedStyles = new Set(["bold", "italic", "underline"]);
     const command = allowedStyles.has(style) ? style : null;
@@ -143,7 +145,7 @@ export const createSelectionRuntimeCapabilities = ({
    * @param {"before"|"after"} position - Relative insertion position.
    * @param {string} [rawText=""] - Initial raw comment text.
    */
-  const insertAroundSelectedMove = (position, rawText = "") => {
+  const insertAroundSelectedMove = (position: any, rawText: any = ""): any => {
     const moveId = state.selectedMoveId;
     if (!moveId) return;
     const { model, insertedCommentId } = insertCommentAroundMoveFn(state.pgnModel, moveId, position, rawText);
@@ -155,20 +157,20 @@ export const createSelectionRuntimeCapabilities = ({
    *
    * @returns {object} Editor option callbacks and selection/highlight values.
    */
-  const getTextEditorOptions = () => ({
+  const getTextEditorOptions = (): any => ({
     layoutMode: state.pgnLayoutMode === "plain" || state.pgnLayoutMode === "text" || state.pgnLayoutMode === "tree"
       ? state.pgnLayoutMode
       : "plain",
     highlightCommentId: state.pendingFocusCommentId,
     selectedMoveId: state.selectedMoveId,
-    onResolveExistingComment: (moveId, position) => findExistingCommentIdAroundMoveFn(state.pgnModel, moveId, position),
-    onCommentEdit: (commentId, editedText) => {
+    onResolveExistingComment: (moveId: any, position: any): any => findExistingCommentIdAroundMoveFn(state.pgnModel, moveId, position),
+    onCommentEdit: (commentId: any, editedText: any): any => {
       const nextModel = !editedText.trim()
         ? removeCommentByIdFn(state.pgnModel, commentId)
         : setCommentTextByIdFn(state.pgnModel, commentId, editedText);
       applyPgnModelUpdate(nextModel);
     },
-    onCommentFocus: (commentId, opts: { focusFirstCommentAtStart?: boolean } = {}) => {
+    onCommentFocus: (commentId: any, opts: { focusFirstCommentAtStart?: boolean } = {}): any => {
       const { focusFirstCommentAtStart } = opts;
       if (focusFirstCommentAtStart) {
         state.selectedMoveId = null;
@@ -183,7 +185,7 @@ export const createSelectionRuntimeCapabilities = ({
       if (!owningMoveId) return;
       selectMoveById(owningMoveId);
     },
-    onInsertComment: (moveId, position) => {
+    onInsertComment: (moveId: any, position: any): any => {
       const { model, insertedCommentId, created } = insertCommentAroundMoveFn(state.pgnModel, moveId, position, "");
       state.selectedMoveId = moveId;
       state.pendingFocusCommentId = insertedCommentId;
@@ -193,7 +195,7 @@ export const createSelectionRuntimeCapabilities = ({
       }
       applyPgnModelUpdate(model, insertedCommentId);
     },
-    onMoveSelect: (moveId) => {
+    onMoveSelect: (moveId: any): any => {
       selectMoveById(moveId);
     },
   });

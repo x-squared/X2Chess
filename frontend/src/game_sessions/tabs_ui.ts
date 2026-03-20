@@ -1,18 +1,16 @@
 /**
- * Game tabs UI adapter.
+ * Tabs Ui module.
  *
  * Integration API:
- * - Create with `createGameTabsUi(deps)`.
- * - Call `bindEvents()` once, then call `render()` whenever session state changes.
+ * - Primary exports from this module: `createGameTabsUi`.
  *
  * Configuration API:
- * - Configure by injecting session accessors (`getSessions`, `getActiveSessionId`)
- *   and intent callbacks (`onSelectSession`, `onCloseSession`).
- * - Translation callback `t(...)` configures ARIA labels.
+ * - Configuration is provided via typed function parameters/options in these exports
+ *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - Rebuilds tab DOM from current session list.
- * - Emits select/close intents via callbacks; no direct session-state mutation.
+ * - This module communicates through DOM; interactions are explicit in
+ *   exported function signatures and typed callback contracts.
  */
 
 /**
@@ -34,16 +32,16 @@ export const createGameTabsUi = ({
   getActiveSessionId,
   onSelectSession,
   onCloseSession,
-}) => {
+}: any): any => {
   /**
    * Render all session tabs.
    */
-  const render = () => {
+  const render = (): any => {
     if (!gameTabsEl) return;
     const sessions = getSessions();
     const activeSessionId = getActiveSessionId();
     gameTabsEl.innerHTML = "";
-    sessions.forEach((session) => {
+    sessions.forEach((session: any): any => {
       const tab = document.createElement("div");
       const isUnsaved = !session.sourceRef;
       tab.className = `game-tab${session.sessionId === activeSessionId ? " active" : ""}${isUnsaved ? " unsaved" : ""}`;
@@ -78,9 +76,9 @@ export const createGameTabsUi = ({
   /**
    * Bind click delegation for tab selection and close.
    */
-  const bindEvents = () => {
+  const bindEvents = (): any => {
     if (!gameTabsEl) return;
-    gameTabsEl.addEventListener("click", (event) => {
+    gameTabsEl.addEventListener("click", (event: any): any => {
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;
       const action = target.dataset.gameAction;

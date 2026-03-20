@@ -1,21 +1,16 @@
 /**
- * Game session store.
+ * Session Store module.
  *
  * Integration API:
- * - Create once with `createGameSessionStore(deps)`.
- * - Use public methods to manage session lifecycle:
- *   `openSession`, `switchToSession`, `closeSession`, `persistActiveSession`.
+ * - Primary exports from this module: `createGameSessionStore`.
  *
  * Configuration API:
- * - Store behavior is configured by injected snapshot handlers:
- *   `captureActiveSessionSnapshot`, `applySessionSnapshotToState`,
- *   `disposeSessionSnapshot`.
- * - Session IDs/titles/counters are derived from shared state fields.
+ * - Configuration is provided via typed function parameters/options in these exports
+ *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - Mutates `state.gameSessions`, `state.activeSessionId`, and metadata fields.
- * - Applies snapshots when switching/opening/closing sessions.
- * - Disposes removed snapshots to release in-memory resources.
+ * - This module communicates through shared `state`; interactions are explicit in
+ *   exported function signatures and typed callback contracts.
  */
 
 /**
@@ -33,20 +28,20 @@ export const createGameSessionStore = ({
   captureActiveSessionSnapshot,
   applySessionSnapshotToState,
   disposeSessionSnapshot,
-}) => {
+}: any): any => {
   /**
    * Read active session object.
    *
    * @returns {object|null} Active session.
    */
-  const getActiveSession = () => (
-    state.gameSessions.find((session) => session.sessionId === state.activeSessionId) || null
+  const getActiveSession = (): any => (
+    state.gameSessions.find((session: any): any => session.sessionId === state.activeSessionId) || null
   );
 
   /**
    * Persist active state back into active session snapshot.
    */
-  const persistActiveSession = () => {
+  const persistActiveSession = (): any => {
     const active = getActiveSession();
     if (!active) return;
     active.snapshot = captureActiveSessionSnapshot();
@@ -71,7 +66,7 @@ export const createGameSessionStore = ({
     pendingResourceRef = null,
     revisionToken = "",
     saveMode = "auto",
-  }) => {
+  }: any): any => {
     persistActiveSession();
     const session = {
       sessionId: `session-${state.nextSessionSeq++}`,
@@ -95,9 +90,9 @@ export const createGameSessionStore = ({
    * @param {string} sessionId - Target session id.
    * @returns {boolean} True when switch succeeded.
    */
-  const switchToSession = (sessionId) => {
+  const switchToSession = (sessionId: any): any => {
     if (!sessionId || sessionId === state.activeSessionId) return false;
-    const target = state.gameSessions.find((session) => session.sessionId === sessionId);
+    const target = state.gameSessions.find((session: any): any => session.sessionId === sessionId);
     if (!target) return false;
     persistActiveSession();
     state.activeSessionId = target.sessionId;
@@ -111,8 +106,8 @@ export const createGameSessionStore = ({
    * @param {string} sessionId - Session id to close.
    * @returns {{closed: boolean, emptyAfterClose: boolean}} Close result.
    */
-  const closeSession = (sessionId) => {
-    const index = state.gameSessions.findIndex((session) => session.sessionId === sessionId);
+  const closeSession = (sessionId: any): any => {
+    const index = state.gameSessions.findIndex((session: any): any => session.sessionId === sessionId);
     if (index < 0) return { closed: false, emptyAfterClose: state.gameSessions.length === 0 };
     const [removed] = state.gameSessions.splice(index, 1);
     disposeSessionSnapshot(removed.snapshot);
@@ -132,7 +127,7 @@ export const createGameSessionStore = ({
    *
    * @param {object} patch - Partial metadata update.
    */
-  const updateActiveSessionMeta = (patch) => {
+  const updateActiveSessionMeta = (patch: any): any => {
     const active = getActiveSession();
     if (!active || !patch || typeof patch !== "object") return;
     if ("title" in patch) active.title = String(patch.title || active.title);
@@ -146,7 +141,7 @@ export const createGameSessionStore = ({
   return {
     closeSession,
     getActiveSession,
-    listSessions: () => [...state.gameSessions],
+    listSessions: (): any => [...state.gameSessions],
     openSession,
     persistActiveSession,
     switchToSession,

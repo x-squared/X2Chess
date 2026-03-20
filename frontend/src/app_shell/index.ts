@@ -21,6 +21,62 @@
  * - Binds global keyboard shortcuts for menu/undo/redo/dev-dock tabs.
  */
 
+type AppShellState = {
+  isDeveloperToolsEnabled: boolean;
+  isDevDockOpen: boolean;
+  defaultSaveMode: string;
+  devDockHeightPx: number;
+  resourceViewerHeightPx: number;
+  boardColumnWidthPx: number;
+  isMenuOpen: boolean;
+  moveDelayMs: number;
+  soundEnabled: boolean;
+  locale: string;
+  activeDevTab: "ast" | "dom" | "pgn" | string;
+};
+
+type AppShellDeps = {
+  state: AppShellState;
+  t: (key: string, fallback?: string) => string;
+  btnMenu: HTMLButtonElement | null;
+  btnMenuClose: HTMLButtonElement | null;
+  menuPanel: HTMLElement | null;
+  menuBackdrop: HTMLElement | null;
+  speedInput: HTMLInputElement | null;
+  speedValue: HTMLElement | null;
+  soundInput: HTMLInputElement | null;
+  localeInput: HTMLSelectElement | null;
+  developerToolsInput: HTMLInputElement | null;
+  btnDevDockToggle: HTMLButtonElement | null;
+  btnDevDockClose: HTMLButtonElement | null;
+  saveModeInput: HTMLSelectElement | null;
+  btnSaveActiveGame: HTMLButtonElement | null;
+  developerDockEl: HTMLElement | null;
+  devDockResizeHandleEl: HTMLElement | null;
+  boardEditorBoxEl: HTMLElement | null;
+  boardEditorResizeHandleEl: HTMLElement | null;
+  resourceViewerResizeHandleEl: HTMLElement | null;
+  resourceViewerCardEl: HTMLElement | null;
+  onHandleSelectedMoveArrowHotkey: (event: KeyboardEvent) => boolean;
+  onUndo: () => void;
+  onRedo: () => void;
+  onChangeLocale: (localeCode: string) => void;
+  onChangeDeveloperTools: (enabled: boolean) => void;
+  onChangeDeveloperDockOpen: (isOpen: boolean) => void;
+  onSwitchDeveloperDockTab: (tab: "ast" | "dom" | "pgn") => void;
+  onChangeActiveSaveMode: (mode: "auto" | "manual") => void;
+  onChangeBoardColumnWidth?: (widthPx: number) => void;
+  onChangeResourceViewerHeight?: (heightPx: number) => void;
+  onSaveActiveGameNow: () => void | Promise<void>;
+};
+
+type AppShellCapabilities = {
+  bindShellEvents: () => void;
+  setDevDockOpen: (open: boolean) => void;
+  setDeveloperToolsEnabled: (enabled: boolean) => void;
+  setMenuOpen: (open: boolean) => void;
+};
+
 /**
  * Create app shell capabilities for menu, controls, and global shortcuts.
  *
@@ -92,25 +148,25 @@ export const createAppShellCapabilities = ({
   onChangeBoardColumnWidth,
   onChangeResourceViewerHeight,
   onSaveActiveGameNow,
-}) => {
+}: AppShellDeps): AppShellCapabilities => {
   const minDockHeight = 180;
-  const maxDockHeight = () => Math.max(300, Math.min(640, Math.floor(window.innerHeight * 0.76)));
-  const clampDockHeight = (value) => Math.max(minDockHeight, Math.min(maxDockHeight(), Math.round(Number(value) || 0)));
+  const maxDockHeight = (): number => Math.max(300, Math.min(640, Math.floor(window.innerHeight * 0.76)));
+  const clampDockHeight = (value: number): number => Math.max(minDockHeight, Math.min(maxDockHeight(), Math.round(Number(value) || 0)));
   const minResourceViewerHeight = 180;
-  const maxResourceViewerHeight = () => Math.max(220, Math.min(560, Math.floor(window.innerHeight * 0.52)));
-  const clampResourceViewerHeight = (value) => (
+  const maxResourceViewerHeight = (): number => Math.max(220, Math.min(560, Math.floor(window.innerHeight * 0.52)));
+  const clampResourceViewerHeight = (value: number): number => (
     Math.max(minResourceViewerHeight, Math.min(maxResourceViewerHeight(), Math.round(Number(value) || 0)))
   );
   const minBoardColumnWidth = 320;
-  const maxBoardColumnWidth = () => {
+  const maxBoardColumnWidth = (): number => {
     const viewportBased = Math.floor(window.innerWidth * 0.65);
     return Math.max(420, Math.min(760, viewportBased));
   };
-  const clampBoardColumnWidth = (value) => (
+  const clampBoardColumnWidth = (value: number): number => (
     Math.max(minBoardColumnWidth, Math.min(maxBoardColumnWidth(), Math.round(Number(value) || 0)))
   );
 
-  const syncDevDockControls = () => {
+  const syncDevDockControls = (): void => {
     const enabled = Boolean(state.isDeveloperToolsEnabled);
     if (developerToolsInput) developerToolsInput.checked = enabled;
     if (btnDevDockToggle) {
@@ -138,7 +194,7 @@ export const createAppShellCapabilities = ({
    *
    * @param {boolean} enabled - Target developer-tools state.
    */
-  const setDeveloperToolsEnabled = (enabled) => {
+  const setDeveloperToolsEnabled = (enabled: boolean): void => {
     state.isDeveloperToolsEnabled = Boolean(enabled);
     if (!state.isDeveloperToolsEnabled) state.isDevDockOpen = false;
     syncDevDockControls();
@@ -150,7 +206,7 @@ export const createAppShellCapabilities = ({
    *
    * @param {boolean} open - True to show dock.
    */
-  const setDevDockOpen = (open) => {
+  const setDevDockOpen = (open: boolean): void => {
     if (!state.isDeveloperToolsEnabled) {
       state.isDevDockOpen = false;
       syncDevDockControls();
@@ -166,7 +222,7 @@ export const createAppShellCapabilities = ({
    *
    * @param {number} px - Requested dock height in pixels.
    */
-  const setDevDockHeight = (px) => {
+  const setDevDockHeight = (px: number): void => {
     state.devDockHeightPx = clampDockHeight(px);
     syncDevDockControls();
   };
@@ -176,7 +232,7 @@ export const createAppShellCapabilities = ({
    *
    * @param {number} px - Requested Resource-Viewer table height in pixels.
    */
-  const setResourceViewerHeight = (px) => {
+  const setResourceViewerHeight = (px: number): void => {
     state.resourceViewerHeightPx = clampResourceViewerHeight(px);
     syncDevDockControls();
     if (typeof onChangeResourceViewerHeight === "function") {
@@ -189,7 +245,7 @@ export const createAppShellCapabilities = ({
    *
    * @param {number} px - Requested board column width in pixels.
    */
-  const setBoardColumnWidth = (px) => {
+  const setBoardColumnWidth = (px: number): void => {
     state.boardColumnWidthPx = clampBoardColumnWidth(px);
     syncDevDockControls();
     if (typeof onChangeBoardColumnWidth === "function") {
@@ -202,7 +258,7 @@ export const createAppShellCapabilities = ({
    *
    * @param {boolean} open - Whether the menu should be open.
    */
-  const setMenuOpen = (open) => {
+  const setMenuOpen = (open: boolean): void => {
     state.isMenuOpen = Boolean(open);
     if (btnMenu) {
       btnMenu.setAttribute("aria-expanded", state.isMenuOpen ? "true" : "false");
@@ -223,7 +279,7 @@ export const createAppShellCapabilities = ({
   /**
    * Bind app shell DOM and keyboard listeners.
    */
-  const bindShellEvents = () => {
+  const bindShellEvents = (): void => {
     if (btnMenu) {
       btnMenu.addEventListener("click", () => {
         setMenuOpen(!state.isMenuOpen);
@@ -291,15 +347,15 @@ export const createAppShellCapabilities = ({
 
     if (devDockResizeHandleEl && developerDockEl) {
       let resizeState: { bottomPx: number } | null = null;
-      const onPointerMove = (event) => {
+      const onPointerMove = (event: PointerEvent): void => {
         if (!resizeState) return;
         const nextHeight = resizeState.bottomPx - event.clientY;
         setDevDockHeight(nextHeight);
       };
-      const clearResize = () => {
+      const clearResize = (): void => {
         resizeState = null;
       };
-      devDockResizeHandleEl.addEventListener("pointerdown", (event) => {
+      devDockResizeHandleEl.addEventListener("pointerdown", (event: PointerEvent): void => {
         if (!state.isDeveloperToolsEnabled) return;
         if (!state.isDevDockOpen) return;
         const dockRect = developerDockEl.getBoundingClientRect();
@@ -313,15 +369,15 @@ export const createAppShellCapabilities = ({
     }
     if (resourceViewerResizeHandleEl && resourceViewerCardEl) {
       let resizeState: { startY: number; startHeight: number } | null = null;
-      const onPointerMove = (event) => {
+      const onPointerMove = (event: PointerEvent): void => {
         if (!resizeState) return;
         const deltaY = resizeState.startY - event.clientY;
         setResourceViewerHeight(resizeState.startHeight + deltaY);
       };
-      const clearResize = () => {
+      const clearResize = (): void => {
         resizeState = null;
       };
-      resourceViewerResizeHandleEl.addEventListener("pointerdown", (event) => {
+      resourceViewerResizeHandleEl.addEventListener("pointerdown", (event: PointerEvent): void => {
         resizeState = {
           startY: event.clientY,
           startHeight: clampResourceViewerHeight(state.resourceViewerHeightPx),
@@ -335,15 +391,15 @@ export const createAppShellCapabilities = ({
     }
     if (boardEditorResizeHandleEl && boardEditorBoxEl) {
       let resizeState: { leftPx: number; handleHalfWidthPx: number } | null = null;
-      const onPointerMove = (event) => {
+      const onPointerMove = (event: PointerEvent): void => {
         if (!resizeState) return;
         const nextWidth = event.clientX - resizeState.leftPx - resizeState.handleHalfWidthPx;
         setBoardColumnWidth(nextWidth);
       };
-      const clearResize = () => {
+      const clearResize = (): void => {
         resizeState = null;
       };
-      boardEditorResizeHandleEl.addEventListener("pointerdown", (event) => {
+      boardEditorResizeHandleEl.addEventListener("pointerdown", (event: PointerEvent): void => {
         const boxRect = boardEditorBoxEl.getBoundingClientRect();
         const handleRect = boardEditorResizeHandleEl.getBoundingClientRect();
         resizeState = {
@@ -358,7 +414,7 @@ export const createAppShellCapabilities = ({
       window.addEventListener("pointercancel", clearResize);
     }
 
-    window.addEventListener("keydown", (event) => {
+    window.addEventListener("keydown", (event: KeyboardEvent): void => {
       if (event.key === "Escape" && state.isMenuOpen) {
         event.preventDefault();
         setMenuOpen(false);
@@ -374,7 +430,7 @@ export const createAppShellCapabilities = ({
       if (onHandleSelectedMoveArrowHotkey(event)) return;
       const isModifierPressed = event.metaKey || event.ctrlKey;
       if (isModifierPressed && !event.altKey && state.isDeveloperToolsEnabled) {
-        const tabByNumber = {
+        const tabByNumber: Record<string, "ast" | "dom" | "pgn"> = {
           "1": "ast",
           "2": "dom",
           "3": "pgn",

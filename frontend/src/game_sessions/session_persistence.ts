@@ -1,24 +1,16 @@
 /**
- * Session persistence service.
+ * Session Persistence module.
  *
  * Integration API:
- * - Create with `createSessionPersistenceService(deps)`.
- * - Drive persistence through:
- *   - `scheduleAutosaveForActiveSession()`
- *   - `persistActiveSessionNow()`
- *   - `setActiveSessionSaveMode(mode)`
+ * - Primary exports from this module: `createSessionPersistenceService`.
  *
  * Configuration API:
- * - Autosave timing is configured via `autosaveDebounceMs`.
- * - Save policy defaults come from `state.defaultSaveMode` and can be overridden
- *   per session (`session.saveMode`).
- * - Concrete storage backend is configured by injected `saveBySourceRef(...)`.
+ * - Configuration is provided via typed function parameters/options in these exports
+ *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - Reads active session + PGN via injected getters.
- * - Writes session metadata (`dirtyState`, `revisionToken`, `saveMode`) through
- *   `updateActiveSessionMeta`.
- * - Emits user-facing save status through `onSetSaveStatus(...)`.
+ * - This module communicates through shared `state`; interactions are explicit in
+ *   exported function signatures and typed callback contracts.
  */
 
 /**
@@ -46,13 +38,13 @@ export const createSessionPersistenceService = ({
   ensureSourceForActiveSession,
   onSetSaveStatus,
   autosaveDebounceMs = 700,
-}) => {
+}: any): any => {
   /**
    * Persist active session immediately.
    *
    * @returns {Promise<boolean>} True when save ran and succeeded.
    */
-  const persistActiveSessionNow = async () => {
+  const persistActiveSessionNow = async (): Promise<any> => {
     const session = getActiveSession();
     if (!session) return false;
     let activeSourceRef = session.sourceRef || null;
@@ -110,7 +102,7 @@ export const createSessionPersistenceService = ({
   /**
    * Schedule autosave for active session when policy allows.
    */
-  const scheduleAutosaveForActiveSession = () => {
+  const scheduleAutosaveForActiveSession = (): any => {
     if (state.isHydratingGame) return;
     const session = getActiveSession();
     if (!session) return;
@@ -121,7 +113,7 @@ export const createSessionPersistenceService = ({
       window.clearTimeout(state.autosaveTimer);
       state.autosaveTimer = null;
     }
-    state.autosaveTimer = window.setTimeout(() => {
+    state.autosaveTimer = window.setTimeout((): any => {
       state.autosaveTimer = null;
       void persistActiveSessionNow();
     }, autosaveDebounceMs);
@@ -132,7 +124,7 @@ export const createSessionPersistenceService = ({
    *
    * @param {"auto"|"manual"} mode - Session save mode.
    */
-  const setActiveSessionSaveMode = (mode) => {
+  const setActiveSessionSaveMode = (mode: any): any => {
     const nextMode = mode === "manual" ? "manual" : "auto";
     updateActiveSessionMeta({ saveMode: nextMode });
     state.defaultSaveMode = nextMode;

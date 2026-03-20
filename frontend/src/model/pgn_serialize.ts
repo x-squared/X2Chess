@@ -1,8 +1,8 @@
 const INDENT_DIRECTIVE_PREFIX = /^(\s*(?:\\i(?:\s+|$))+)/;
 
-const encodeCommentLayout = (raw) => {
+const encodeCommentLayout = (raw: any): any => {
   const source = String(raw ?? "");
-  const encodeBody = (text) => text
+  const encodeBody = (text: any): any => text
     .replaceAll("\\", "\\\\")
     .replaceAll("\t", "\\t")
     .replaceAll("\n", "\\n");
@@ -13,16 +13,16 @@ const encodeCommentLayout = (raw) => {
   return `${prefix}${encodeBody(rest)}`;
 };
 
-const serializeComment = (comment) => `{${encodeCommentLayout(comment.raw)}}`;
+const serializeComment = (comment: any): any => `{${encodeCommentLayout(comment.raw)}}`;
 
-const serializeVariation = (variation) => {
+const serializeVariation = (variation: any): any => {
   const parts: string[] = [];
   const hoistedBeforeCommentMoveIds = new Set();
-  variation.entries.forEach((entry, idx) => {
+  variation.entries.forEach((entry: any, idx: any): any => {
     if (entry.type === "move_number") {
       const nextEntry = variation.entries[idx + 1];
       if (nextEntry?.type === "move" && Array.isArray(nextEntry.commentsBefore) && nextEntry.commentsBefore.length > 0) {
-        nextEntry.commentsBefore.forEach((comment) => parts.push(serializeComment(comment)));
+        nextEntry.commentsBefore.forEach((comment: any): any => parts.push(serializeComment(comment)));
         hoistedBeforeCommentMoveIds.add(nextEntry.id);
       }
     }
@@ -41,12 +41,12 @@ const serializeVariation = (variation) => {
     if (entry.type !== "move") return;
 
     if (!hoistedBeforeCommentMoveIds.has(entry.id)) {
-      entry.commentsBefore.forEach((comment) => parts.push(serializeComment(comment)));
+      entry.commentsBefore.forEach((comment: any): any => parts.push(serializeComment(comment)));
     }
     parts.push(entry.san);
-    entry.nags.forEach((nag) => parts.push(nag));
+    entry.nags.forEach((nag: any): any => parts.push(nag));
     if (Array.isArray(entry.postItems) && entry.postItems.length > 0) {
-      entry.postItems.forEach((item) => {
+      entry.postItems.forEach((item: any): any => {
         if (item.type === "comment" && item.comment) {
           parts.push(serializeComment(item.comment));
           return;
@@ -56,20 +56,20 @@ const serializeVariation = (variation) => {
         }
       });
     } else {
-      entry.commentsAfter.forEach((comment) => parts.push(serializeComment(comment)));
-      entry.ravs.forEach((child) => parts.push(`(${serializeVariation(child)})`));
+      entry.commentsAfter.forEach((comment: any): any => parts.push(serializeComment(comment)));
+      entry.ravs.forEach((child: any): any => parts.push(`(${serializeVariation(child)})`));
     }
   });
-  variation.trailingComments.forEach((comment) => parts.push(serializeComment(comment)));
+  variation.trailingComments.forEach((comment: any): any => parts.push(serializeComment(comment)));
   return parts
-    .map((part) => String(part ?? ""))
-    .filter((part) => part.length > 0)
+    .map((part: any): any => String(part ?? ""))
+    .filter((part: any): any => part.length > 0)
     .join(" ")
     .trim();
 };
 
-export const serializeModelToPgn = (model) => {
-  const headerLines = model.headers.map((header) => `[${header.key} "${header.value}"]`);
+export const serializeModelToPgn = (model: any): any => {
+  const headerLines = model.headers.map((header: any): any => `[${header.key} "${header.value}"]`);
   const moveText = serializeVariation(model.root);
   if (headerLines.length === 0) return moveText;
   return `${headerLines.join("\n")}\n\n${moveText}`.trim();

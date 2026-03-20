@@ -8,7 +8,7 @@ let bootstrapStarted = false;
  * Module-level guard avoids double init under React StrictMode (dev).
  */
 export function App(): null {
-  useEffect(() => {
+  useEffect((): any => {
     if (bootstrapStarted) return;
     bootstrapStarted = true;
     bootstrap();

@@ -1,22 +1,19 @@
 /**
- * PGN header command helpers.
- *
- * Intent:
- * - Provide immutable helpers for reading and updating PGN tag-pair headers.
+ * Pgn Headers module.
  *
  * Integration API:
- * - `getHeaderValue(model, key, fallback?)`
- * - `setHeaderValue(model, key, value)`
- * - `getX2StyleFromModel(model)` / `normalizeX2StyleValue(raw)` for `[X2Style "..."]` (default `plain`).
+ * - Primary exports from this module: `REQUIRED_PGN_TAG_DEFAULTS`, `X2_STYLE_HEADER_KEY`, `normalizeX2StyleValue`, `getHeaderValue`, `getX2StyleFromModel`, `setHeaderValue`, `ensureRequiredPgnHeaders`.
  *
  * Configuration API:
- * - Callers choose header keys and fallback values explicitly.
+ * - Configuration is provided via typed function parameters/options in these exports
+ *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - Returns primitive values for reads and a cloned model for writes.
+ * - This module communicates through typed return values and callbacks; interactions are explicit in
+ *   exported function signatures and typed callback contracts.
  */
 
-const cloneModel = (model) => JSON.parse(JSON.stringify(model));
+const cloneModel = (model: any): any => JSON.parse(JSON.stringify(model));
 
 /**
  * Required Seven Tag Roster defaults used when missing in a PGN.
@@ -45,7 +42,7 @@ const X2_STYLE_VALUES = new Set(["plain", "text", "tree"]);
  * @param {unknown} raw - Raw header string or unknown.
  * @returns {"plain"|"text"|"tree"} Normalized style; invalid/missing → `plain`.
  */
-export const normalizeX2StyleValue = (raw) => {
+export const normalizeX2StyleValue = (raw: any): any => {
   const s = String(raw ?? "").trim().toLowerCase();
   return X2_STYLE_VALUES.has(s) ? /** @type {"plain"|"text"|"tree"} */ (s) : "plain";
 };
@@ -58,8 +55,8 @@ export const normalizeX2StyleValue = (raw) => {
  * @param {string} [fallback=""] - Value returned when key is missing.
  * @returns {string} Header value or fallback.
  */
-export const getHeaderValue = (model, key, fallback = "") => {
-  const header = model?.headers?.find((candidate) => candidate?.key === key);
+export const getHeaderValue = (model: any, key: any, fallback: any = ""): any => {
+  const header = model?.headers?.find((candidate: any): any => candidate?.key === key);
   return String(header?.value ?? fallback);
 };
 
@@ -69,7 +66,7 @@ export const getHeaderValue = (model, key, fallback = "") => {
  * @param {object} model - PGN model.
  * @returns {"plain"|"text"|"tree"} Style; missing/invalid header → `plain`.
  */
-export const getX2StyleFromModel = (model) => {
+export const getX2StyleFromModel = (model: any): any => {
   const raw = getHeaderValue(model, X2_STYLE_HEADER_KEY, "");
   return normalizeX2StyleValue(raw);
 };
@@ -86,11 +83,11 @@ export const getX2StyleFromModel = (model) => {
  * @param {string} value - Target header value.
  * @returns {object} Updated PGN model clone.
  */
-export const setHeaderValue = (model, key, value) => {
+export const setHeaderValue = (model: any, key: any, value: any): any => {
   const next = cloneModel(model);
   const normalizedValue = String(value ?? "").trim();
   const existingIndex = Array.isArray(next.headers)
-    ? next.headers.findIndex((header) => header?.key === key)
+    ? next.headers.findIndex((header: any): any => header?.key === key)
     : -1;
 
   if (!Array.isArray(next.headers)) {
@@ -118,9 +115,9 @@ export const setHeaderValue = (model, key, value) => {
  * @param {Record<string, string>} [requiredDefaults=REQUIRED_PGN_TAG_DEFAULTS] - Required key/default map.
  * @returns {object} Updated model with all required headers present.
  */
-export const ensureRequiredPgnHeaders = (model, requiredDefaults = REQUIRED_PGN_TAG_DEFAULTS) => {
+export const ensureRequiredPgnHeaders = (model: any, requiredDefaults: any = REQUIRED_PGN_TAG_DEFAULTS): any => {
   let next = cloneModel(model);
-  Object.entries(requiredDefaults).forEach(([key, fallbackValue]) => {
+  Object.entries(requiredDefaults).forEach(([key, fallbackValue]: any): any => {
     const existing = getHeaderValue(next, key, "");
     if (existing.trim()) return;
     next = setHeaderValue(next, key, fallbackValue);

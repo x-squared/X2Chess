@@ -1,14 +1,16 @@
 /**
- * Moves panel component.
+ * Moves Panel module.
  *
  * Integration API:
- * - `renderMovesPanel({ movesEl, moves, pgnModel, t })`
+ * - Primary exports from this module: `renderMovesPanel`.
  *
  * Configuration API:
- * - Localized strings are provided by caller `t(key, fallback)`.
+ * - Configuration is provided via typed function parameters/options in these exports
+ *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - Imperatively renders move list DOM into supplied container.
+ * - This module communicates through DOM; interactions are explicit in
+ *   exported function signatures and typed callback contracts.
  */
 
 /**
@@ -20,7 +22,7 @@
  * @param {object} params.pgnModel - Current PGN model for move-number context.
  * @param {Function} params.t - Translation resolver `(key, fallback) => string`.
  */
-export const renderMovesPanel = ({ movesEl, moves, pgnModel, t }) => {
+export const renderMovesPanel = ({ movesEl, moves, pgnModel, t }: any): any => {
   if (!movesEl) return;
   movesEl.replaceChildren();
 
@@ -37,7 +39,7 @@ export const renderMovesPanel = ({ movesEl, moves, pgnModel, t }) => {
     return;
   }
 
-  const startsWithBlack = (() => {
+  const startsWithBlack = ((): any => {
     const entries = pgnModel?.root?.entries;
     if (!Array.isArray(entries)) return false;
     for (const entry of entries) {

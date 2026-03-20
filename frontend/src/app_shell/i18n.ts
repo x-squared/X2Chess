@@ -5,21 +5,18 @@ import it from "../../data/i18n/it.json";
 import es from "../../data/i18n/es.json";
 
 /**
- * App shell i18n helpers.
+ * I18N module.
  *
  * Integration API:
- * - Import constants `SUPPORTED_LOCALES` and `DEFAULT_LOCALE` for UI selectors
- *   and startup defaults.
- * - Call `resolveLocale(input)` for browser/localStorage locale hints.
- * - Call `createTranslator(locale?)` once and pass returned `t(key, fallback)`
- *   to layout/render modules.
+ * - Primary exports from this module: `DEFAULT_LOCALE`, `SUPPORTED_LOCALES`, `resolveLocale`, `createTranslator`.
  *
  * Configuration API:
- * - Translations are configured by JSON bundles in `frontend/data/i18n/*.json`.
- * - Locale fallback order is: requested locale -> language-only locale -> English.
+ * - Configuration is provided via typed function parameters/options in these exports
+ *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - Returns read-only lookup functions; this module does not mutate state or DOM.
+ * - This module communicates through browser storage; interactions are explicit in
+ *   exported function signatures and typed callback contracts.
  */
 
 const BUNDLES_BY_LOCALE = {
@@ -57,7 +54,7 @@ export const resolveLocale = (input: string): LocaleCode => {
  * @param {string} [locale=DEFAULT_LOCALE] - Requested locale code.
  * @returns {(key: string, englishDefault?: string) => string} Translation resolver.
  */
-export const createTranslator = (locale: string = DEFAULT_LOCALE) => {
+export const createTranslator = (locale: string = DEFAULT_LOCALE): ((key: string, englishDefault?: string) => string) => {
   const effectiveLocale = resolveLocale(locale);
   const localizedBundle = (BUNDLES_BY_LOCALE[effectiveLocale] ?? {}) as LocaleBundle;
   const fallbackBundle = (BUNDLES_BY_LOCALE[DEFAULT_LOCALE] ?? {}) as LocaleBundle;

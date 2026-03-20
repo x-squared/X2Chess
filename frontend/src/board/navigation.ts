@@ -1,31 +1,59 @@
 import { Chess } from "chess.js";
+import type { MovePositionRecord } from "./move_position";
+import type { ChessSoundType } from "./move_sound";
 
 /**
- * Board navigation component.
+ * Navigation module.
  *
  * Integration API:
- * - `createBoardNavigationCapabilities(deps)` returns navigation/hotkey methods.
+ * - Primary exports from this module: `createBoardNavigationCapabilities`.
  *
  * Configuration API:
- * - Uses shared state and caller-provided callbacks for rendering and move lookup.
+ * - Configuration is provided via typed function parameters/options in these exports
+ *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - Mutates navigation-related state and delegates board sound/render/comment focus
- *   through explicit callbacks.
+ * - This module communicates through shared `state`; interactions are explicit in
+ *   exported function signatures and typed callback contracts.
  */
+
+type NavigationState = {
+  selectedMoveId: string | null;
+  currentPly: number;
+  moves: string[];
+  verboseMoves: Array<{ flags?: string }>;
+  animationRunId: number;
+  isAnimating: boolean;
+  boardPreview: unknown | null;
+  moveDelayMs: number;
+};
+
+type MoveCommentSide = "before" | "after";
+
+type CreateBoardNavigationDeps = {
+  state: NavigationState;
+  getMovePositionById: (
+    moveId: string | null,
+    options: { allowResolve: boolean },
+  ) => MovePositionRecord | null;
+  selectMoveById: (moveId: string) => boolean;
+  findCommentIdAroundMove: (moveId: string, position: MoveCommentSide) => string | null;
+  focusCommentById: (commentId: string) => boolean;
+  playMoveSound: (soundType: ChessSoundType) => Promise<void>;
+  render: () => void;
+};
+
+type BoardNavigationCapabilities = {
+  gotoPly: (nextPly: number, options?: { animate?: boolean }) => Promise<void>;
+  gotoRelativeStep: (direction: number) => Promise<void>;
+  handleSelectedMoveArrowHotkey: (event: KeyboardEvent) => boolean;
+};
 
 /**
  * Create board navigation and keyboard-navigation capabilities.
  *
- * @param {object} deps - Host dependencies.
- * @param {object} deps.state - Shared application state.
- * @param {Function} deps.getMovePositionById - Callback `(moveId, options) => position|null`.
- * @param {Function} deps.selectMoveById - Callback `(moveId) => boolean`.
- * @param {Function} deps.findCommentIdAroundMove - Callback `(moveId, position) => string|null`.
- * @param {Function} deps.focusCommentById - Callback `(commentId) => boolean`.
- * @param {Function} deps.playMoveSound - Callback `(soundType) => Promise<void>`.
- * @param {Function} deps.render - Callback to refresh UI after navigation changes.
- * @returns {{gotoPly: Function, gotoRelativeStep: Function, handleSelectedMoveArrowHotkey: Function}} Navigation methods.
+ * @param {CreateBoardNavigationDeps} deps - Host dependencies.
+ * @returns {BoardNavigationCapabilities} Navigation methods.
  */
 export const createBoardNavigationCapabilities = ({
   state,
@@ -35,16 +63,15 @@ export const createBoardNavigationCapabilities = ({
   focusCommentById,
   playMoveSound,
   render,
-}) => {
+}: CreateBoardNavigationDeps): BoardNavigationCapabilities => {
   /**
    * Resolve sound type for the current stepped move.
-   *
-   * @param {number} direction - Step direction (+1 forward, -1 backward).
-   * @param {string} movedSan - SAN of moved step.
-   * @param {number} plyAfterStep - Current ply after applying step.
-   * @returns {string} Sound type key.
    */
-  const resolveMoveSoundType = (direction, movedSan, plyAfterStep) => {
+  const resolveMoveSoundType = (
+    direction: number,
+    movedSan: string,
+    plyAfterStep: number,
+  ): ChessSoundType => {
     if (direction < 0) return "move";
     const san = String(movedSan || "");
     if (!san) return "move";
@@ -75,21 +102,17 @@ export const createBoardNavigationCapabilities = ({
     return "move";
   };
 
-  /**
-   * Sleep helper used by animated move stepping.
-   *
-   * @param {number} ms - Delay in milliseconds.
-   * @returns {Promise<void>} Resolves after requested delay.
-   */
-  const sleep = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+  /** Sleep helper used by animated move stepping. */
+  const sleep = (ms: number): Promise<void> =>
+    new Promise((resolve) => {
+      window.setTimeout(resolve, ms);
+    });
 
-  /**
-   * Jump or animate to a target ply.
-   *
-   * @param {number} nextPly - Target ply index.
-   * @param {{animate?: boolean}} options - Navigation options.
-   */
-  const gotoPly = async (nextPly, { animate = true } = {}) => {
+  /** Jump or animate to a target ply. */
+  const gotoPly = async (
+    nextPly: number,
+    { animate = true }: { animate?: boolean } = {},
+  ): Promise<void> => {
     const bounded = Math.max(0, Math.min(nextPly, state.moves.length));
     if (bounded === state.currentPly) return;
 
@@ -131,12 +154,8 @@ export const createBoardNavigationCapabilities = ({
     }
   };
 
-  /**
-   * Move one relative step, aware of selected variation context.
-   *
-   * @param {number} direction - Negative for previous, positive for next.
-   */
-  const gotoRelativeStep = async (direction) => {
+  /** Move one relative step, aware of selected variation context. */
+  const gotoRelativeStep = async (direction: number): Promise<void> => {
     const step = direction < 0 ? -1 : 1;
     const selectedMoveId = state.selectedMoveId;
     const selectedPosition = getMovePositionById(selectedMoveId, { allowResolve: false });
@@ -158,13 +177,8 @@ export const createBoardNavigationCapabilities = ({
     await gotoPly(state.currentPly + step);
   };
 
-  /**
-   * Handle arrow-key navigation for selected move context.
-   *
-   * @param {KeyboardEvent} event - Keyboard event to evaluate and possibly consume.
-   * @returns {boolean} True when event was handled.
-   */
-  const handleSelectedMoveArrowHotkey = (event) => {
+  /** Handle arrow-key navigation for selected move context. */
+  const handleSelectedMoveArrowHotkey = (event: KeyboardEvent): boolean => {
     const moveId = state.selectedMoveId;
     const movePosition = getMovePositionById(moveId, { allowResolve: false });
     if (!moveId || !movePosition) return false;
@@ -176,7 +190,7 @@ export const createBoardNavigationCapabilities = ({
 
     if (event.shiftKey && (isLeft || isRight)) {
       event.preventDefault();
-      const position = isLeft ? "before" : "after";
+      const position: MoveCommentSide = isLeft ? "before" : "after";
       const commentId = findCommentIdAroundMove(moveId, position);
       if (commentId) {
         focusCommentById(commentId);

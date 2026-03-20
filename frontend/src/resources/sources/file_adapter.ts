@@ -1,26 +1,19 @@
 import type { TauriInvokeFn } from "../tauri_invoke_types";
-import { extractPgnMetadata, PGN_STANDARD_METADATA_KEYS } from "./pgn_metadata.js";
+import { extractPgnMetadata, PGN_STANDARD_METADATA_KEYS } from "../../../../resource/domain/metadata";
 
 /**
- * File source adapter.
+ * File Adapter module.
  *
  * Integration API:
- * - Register via `createFileSourceAdapter({ state })`.
- * - Use adapter methods from the source gateway: `pickSourceRoot`, `list`,
- *   `load`, `save`, and optional DEV-root detection helpers.
+ * - Primary exports from this module: `createFileSourceAdapter`.
  *
  * Configuration API:
- * - Runtime behavior depends on environment:
- *   - Browser: File System Access API handles/permissions.
- *   - Tauri: command-based file operations (`list_pgn_files`, `load_game_file`, ...).
- * - Source roots are configured by updating state (`gameDirectoryHandle`,
- *   `gameDirectoryPath`, `gameRootPath`) through `applySourceRoot`.
+ * - Configuration is provided via typed function parameters/options in these exports
+ *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - `list()` returns normalized file records with `sourceRef`.
- * - `load(sourceRef)` returns `{ pgnText, revisionToken, titleHint }`.
- * - `save(sourceRef, pgnText)` persists content and returns new `revisionToken`.
- * - Throws explicit errors for missing permissions/unsupported runtime.
+ * - This module communicates through shared `state`, external I/O; interactions are explicit in
+ *   exported function signatures and typed callback contracts.
  */
 
 /**
@@ -28,14 +21,14 @@ import { extractPgnMetadata, PGN_STANDARD_METADATA_KEYS } from "./pgn_metadata.j
  *
  * @returns {boolean} True when `window.showDirectoryPicker` is supported.
  */
-const supportsDirectoryPicker = () => typeof window.showDirectoryPicker === "function";
+const supportsDirectoryPicker = (): any => typeof window.showDirectoryPicker === "function";
 
 /**
  * Detect whether runtime is Tauri webview.
  *
  * @returns {boolean} True in Tauri runtime.
  */
-const isTauriRuntime = () => Boolean(window.__TAURI_INTERNALS__ || window.__TAURI__);
+const isTauriRuntime = (): any => Boolean(window.__TAURI_INTERNALS__ || window.__TAURI__);
 
 let tauriInvokeFnPromise: Promise<TauriInvokeFn> | null = null;
 
@@ -44,9 +37,9 @@ let tauriInvokeFnPromise: Promise<TauriInvokeFn> | null = null;
  *
  * @returns {Promise<Function>} Invoke function.
  */
-const getTauriInvoke = async () => {
+const getTauriInvoke = async (): Promise<any> => {
   if (!tauriInvokeFnPromise) {
-    tauriInvokeFnPromise = import("@tauri-apps/api/core").then((mod) => mod.invoke);
+    tauriInvokeFnPromise = import("@tauri-apps/api/core").then((mod: any): any => mod.invoke);
   }
   return tauriInvokeFnPromise;
 };
@@ -58,7 +51,7 @@ const getTauriInvoke = async () => {
  * @param {object} payload - Command payload.
  * @returns {Promise<unknown>} Command result.
  */
-const tauriInvoke = async (command, payload = {}) => {
+const tauriInvoke = async (command: any, payload: any = {}): Promise<any> => {
   const invoke = await getTauriInvoke();
   return invoke(command, payload);
 };
@@ -70,7 +63,7 @@ const tauriInvoke = async (command, payload = {}) => {
  * @param {"read"|"readwrite"} mode - Requested mode.
  * @returns {Promise<boolean>} True when permission is granted.
  */
-const ensureFsPermission = async (handle, mode = "read") => {
+const ensureFsPermission = async (handle: any, mode: any = "read"): Promise<any> => {
   if (!handle || typeof handle.queryPermission !== "function" || typeof handle.requestPermission !== "function") {
     return true;
   }
@@ -87,9 +80,9 @@ const ensureFsPermission = async (handle, mode = "read") => {
  * @param {...string} parts - Path segments.
  * @returns {string} Joined path.
  */
-const pathJoinUnix = (...parts) => parts
+const pathJoinUnix = (...parts: any): any => parts
   .filter(Boolean)
-  .map((part, index) => {
+  .map((part: any, index: any): any => {
     if (index === 0) return String(part).replace(/\/+$/, "");
     return String(part).replace(/^\/+|\/+$/g, "");
   })
@@ -102,7 +95,7 @@ const pathJoinUnix = (...parts) => parts
  * @param {string} pathValue - Input path.
  * @returns {string} Parent path.
  */
-const pathParentUnix = (pathValue) => {
+const pathParentUnix = (pathValue: any): any => {
   const normalized = String(pathValue || "").replace(/\/+$/, "");
   const index = normalized.lastIndexOf("/");
   if (index <= 0) return normalized;
@@ -115,7 +108,7 @@ const pathParentUnix = (pathValue) => {
  * @param {string} pathValue - Full file path.
  * @returns {string} Base name.
  */
-const pathBaseUnix = (pathValue) => String(pathValue || "")
+const pathBaseUnix = (pathValue: any): any => String(pathValue || "")
   .replace(/\\/g, "/")
   .split("/")
   .filter(Boolean)
@@ -128,7 +121,7 @@ const pathBaseUnix = (pathValue) => String(pathValue || "")
  * @param {string} childName - Child directory name.
  * @returns {Promise<FileSystemDirectoryHandle|null>} Child handle or null.
  */
-const tryGetDirectoryHandle = async (parentHandle, childName) => {
+const tryGetDirectoryHandle = async (parentHandle: any, childName: any): Promise<any> => {
   try {
     return await parentHandle.getDirectoryHandle(childName, { create: false });
   } catch {
@@ -142,7 +135,7 @@ const tryGetDirectoryHandle = async (parentHandle, childName) => {
  * @param {string} selectedPath - User-picked path.
  * @returns {Promise<{rootPath: string, gamesPath: string, folderName: string}|null>} Path metadata.
  */
-const resolveTauriRootAndGamesDirectory = async (selectedPath) => {
+const resolveTauriRootAndGamesDirectory = async (selectedPath: any): Promise<any> => {
   const selected = String(selectedPath || "").trim();
   if (!selected) return null;
   const selectedIsGames = selected.toLowerCase().endsWith("/games");
@@ -180,7 +173,7 @@ const resolveTauriRootAndGamesDirectory = async (selectedPath) => {
  * @param {string} fileName - PGN file name.
  * @returns {{kind: string, locator: string, recordId: string}} File source reference.
  */
-const createFileSourceRef = (locator, fileName) => ({
+const createFileSourceRef = (locator: any, fileName: any): any => ({
   kind: "file",
   locator,
   recordId: fileName,
@@ -192,7 +185,7 @@ const createFileSourceRef = (locator, fileName) => ({
  * @param {string} rawTitle - Input title.
  * @returns {string} Safe base name without extension.
  */
-const sanitizeFileTitle = (rawTitle) => {
+const sanitizeFileTitle = (rawTitle: any): any => {
   const normalized = String(rawTitle || "")
     .trim()
     .replace(/[^\w.-]+/g, "-")
@@ -208,13 +201,13 @@ const sanitizeFileTitle = (rawTitle) => {
  * @param {object} deps.state - Shared app state.
  * @returns {object} File adapter with list/load/save/source-root helpers.
  */
-export const createFileSourceAdapter = ({ state }) => {
-  const isPlaceholderLocator = (value) => {
+export const createFileSourceAdapter = ({ state }: any): any => {
+  const isPlaceholderLocator = (value: any): any => {
     const normalized = String(value || "").trim().toLowerCase();
     return normalized === "" || normalized === "local-files";
   };
 
-  const resolveLocator = (sourceRef) => {
+  const resolveLocator = (sourceRef: any): any => {
     const locator = String(sourceRef?.locator || "").trim();
     if (locator && !isPlaceholderLocator(locator)) return locator;
     return String(state.gameDirectoryPath || "").trim();
@@ -225,7 +218,7 @@ export const createFileSourceAdapter = ({ state }) => {
    *
    * @returns {Promise<{kind: string, rootPath: string, gamesPath: string, rootHandle?: FileSystemDirectoryHandle}|null>} Source root descriptor.
    */
-  const pickSourceRoot = async () => {
+  const pickSourceRoot = async (): Promise<any> => {
     if (supportsDirectoryPicker()) {
       const pickDir = window.showDirectoryPicker;
       if (!pickDir) throw new Error("Directory picker is not available.");
@@ -256,12 +249,12 @@ export const createFileSourceAdapter = ({ state }) => {
 
   /**
    * Pick resource target from a single button flow:
-   * - first file picker (`.pgn`, `.sqlite`, `.db`, `.sqlite3`),
+   * - first file picker (`.pgn` and database files such as `.db` / `.sql*`),
    * - then folder picker when file selection is canceled.
    *
-   * @returns {Promise<{type: "folder", title: string, sourceRoot: object}|{type: "pgn-db"|"sqlite", title: string, locator: string}|null>} Picked target descriptor.
+   * @returns {Promise<{type: "folder", title: string, sourceRoot: object}|{type: "file"|"db", title: string, locator: string}|null>} Picked target descriptor.
    */
-  const pickResourceTarget = async () => {
+  const pickResourceTarget = async (): Promise<any> => {
     if (isTauriRuntime()) {
       const selectedFilePath = await tauriInvoke("pick_resource_file");
       const filePath = String(selectedFilePath || "").trim();
@@ -269,12 +262,12 @@ export const createFileSourceAdapter = ({ state }) => {
         const baseName = pathBaseUnix(filePath);
         const extension = baseName.includes(".") ? (baseName.split(".").pop() || "").toLowerCase() : "";
         if (extension === "pgn") {
-          return { type: "pgn-db", title: baseName.replace(/\.[^.]+$/, ""), locator: filePath };
+          return { type: "file", title: baseName.replace(/\.[^.]+$/, ""), locator: filePath };
         }
-        if (extension === "sqlite" || extension === "db" || extension === "sqlite3") {
-          return { type: "sqlite", title: baseName.replace(/\.[^.]+$/, ""), locator: filePath };
+        if (extension === "db" || extension.startsWith("sql")) {
+          return { type: "db", title: baseName.replace(/\.[^.]+$/, ""), locator: filePath };
         }
-        throw new Error("Unsupported resource file. Choose .pgn or SQLite (.sqlite/.db/.sqlite3).");
+        throw new Error("Unsupported resource file. Choose .pgn or database file (.db/.sql*).");
       }
       const folderRoot = await pickSourceRoot();
       if (!folderRoot) return null;
@@ -306,7 +299,7 @@ export const createFileSourceAdapter = ({ state }) => {
    *
    * @param {object} sourceRoot - Source root descriptor.
    */
-  const applySourceRoot = (sourceRoot) => {
+  const applySourceRoot = (sourceRoot: any): any => {
     if (!sourceRoot) return;
     if (sourceRoot.kind === "browser") {
       state.gameDirectoryHandle = sourceRoot.rootHandle || null;
@@ -324,7 +317,7 @@ export const createFileSourceAdapter = ({ state }) => {
    *
    * @returns {Promise<object|null>} Source root descriptor or null.
    */
-  const detectDefaultSourceRoot = async () => {
+  const detectDefaultSourceRoot = async (): Promise<any> => {
     if (!isTauriRuntime()) return null;
     const detectedGamesPath = await tauriInvoke("detect_default_games_directory");
     if (!detectedGamesPath) return null;
@@ -342,7 +335,7 @@ export const createFileSourceAdapter = ({ state }) => {
    *
    * @returns {Promise<Array<{sourceRef: object, titleHint: string, revisionToken: string}>>} List of game descriptors.
    */
-  const list = async (options: Record<string, unknown> = {}) => {
+  const list = async (options: Record<string, unknown> = {}): Promise<any> => {
     const sourceRef = options?.sourceRef as { locator?: string } | undefined;
     const preferredLocatorRaw = String(sourceRef?.locator || "").trim();
     const preferredLocator = isPlaceholderLocator(preferredLocatorRaw) ? "" : preferredLocatorRaw;
@@ -380,14 +373,14 @@ export const createFileSourceAdapter = ({ state }) => {
           availableMetadataKeys: metadataPayload.availableMetadataKeys,
         });
       }
-      entries.sort((left, right) => left.titleHint.localeCompare(right.titleHint));
+      entries.sort((left: any, right: any): any => left.titleHint.localeCompare(right.titleHint));
       return entries;
     }
     const effectiveDirectory = preferredLocator || state.gameDirectoryPath;
     if (effectiveDirectory && isTauriRuntime()) {
       const names = await tauriInvoke("list_pgn_files", { gamesDirectory: effectiveDirectory });
       const normalizedNames = (Array.isArray(names) ? names : [])
-        .map((name) => String(name || ""))
+        .map((name: any): any => String(name || ""))
         .filter(Boolean);
       const results: Array<{
         sourceRef: ReturnType<typeof createFileSourceRef>;
@@ -430,7 +423,7 @@ export const createFileSourceAdapter = ({ state }) => {
    * @param {{locator?: string, recordId?: string}} sourceRef - File source reference.
    * @returns {Promise<{pgnText: string, revisionToken: string, titleHint: string}>} Loaded PGN payload.
    */
-  const load = async (sourceRef) => {
+  const load = async (sourceRef: any): Promise<any> => {
     const fileName = String(sourceRef?.recordId || "");
     if (!fileName) throw new Error("File source is missing recordId.");
     const locator = resolveLocator(sourceRef);
@@ -470,7 +463,7 @@ export const createFileSourceAdapter = ({ state }) => {
    * @param {string} pgnText - Serialized PGN text.
    * @returns {Promise<{revisionToken: string}>} Save result.
    */
-  const save = async (sourceRef, pgnText) => {
+  const save = async (sourceRef: any, pgnText: any): Promise<any> => {
     const fileName = String(sourceRef?.recordId || "");
     if (!fileName) throw new Error("File source is missing recordId.");
     const locator = resolveLocator(sourceRef);
@@ -509,7 +502,7 @@ export const createFileSourceAdapter = ({ state }) => {
    * @param {string} [titleHint=""] - Preferred title for new filename.
    * @returns {Promise<{sourceRef: object, revisionToken: string, titleHint: string}>} Created game descriptor.
    */
-  const createInResource = async (resourceRef, pgnText, titleHint = "") => {
+  const createInResource = async (resourceRef: any, pgnText: any, titleHint: any = ""): Promise<any> => {
     const locator = String(resourceRef?.locator || "").trim() || String(state.gameDirectoryPath || "").trim();
     if (!locator && !state.gameDirectoryHandle) {
       throw new Error("No active file resource is available to store imported text.");

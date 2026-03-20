@@ -1,20 +1,16 @@
 /**
- * Editor Component-Contract
+ * Index module.
  *
  * Integration API:
- * - `text_editor.render(container, pgnModel, options)`
- * - `parsePgnToModel(rawPgn)`
- * - `serializeModelToPgn(model)`
+ * - Primary exports from this module: `(no direct exports)`.
  *
  * Configuration API:
- * - `text_editor.render(..., options)` supports `layoutMode` (`plain`|`text`|`tree`), selection/highlight, callbacks.
- * - Editor appearance is configured via editor-owned styles in `editor/styles.css`
- *   and CSS variables (`--text-editor-font-size`, `--text-editor-line-height`,
- *   `--text-editor-max-height`).
+ * - Configuration is provided via typed function parameters/options in these exports
+ *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - Move/comment editing callbacks passed in `text_editor.render(..., options)`.
- * - Command helpers below communicate via immutable model transforms.
+ * - This module communicates through typed return values and callbacks; interactions are explicit in
+ *   exported function signatures and typed callback contracts.
  */
 
 export { text_editor } from "./text_editor";

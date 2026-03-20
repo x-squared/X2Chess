@@ -1,22 +1,18 @@
 import type { TauriInvokeFn } from "./tauri_invoke_types";
 
 /**
- * Runtime config service.
+ * Runtime Config Service module.
  *
  * Integration API:
- * - Create with `createRuntimeConfigService({ state })`.
- * - Call `loadRuntimeConfigFromClientData()` or
- *   `loadRuntimeConfigFromClientDataAndDefaults()` from startup/resource flows.
+ * - Primary exports from this module: `createRuntimeConfigService`.
  *
  * Configuration API:
- * - Built-in defaults live in `DEFAULT_APP_CONFIG`.
- * - User overrides are loaded from `config/user-config.json` in active local
- *   runtime data area and merged over defaults.
- * - Supports both browser handle-based roots and Tauri path-based roots.
+ * - Configuration is provided via typed function parameters/options in these exports
+ *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - Returns resolved config objects only.
- * - Does not mutate UI directly; caller decides when/how to apply config.
+ * - This module communicates through shared `state`, external I/O; interactions are explicit in
+ *   exported function signatures and typed callback contracts.
  */
 
 const DEFAULT_APP_CONFIG = {
@@ -39,11 +35,11 @@ const DEFAULT_APP_CONFIG = {
  * @param {object} partial - Partial override.
  * @returns {object} Merged object.
  */
-const deepMergeObject = (base, partial) => {
+const deepMergeObject = (base: any, partial: any): any => {
   const left = base && typeof base === "object" && !Array.isArray(base) ? base : {};
   const right = partial && typeof partial === "object" && !Array.isArray(partial) ? partial : {};
   const merged = { ...left };
-  Object.keys(right).forEach((key) => {
+  Object.keys(right).forEach((key: any): any => {
     const leftVal = left[key];
     const rightVal = right[key];
     const shouldRecurse = (
@@ -64,7 +60,7 @@ const deepMergeObject = (base, partial) => {
  *
  * @returns {boolean} True in Tauri runtime.
  */
-const isTauriRuntime = () => Boolean(window.__TAURI_INTERNALS__ || window.__TAURI__);
+const isTauriRuntime = (): any => Boolean(window.__TAURI_INTERNALS__ || window.__TAURI__);
 
 let tauriInvokeFnPromise: Promise<TauriInvokeFn> | null = null;
 /**
@@ -72,9 +68,9 @@ let tauriInvokeFnPromise: Promise<TauriInvokeFn> | null = null;
  *
  * @returns {Promise<Function>} Invoke function.
  */
-const getTauriInvoke = async () => {
+const getTauriInvoke = async (): Promise<any> => {
   if (!tauriInvokeFnPromise) {
-    tauriInvokeFnPromise = import("@tauri-apps/api/core").then((mod) => mod.invoke);
+    tauriInvokeFnPromise = import("@tauri-apps/api/core").then((mod: any): any => mod.invoke);
   }
   return tauriInvokeFnPromise;
 };
@@ -86,7 +82,7 @@ const getTauriInvoke = async () => {
  * @param {object} payload - Command payload.
  * @returns {Promise<unknown>} Command result.
  */
-const tauriInvoke = async (command, payload = {}) => {
+const tauriInvoke = async (command: any, payload: any = {}): Promise<any> => {
   const invoke = await getTauriInvoke();
   return invoke(command, payload);
 };
@@ -98,7 +94,7 @@ const tauriInvoke = async (command, payload = {}) => {
  * @param {string} childName - Child directory name.
  * @returns {Promise<FileSystemDirectoryHandle|null>} Child or null.
  */
-const tryGetDirectoryHandle = async (parentHandle, childName) => {
+const tryGetDirectoryHandle = async (parentHandle: any, childName: any): Promise<any> => {
   try {
     return await parentHandle.getDirectoryHandle(childName, { create: false });
   } catch {
@@ -113,7 +109,7 @@ const tryGetDirectoryHandle = async (parentHandle, childName) => {
  * @param {string} childName - Child file name.
  * @returns {Promise<FileSystemFileHandle|null>} Child or null.
  */
-const tryGetFileHandle = async (parentHandle, childName) => {
+const tryGetFileHandle = async (parentHandle: any, childName: any): Promise<any> => {
   try {
     return await parentHandle.getFileHandle(childName, { create: false });
   } catch {
@@ -128,7 +124,7 @@ const tryGetFileHandle = async (parentHandle, childName) => {
  * @param {string[]} pathSegments - Relative path.
  * @returns {Promise<string|null>} File text or null.
  */
-const readTextFromHandlePath = async (rootDirHandle, pathSegments) => {
+const readTextFromHandlePath = async (rootDirHandle: any, pathSegments: any): Promise<any> => {
   let dir = rootDirHandle;
   for (let i = 0; i < pathSegments.length - 1; i += 1) {
     dir = await tryGetDirectoryHandle(dir, pathSegments[i]);
@@ -147,13 +143,13 @@ const readTextFromHandlePath = async (rootDirHandle, pathSegments) => {
  * @param {object} deps.state - Shared app state.
  * @returns {{loadRuntimeConfigFromClientData: Function, loadRuntimeConfigFromClientDataAndDefaults: Function}} Service API.
  */
-export const createRuntimeConfigService = ({ state }) => {
+export const createRuntimeConfigService = ({ state }: any): any => {
   /**
    * Load config from local runtime data area.
    *
    * @returns {Promise<object>} Resolved runtime config object.
    */
-  const loadRuntimeConfigFromClientData = async () => {
+  const loadRuntimeConfigFromClientData = async (): Promise<any> => {
     let resolvedConfig = deepMergeObject({}, DEFAULT_APP_CONFIG);
     if (state.gameDirectoryHandle) {
       try {
@@ -187,7 +183,7 @@ export const createRuntimeConfigService = ({ state }) => {
    *
    * @returns {Promise<object>} Resolved runtime config.
    */
-  const loadRuntimeConfigFromClientDataAndDefaults = async () => loadRuntimeConfigFromClientData();
+  const loadRuntimeConfigFromClientDataAndDefaults = async (): Promise<any> => loadRuntimeConfigFromClientData();
 
   return {
     loadRuntimeConfigFromClientData,

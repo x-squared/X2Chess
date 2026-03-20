@@ -1,52 +1,87 @@
+import type {
+  MovePositionIndex,
+  MovePositionRecord,
+  MovePositionResolved,
+  PgnModelForMoves,
+} from "./move_position";
+
 /**
- * Board move-lookup component.
+ * Move Lookup module.
  *
  * Integration API:
- * - `createMoveLookupCapabilities({ state, buildMovePositionByIdFn, resolveMovePositionByIdFn })`
+ * - Primary exports from this module: `createMoveLookupCapabilities`.
  *
  * Configuration API:
- * - Uses caller-provided index builder/resolver functions.
+ * - Injects callbacks `buildMovePositionByIdFn` and `resolveMovePositionByIdFn`.
+ * - Reads and updates `state.movePositionById` cache.
  *
  * Communication API:
- * - Reads and updates `state.movePositionById` cache.
+ * - Returns `getMovePositionById(moveId, options)` for board/editor callers.
  */
+
+type MoveLookupState = {
+  pgnModel: PgnModelForMoves;
+  movePositionById: MovePositionIndex;
+};
+
+type MoveLookupDeps = {
+  state: MoveLookupState;
+  buildMovePositionByIdFn: (pgnModel: PgnModelForMoves) => MovePositionIndex;
+  resolveMovePositionByIdFn: (
+    pgnModel: PgnModelForMoves,
+    moveId: string,
+  ) => MovePositionResolved | null;
+};
+
+type MoveLookupCapabilities = {
+  getMovePositionById: (
+    moveId: string | null,
+    options?: { allowResolve?: boolean },
+  ) => MovePositionRecord | MovePositionResolved | null;
+};
 
 /**
  * Create move lookup capability for resolving move ids to board positions.
- *
- * @param {object} deps - Host dependencies.
- * @param {object} deps.state - Shared application state.
- * @param {Function} deps.buildMovePositionByIdFn - Callback `(pgnModel) => Record<string, object>`.
- * @param {Function} deps.resolveMovePositionByIdFn - Callback `(pgnModel, moveId) => object|null`.
- * @returns {{getMovePositionById: Function}} Move lookup methods.
  */
-export const createMoveLookupCapabilities = ({
-  state,
-  buildMovePositionByIdFn,
-  resolveMovePositionByIdFn,
-}) => {
+export const createMoveLookupCapabilities = (
+  deps: MoveLookupDeps,
+): MoveLookupCapabilities => {
+  const state: MoveLookupState = deps.state;
+  const buildMovePositionByIdFn: (pgnModel: PgnModelForMoves) => MovePositionIndex =
+    deps.buildMovePositionByIdFn;
+  const resolveMovePositionByIdFn: (
+    pgnModel: PgnModelForMoves,
+    moveId: string,
+  ) => MovePositionResolved | null = deps.resolveMovePositionByIdFn;
   /**
    * Resolve move position metadata by move id with cached index + on-demand fallback.
-   *
-   * @param {string} moveId - Move id to resolve.
-   * @param {{allowResolve?: boolean}} options - Lookup options.
-   * @returns {object|null} Move position metadata or null.
    */
-  const getMovePositionById = (moveId, { allowResolve = false } = {}) => {
+  const getMovePositionById = (
+    moveId: string | null,
+    { allowResolve = false }: { allowResolve?: boolean } = {},
+  ): MovePositionRecord | MovePositionResolved | null => {
     if (!moveId) return null;
-    let target = state.movePositionById?.[moveId];
+
+    let target: MovePositionRecord | MovePositionResolved | undefined = state.movePositionById?.[moveId];
     if (!target) {
       state.movePositionById = buildMovePositionByIdFn(state.pgnModel);
       target = state.movePositionById?.[moveId];
     }
+
     if (!target && allowResolve) {
       const resolved = resolveMovePositionByIdFn(state.pgnModel, moveId);
       if (resolved) {
+        const normalizedResolved: MovePositionRecord = {
+          ...resolved,
+          variationFirstMoveIds: [],
+          previousMoveId: null,
+          nextMoveId: null,
+        };
         state.movePositionById = {
           ...(state.movePositionById || {}),
-          [moveId]: resolved,
+          [moveId]: normalizedResolved,
         };
-        target = resolved;
+        target = normalizedResolved;
       }
     }
     return target || null;

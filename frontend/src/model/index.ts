@@ -1,18 +1,16 @@
 /**
- * Model Component-Contract
+ * Index module.
  *
  * Integration API:
- * - `parsePgnToModel(rawPgn)`
- * - `serializeModelToPgn(model)`
- * - Model command helpers for comment/indent transforms.
+ * - Primary exports from this module: `(no direct exports)`.
  *
  * Configuration API:
- * - Stateless transform functions accept model and explicit arguments.
- * - No hidden global runtime configuration.
+ * - Configuration is provided via typed function parameters/options in these exports
+ *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - Functions return updated model objects or query values.
- * - Consumers communicate through function calls and returned values only.
+ * - This module communicates through typed return values and callbacks; interactions are explicit in
+ *   exported function signatures and typed callback contracts.
  */
 
 export { parsePgnToModel, parseCommentRuns } from "./pgn_model";

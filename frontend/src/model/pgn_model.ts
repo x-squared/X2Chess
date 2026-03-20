@@ -1,8 +1,8 @@
 let modelIdCounter = 0;
 
-const nextId = (prefix) => `${prefix}_${++modelIdCounter}`;
+const nextId = (prefix: any): any => `${prefix}_${++modelIdCounter}`;
 
-const decodeCommentLayout = (source) => {
+const decodeCommentLayout = (source: any): any => {
   let out = "";
   for (let i = 0; i < source.length; i += 1) {
     const ch = source[i];
@@ -31,7 +31,7 @@ const decodeCommentLayout = (source) => {
 
 type MoveTextToken = { type: string; value?: string };
 
-const tokenizeMoveText = (source) => {
+const tokenizeMoveText = (source: any): any => {
   const tokens: MoveTextToken[] = [];
   let i = 0;
   while (i < source.length) {
@@ -66,9 +66,9 @@ const tokenizeMoveText = (source) => {
   return tokens;
 };
 
-const isMoveNumber = (value) => /^\d+\.(\.\.)?$|^\d+\.\.\.$/.test(value);
-const isResult = (value) => /^(1-0|0-1|1\/2-1\/2|\*)$/.test(value);
-const isNag = (value) => /^\$\d+$/.test(value);
+const isMoveNumber = (value: any): any => /^\d+\.(\.\.)?$|^\d+\.\.\.$/.test(value);
+const isResult = (value: any): any => /^(1-0|0-1|1\/2-1\/2|\*)$/.test(value);
+const isNag = (value: any): any => /^\$\d+$/.test(value);
 
 type CommentRun = {
   text: string;
@@ -78,7 +78,7 @@ type CommentRun = {
   underline?: boolean;
 };
 
-export const parseCommentRuns = (raw) => {
+export const parseCommentRuns = (raw: any): any => {
   const runs: CommentRun[] = [];
   const pattern = /(`[^`]+`|\*\*[^*]+\*\*|__[^_]+__|\*[^*]+\*)/g;
   let lastIndex = 0;
@@ -119,7 +119,7 @@ export const parseCommentRuns = (raw) => {
   return runs;
 };
 
-const parseHeaders = (rawPgn) => {
+const parseHeaders = (rawPgn: any): any => {
   const headers: Array<{ key: string; value: string }> = [];
   const lines = rawPgn.split("\n");
   for (const line of lines) {
@@ -129,13 +129,13 @@ const parseHeaders = (rawPgn) => {
   return headers;
 };
 
-const stripHeaders = (rawPgn) => rawPgn
+const stripHeaders = (rawPgn: any): any => rawPgn
   .split("\n")
-  .filter((line) => !/^\s*\[[^\]]+\]\s*$/.test(line))
+  .filter((line: any): any => !/^\s*\[[^\]]+\]\s*$/.test(line))
   .join("\n")
   .trim();
 
-const createVariation = (depth, parentMoveId: string | null = null) => ({
+const createVariation = (depth: any, parentMoveId: string | null = null): any => ({
   id: nextId("variation"),
   type: "variation",
   depth,
@@ -144,14 +144,14 @@ const createVariation = (depth, parentMoveId: string | null = null) => ({
   trailingComments: [] as unknown[],
 });
 
-const createComment = (raw) => ({
+const createComment = (raw: any): any => ({
   id: nextId("comment"),
   type: "comment",
   raw,
   runs: parseCommentRuns(raw),
 });
 
-const createMove = (san) => ({
+const createMove = (san: any): any => ({
   id: nextId("move"),
   type: "move",
   san,
@@ -172,7 +172,7 @@ type ParseStackFrame = {
   pendingComments: CommentNode[];
 };
 
-export const parsePgnToModel = (rawPgn) => {
+export const parsePgnToModel = (rawPgn: any): any => {
   modelIdCounter = 0;
   const headers = parseHeaders(rawPgn);
   const moveText = stripHeaders(rawPgn);

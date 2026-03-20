@@ -164,14 +164,14 @@ export const buildMovePositionById = (pgnModel: PgnModelForMoves): MovePositionI
         index[previousMoveId].nextMoveId = entry.id;
       }
       if (Array.isArray(entry.postItems)) {
-        entry.postItems.forEach((item) => {
+        entry.postItems.forEach((item: PgnPostItem): void => {
           if (item.type === "rav" && item.rav) {
             const childFirstMoveId = walkVariation(item.rav, gameBeforeMove, false, ply, entry.id);
             if (childFirstMoveId) childVariationFirstMoveIds.push(childFirstMoveId);
           }
         });
       } else if (Array.isArray(entry.ravs)) {
-        entry.ravs.forEach((child) => {
+        entry.ravs.forEach((child: PgnVariationNode): void => {
           const childFirstMoveId = walkVariation(child, gameBeforeMove, false, ply, entry.id);
           if (childFirstMoveId) childVariationFirstMoveIds.push(childFirstMoveId);
         });
@@ -257,7 +257,7 @@ export const buildMainlinePlyByMoveId = (pgnModel: PgnModelForMoves): MainlinePl
   const entries = pgnModel?.root?.entries;
   if (!Array.isArray(entries)) return byId;
   let ply = 0;
-  entries.forEach((entry) => {
+  entries.forEach((entry: PgnVariationEntry): void => {
     if (entry?.type !== "move" || !entry?.id) return;
     ply += 1;
     byId[entry.id] = ply;

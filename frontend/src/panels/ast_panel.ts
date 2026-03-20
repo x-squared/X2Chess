@@ -1,4 +1,4 @@
-const appendNode = (parent, label, className = "") => {
+const appendNode = (parent: any, label: any, className: any = ""): any => {
   const line = document.createElement("div");
   line.className = `ast-node${className ? ` ${className}` : ""}`;
   line.textContent = label;
@@ -6,18 +6,18 @@ const appendNode = (parent, label, className = "") => {
   return line;
 };
 
-const appendChildrenContainer = (parent) => {
+const appendChildrenContainer = (parent: any): any => {
   const box = document.createElement("div");
   box.className = "ast-children";
   parent.appendChild(box);
   return box;
 };
 
-const renderComment = (parent, comment) => {
+const renderComment = (parent: any, comment: any): any => {
   appendNode(parent, `comment #${comment.id}: ${comment.raw}`, "ast-comment");
 };
 
-const renderMove = (parent, move) => {
+const renderMove = (parent: any, move: any): any => {
   const moveBox = document.createElement("div");
   moveBox.className = "ast-item";
   parent.appendChild(moveBox);
@@ -29,12 +29,12 @@ const renderMove = (parent, move) => {
   );
   const children = appendChildrenContainer(moveBox);
 
-  move.commentsBefore.forEach((comment) => renderComment(children, comment));
-  move.commentsAfter.forEach((comment) => renderComment(children, comment));
-  move.ravs.forEach((variation) => renderVariation(children, variation));
+  move.commentsBefore.forEach((comment: any): any => renderComment(children, comment));
+  move.commentsAfter.forEach((comment: any): any => renderComment(children, comment));
+  move.ravs.forEach((variation: any): any => renderVariation(children, variation));
 };
 
-const renderEntry = (parent, entry) => {
+const renderEntry = (parent: any, entry: any): any => {
   if (entry.type === "move") {
     renderMove(parent, entry);
     return;
@@ -60,7 +60,7 @@ const renderEntry = (parent, entry) => {
   }
 };
 
-function renderVariation(parent, variation) {
+function renderVariation(parent: any, variation: any): any {
   const box = document.createElement("div");
   box.className = "ast-item";
   parent.appendChild(box);
@@ -72,12 +72,12 @@ function renderVariation(parent, variation) {
   );
   const children = appendChildrenContainer(box);
 
-  variation.entries.forEach((entry) => renderEntry(children, entry));
-  variation.trailingComments.forEach((comment) => renderComment(children, comment));
+  variation.entries.forEach((entry: any): any => renderEntry(children, entry));
+  variation.trailingComments.forEach((comment: any): any => renderComment(children, comment));
 }
 
 export const ast_panel = {
-  render(container, pgnModel) {
+  render(container: any, pgnModel: any) {
     if (!container) return;
     container.innerHTML = "";
     if (!pgnModel) return;
@@ -91,7 +91,7 @@ export const ast_panel = {
 
     const headersNode = appendNode(topChildren, `headers (${pgnModel.headers.length})`, "ast-headers");
     const headersChildren = appendChildrenContainer(headersNode);
-    pgnModel.headers.forEach((header) => {
+    pgnModel.headers.forEach((header: any): any => {
       appendNode(headersChildren, `[${header.key} "${header.value}"]`, "ast-header-item");
     });
 

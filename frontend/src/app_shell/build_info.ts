@@ -1,16 +1,16 @@
 /**
- * App build-info helpers.
+ * Build Info module.
  *
  * Integration API:
- * - Import `resolveBuildTimestampLabel(rawTimestamp)` when rendering build info
- *   in UI labels or diagnostics.
+ * - Primary exports from this module: `resolveBuildTimestampLabel`.
  *
  * Configuration API:
- * - Input is the raw build timestamp string (typically injected by Vite define).
- * - If input is empty, return value is `"unknown"`.
+ * - Configuration is provided via typed function parameters/options in these exports
+ *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - Pure function only: no state updates, no DOM access, no I/O.
+ * - This module communicates through typed return values and callbacks; interactions are explicit in
+ *   exported function signatures and typed callback contracts.
  */
 
 /**

@@ -1,3 +1,5 @@
+import { DEFAULT_RESOURCE_VIEWER_METADATA_KEYS, PGN_STANDARD_METADATA_KEYS } from "../../../../resource/domain/metadata";
+
 /**
  * Types module.
  *
@@ -25,22 +27,12 @@ export const SOURCE_KIND = Object.freeze({
 /**
  * Default metadata keys supported by PGN-oriented resources.
  */
-export const DEFAULT_PGN_METADATA_KEYS = Object.freeze([
-  "Event",
-  "Site",
-  "Round",
-  "Date",
-  "White",
-  "Black",
-  "Result",
-  "ECO",
-  "Opening",
-  "WhiteElo",
-  "BlackElo",
-  "TimeControl",
-  "Termination",
-  "Annotator",
-]);
+export const DEFAULT_PGN_METADATA_KEYS = PGN_STANDARD_METADATA_KEYS;
+
+/**
+ * Default metadata columns shown in resource viewer UIs.
+ */
+export const DEFAULT_RESOURCE_VIEWER_KEYS = DEFAULT_RESOURCE_VIEWER_METADATA_KEYS;
 
 /**
  * Validate metadata entry shape returned by a source adapter list record.

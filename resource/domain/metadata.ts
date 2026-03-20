@@ -1,31 +1,32 @@
+import {
+  DEFAULT_RESOURCE_VIEWER_METADATA_KEYS,
+  KNOWN_PGN_METADATA_KEYS,
+  PGN_METADATA_SCHEMA,
+  PGN_STANDARD_METADATA_KEYS,
+  type HybridPgnMetadata,
+} from "./metadata_schema";
+
 /**
  * PGN metadata extraction utilities.
  *
  * Integration API:
- * - Primary exports: `PGN_STANDARD_METADATA_KEYS`, `extractPgnMetadata`.
+ * - Primary exports: `PGN_STANDARD_METADATA_KEYS`, `DEFAULT_RESOURCE_VIEWER_METADATA_KEYS`,
+ *   `KNOWN_PGN_METADATA_KEYS`, `PGN_METADATA_SCHEMA`, `extractPgnMetadata`, `extractHybridPgnMetadata`.
  *
  * Configuration API:
- * - `extractPgnMetadata` accepts optional `metadataKeys` selection order.
+ * - Both extractors accept optional `metadataKeys` projection order.
  *
  * Communication API:
  * - Pure parsing utilities over PGN header text; no I/O.
  */
-export const PGN_STANDARD_METADATA_KEYS = Object.freeze([
-  "Event",
-  "Site",
-  "Round",
-  "Date",
-  "White",
-  "Black",
-  "Result",
-  "ECO",
-  "Opening",
-  "WhiteElo",
-  "BlackElo",
-  "TimeControl",
-  "Termination",
-  "Annotator",
-]);
+
+export {
+  DEFAULT_RESOURCE_VIEWER_METADATA_KEYS,
+  KNOWN_PGN_METADATA_KEYS,
+  PGN_METADATA_SCHEMA,
+  PGN_STANDARD_METADATA_KEYS,
+};
+export type { HybridPgnMetadata };
 
 /**
  * Parse bracket header lines from PGN text.
@@ -47,7 +48,7 @@ const parseHeaderLines = (pgnText: string): Record<string, string> => {
 };
 
 /**
- * Extract selected metadata fields from PGN headers.
+ * Extract selected metadata fields as plain-string map.
  *
  * @param pgnText PGN source text.
  * @param metadataKeys Ordered field keys to project from headers.
@@ -57,14 +58,48 @@ export const extractPgnMetadata = (
   pgnText: string,
   metadataKeys: readonly string[] = PGN_STANDARD_METADATA_KEYS,
 ): { metadata: Record<string, string>; availableMetadataKeys: string[] } => {
-  const headers = parseHeaderLines(pgnText);
+  const headers: Record<string, string> = parseHeaderLines(pgnText);
   const availableMetadataKeys: string[] = [];
   const metadata: Record<string, string> = {};
   (Array.isArray(metadataKeys) ? metadataKeys : []).forEach((fieldKey: string): void => {
-    const key = String(fieldKey || "").trim();
+    const key: string = String(fieldKey || "").trim();
     if (!key) return;
     availableMetadataKeys.push(key);
     metadata[key] = String(headers[key] || "").trim();
+  });
+  return { metadata, availableMetadataKeys };
+};
+
+/**
+ * Extract selected metadata fields using canonical typed schema when available.
+ *
+ * Hybrid strategy:
+ * - Known keys are parsed into typed values (`Date`, ratings, `Result`, `X2Style`, ...).
+ * - Unknown keys are preserved as strings.
+ *
+ * @param pgnText PGN source text.
+ * @param metadataKeys Ordered field keys to project from headers.
+ * @returns Typed hybrid metadata payload with aligned key order.
+ */
+export const extractHybridPgnMetadata = (
+  pgnText: string,
+  metadataKeys: readonly string[] = KNOWN_PGN_METADATA_KEYS,
+): { metadata: HybridPgnMetadata; availableMetadataKeys: string[] } => {
+  const headers: Record<string, string> = parseHeaderLines(pgnText);
+  const availableMetadataKeys: string[] = [];
+  const metadata: HybridPgnMetadata = {};
+  (Array.isArray(metadataKeys) ? metadataKeys : []).forEach((fieldKey: string): void => {
+    const key: string = String(fieldKey || "").trim();
+    if (!key) return;
+    availableMetadataKeys.push(key);
+    const rawValue: string = String(headers[key] || "").trim();
+    const schemaEntry = PGN_METADATA_SCHEMA[key];
+    if (schemaEntry) {
+      const parsed = schemaEntry.parse(rawValue);
+      metadata[key] = parsed;
+      return;
+    }
+    metadata[key] = rawValue || undefined;
   });
   return { metadata, availableMetadataKeys };
 };

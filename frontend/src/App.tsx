@@ -1,17 +1,14 @@
-import { useEffect } from "react";
-import { bootstrap } from "./bootstrap";
-
-let bootstrapStarted = false;
+import type { ReactElement } from "react";
+import { AppShell } from "./components/AppShell";
+import { AppProvider } from "./state/app_context";
 
 /**
- * React shell: mounts nothing visible; legacy DOM lives under `#app` (see `createAppLayout`).
- * Module-level guard avoids double init under React StrictMode (dev).
+ * React root application.
  */
-export function App(): null {
-  useEffect((): any => {
-    if (bootstrapStarted) return;
-    bootstrapStarted = true;
-    bootstrap();
-  }, []);
-  return null;
+export function App(): ReactElement {
+  return (
+    <AppProvider>
+      <AppShell />
+    </AppProvider>
+  );
 }

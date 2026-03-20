@@ -17,6 +17,10 @@ The application architecture must remain:
 - Allow remote delivery/launch of client assets without moving execution to server-side rendering.
 - Support local resource access (storage/cache/local processing) behind explicit client APIs.
 - Keep resource loading/saving strictly in the client runtime (no backend dependency for local resource handling).
+- Keep top-level `resource/` as the canonical PGN resource library.
+- Keep canonical resource kinds explicit as `file`, `directory`, and `db`.
+- Keep metadata schema/constants centralized in `resource/domain` and consumed by frontend boundaries.
+- Keep SQL schema/migration ownership in `resource/database/` (never in frontend feature modules).
 - Support integration of remote resources (services/APIs/content/providers) via explicit adapter boundaries.
 - Maintain a reduced app profile with clear feature boundaries relative to full client.
 - Keep full-client and app-profile compatibility explicit (feature flags/capability matrix or equivalent).

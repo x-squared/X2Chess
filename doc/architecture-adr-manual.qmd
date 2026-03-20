@@ -1,6 +1,6 @@
 # X2Chess Architecture ADR Manual
 
-Last updated: 2026-03-18
+Last updated: 2026-03-20
 
 ## Purpose
 
@@ -115,3 +115,15 @@ This manual contains Architecture Decision Records (ADRs): why major architectur
   - Initial ADR set captured from architecture evolution history.
   - Includes runtime/storage, UI/component, delivery, and config decisions through ADR-011.
   - Updated ADR-010 and ADR-011 to enforce client-owned local resource handling.
+
+
+## ADR-012: Top-level resource library ownership and canonical kinds
+- Status: Accepted
+- Date: 2026-03-20
+- Decision:
+  - Keep `resource/` as an independent top-level library for PGN resource domain contracts and client dispatch.
+  - Canonical resource kinds are `file`, `directory`, and `db`; frontend uses compatibility mapping only as a transition aid.
+  - Keep SQL schema and migration ownership inside `resource/database/`, not in frontend modules.
+  - Keep metadata schema centralized in `resource/domain` and have frontend consumers reuse canonical constants/contracts.
+- Implication:
+  - Architecture boundaries remain explicit and prevent drift of resource/domain logic into frontend-only modules.

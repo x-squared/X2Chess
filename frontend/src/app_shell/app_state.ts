@@ -15,6 +15,7 @@
 
 import type { MovePositionIndex, PgnModelForMoves } from "../board/move_position";
 import type { BoardPreviewLike } from "../board/runtime";
+import { DEFAULT_RESOURCE_VIEWER_METADATA_KEYS } from "../../../resource/domain/metadata";
 
 export const DEFAULT_LOCALE = "en";
 export const DEFAULT_APP_MODE = "DEV";
@@ -129,7 +130,7 @@ export const createInitialAppState = (
   nextSessionSeq: 1,
   resourceViewerTabs: [],
   activeResourceTabId: null,
-  resourceViewerDefaultMetadataKeys: ["White", "Black", "Date", "Event", "ECO", "Opening", "Result"],
+  resourceViewerDefaultMetadataKeys: [...DEFAULT_RESOURCE_VIEWER_METADATA_KEYS],
   activeSourceKind: "directory",
   defaultSaveMode: "auto",
   appMode: DEFAULT_APP_MODE,

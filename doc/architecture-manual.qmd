@@ -1,6 +1,6 @@
 # X2Chess Architecture Manual
 
-Last updated: 2026-03-19
+Last updated: 2026-03-20
 
 ## 1) Goals
 
@@ -46,6 +46,18 @@ Architecture decisions are maintained in `doc/architecture-adr-manual.qmd`.
   - Dev URL `http://localhost:5287`.
   - Production frontend assets from `frontend/dist`.
 
+## 2.4 Resource Library (`resource/`)
+
+- Technology: TypeScript library consumed by frontend runtime boundaries.
+- Scope in current architecture:
+  - Defines canonical PGN resource contracts (`PgnResourceRef`, `PgnGameRef`, `PgnGameEntry`).
+  - Provides canonical kind model: `file`, `directory`, `db`.
+  - Owns metadata schema/constants and extraction contracts.
+  - Owns database schema and migrations under `resource/database/`.
+- Boundary constraints:
+  - Frontend modules consume `resource/client` and `resource/domain` contracts.
+  - Frontend must not own DB schema/migration internals.
+
 ## 3) Build and Delivery Paths
 
 Environment and toolchain setup is documented in `doc/setup-manual.qmd`.
@@ -84,9 +96,10 @@ Environment and toolchain setup is documented in `doc/setup-manual.qmd`.
   - snapshot of editor/board runtime
   - dirty/save mode metadata
 - Session identity is independent from source identity; source references are attached metadata.
-- Source interactions are routed through adapter boundaries:
-  - `file` source adapter (active)
-  - `sqlite` source adapter (interface-complete stub, ready for implementation)
+- Source interactions are routed through canonical resource boundaries:
+  - `file` kind: single file containing multiple games
+  - `directory` kind: folder of one-game-per-file entries
+  - `db` kind: database-backed resources (schema/migrations owned in `resource/database/`; implementation may be deferred by profile)
 - Supported open flows are:
   - Drag/drop PGN text/files
   - Paste PGN text
@@ -107,6 +120,9 @@ Environment and toolchain setup is documented in `doc/setup-manual.qmd`.
 - Keep local resource APIs explicit and maintainable.
 - Keep local resource read/write in client code only (no backend mediation).
 - Keep remote integrations behind adapter boundaries and contracts.
+- Keep top-level `resource/` as canonical home for PGN resource contracts, kind routing, and metadata schema.
+- Keep canonical resource kinds explicit as `file`, `directory`, and `db`.
+- Keep SQL schema/migration ownership in `resource/database/` (never under frontend domain modules).
 - Keep backend optional and decoupled from local resource workflows.
 - Enforce Component-Contract on components (integration + configuration + communication APIs, documented publicly in code).
 - Enforce clean/professional CSS defaults and maintain explicit theming extension points for future user adaptation.

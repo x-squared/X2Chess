@@ -16,6 +16,8 @@ Use `doc/architecture-adr-manual.qmd` as the source of truth for architecture de
   - Update delivery/build paths if commands changed.
   - Update full-client vs reduced app-profile boundaries if capabilities changed.
   - Update constraints if new rules emerged.
+  - Update resource-library ownership and canonical kind boundaries (`file`/`directory`/`db`) when changed.
+  - Update SQL schema ownership boundary (`resource/database/` vs frontend) when changed.
 - If decision rationale changed or a new architectural decision was made, update `doc/architecture-adr-manual.qmd` in the same step.
 - Verify architecture consistency for both targets:
   - Full browser fat-client path still valid.

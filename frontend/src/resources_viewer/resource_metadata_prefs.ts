@@ -1,4 +1,4 @@
-import { DEFAULT_PGN_METADATA_KEYS } from "../resources/sources/types.js";
+import { DEFAULT_PGN_METADATA_KEYS, DEFAULT_RESOURCE_VIEWER_KEYS } from "../resources/sources/types.js";
 
 /**
  * Resource Metadata Prefs module.
@@ -31,7 +31,7 @@ const BUILTIN_METADATA_FIELDS = Object.freeze([
 
 const normalizeMetadataSelection = (
   rawKeys: any,
-  fallbackKeys: any = ["White", "Black", "Date", "Event", "ECO", "Opening", "Result"],
+  fallbackKeys: any = [...DEFAULT_RESOURCE_VIEWER_KEYS],
 ): any => {
   const source = Array.isArray(rawKeys) ? rawKeys : fallbackKeys;
   const out: string[] = [];

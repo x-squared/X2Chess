@@ -17,6 +17,7 @@ export * from "./domain/game_ref";
 export * from "./domain/game_entry";
 export * from "./domain/actions";
 export * from "./domain/metadata";
+export * from "./domain/metadata_schema";
 export * from "./domain/contracts";
 export * from "./adapters";
 export * from "./client/capabilities";

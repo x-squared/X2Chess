@@ -1,0 +1,20 @@
+---
+description: One workspace only — no Cursor/git worktrees; all edits visible to review
+alwaysApply: true
+---
+
+# Primary workspace only — no worktrees (this project)
+
+The user **does not** want a worktree-based workflow here. In other repos that may be optional; **in this project, worktrees are unnecessary** and split edits across paths so changes are harder to see and accept in one place.
+
+## Rules for the agent
+
+1. **Do not** create or use **git worktrees** (`git worktree add`, extra checkout directories) for tasks on this repo.
+2. **Do not** treat **`.cursor/worktrees/...`** (or any secondary checkout) as a staging area. **All edits must live under the single workspace root** the user opened for this project.
+3. **Prefer** opening the **canonical clone** (e.g. `~/Workspace/X2Chess`) as the Cursor workspace. If the environment is still bound to a worktree path, **do not** “finish” work only there without the same files being what the user sees in their primary folder—**align with their real tree**, not a parallel one.
+4. **Do not** hide work in alternate paths or assume the user will merge or copy later. The user reviews and accepts changes **in one tree**.
+5. Before saying a task is complete, confirm edits are the ones the user will see from their **normal project root** and `git status` / diffs there.
+
+## Summary
+
+**No worktree workflow for this project: one tree, one review surface, nothing “off to the side.”**

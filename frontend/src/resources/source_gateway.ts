@@ -1,5 +1,6 @@
 import { createDirectoryAdapter } from "../../../resource/adapters/directory/directory_adapter";
 import { createFileAdapter as createCanonicalFileAdapter } from "../../../resource/adapters/file/file_adapter";
+import type { FsGateway } from "../../../resource/io/fs_gateway";
 import { createResourceClient, type ResourceClient } from "../../../resource/client/api";
 import {
   createSourceCanonicalAdapter,
@@ -45,13 +46,31 @@ type SourceGatewayDeps = {
 
 type TauriWindowLike = Window & {
   __TAURI_INTERNALS__?: unknown;
-  __TAURI__?: unknown;
+  __TAURI__?: {
+    core?: {
+      invoke?: (command: string, payload?: Record<string, unknown>) => Promise<unknown>;
+    };
+  };
 };
 
 const isTauriRuntime = (): boolean => {
   const runtimeWindow = window as TauriWindowLike;
   return Boolean(runtimeWindow.__TAURI_INTERNALS__ || runtimeWindow.__TAURI__);
 };
+
+const buildTauriFsGateway = (): FsGateway => ({
+  readTextFile: async (path: string): Promise<string> => {
+    const runtimeWindow = window as TauriWindowLike;
+    const invokeFn = runtimeWindow.__TAURI__?.core?.invoke;
+    if (typeof invokeFn !== "function") {
+      throw new Error("Tauri invoke API is unavailable.");
+    }
+    return String(await invokeFn("load_text_file", { filePath: path }));
+  },
+  writeTextFile: async (_path: string, _content: string): Promise<void> => {
+    // Not implemented yet — file writes go through source picker for now.
+  },
+});
 
 
 const createDeferredDbSourceAdapter = (): SourceAdapter => ({
@@ -85,7 +104,7 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
     detectDefaultSourceRoot: () => Promise<unknown>;
   };
   const sqliteAdapter: SourceAdapter = createDeferredDbSourceAdapter();
-  const canonicalFileAdapter = createCanonicalFileAdapter();
+  const canonicalFileAdapter = createCanonicalFileAdapter({ fsGateway: buildTauriFsGateway() });
 
   const directoryAdapter = createDirectoryAdapter({
     listGames: async (resourceRef: PgnResourceRef) => {

@@ -6,26 +6,55 @@
  * - Preserve move/comment/variation semantics and inline formatting hints.
  *
  * Integration API:
- * - `buildTextEditorPlan(pgnModel, { layoutMode })` returns render blocks consumed by reconcile layer.
- * - `layoutMode`: `plain` (literal comment text), `text` or `tree` (first comment intro styling without `\intro` in source).
+ * - `buildTextEditorPlan(pgnModel, { layoutMode })` returns render blocks consumed by the React
+ *   render layer (`PgnTextEditor.tsx`).
+ * - `layoutMode`:
+ *   - `plain`  — literal comment text, no marker processing.
+ *   - `text`   — `[[indent]]` before a RAV drives block indentation; first comment gets intro
+ *                styling.
+ *   - `tree`   — one block per variation (RAV structure drives layout); markers shown as greyed
+ *                literal text; first comment of each variation gets intro styling.
+ *
+ * Marker conventions:
+ * - Canonical break marker:  `[[br]]`
+ * - Canonical indent marker: `[[indent]]`
+ * - Legacy aliases accepted on read: `\n`, `<br>` (break); `\i` (indent).
  */
 
+import type { VariationNumberingStrategy } from "./tree_numbering";
+import { alphaNumericPathStrategy } from "./tree_numbering";
+
+// ── Patterns ─────────────────────────────────────────────────────────────────
+
+/** Matches any break marker variant (canonical + legacy aliases). */
 const NEWLINE_PATTERN: RegExp = /(?:\[\[br\]\]|<br\s*\/?>|\\n|\n)/gi;
+
+/**
+ * Matches one or more indent directives at the start of a comment string.
+ * Canonical: `[[indent]]`  Legacy alias: `\i`
+ */
+const INDENT_BLOCK_DIRECTIVE_PREFIX: RegExp = /^\s*(?:(?:\[\[indent\]\]|\\i)(?:\s+|$))+/;
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 type LayoutMode = "plain" | "text" | "tree";
 
 type TokenDataset = Record<string, string | number | boolean>;
 
-type InlineToken = {
+export type InlineToken = {
   key: string;
   kind: "inline";
   text: string;
   className: string;
+  /**
+   * Recognised tokenTypes: "move", "move_number", "nag", "result", "space", "branch_header".
+   * `branch_header` is emitted only in tree mode as the first token of each non-mainline block.
+   */
   tokenType: string;
   dataset: TokenDataset;
 };
 
-type CommentToken = {
+export type CommentToken = {
   key: string;
   kind: "comment";
   tokenType: "comment";
@@ -39,12 +68,18 @@ type CommentToken = {
   text: string;
 };
 
-type PlanToken = InlineToken | CommentToken;
+export type PlanToken = InlineToken | CommentToken;
 
-type PlanBlock = {
+export type PlanBlock = {
   key: string;
   indentDepth: number;
   tokens: PlanToken[];
+  /** Set in tree mode only. Path from root: `[0]` = mainline, `[0, 1]` = second RAV. */
+  variationPath?: readonly number[];
+  /** True for non-mainline blocks in tree mode (may be collapsed). */
+  isCollapsible?: boolean;
+  /** True for the root mainline block in tree mode. */
+  isMainLine?: boolean;
 };
 
 type PlanState = {
@@ -134,6 +169,8 @@ type StrategyRegistry = {
   nag: StrategyFn;
   move: StrategyFn;
 };
+
+// ── Block / token helpers ────────────────────────────────────────────────────
 
 const createBlock = (index: number, indentDepth: number = 0): PlanBlock => ({
   key: `block_${index}`,
@@ -258,57 +295,48 @@ const addCommentToken = (
   });
 };
 
-const INDENT_BLOCK_DIRECTIVE_PREFIX: RegExp = /^\s*(?:\i(?:\s+|$))+/;
-const INTRO_DIRECTIVE_PREFIX: RegExp = /^\s*\intro(?:\s+|$)/i;
+// ── Indent directive helpers ─────────────────────────────────────────────────
 
 const getIndentDirectiveDepth = (comment: PgnComment): number => {
   const raw: string = String(comment?.raw ?? "");
   const match: RegExpMatchArray | null = raw.match(INDENT_BLOCK_DIRECTIVE_PREFIX);
   if (!match) return 0;
-  const tokens: RegExpMatchArray | null = match[0].match(/\i/g);
+  const tokens: RegExpMatchArray | null = match[0].match(/\[\[indent\]\]|\\i/g);
   return tokens ? tokens.length : 0;
 };
 
 const hasIndentBlockDirective = (comment: PgnComment): boolean => getIndentDirectiveDepth(comment) > 0;
-const hasIntroDirective = (comment: PgnComment): boolean => INTRO_DIRECTIVE_PREFIX.test(String(comment?.raw ?? ""));
-const stripIntroDirective = (rawText: string): string => String(rawText ?? "")
-  .replace(INTRO_DIRECTIVE_PREFIX, "")
-  .replace(/^\s+/, "");
+
 const stripIndentDirectives = (rawText: string): string => String(rawText ?? "")
   .replace(INDENT_BLOCK_DIRECTIVE_PREFIX, "")
   .replace(/^\s+/, "");
+
+// ── Comment emitter ──────────────────────────────────────────────────────────
 
 const addComment = (state: PlanState, comment: PgnComment): void => {
   const layoutMode: LayoutMode = state.layoutMode || "text";
   const rawText: string = String(comment.raw ?? "");
   const isFirstComment: boolean = !state.firstCommentId;
   if (isFirstComment) state.firstCommentId = comment.id;
-  const isPlain: boolean = layoutMode === "plain";
-  const isStructured: boolean = layoutMode === "text" || layoutMode === "tree";
 
-  if (isPlain) {
-    addCommentToken(
-      state,
-      comment,
-      rawText,
-      rawText,
-      false,
-      0,
-      false,
-      true,
-      false,
-    );
+  if (layoutMode === "plain") {
+    addCommentToken(state, comment, rawText, rawText, false, 0, false, true, false);
     addSpace(state);
     return;
   }
 
-  const hadIntroDirective: boolean = hasIntroDirective(comment);
-  const withoutIntro: string = hadIntroDirective ? stripIntroDirective(rawText) : rawText;
+  if (layoutMode === "tree") {
+    // Show raw text literally — markers survive edits and are greyed via CSS.
+    // Intro styling and focus still apply to the first comment of each variation.
+    addCommentToken(state, comment, rawText, rawText, false, 0, isFirstComment, true, isFirstComment);
+    addSpace(state);
+    return;
+  }
+
+  // text mode: apply [[indent]] directive for block indentation.
   const indentDirectiveDepth: number = getIndentDirectiveDepth(comment);
   const hasIndentDirective: boolean = indentDirectiveDepth > 0;
-  const visibleText: string = hasIndentDirective ? stripIndentDirectives(withoutIntro) : withoutIntro;
-  const introStyling: boolean = isStructured && isFirstComment;
-  const focusFirstCommentAtStart: boolean = isStructured && isFirstComment;
+  const visibleText: string = hasIndentDirective ? stripIndentDirectives(rawText) : rawText;
   addCommentToken(
     state,
     comment,
@@ -316,12 +344,14 @@ const addComment = (state: PlanState, comment: PgnComment): void => {
     rawText,
     hasIndentDirective,
     indentDirectiveDepth,
-    introStyling,
+    isFirstComment,
     false,
-    focusFirstCommentAtStart,
+    isFirstComment,
   );
   addSpace(state);
 };
+
+// ── Indented block helper (text mode only) ───────────────────────────────────
 
 const emitIndentedBlock = (state: PlanState, levels: number, emitContent: () => void): void => {
   const previousDepth: number = state.indentDepth;
@@ -331,6 +361,8 @@ const emitIndentedBlock = (state: PlanState, levels: number, emitContent: () => 
   state.indentDepth = previousDepth;
   nextBlock(state);
 };
+
+// ── Text/plain strategy (unchanged) ─────────────────────────────────────────
 
 const emitVariation = (variation: PgnVariation, state: PlanState, strategyRegistry: StrategyRegistry): void => {
   const flow: VariationFlow = {
@@ -451,9 +483,148 @@ const strategyRegistry: StrategyRegistry = {
   move: emitMove,
 };
 
+// ── Tree strategy ─────────────────────────────────────────────────────────────
+
+/**
+ * Emit a single variation as a flat block in tree mode.
+ *
+ * - All moves/comments of THIS variation land in the current block.
+ * - Child RAVs are collected during the walk and emitted as new blocks (DFS) after
+ *   this variation's content.
+ * - `state.firstCommentId` is saved and reset so the first comment of each variation
+ *   receives intro styling independently.
+ */
+const emitTreeVariation = (
+  variation: PgnVariation,
+  path: readonly number[],
+  isMainLine: boolean,
+  state: PlanState,
+  numberingStrategy: VariationNumberingStrategy,
+): void => {
+  const savedFirstCommentId: string | null = state.firstCommentId;
+  state.firstCommentId = null;
+
+  // Branch header for non-mainline blocks.
+  if (!isMainLine) {
+    // Drop the leading root segment [0] before passing to numbering strategy.
+    const numberingPath: readonly number[] = path.slice(1);
+    const label: string = numberingStrategy(numberingPath);
+    addInlineToken(state, label, "tree-branch-header", "branch_header", {
+      variationPath: path.join("."),
+      label,
+    });
+    addSpace(state);
+  }
+
+  // Collect child RAVs in encounter order; emit them after this variation's content.
+  const childRavs: PgnVariation[] = [];
+  let moveSide: "white" | "black" = "white";
+
+  for (let idx: number = 0; idx < variation.entries.length; idx += 1) {
+    const entry: PgnEntry = variation.entries[idx];
+
+    if (entry.type === "variation") {
+      childRavs.push(entry);
+      continue;
+    }
+
+    if (entry.type === "comment") {
+      addComment(state, entry);
+      continue;
+    }
+
+    if (entry.type === "move_number") {
+      const parsed: MoveNumberInfo = parseMoveNumberToken(entry.text);
+      if (parsed.side === "white" || parsed.side === "black") moveSide = parsed.side;
+      addTextWithBreaks(
+        state,
+        parsed.displayText,
+        `${variation.depth === 0 ? "text-editor-main-move" : "text-editor-variation-move-number"} text-editor-move-number-token move-number`,
+        "move_number",
+        { nodeId: entry.id || "", variationDepth: variation.depth, moveNumberSide: parsed.side },
+      );
+      if (!parsed.simplified) addSpace(state);
+      continue;
+    }
+
+    if (entry.type === "result") {
+      addTextWithBreaks(state, entry.text, "text-editor-result", "result", { nodeId: entry.id || "" });
+      addSpace(state);
+      continue;
+    }
+
+    if (entry.type === "nag") {
+      addTextWithBreaks(state, entry.text, "text-editor-nag", "nag", { nodeId: entry.id || "" });
+      addSpace(state);
+      continue;
+    }
+
+    if (entry.type === "move") {
+      const side: "white" | "black" = moveSide;
+      const moveClass: string = variation.depth === 0
+        ? `text-editor-main-move move-${side}`
+        : `text-editor-variation-move move-${side}`;
+
+      entry.commentsBefore.forEach((c: PgnComment): void => addComment(state, c));
+      addTextWithBreaks(state, entry.san, moveClass, "move", {
+        nodeId: entry.id,
+        variationDepth: variation.depth,
+        moveSide: side,
+      });
+      addSpace(state);
+      entry.nags.forEach((nag: string): void => {
+        addTextWithBreaks(state, nag, "text-editor-nag", "nag", { moveId: entry.id });
+        addSpace(state);
+      });
+
+      if (Array.isArray(entry.postItems) && entry.postItems.length > 0) {
+        for (const item of entry.postItems) {
+          if (item.type === "comment" && item.comment) addComment(state, item.comment);
+          else if (item.type === "rav" && item.rav) childRavs.push(item.rav);
+        }
+      } else {
+        entry.commentsAfter.forEach((c: PgnComment): void => addComment(state, c));
+        entry.ravs.forEach((rav: PgnVariation) => { childRavs.push(rav); });
+      }
+
+      moveSide = moveSide === "white" ? "black" : "white";
+    }
+  }
+
+  variation.trailingComments.forEach((c: PgnComment): void => addComment(state, c));
+
+  // Recursively emit child variations as new blocks (DFS).
+  for (let i: number = 0; i < childRavs.length; i += 1) {
+    const childPath: readonly number[] = [...path, i];
+    nextBlock(state);
+    const childBlock: PlanBlock = currentBlock(state);
+    childBlock.variationPath = childPath;
+    childBlock.isCollapsible = true;
+    childBlock.isMainLine = false;
+    emitTreeVariation(childRavs[i], childPath, false, state, numberingStrategy);
+  }
+
+  state.firstCommentId = savedFirstCommentId;
+};
+
+const buildTreeEditorPlan = (
+  model: PgnModel,
+  state: PlanState,
+  numberingStrategy: VariationNumberingStrategy,
+): void => {
+  if (!model.root) return;
+  const mainBlock: PlanBlock = currentBlock(state);
+  mainBlock.variationPath = [0];
+  mainBlock.isMainLine = true;
+  mainBlock.isCollapsible = false;
+  emitTreeVariation(model.root, [0], true, state, numberingStrategy);
+};
+
+// ── Public API ────────────────────────────────────────────────────────────────
+
 export const buildTextEditorPlan = (
   pgnModel: unknown,
-  options: { layoutMode?: LayoutMode } = {},
+  options: { layoutMode?: LayoutMode; numberingStrategy?: VariationNumberingStrategy } = {},
 ): PlanBlock[] => {
   const layoutMode: LayoutMode = options.layoutMode === "plain" || options.layoutMode === "text" || options.layoutMode === "tree"
     ? options.layoutMode
@@ -461,7 +632,14 @@ export const buildTextEditorPlan = (
   const state: PlanState = createPlanState(layoutMode);
   const model: PgnModel | null = (pgnModel as PgnModel | null) ?? null;
   if (!model || !model.root) return state.blocks;
-  emitVariation(model.root, state, strategyRegistry);
+
+  if (layoutMode === "tree") {
+    const numbering: VariationNumberingStrategy = options.numberingStrategy ?? alphaNumericPathStrategy;
+    buildTreeEditorPlan(model, state, numbering);
+  } else {
+    emitVariation(model.root, state, strategyRegistry);
+  }
+
   const firstNonEmpty: number = state.blocks.findIndex((block: PlanBlock): boolean => block.tokens.length > 0);
   if (firstNonEmpty === -1) return [createBlock(0, 0)];
   let lastNonEmpty: number = 0;

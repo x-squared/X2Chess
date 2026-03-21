@@ -1,5 +1,5 @@
 /**
- * App store state type and reducer for the X2Chess useReducer store (Slice 7).
+ * App store state type and reducer for the X2Chess useReducer store.
  *
  * Integration API:
  * - `AppStoreState` — full React state shape; read via selectors or `useAppContext().state`.
@@ -13,7 +13,6 @@
  * Communication API:
  * - State is read through `useAppContext().state` or dedicated selectors in `selectors.ts`.
  * - State is updated exclusively via `dispatch(action)` — never mutated directly.
- * - All legacy bridge sync actions have been removed; direct actions now cover every field.
  */
 
 import type { PgnModel } from "../model/pgn_model";

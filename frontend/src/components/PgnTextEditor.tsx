@@ -23,6 +23,7 @@
 import { useMemo, useRef, useEffect, useCallback, useState } from "react";
 import type { ReactElement, KeyboardEvent, FormEvent, MouseEvent } from "react";
 import { buildTextEditorPlan } from "../editor/text_editor_plan";
+import type { PlanBlock, PlanToken, InlineToken, CommentToken } from "../editor/text_editor_plan";
 import { useAppContext } from "../state/app_context";
 import {
   selectPgnModel,
@@ -33,17 +34,6 @@ import {
 import { useServiceContext } from "../state/ServiceContext";
 import { useTranslator } from "../hooks/useTranslator";
 
-// ── Type derivation ───────────────────────────────────────────────────────────
-
-/**
- * `buildTextEditorPlan` returns an array of internal `PlanBlock` objects whose
- * types are not exported.  Derive local aliases so this file stays self-contained.
- */
-type PlanBlock = ReturnType<typeof buildTextEditorPlan>[number];
-type PlanToken = PlanBlock["tokens"][number];
-type InlineToken = Extract<PlanToken, { kind: "inline" }>;
-type CommentToken = Extract<PlanToken, { kind: "comment" }>;
-
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 /** Meta/Ctrl shortcut letter → execCommand style name for comment formatting. */
@@ -52,6 +42,56 @@ const FORMAT_KEYS: Readonly<Record<string, string>> = {
   i: "italic",
   u: "underline",
 } as const;
+
+// ── Collapse helpers ──────────────────────────────────────────────────────────
+
+const pathKey = (path: readonly number[]): string => path.join(".");
+
+/**
+ * Returns true when the block should be hidden because one of its ancestor
+ * variation paths is in the collapsed set.
+ */
+const isBlockHidden = (
+  variationPath: readonly number[] | undefined,
+  collapsedPaths: ReadonlySet<string>,
+): boolean => {
+  if (!variationPath || collapsedPaths.size === 0) return false;
+  for (let len = 1; len < variationPath.length; len += 1) {
+    if (collapsedPaths.has(pathKey(variationPath.slice(0, len)))) return true;
+  }
+  return false;
+};
+
+/** CSS depth class for a tree block. */
+const treeDepthClass = (variationPath: readonly number[]): string => {
+  const depth: number = variationPath.length;
+  return depth >= 4 ? "tree-depth-4plus" : `tree-depth-${depth}`;
+};
+
+// ── BranchHeader ──────────────────────────────────────────────────────────────
+
+type BranchHeaderProps = {
+  label: string;
+  blockPathKey: string;
+  isCollapsed: boolean;
+  onToggle: (key: string) => void;
+};
+
+/**
+ * Renders the collapsible toggle button for a non-mainline variation block.
+ * Triangle glyph flips between ▶ (collapsed) and ▼ (expanded).
+ */
+const BranchHeader = ({ label, blockPathKey, isCollapsed, onToggle }: BranchHeaderProps): ReactElement => (
+  <button
+    type="button"
+    className="tree-collapse-toggle"
+    aria-expanded={!isCollapsed}
+    onClick={(): void => { onToggle(blockPathKey); }}
+  >
+    <span className="tree-collapse-glyph" aria-hidden="true">{isCollapsed ? "▶" : "▼"}</span>
+    {" "}{label}
+  </button>
+);
 
 // ── CommentBlock ──────────────────────────────────────────────────────────────
 
@@ -304,7 +344,7 @@ const TokenView = ({
     );
   }
 
-  // Spaces, move numbers, NAGs, results — non-interactive display-only spans.
+  // Spaces, move numbers, NAGs, results, branch headers — non-interactive display-only spans.
   return (
     <span
       className={it.className || undefined}
@@ -326,6 +366,19 @@ export const PgnTextEditor = (): ReactElement => {
   const selectedMoveId: string | null = selectSelectedMoveId(state);
   const pendingFocusCommentId: string | null = selectPendingFocusCommentId(state);
   const t: (key: string, fallback?: string) => string = useTranslator();
+
+  // ── Collapse state (tree mode only; reset when model changes) ───────────────
+  const [collapsedPaths, setCollapsedPaths] = useState<ReadonlySet<string>>(new Set());
+  useEffect((): void => { setCollapsedPaths(new Set()); }, [pgnModel]);
+
+  const handleToggle = useCallback((key: string): void => {
+    setCollapsedPaths((prev: ReadonlySet<string>): ReadonlySet<string> => {
+      const next: Set<string> = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
 
   /** Recompute the token plan only when the model or layout mode changes. */
   const blocks: PlanBlock[] = useMemo(
@@ -366,44 +419,78 @@ export const PgnTextEditor = (): ReactElement => {
 
   return (
     <div className="text-editor" data-layout-mode={layoutMode}>
-      {blocks.map((block: PlanBlock): ReactElement => (
-        <div
-          key={block.key}
-          className="text-editor-block"
-          style={
-            block.indentDepth > 0
-              ? { paddingLeft: `${block.indentDepth * 1.5}em` }
-              : undefined
-          }
-          data-indent-depth={block.indentDepth > 0 ? block.indentDepth : undefined}
-        >
-          {block.tokens.map((token: PlanToken): ReactElement => {
-            /**
-             * Comment tokens use a stable key derived from their ID so that
-             * React does not remount while the user is editing.  Inline tokens
-             * use the positional key from the planner; reordering or structural
-             * changes produce a new key and force a fresh mount.
-             */
-            const stableKey: string =
-              token.kind === "comment"
-                ? `comment_${(token as CommentToken).commentId}`
-                : token.key;
+      {blocks.map((block: PlanBlock): ReactElement | null => {
+        // Hide blocks whose ancestor variation path is collapsed.
+        if (isBlockHidden(block.variationPath, collapsedPaths)) return null;
 
-            return (
-              <TokenView
-                key={stableKey}
-                token={token}
-                selectedMoveId={selectedMoveId}
-                pendingFocusCommentId={pendingFocusCommentId}
-                onMoveClick={handleMoveClick}
-                onInsertComment={handleInsertComment}
-                onCommentEdit={handleCommentEdit}
-                t={t}
+        const depthClass: string = block.variationPath
+          ? treeDepthClass(block.variationPath)
+          : "";
+        const isCollapsed: boolean = block.variationPath
+          ? collapsedPaths.has(pathKey(block.variationPath))
+          : false;
+
+        // Find the branch_header label for collapsible blocks.
+        const branchLabelToken: InlineToken | undefined = block.isCollapsible
+          ? (block.tokens.find(
+              (tok: PlanToken): tok is InlineToken =>
+                tok.kind === "inline" && tok.tokenType === "branch_header",
+            ))
+          : undefined;
+
+        return (
+          <div
+            key={block.key}
+            className={["text-editor-block", depthClass].filter(Boolean).join(" ")}
+            style={
+              block.indentDepth > 0
+                ? { paddingLeft: `${block.indentDepth * 1.5}em` }
+                : undefined
+            }
+            data-indent-depth={block.indentDepth > 0 ? block.indentDepth : undefined}
+            data-variation-path={block.variationPath ? pathKey(block.variationPath) : undefined}
+          >
+            {block.isCollapsible && branchLabelToken && (
+              <BranchHeader
+                label={String(branchLabelToken.dataset.label ?? branchLabelToken.text)}
+                blockPathKey={pathKey(block.variationPath!)}
+                isCollapsed={isCollapsed}
+                onToggle={handleToggle}
               />
-            );
-          })}
-        </div>
-      ))}
+            )}
+            {/* When collapsed, render only the header (tokens hidden). */}
+            {!isCollapsed && block.tokens
+              .filter((tok: PlanToken): boolean =>
+                !(tok.kind === "inline" && tok.tokenType === "branch_header"),
+              )
+              .map((token: PlanToken): ReactElement => {
+                /**
+                 * Comment tokens use a stable key derived from their ID so that
+                 * React does not remount while the user is editing.  Inline tokens
+                 * use the positional key from the planner; reordering or structural
+                 * changes produce a new key and force a fresh mount.
+                 */
+                const stableKey: string =
+                  token.kind === "comment"
+                    ? `comment_${(token as CommentToken).commentId}`
+                    : token.key;
+
+                return (
+                  <TokenView
+                    key={stableKey}
+                    token={token}
+                    selectedMoveId={selectedMoveId}
+                    pendingFocusCommentId={pendingFocusCommentId}
+                    onMoveClick={handleMoveClick}
+                    onInsertComment={handleInsertComment}
+                    onCommentEdit={handleCommentEdit}
+                    t={t}
+                  />
+                );
+              })}
+          </div>
+        );
+      })}
     </div>
   );
 };

@@ -1,13 +1,13 @@
 /**
  * Resource loader service registry.
  *
- * Provides a module-level slot for the `listGamesForResource` function that is
- * populated by the legacy startup sequence (Slice 5) and later by `useAppStartup`
- * (Slice 7).  React components call `getResourceLoaderService()` to access the
- * function without depending on the legacy module graph.
+ * Provides a module-level slot for the `listGamesForResource` function.
+ * Populated by `useAppStartup` on mount; React components call
+ * `getResourceLoaderService()` to access the function without creating a
+ * direct dependency on the service initialisation module.
  *
  * Integration API:
- * - `setResourceLoaderService(fn)` — called once by `start_runtime.ts` after
+ * - `setResourceLoaderService(fn)` — called once by `useAppStartup` after
  *   `resourcesCapabilities` is created.
  * - `getResourceLoaderService()` — called by `ResourceViewer.tsx` to load rows.
  *
@@ -25,7 +25,7 @@ let _service: ListGamesForResourceFn | null = null;
 
 /**
  * Register the `listGamesForResource` implementation.
- * Called once from `start_runtime.ts` after `resourcesCapabilities` is created.
+ * Called once from `useAppStartup` after `resourcesCapabilities` is created.
  */
 export const setResourceLoaderService = (fn: ListGamesForResourceFn): void => {
   _service = fn;

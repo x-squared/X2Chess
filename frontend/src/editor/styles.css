@@ -146,3 +146,73 @@
   cursor: pointer;
   pointer-events: auto;
 }
+
+/* ── Tree mode ───────────────────────────────────────────────────────────── */
+
+.text-editor[data-layout-mode="tree"] .text-editor-block {
+  border-left: 2px solid transparent;
+  padding-left: 0.6em;
+  margin-bottom: 0.2em;
+}
+
+/* Depth classes — applied to .text-editor-block in tree mode */
+.text-editor-block.tree-depth-1 {
+  border-left-color: var(--color-mainline, #2a5dca);
+  font-weight: 500;
+}
+
+.text-editor-block.tree-depth-2 {
+  border-left-color: var(--color-depth-2, #6b8fc9);
+  padding-left: 1.4em;
+}
+
+.text-editor-block.tree-depth-3 {
+  border-left-color: var(--color-depth-3, #9ab0d8);
+  padding-left: 2.2em;
+  font-size: 0.95em;
+}
+
+.text-editor-block.tree-depth-4plus {
+  border-left-color: var(--color-depth-4plus, #c3cedf);
+  padding-left: 3em;
+  font-size: 0.9em;
+  opacity: 0.85;
+}
+
+/* Branch header toggle button */
+.tree-collapse-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  padding: 0.1em 0.4em 0.1em 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+  margin-bottom: 0.15em;
+}
+
+.tree-collapse-toggle:hover {
+  color: var(--text-primary);
+}
+
+.tree-collapse-glyph {
+  font-size: 0.7em;
+  line-height: 1;
+}
+
+/* Branch header label span (non-interactive, emitted as inline token) */
+span[data-kind="branch_header"] {
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-right: 0.4em;
+}
+
+/* Muted markers in tree mode — [[br]] and [[indent]] show as literal greyed text */
+[data-layout-mode="tree"] .text-editor-comment.plain {
+  color: var(--text-muted, #9aa3b0);
+}

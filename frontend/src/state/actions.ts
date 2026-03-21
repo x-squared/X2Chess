@@ -1,5 +1,5 @@
 /**
- * App action contracts for the X2Chess useReducer store (Slice 7).
+ * App action contracts for the X2Chess useReducer store.
  *
  * Integration API:
  * - Import `AppAction` as the discriminated-union type for all `dispatch()` calls.
@@ -9,8 +9,6 @@
  *
  * Communication API:
  * - Each action variant is dispatched via `dispatch(action)` from `useAppContext()`.
- * - Legacy bridge sync actions (`sync_*_snapshot`) have been removed in Slice 7.
- *   Direct actions now cover all state fields previously populated via the bridge.
  */
 
 import type { PgnModel } from "../model/pgn_model";

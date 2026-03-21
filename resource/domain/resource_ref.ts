@@ -1,4 +1,4 @@
-import type { PgnResourceKind } from "./kinds";
+import { PGN_RESOURCE_KINDS, type PgnResourceKind } from "./kinds";
 
 /**
  * Canonical resource reference contract.
@@ -27,7 +27,8 @@ export const isPgnResourceRef = (value: unknown): value is PgnResourceRef => {
   if (!value || typeof value !== "object") return false;
   const candidate = value as { kind?: unknown; locator?: unknown };
   return (
-    (candidate.kind === "file" || candidate.kind === "directory" || candidate.kind === "db")
+    typeof candidate.kind === "string"
+    && (PGN_RESOURCE_KINDS as readonly string[]).includes(candidate.kind)
     && typeof candidate.locator === "string"
     && candidate.locator.trim().length > 0
   );

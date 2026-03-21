@@ -96,6 +96,30 @@ const parseDateValue = (rawValue: string): PgnDateValue | undefined => {
   };
 };
 
+/**
+ * Typed const map of every canonical PGN metadata key.
+ * Use `METADATA_KEY.White` instead of the string literal `"White"` so that
+ * a key rename in `PgnMetadataKnownValues` immediately produces a TypeScript
+ * error at every call site that references the old name.
+ */
+export const METADATA_KEY = {
+  Event: "Event",
+  Site: "Site",
+  Round: "Round",
+  Date: "Date",
+  White: "White",
+  Black: "Black",
+  Result: "Result",
+  ECO: "ECO",
+  Opening: "Opening",
+  WhiteElo: "WhiteElo",
+  BlackElo: "BlackElo",
+  TimeControl: "TimeControl",
+  Termination: "Termination",
+  Annotator: "Annotator",
+  X2Style: "X2Style",
+} as const satisfies Readonly<Record<keyof PgnMetadataKnownValues, string>>;
+
 export const PGN_STANDARD_METADATA_KEYS = Object.freeze([
   "Event",
   "Site",

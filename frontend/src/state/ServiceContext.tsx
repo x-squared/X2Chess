@@ -1,5 +1,5 @@
 /**
- * ServiceContext — provides service callbacks to the React component tree (Slice 7).
+ * ServiceContext — provides service callbacks to the React component tree.
  *
  * Exposes all app-level operations (navigation, PGN editing, session management,
  * shell state) as stable callback references so that components can call service
@@ -14,8 +14,8 @@
  *
  * Communication API:
  * - Inbound: callbacks are set once by `useAppStartup` on mount.
- * - Outbound: callbacks mutate legacy state then dispatch to React reducer via
- *   the stable render function inside `useAppStartup`.
+ * - Outbound: callbacks mutate the mutable app state then dispatch to the React
+ *   reducer via the stable render function inside `useAppStartup`.
  */
 
 import { createContext, useContext } from "react";
@@ -65,6 +65,13 @@ export type AppStartupServices = {
   undo: () => void;
   redo: () => void;
 
+  // ── Resource rows ──────────────────────────────────────────────────────
+  /**
+   * Load the game identified by `sourceRef` and open it in the editor.
+   * @param sourceRef - Source reference from a resource row.
+   */
+  openGameFromRef: (sourceRef: unknown) => void;
+
   // ── Session management ─────────────────────────────────────────────────
   /**
    * Activate a different open session.
@@ -106,6 +113,7 @@ const defaultServices: AppStartupServices = {
   updateGameInfoHeader: noop,
   undo: noop,
   redo: noop,
+  openGameFromRef: noop,
   switchSession: noop,
   closeSession: noop,
   setMenuOpen: noop,

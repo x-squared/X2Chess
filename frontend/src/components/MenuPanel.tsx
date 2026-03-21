@@ -20,6 +20,7 @@
  * - Inbound: re-renders when relevant `AppStoreState` fields change.
  */
 
+import { useEffect } from "react";
 import type { ReactElement, ChangeEvent } from "react";
 import { SUPPORTED_LOCALES } from "../app_shell/i18n";
 import { useAppContext } from "../state/app_context";
@@ -64,6 +65,10 @@ export const MenuPanel = (): ReactElement => {
   const activeSaveMode: string =
     sessions.find((s: SessionItemState): boolean => s.isActive)?.saveMode ?? "auto";
 
+  useEffect((): void => {
+    document.body.classList.toggle("menu-open", isMenuOpen);
+  }, [isMenuOpen]);
+
   return (
     <>
       {/* Backdrop — click closes menu */}
@@ -77,7 +82,7 @@ export const MenuPanel = (): ReactElement => {
       {/* Sidebar panel */}
       <aside
         id="app-menu-panel"
-        className="app-menu-panel"
+        className={isMenuOpen ? "app-menu-panel open" : "app-menu-panel"}
         aria-hidden={isMenuOpen ? undefined : "true"}
       >
         <div className="app-menu-header">

@@ -110,6 +110,14 @@ export const createResourcesCapabilities = ({
     titleHint,
   );
 
+  const reorderGameInResource = async (
+    sourceRef: SourceRefLike,
+    neighborSourceRef: SourceRefLike,
+  ): Promise<void> => sourceGateway.reorderGame(
+    { kind: String(sourceRef.kind || "db"), locator: String(sourceRef.locator || ""), recordId: sourceRef.recordId === undefined ? undefined : String(sourceRef.recordId) },
+    { kind: String(neighborSourceRef.kind || "db"), locator: String(neighborSourceRef.locator || ""), recordId: neighborSourceRef.recordId === undefined ? undefined : String(neighborSourceRef.recordId) },
+  );
+
   const saveGameBySourceRef = async (
     sourceRef: SourceRefLike,
     pgnText: string,
@@ -145,6 +153,7 @@ export const createResourcesCapabilities = ({
     chooseResourceByPicker,
     getAvailableSourceKinds: (): string[] => sourceGateway.getAdapterKinds(),
     listGamesForResource,
+    reorderGameInResource,
     listSourceGames,
     createGameInResource,
     loadGameBySourceRef,

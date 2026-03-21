@@ -88,6 +88,8 @@ type PlanState = {
   tokenIndex: number;
   indentDepth: number;
   firstCommentId: string | null;
+  /** True once the first move token has been emitted; used to gate intro styling. */
+  firstMoveEmitted: boolean;
   layoutMode: LayoutMode;
 };
 
@@ -184,6 +186,7 @@ const createPlanState = (layoutMode: LayoutMode = "text"): PlanState => ({
   tokenIndex: 0,
   indentDepth: 0,
   firstCommentId: null,
+  firstMoveEmitted: false,
   layoutMode,
 });
 
@@ -319,6 +322,10 @@ const addComment = (state: PlanState, comment: PgnComment): void => {
   const isFirstComment: boolean = !state.firstCommentId;
   if (isFirstComment) state.firstCommentId = comment.id;
 
+  // Intro styling only applies to the first comment AND only when it precedes
+  // the first move.  A comment after the first move is not an intro.
+  const applyIntroStyling: boolean = isFirstComment && !state.firstMoveEmitted;
+
   if (layoutMode === "plain") {
     addCommentToken(state, comment, rawText, rawText, false, 0, false, true, false);
     addSpace(state);
@@ -327,8 +334,7 @@ const addComment = (state: PlanState, comment: PgnComment): void => {
 
   if (layoutMode === "tree") {
     // Show raw text literally — markers survive edits and are greyed via CSS.
-    // Intro styling and focus still apply to the first comment of each variation.
-    addCommentToken(state, comment, rawText, rawText, false, 0, isFirstComment, true, isFirstComment);
+    addCommentToken(state, comment, rawText, rawText, false, 0, applyIntroStyling, true, applyIntroStyling);
     addSpace(state);
     return;
   }
@@ -344,11 +350,17 @@ const addComment = (state: PlanState, comment: PgnComment): void => {
     rawText,
     hasIndentDirective,
     indentDirectiveDepth,
-    isFirstComment,
+    applyIntroStyling,
     false,
-    isFirstComment,
+    applyIntroStyling,
   );
-  addSpace(state);
+  // In text mode, the intro comment occupies its own block so the first move
+  // starts on a new line rather than immediately following the intro text.
+  if (applyIntroStyling) {
+    nextBlock(state);
+  } else {
+    addSpace(state);
+  }
 };
 
 // ── Indented block helper (text mode only) ───────────────────────────────────
@@ -407,6 +419,7 @@ const emitVariation = (variation: PgnVariation, state: PlanState, strategyRegist
 
 const emitMove: StrategyFn = (entry, variation, state, strategyRegistry, flow): void => {
   if (entry.type !== "move") return;
+  state.firstMoveEmitted = true;
   const moveSide: "white" | "black" = flow.nextMoveSide === "black" ? "black" : "white";
   const moveClass: string = variation.depth === 0
     ? `text-editor-main-move move-${moveSide}`
@@ -502,7 +515,9 @@ const emitTreeVariation = (
   numberingStrategy: VariationNumberingStrategy,
 ): void => {
   const savedFirstCommentId: string | null = state.firstCommentId;
+  const savedFirstMoveEmitted: boolean = state.firstMoveEmitted;
   state.firstCommentId = null;
+  state.firstMoveEmitted = false;
 
   // Branch header for non-mainline blocks.
   if (!isMainLine) {
@@ -560,6 +575,7 @@ const emitTreeVariation = (
     }
 
     if (entry.type === "move") {
+      state.firstMoveEmitted = true;
       const side: "white" | "black" = moveSide;
       const moveClass: string = variation.depth === 0
         ? `text-editor-main-move move-${side}`
@@ -605,6 +621,7 @@ const emitTreeVariation = (
   }
 
   state.firstCommentId = savedFirstCommentId;
+  state.firstMoveEmitted = savedFirstMoveEmitted;
 };
 
 const buildTreeEditorPlan = (

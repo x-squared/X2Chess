@@ -58,4 +58,11 @@ export const createResourceClient = (
     const adapter: PgnResourceAdapter = resolveAdapter(adapters, resourceRef.kind);
     return adapter.create(resourceRef, pgnText, title);
   },
+  reorderGame: async (gameRef: PgnGameRef, neighborGameRef: PgnGameRef) => {
+    const adapter: PgnResourceAdapter = resolveAdapter(adapters, gameRef.kind);
+    if (typeof adapter.reorder !== "function") {
+      throw new Error(`Adapter for kind '${gameRef.kind}' does not support reordering.`);
+    }
+    return adapter.reorder(gameRef, neighborGameRef);
+  },
 });

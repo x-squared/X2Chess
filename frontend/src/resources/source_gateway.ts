@@ -1,9 +1,11 @@
 import { createDirectoryAdapter } from "../../../resource/adapters/directory/directory_adapter";
 import { createFileAdapter as createCanonicalFileAdapter } from "../../../resource/adapters/file/file_adapter";
+import { createDbAdapter } from "../../../resource/adapters/db/db_adapter";
+import { buildPositionIndex } from "./position_indexer";
 import type { FsGateway } from "../../../resource/io/fs_gateway";
+import type { DbGateway } from "../../../resource/io/db_gateway";
 import { createResourceClient, type ResourceClient } from "../../../resource/client/api";
 import {
-  createSourceCanonicalAdapter,
   mapSourceKind,
   toCanonicalGameRefFromSource,
   toCanonicalResourceRefFromSource,
@@ -67,22 +69,33 @@ const buildTauriFsGateway = (): FsGateway => ({
     }
     return String(await invokeFn("load_text_file", { filePath: path }));
   },
-  writeTextFile: async (_path: string, _content: string): Promise<void> => {
-    // Not implemented yet — file writes go through source picker for now.
+  writeTextFile: async (path: string, content: string): Promise<void> => {
+    const runtimeWindow = window as TauriWindowLike;
+    const invokeFn = runtimeWindow.__TAURI__?.core?.invoke;
+    if (typeof invokeFn !== "function") {
+      throw new Error("Tauri invoke API is unavailable.");
+    }
+    await invokeFn("write_text_file", { filePath: path, content });
   },
 });
 
-
-const createDeferredDbSourceAdapter = (): SourceAdapter => ({
-  kind: "db",
-  list: async (): Promise<SourceListEntry[]> => [],
-  load: async (): Promise<SourceLoadResult> => {
-    throw new Error("Database source adapter is deferred in this migration phase.");
-  },
-  save: async (): Promise<SourceSaveResult> => {
-    throw new Error("Database source adapter is deferred in this migration phase.");
-  },
-});
+const buildTauriDbGateway = (dbPath: string): DbGateway => {
+  const invoke = (): ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) => {
+    const runtimeWindow = window as TauriWindowLike;
+    const fn = runtimeWindow.__TAURI__?.core?.invoke;
+    if (typeof fn !== "function") throw new Error("Tauri invoke API is unavailable.");
+    return fn as (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
+  };
+  return {
+    query: async (sql: string, params?: unknown[]): Promise<unknown[]> => {
+      const result = await invoke()("query_db", { dbPath, sql, params: params ?? [] });
+      return Array.isArray(result) ? result : [];
+    },
+    execute: async (sql: string, params?: unknown[]): Promise<void> => {
+      await invoke()("execute_db", { dbPath, sql, params: params ?? [] });
+    },
+  };
+};
 
 /**
  * Create source gateway boundary.
@@ -103,7 +116,12 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
     >;
     detectDefaultSourceRoot: () => Promise<unknown>;
   };
-  const sqliteAdapter: SourceAdapter = createDeferredDbSourceAdapter();
+  const dbAdapter = isTauriRuntime()
+    ? createDbAdapter(buildTauriDbGateway, { buildPositionIndex })
+    : createDbAdapter(
+        () => { throw new Error("Database resources require the desktop application."); },
+        { buildPositionIndex },
+      );
   const canonicalFileAdapter = createCanonicalFileAdapter({ fsGateway: buildTauriFsGateway() });
 
   const directoryAdapter = createDirectoryAdapter({
@@ -178,7 +196,7 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
   });
 
   const resourceClient: ResourceClient = createResourceClient({
-    db: createSourceCanonicalAdapter("db", sqliteAdapter),
+    db: dbAdapter,
     directory: directoryAdapter,
     file: canonicalFileAdapter,
   });
@@ -212,7 +230,7 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
       return {
         resourceRef: {
           kind: "directory",
-          locator: state.gameRootPath || state.gameDirectoryPath || "local-files",
+          locator: state.gameDirectoryPath || state.gameRootPath || "local-files",
         },
       };
     }
@@ -225,7 +243,14 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
         resourceRef: { kind: "file", locator: selected.locator },
       };
     }
-    throw new Error("Database resources are temporarily disabled in this migration phase.");
+    if (selected.type === "db") {
+      if (!supportsFileKind) {
+        throw new Error("Database resources require the desktop application.");
+      }
+      state.activeSourceKind = "db";
+      return { resourceRef: { kind: "db", locator: selected.locator } };
+    }
+    throw new Error("Unknown resource type selected.");
   };
 
   /**
@@ -334,11 +359,18 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
     };
   };
 
+  const reorderGame = async (sourceRef: SourceRef, neighborSourceRef: SourceRef): Promise<void> => {
+    await resourceClient.reorderGame(
+      toCanonicalGameRefFromSource(sourceRef),
+      toCanonicalGameRefFromSource(neighborSourceRef),
+    );
+  };
+
   return {
     chooseFileSourceRoot,
     chooseResourceByPicker,
     createGameInResource,
-    getAdapterKinds: (): string[] => (supportsFileKind ? ["file", "directory"] : ["directory"]),
+    getAdapterKinds: (): string[] => (supportsFileKind ? ["file", "directory", "db"] : ["directory"]),
     listGames,
     listGamesForResource: async (resourceRef: SourceRef): Promise<SourceListEntry[]> => {
       const listed = await resourceClient.listGames(
@@ -358,6 +390,7 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
     },
     loadBySourceRef,
     maybePreloadDefaultDevSource,
+    reorderGame,
     saveBySourceRef,
   };
 };

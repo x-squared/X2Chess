@@ -82,6 +82,7 @@ export const DEFAULT_PGN = `[Event "Sample"]
 [Black "Black"]
 [Result "*"]
 
+{A sample game with variations. Click a move to jump to that position, or use the navigation buttons above.}
 1. e4 (1. c4 e5) (1. d4 d5 (1... Nf6 2. c4 e6) 2. c4) e5
 2. Nf3 (2. Nc3 Nf6 (2... Bb4 3. a3)) Nc6
 3. Bb5 a6 (3... Nf6 4. O-O (4. d3))

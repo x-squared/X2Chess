@@ -147,12 +147,18 @@ export const useAppStartup = (): AppStartupServices => {
       },
       gotoMoveById: (moveId: string): void => {
         const pos = bundle.legacyState.movePositionById?.[moveId] as
-          | { mainlinePly?: number }
+          | { mainlinePly?: number | null; fen?: string; lastMove?: [string, string] | null }
           | undefined;
         if (pos && typeof pos.mainlinePly === "number") {
-          void bundle.navigation.gotoPly(pos.mainlinePly);
+          bundle.legacyState.selectedMoveId = moveId;
+          bundle.legacyState.boardPreview = null;
+          syncStateToReact();
+          void bundle.navigation.gotoPly(pos.mainlinePly, { animate: false });
         } else {
           bundle.legacyState.selectedMoveId = moveId;
+          bundle.legacyState.boardPreview = pos?.fen
+            ? ({ fen: pos.fen, lastMove: pos.lastMove ?? null } as unknown as import("../board/runtime").BoardPreviewLike)
+            : null;
           syncStateToReact();
         }
       },
@@ -178,12 +184,12 @@ export const useAppStartup = (): AppStartupServices => {
           syncStateToReact();
           return;
         }
-        const newModel = insertCommentAroundMove(
+        const result = insertCommentAroundMove(
           bundle.legacyState.pgnModel,
           moveId,
           position,
         );
-        bundle.applyModelUpdate(newModel, null, { recordHistory: true });
+        bundle.applyModelUpdate(result.model, result.insertedCommentId, { recordHistory: true });
       },
       saveCommentText: (commentId: string, text: string): void => {
         const newModel = setCommentTextById(
@@ -237,6 +243,41 @@ export const useAppStartup = (): AppStartupServices => {
       },
 
       // Resource rows
+      openResource: (): void => {
+        void (async (): Promise<void> => {
+          try {
+            const selected = await bundle.resources.chooseResourceByPicker();
+            if (!selected) return;
+            const ref = selected.resourceRef;
+            bundle.resourceViewer.upsertTab({
+              title: String(ref.locator ?? "").split("/").filter(Boolean).at(-1) || String(ref.kind ?? "Resource"),
+              resourceRef: ref,
+              select: true,
+            });
+            syncStateToReact();
+          } catch (err: unknown) {
+            const message: string = err instanceof Error ? err.message : String(err);
+            dispatch({ type: "set_error_message", message });
+          }
+        })();
+      },
+      openPgnText: (pgnText: string): void => {
+        const s: AppState = bundle.legacyState;
+        s.pgnText = pgnText;
+        s.pgnModel = ensureRequiredPgnHeaders(parsePgnToModel(pgnText)) as typeof s.pgnModel;
+        s.currentPly = 0;
+        s.selectedMoveId = null;
+        bundle.pgnRuntime.syncChessParseState(pgnText);
+        syncStateToReact();
+      },
+      reorderGameInResource: async (sourceRef: unknown, neighborSourceRef: unknown): Promise<void> => {
+        const ref = sourceRef as { kind?: string; locator?: string; recordId?: unknown } | null;
+        const neighbor = neighborSourceRef as { kind?: string; locator?: string; recordId?: unknown } | null;
+        await bundle.resources.reorderGameInResource(
+          { kind: String(ref?.kind ?? "db"), locator: String(ref?.locator ?? ""), recordId: ref?.recordId == null ? undefined : String(ref.recordId) },
+          { kind: String(neighbor?.kind ?? "db"), locator: String(neighbor?.locator ?? ""), recordId: neighbor?.recordId == null ? undefined : String(neighbor.recordId) },
+        );
+      },
       openGameFromRef: (sourceRef: unknown): void => {
         void (async (): Promise<void> => {
           const ref = sourceRef as { kind?: string; locator?: string; recordId?: unknown } | null;
@@ -252,6 +293,15 @@ export const useAppStartup = (): AppStartupServices => {
             s.currentPly = 0;
             s.selectedMoveId = null;
             bundle.pgnRuntime.syncChessParseState(result.pgnText);
+            // Record the source so the session no longer shows as unsaved.
+            bundle.sessionStore.updateActiveSessionMeta({
+              sourceRef: {
+                kind: String(ref?.kind ?? "directory"),
+                locator: String(ref?.locator ?? ""),
+                recordId: ref?.recordId == null ? undefined : String(ref.recordId),
+              },
+              dirtyState: "clean",
+            });
             syncStateToReact();
           } catch (err: unknown) {
             const message: string = err instanceof Error ? err.message : String(err);
@@ -309,6 +359,13 @@ export const useAppStartup = (): AppStartupServices => {
         syncStateToReact();
       },
       saveActiveGameNow: (): void => {
+        void bundle.sessionPersistence.persistActiveSessionNow();
+      },
+      saveSessionById: (sessionId: string): void => {
+        if (bundle.legacyState.activeSessionId !== sessionId) {
+          bundle.sessionStore.switchToSession(sessionId);
+          syncStateToReact();
+        }
         void bundle.sessionPersistence.persistActiveSessionNow();
       },
     }),

@@ -156,7 +156,14 @@ export const createPgnRuntimeCapabilities = ({
 
   const initializeWithDefaultPgn = (): void => {
     setInputValue(defaultPgn);
-    loadPgn();
+    runtimeState.animationRunId += 1;
+    runtimeState.isAnimating = false;
+    runtimeState.pgnText = defaultPgn;
+    runtimeState.pgnModel = parsePgnToModelFn(defaultPgn);
+    syncChessParseState(defaultPgn);
+    runtimeState.errorMessage = "";
+    runtimeState.statusMessage = "";
+    onRender();
   };
 
   return {

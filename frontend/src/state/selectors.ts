@@ -35,6 +35,9 @@ export const selectStatusMessage = (state: AppStoreState): string => state.statu
 export const selectErrorMessage = (state: AppStoreState): string => state.errorMessage;
 export const selectActiveSourceKind = (state: AppStoreState): string =>
   state.activeSourceKind;
+export const selectBoardPreview = (
+  state: AppStoreState,
+): { fen: string; lastMove?: [string, string] | null } | null => state.boardPreview;
 
 // ── Editor / PGN ─────────────────────────────────────────────────────────────
 export const selectLayoutMode = (

@@ -40,7 +40,11 @@ export const GameSessionsPanel = (): ReactElement => {
     services.closeSession(sessionId);
   }, [services]);
 
+  const handleSave = useCallback((sessionId: string): void => {
+    services.saveSessionById(sessionId);
+  }, [services]);
+
   return (
-    <GameTabs sessions={sessions} onSelect={handleSelect} onClose={handleClose} />
+    <GameTabs sessions={sessions} onSelect={handleSelect} onClose={handleClose} onSave={handleSave} />
   );
 };

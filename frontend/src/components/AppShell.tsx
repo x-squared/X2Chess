@@ -24,7 +24,10 @@
  *   layout structure re-render on `AppStoreState` changes.
  */
 
-import type { ReactElement, ChangeEvent } from "react";
+import { useRef, useEffect } from "react";
+import type { ReactElement } from "react";
+import { createGameIngressHandlers } from "../game_sessions/ingress_handlers";
+import { isLikelyPgnText } from "../runtime/bootstrap_shared";
 import { useAppContext } from "../state/app_context";
 import {
   selectCurrentPly,
@@ -44,7 +47,6 @@ import { GameSessionsPanel } from "./GameSessionsPanel";
 import { ChessBoard } from "./ChessBoard";
 import { PgnTextEditor } from "./PgnTextEditor";
 import { ResourceViewer } from "./ResourceViewer";
-import { MovesPanel } from "./MovesPanel";
 
 /** Root application shell component. */
 export const AppShell = (): ReactElement => {
@@ -64,6 +66,117 @@ export const AppShell = (): ReactElement => {
   const canUndo: boolean = undoDepth > 0;
   const canRedo: boolean = redoDepth > 0;
 
+  const appPanelRef = useRef<HTMLElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const boardEditorBoxRef = useRef<HTMLDivElement>(null);
+  const boardResizeHandleRef = useRef<HTMLDivElement>(null);
+  const vertResizeHandleRef = useRef<HTMLDivElement>(null);
+  /** Tracks the board width the user set via horizontal drag, so it can be restored when the resource viewer shrinks. */
+  const intendedBoardWidthRef = useRef<number>(520);
+
+  // Wire up board / editor column resize handle.
+  useEffect((): (() => void) => {
+    const handleEl = boardResizeHandleRef.current;
+    const boxEl = boardEditorBoxRef.current;
+    if (!handleEl || !boxEl) return (): void => {};
+
+    const clamp = (px: number): number => Math.max(260, Math.min(680, Math.round(px)));
+    const setWidth = (px: number): void => {
+      const clamped = clamp(px);
+      document.documentElement.style.setProperty("--board-column-width", `${clamped}px`);
+      intendedBoardWidthRef.current = clamped;
+    };
+
+    let state: { leftPx: number; handleHalfPx: number } | null = null;
+
+    const onMove = (e: PointerEvent): void => {
+      if (!state) return;
+      setWidth(e.clientX - state.leftPx - state.handleHalfPx);
+    };
+    const onUp = (): void => { state = null; };
+
+    const onDown = (e: PointerEvent): void => {
+      const boxRect = boxEl.getBoundingClientRect();
+      const hRect = handleEl.getBoundingClientRect();
+      state = { leftPx: boxRect.left, handleHalfPx: Math.max(2, Math.round(hRect.width / 2)) };
+      handleEl.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    };
+
+    handleEl.addEventListener("pointerdown", onDown);
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return (): void => {
+      handleEl.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, []);
+
+  // Wire up resource viewer vertical resize handle.
+  useEffect((): (() => void) => {
+    const handleEl = vertResizeHandleRef.current;
+    if (!handleEl) return (): void => {};
+
+    const clampRV = (px: number): number => Math.max(120, Math.min(600, Math.round(px)));
+    const clampBW = (px: number): number => Math.max(260, Math.min(680, Math.round(px)));
+
+    const getCSSInt = (prop: string, fallback: number): number => {
+      const raw = getComputedStyle(document.documentElement).getPropertyValue(prop);
+      const n = parseInt(raw, 10);
+      return Number.isFinite(n) ? n : fallback;
+    };
+
+    let startY = 0;
+    let startRV = 0;
+    let startBW = 0;
+
+    const onMove = (e: PointerEvent): void => {
+      const delta = e.clientY - startY;
+      const newRV = clampRV(startRV - delta);
+      const newBW = clampBW(Math.min(intendedBoardWidthRef.current, startBW + delta));
+      document.documentElement.style.setProperty("--resource-viewer-height", `${newRV}px`);
+      document.documentElement.style.setProperty("--board-column-width", `${newBW}px`);
+    };
+    const onUp = (): void => {};
+    const onDown = (e: PointerEvent): void => {
+      startY = e.clientY;
+      startRV = getCSSInt("--resource-viewer-height", 260);
+      startBW = getCSSInt("--board-column-width", 520);
+      handleEl.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    };
+
+    handleEl.addEventListener("pointerdown", onDown);
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return (): void => {
+      handleEl.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, []);
+
+  useEffect((): void => {
+    const { bindEvents } = createGameIngressHandlers({
+      appPanelEl: appPanelRef.current,
+      isLikelyPgnText,
+      openGameFromIncomingText: (pgnText: string): boolean => {
+        services.openPgnText(pgnText);
+        return true;
+      },
+      setDropOverlayVisible: (visible: boolean): void => {
+        if (overlayRef.current) overlayRef.current.hidden = !visible;
+      },
+    });
+    bindEvents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <ServiceContextProvider value={services}>
       <main className="app">
@@ -71,9 +184,10 @@ export const AppShell = (): ReactElement => {
         <MenuPanel />
 
         {/* ── Main app panel ── */}
-        <section className="app-panel">
+        <section ref={appPanelRef} className="app-panel">
           {/* Game drag-and-drop overlay */}
           <div
+            ref={overlayRef}
             id="game-drop-overlay"
             className="game-drop-overlay"
             hidden
@@ -115,12 +229,13 @@ export const AppShell = (): ReactElement => {
           <GameInfoEditor />
 
           {/* ── Board / editor split pane ── */}
-          <div id="board-editor-box" className="board-editor-box">
+          <div ref={boardEditorBoxRef} id="board-editor-box" className="board-editor-box">
             {/* Chessboard */}
             <ChessBoard />
 
             {/* Resize handle */}
             <div
+              ref={boardResizeHandleRef}
               id="board-editor-resize-handle"
               className="board-editor-resize-handle"
               aria-hidden="true"
@@ -212,7 +327,7 @@ export const AppShell = (): ReactElement => {
                     >
                       <button
                         id="btn-pgn-layout-plain"
-                        className="icon-button icon-button-text pgn-layout-btn"
+                        className={`icon-button icon-button-text pgn-layout-btn${layoutMode === "plain" ? " active" : ""}`}
                         type="button"
                         data-pgn-layout="plain"
                         title={t("toolbar.pgnLayout.plain", "Plain — literal PGN")}
@@ -223,7 +338,7 @@ export const AppShell = (): ReactElement => {
                       </button>
                       <button
                         id="btn-pgn-layout-text"
-                        className="icon-button icon-button-text pgn-layout-btn"
+                        className={`icon-button icon-button-text pgn-layout-btn${layoutMode === "text" ? " active" : ""}`}
                         type="button"
                         data-pgn-layout="text"
                         title={t("toolbar.pgnLayout.text", "Text — narrative layout")}
@@ -234,7 +349,7 @@ export const AppShell = (): ReactElement => {
                       </button>
                       <button
                         id="btn-pgn-layout-tree"
-                        className="icon-button icon-button-text pgn-layout-btn"
+                        className={`icon-button icon-button-text pgn-layout-btn${layoutMode === "tree" ? " active" : ""}`}
                         type="button"
                         data-pgn-layout="tree"
                         title={t(
@@ -335,19 +450,20 @@ export const AppShell = (): ReactElement => {
             </div>
           </div>
 
+          {/* Vertical resize handle (between board/editor and resource viewer) */}
+          <div
+            ref={vertResizeHandleRef}
+            id="resource-viewer-resize-handle"
+            className="resource-viewer-resize-handle"
+            aria-hidden="true"
+          />
+
           {/* ── Resource viewer card ── */}
           <ResourceViewer />
-
-          {/* Status bar */}
-          <p id="status" className="status" />
-          <span id="save-status" className="save-status" hidden />
         </section>
 
         {/* ── Developer dock ── */}
         <DevDock />
-
-        {/* ── Moves panel (dev auxiliary) ── */}
-        <MovesPanel />
       </main>
     </ServiceContextProvider>
   );

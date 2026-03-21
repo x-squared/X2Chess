@@ -25,6 +25,7 @@ import { Chess } from "chess.js";
 import { Chessground } from "chessground";
 import { useAppContext } from "../state/app_context";
 import {
+  selectBoardPreview,
   selectCurrentPly,
   selectMoveDelayMs,
   selectMoves,
@@ -81,6 +82,8 @@ export const ChessBoard = (): ReactElement => {
   const currentPly: number = selectCurrentPly(state);
   const moves: string[] = selectMoves(state);
   const moveDelayMs: number = selectMoveDelayMs(state);
+  const boardPreview: { fen: string; lastMove?: [string, string] | null } | null =
+    selectBoardPreview(state);
 
   /** DOM node Chessground attaches to. */
   const boardElRef = useRef<HTMLDivElement>(null);
@@ -122,6 +125,17 @@ export const ChessBoard = (): ReactElement => {
     const api: ChessgroundApi | null = cgRef.current;
     if (!api) return;
 
+    if (boardPreview) {
+      const previewLastMove: KeyPair | undefined =
+        boardPreview.lastMove &&
+        isBoardKey(boardPreview.lastMove[0]) &&
+        isBoardKey(boardPreview.lastMove[1])
+          ? [boardPreview.lastMove[0], boardPreview.lastMove[1]]
+          : undefined;
+      api.set({ fen: boardPreview.fen, lastMove: previewLastMove, animation: { enabled: true, duration: moveDelayMs } });
+      return;
+    }
+
     const game: Chess = buildGameAtPly(currentPly, moves);
     const fen: string = game.fen();
     const lastMove: KeyPair | undefined = computeLastMove(game, currentPly);
@@ -131,11 +145,7 @@ export const ChessBoard = (): ReactElement => {
       lastMove,
       animation: { enabled: true, duration: moveDelayMs },
     });
-  }, [currentPly, moves, moveDelayMs]);
+  }, [boardPreview, currentPly, moves, moveDelayMs]);
 
-  return (
-    <div className="x2-board-wrapper">
-      <div ref={boardElRef} className="x2-board-host" />
-    </div>
-  );
+  return <div ref={boardElRef} className="board" />;
 };

@@ -60,4 +60,11 @@ export type AppAction =
       type: "set_resource_tabs";
       tabs: ResourceTabSnapshot[];
       activeTabId: string | null;
-    };
+    }
+  // ── Board preview ──────────────────────────────────────────────────────
+  /**
+   * Variation move preview position.  When non-null, `ChessBoard` shows this
+   * FEN instead of replaying from `currentPly`.  Cleared on any mainline
+   * navigation.
+   */
+  | { type: "set_board_preview"; preview: { fen: string; lastMove?: [string, string] | null } | null };

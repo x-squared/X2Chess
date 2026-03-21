@@ -99,6 +99,9 @@ the same area) is a violation.
 - `resource_docs_cleanup_f409e241.plan.md` — resource API docs compliance
 - `full_react_rewrite_08d1b94a.plan.md` — React migration (completed)
 - `developer_tools_toggle_7c98bd50.plan.md` — developer-tools toggle
+- `resource_ext_databases_a1b2c3d4.plan.md` — external game/opening/endgame database integration
+- `engines_integration_e5f6a7b8.plan.md` — chess engine (UCI) integration
+- `training_mode_c9d0e1f2.plan.md` — training mode (Replay protocol + transcript/merge infrastructure)
 
 ## Key types / entry points
 

@@ -1,6 +1,12 @@
+use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
+use std::sync::Mutex;
+
+use rusqlite::types::ValueRef;
+use rusqlite::{params_from_iter, Connection};
+use serde_json::{json, Value as JsonValue};
 
 fn is_simple_file_name(file_name: &str) -> bool {
   let path = Path::new(file_name);
@@ -56,6 +62,26 @@ fn pick_games_directory() -> Option<String> {
     .set_title("Choose X2Chess game folder")
     .pick_folder()
     .map(|path| path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn pick_resource_file() -> Option<String> {
+  rfd::FileDialog::new()
+    .add_filter("Chess resources", &["pgn", "x2chess"])
+    .set_title("Choose resource file (or cancel to pick a folder)")
+    .pick_file()
+    .map(|path| path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn load_text_file(file_path: String) -> Result<String, String> {
+  fs::read_to_string(&file_path)
+    .map_err(|error| format!("Unable to read file: {error}"))
+}
+
+#[tauri::command]
+fn write_text_file(file_path: String, content: String) -> Result<(), String> {
+  fs::write(&file_path, content).map_err(|error| format!("Unable to write file: {error}"))
 }
 
 #[tauri::command]
@@ -136,17 +162,138 @@ fn save_player_list(root_directory: String, content: String) -> Result<(), Strin
   fs::write(players_path, content).map_err(|error| format!("Unable to save player list: {error}"))
 }
 
+// ── SQLite state ──────────────────────────────────────────────────────────────
+
+struct DbState {
+  connections: Mutex<HashMap<String, Connection>>,
+}
+
+fn json_to_sqlite(v: &JsonValue) -> rusqlite::types::Value {
+  match v {
+    JsonValue::Null => rusqlite::types::Value::Null,
+    JsonValue::Bool(b) => rusqlite::types::Value::Integer(*b as i64),
+    JsonValue::Number(n) => {
+      if let Some(i) = n.as_i64() {
+        rusqlite::types::Value::Integer(i)
+      } else {
+        rusqlite::types::Value::Real(n.as_f64().unwrap_or(0.0))
+      }
+    }
+    JsonValue::String(s) => rusqlite::types::Value::Text(s.clone()),
+    _ => rusqlite::types::Value::Null,
+  }
+}
+
+fn sqlite_to_json(v: ValueRef<'_>) -> JsonValue {
+  match v {
+    ValueRef::Null => JsonValue::Null,
+    ValueRef::Integer(i) => json!(i),
+    ValueRef::Real(f) => json!(f),
+    ValueRef::Text(t) => JsonValue::String(String::from_utf8_lossy(t).to_string()),
+    ValueRef::Blob(_) => JsonValue::Null,
+  }
+}
+
+fn open_or_get<'a>(
+  guard: &'a mut HashMap<String, Connection>,
+  db_path: &str,
+) -> Result<&'a Connection, String> {
+  if !guard.contains_key(db_path) {
+    let conn = Connection::open(db_path)
+      .map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")
+      .map_err(|e| format!("Failed to set pragmas: {e}"))?;
+    guard.insert(db_path.to_string(), conn);
+  }
+  Ok(guard.get(db_path).unwrap())
+}
+
+#[tauri::command]
+fn query_db(
+  state: tauri::State<DbState>,
+  db_path: String,
+  sql: String,
+  params: Vec<JsonValue>,
+) -> Result<Vec<JsonValue>, String> {
+  let mut guard = state.connections.lock().map_err(|e| e.to_string())?;
+  let conn = open_or_get(&mut guard, &db_path)?;
+  let sqlite_params: Vec<rusqlite::types::Value> = params.iter().map(json_to_sqlite).collect();
+  let mut stmt = conn.prepare(&sql).map_err(|e| format!("SQL prepare error: {e}"))?;
+  let col_names: Vec<String> = stmt.column_names().iter().map(|s| s.to_string()).collect();
+  let rows = stmt
+    .query_map(params_from_iter(sqlite_params.iter()), |row| {
+      let mut obj = serde_json::Map::new();
+      for (i, col) in col_names.iter().enumerate() {
+        let v = row.get_ref(i).unwrap_or(ValueRef::Null);
+        obj.insert(col.clone(), sqlite_to_json(v));
+      }
+      Ok(JsonValue::Object(obj))
+    })
+    .map_err(|e| format!("SQL query error: {e}"))?;
+  rows.collect::<Result<Vec<_>, _>>().map_err(|e| format!("Row error: {e}"))
+}
+
+#[tauri::command]
+fn execute_db(
+  state: tauri::State<DbState>,
+  db_path: String,
+  sql: String,
+  params: Vec<JsonValue>,
+) -> Result<(), String> {
+  let mut guard = state.connections.lock().map_err(|e| e.to_string())?;
+  let conn = open_or_get(&mut guard, &db_path)?;
+  let sqlite_params: Vec<rusqlite::types::Value> = params.iter().map(json_to_sqlite).collect();
+  conn
+    .execute(&sql, params_from_iter(sqlite_params.iter()))
+    .map_err(|e| format!("SQL execute error: {e}"))?;
+  Ok(())
+}
+
+#[tauri::command]
+fn pick_x2chess_file() -> Option<String> {
+  rfd::FileDialog::new()
+    .add_filter("X2Chess database", &["x2chess"])
+    .set_title("Open X2Chess database")
+    .pick_file()
+    .map(|path| path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn create_x2chess_file(suggested_name: String) -> Option<String> {
+  let name = if suggested_name.is_empty() {
+    "games.x2chess".to_string()
+  } else if suggested_name.ends_with(".x2chess") {
+    suggested_name
+  } else {
+    format!("{}.x2chess", suggested_name)
+  };
+  rfd::FileDialog::new()
+    .add_filter("X2Chess database", &["x2chess"])
+    .set_file_name(&name)
+    .set_title("Create X2Chess database")
+    .save_file()
+    .map(|path| path.to_string_lossy().to_string())
+}
+
 fn main() {
   tauri::Builder::default()
+    .manage(DbState { connections: Mutex::new(HashMap::new()) })
     .invoke_handler(tauri::generate_handler![
       detect_default_games_directory,
       pick_games_directory,
+      pick_resource_file,
+      load_text_file,
+      write_text_file,
       list_pgn_files,
       load_game_file,
       save_game_file,
       load_user_config,
       load_player_list,
       save_player_list,
+      query_db,
+      execute_db,
+      pick_x2chess_file,
+      create_x2chess_file,
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

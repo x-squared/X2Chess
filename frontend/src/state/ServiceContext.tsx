@@ -71,6 +71,16 @@ export type AppStartupServices = {
    * @param sourceRef - Source reference from a resource row.
    */
   openGameFromRef: (sourceRef: unknown) => void;
+  /** Open the resource picker and add the chosen resource as a viewer tab. */
+  openResource: () => void;
+  /** Open the drop/paste ingress with a raw PGN text string. */
+  openPgnText: (pgnText: string) => void;
+  /**
+   * Swap the display order of two games in a resource.
+   * @param sourceRef - First game source reference.
+   * @param neighborSourceRef - Second game source reference (the swap target).
+   */
+  reorderGameInResource: (sourceRef: unknown, neighborSourceRef: unknown) => Promise<void>;
 
   // ── Session management ─────────────────────────────────────────────────
   /**
@@ -95,6 +105,12 @@ export type AppStartupServices = {
   setDeveloperToolsEnabled: (enabled: boolean) => void;
   setSaveMode: (mode: string) => void;
   saveActiveGameNow: () => void;
+  /**
+   * Save the game session identified by `sessionId`.
+   * Switches to it first if it is not currently active.
+   * @param sessionId - Session ID to save.
+   */
+  saveSessionById: (sessionId: string) => void;
 };
 
 /** No-op service implementation used as context default (before `useAppStartup` fires). */
@@ -114,6 +130,9 @@ const defaultServices: AppStartupServices = {
   undo: noop,
   redo: noop,
   openGameFromRef: noop,
+  openResource: noop,
+  openPgnText: noop,
+  reorderGameInResource: async () => {},
   switchSession: noop,
   closeSession: noop,
   setMenuOpen: noop,
@@ -126,6 +145,7 @@ const defaultServices: AppStartupServices = {
   setDeveloperToolsEnabled: noop,
   setSaveMode: noop,
   saveActiveGameNow: noop,
+  saveSessionById: noop,
 };
 
 /** React context carrying the startup-initialised service callbacks. */

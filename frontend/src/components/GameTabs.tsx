@@ -39,24 +39,46 @@ type GameTabsProps = {
    * @param sessionId - ID of the session to close.
    */
   onClose: (sessionId: string) => void;
+  /**
+   * Called when the user clicks the save icon on a tab.
+   * @param sessionId - ID of the session to save.
+   */
+  onSave: (sessionId: string) => void;
 };
 
-/**
- * Build the display label for a single tab.
- *
- * @param session - Session item metadata.
- * @param unsavedLabel - Localized "(unsaved)" label.
- * @returns Composed tab title string.
- */
-const buildTabLabel = (session: SessionItemState, unsavedLabel: string): string => {
-  const dirtyMarker: string = session.dirtyState === "dirty" ? "*" : "";
-  const unsavedSuffix: string = session.isUnsaved ? ` ${unsavedLabel}` : "";
-  const manualMarker: string = session.saveMode === "manual" ? " (M)" : "";
-  return `${session.title}${dirtyMarker}${unsavedSuffix}${manualMarker}`;
+/** Build a human-readable primary label from PGN headers, falling back to the session title. */
+const buildPrimaryLabel = (session: SessionItemState): string => {
+  const { white, black } = session;
+  if (white && black && white !== "?" && black !== "?") return `${white} — ${black}`;
+  if (white && white !== "?") return white;
+  return session.title;
+};
+
+/** Build a secondary info line from Event/Date/dirty markers. */
+const buildSecondaryLabel = (session: SessionItemState, unsavedLabel: string): string => {
+  const parts: string[] = [];
+  if (session.event && session.event !== "?" && session.event !== "Sample") parts.push(session.event);
+  if (session.date && session.date !== "?" && session.date !== "????.??.??") parts.push(session.date);
+  if (session.isUnsaved) parts.push(unsavedLabel);
+  if (session.saveMode === "manual") parts.push("M");
+  return parts.join(" · ");
+};
+
+/** Build a tooltip string for a session tab showing player names and source. */
+const buildTooltip = (session: SessionItemState): string => {
+  const parts: string[] = [];
+  const { white, black, event, date } = session;
+  if (white && white !== "?") parts.push(`White: ${white}`);
+  if (black && black !== "?") parts.push(`Black: ${black}`);
+  if (event && event !== "?" && event !== "Sample") parts.push(`Event: ${event}`);
+  if (date && date !== "?" && date !== "????.??.??") parts.push(`Date: ${date}`);
+  if (session.sourceLocator) parts.push(`File: ${session.sourceLocator}`);
+  else parts.push("(unsaved)");
+  return parts.join("\n");
 };
 
 /** Renders the game session tab bar. */
-export const GameTabs = ({ sessions, onSelect, onClose }: GameTabsProps): ReactElement => {
+export const GameTabs = ({ sessions, onSelect, onClose, onSave }: GameTabsProps): ReactElement => {
   const t: (key: string, fallback?: string) => string = useTranslator();
 
   return (
@@ -66,7 +88,11 @@ export const GameTabs = ({ sessions, onSelect, onClose }: GameTabsProps): ReactE
       ) : (
         sessions.map((session: SessionItemState): ReactElement => {
           const isActive: boolean = session.isActive;
-          const label: string = buildTabLabel(session, t("game.unsaved", "(unsaved)"));
+          const primary: string = buildPrimaryLabel(session);
+          const secondary: string = buildSecondaryLabel(session, t("game.unsaved", "unsaved"));
+          const dirtyDot: boolean = session.dirtyState === "dirty";
+          const ariaLabel: string = `${primary}${dirtyDot ? " (modified)" : ""}${secondary ? `, ${secondary}` : ""}`;
+          const tooltip: string = buildTooltip(session);
 
           return (
             <div
@@ -81,14 +107,30 @@ export const GameTabs = ({ sessions, onSelect, onClose }: GameTabsProps): ReactE
                 .filter(Boolean)
                 .join(" ")}
               data-session-id={session.sessionId}
+              title={tooltip}
             >
               <button
                 type="button"
-                className="game-tab-title"
+                className="game-tab-select"
                 onClick={(): void => { onSelect(session.sessionId); }}
-                aria-label={label}
+                aria-label={ariaLabel}
               >
-                {label}
+                <span className="game-tab-primary">
+                  {dirtyDot && <span className="game-tab-dirty" aria-hidden="true" />}
+                  {primary}
+                </span>
+                {secondary && (
+                  <span className="game-tab-secondary">{secondary}</span>
+                )}
+              </button>
+              <button
+                type="button"
+                className="game-tab-save"
+                onClick={(): void => { onSave(session.sessionId); }}
+                aria-label={t("games.save", "Save game")}
+                title={t("games.save", "Save game")}
+              >
+                <img src="/icons/toolbar/save.svg" alt="" aria-hidden="true" />
               </button>
               <button
                 type="button"

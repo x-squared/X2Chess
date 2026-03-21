@@ -5,27 +5,59 @@ import {
   type FormEvent,
   type RefObject,
 } from "react";
-import type { TabState } from "../resources_viewer/viewer_utils";
+import {
+  type TabState,
+  METADATA_CANONICAL_ORDER,
+  METADATA_LAST_KEYS,
+} from "../resources_viewer/viewer_utils";
 
 // ── Metadata catalog builder ──────────────────────────────────────────────────
 
 type CatalogEntry = { key: string; label: string };
 
+/**
+ * Build the ordered list of metadata keys available for column selection.
+ *
+ * Order: canonical first (White, WhiteElo, Black, BlackElo, Result, Opening, ECO, Event, Date),
+ * then remaining keys alphabetically, then system keys (identifier, source, revision) last.
+ * Keys not present in the data are omitted.
+ */
 const buildMetadataCatalog = (tab: TabState): CatalogEntry[] => {
-  const builtins: string[] = ["identifier", "source", "revision"];
-  const builtinSet = new Set<string>(builtins);
-  const dynamic = new Set<string>();
-  tab.availableMetadataKeys.forEach((k: string): void => { dynamic.add(k); });
+  // Collect all known keys from available list and row data.
+  const all = new Set<string>();
+  tab.availableMetadataKeys.forEach((k: string): void => { all.add(k); });
   tab.rows.forEach((row): void => {
-    if (row.metadata) Object.keys(row.metadata).forEach((k: string): void => { dynamic.add(k); });
+    if (row.metadata) Object.keys(row.metadata).forEach((k: string): void => { all.add(k); });
   });
-  const catalog: CatalogEntry[] = builtins.map(
-    (k: string): CatalogEntry => ({ key: k, label: k }),
-  );
-  [...dynamic]
-    .filter((k: string): boolean => Boolean(k) && k !== "game" && !builtinSet.has(k))
+
+  const lastSet = new Set<string>(METADATA_LAST_KEYS);
+  const placed = new Set<string>();
+  const catalog: CatalogEntry[] = [];
+
+  // 1. Canonical order (only if present in data).
+  METADATA_CANONICAL_ORDER.forEach((k: string): void => {
+    if (all.has(k) && !placed.has(k)) {
+      catalog.push({ key: k, label: k });
+      placed.add(k);
+    }
+  });
+
+  // 2. Remaining keys alphabetically (excluding "game" and system keys).
+  [...all]
+    .filter((k: string): boolean => Boolean(k) && k !== "game" && !placed.has(k) && !lastSet.has(k))
     .sort((a: string, b: string): number => a.localeCompare(b))
-    .forEach((k: string): void => { catalog.push({ key: k, label: k }); });
+    .forEach((k: string): void => {
+      catalog.push({ key: k, label: k });
+      placed.add(k);
+    });
+
+  // 3. System keys last.
+  METADATA_LAST_KEYS.forEach((k: string): void => {
+    if (all.has(k)) {
+      catalog.push({ key: k, label: k });
+    }
+  });
+
   return catalog;
 };
 
@@ -56,7 +88,7 @@ export const ResourceMetadataDialog = ({
   onClose,
   onReset,
 }: ResourceMetadataDialogProps): ReactElement => {
-  const dialogRef: RefObject<HTMLDialogElement> = useRef<HTMLDialogElement>(null);
+  const dialogRef: RefObject<HTMLDialogElement | null> = useRef<HTMLDialogElement>(null);
 
   // Drive native <dialog> open/close from the isOpen prop.
   useEffect((): void => {

@@ -261,10 +261,10 @@ body.dev-dock-open .app {
   border: 1px solid var(--border-strong);
   background: var(--surface-1);
   color: var(--text-primary);
-  border-radius: 999px;
-  padding: 0.2rem 0.3rem 0.2rem 0.55rem;
+  border-radius: 8px;
+  padding: 0.22rem 0.3rem 0.22rem 0.55rem;
   font-size: 0.78rem;
-  line-height: 1.2;
+  line-height: 1.25;
   white-space: nowrap;
 }
 
@@ -284,13 +284,49 @@ body.dev-dock-open .app {
   background: #fbe1e4;
 }
 
-.game-tab-title {
+.game-tab-select {
   border: none;
   background: transparent;
   color: inherit;
   font: inherit;
   cursor: pointer;
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.05rem;
+  text-align: left;
+}
+
+.game-tab-primary {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-weight: 600;
+  font-size: 0.78rem;
+}
+
+.game-tab-dirty {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+
+.game-tab.unsaved .game-tab-dirty {
+  background: #b0364a;
+}
+
+.game-tab-secondary {
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.game-tab.unsaved .game-tab-secondary {
+  color: #9b3845;
 }
 
 .game-tab-close {
@@ -303,6 +339,7 @@ body.dev-dock-open .app {
   line-height: 1;
   cursor: pointer;
   padding: 0;
+  flex-shrink: 0;
 }
 
 .game-tab-close:hover {
@@ -310,23 +347,50 @@ body.dev-dock-open .app {
   background: var(--surface-2);
 }
 
+.game-tab-save {
+  border: 1px solid transparent;
+  background: transparent;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.game-tab-save img {
+  width: 12px;
+  height: 12px;
+}
+
+.game-tab:hover .game-tab-save,
+.game-tab.active .game-tab-save {
+  opacity: 1;
+}
+
+.game-tab-save:hover {
+  border-color: var(--border-subtle);
+  background: var(--accent-soft);
+}
+
 .resource-viewer-card {
-  margin-top: 0.75rem;
   border: 1px solid var(--border-subtle);
   border-radius: 10px;
   background: linear-gradient(180deg, var(--surface-1), var(--surface-2));
   box-shadow: var(--shadow-s);
   padding: 0.55rem 0.65rem 0.65rem;
-  position: relative;
 }
 
 .resource-viewer-resize-handle {
-  position: absolute;
-  top: -7px;
-  left: 0;
-  right: 0;
   height: 14px;
   cursor: ns-resize;
+  position: relative;
 }
 
 .resource-viewer-resize-handle::before {
@@ -906,7 +970,7 @@ body.dev-dock-open .app {
   display: grid;
   grid-template-columns: minmax(320px, var(--board-column-width)) 14px minmax(320px, 1fr);
   gap: 1rem;
-  align-items: start;
+  align-items: stretch;
   margin-bottom: 0.9rem;
 }
 
@@ -1148,6 +1212,7 @@ body.dev-dock-open .app {
   flex: 1;
   min-height: 0;
   display: flex;
+  flex-direction: column;
 }
 
 .move-toolbar {
@@ -1195,8 +1260,9 @@ body.dev-dock-open .app {
 }
 
 .toolbar-pgn-layout .pgn-layout-btn.active {
-  background: var(--surface-1);
-  box-shadow: inset 0 0 0 1px var(--border-strong);
+  background: var(--accent);
+  color: #ffffff;
+  box-shadow: inset 0 0 0 1px var(--accent-strong);
 }
 
 .icon-button {
@@ -1269,10 +1335,11 @@ body.dev-dock-open .app {
 }
 
 .board-editor-pane .text-editor {
-  min-height: 0;
-  height: 100%;
-  max-height: none;
   flex: 1;
+  min-height: 0;
+  height: 0;
+  max-height: none;
+  overflow-y: auto;
 }
 
 .text-editor-block {
@@ -1382,6 +1449,62 @@ body.dev-dock-open .app {
   position: relative;
   z-index: 2;
   cursor: pointer;
+}
+
+/* Hover highlight for non-selected moves */
+.text-editor [data-token-type="move"]:not(.text-editor-move-selected):hover {
+  background: rgba(219, 231, 255, 0.5);
+  box-shadow: 0 0 0 1px rgba(42, 93, 202, 0.4);
+}
+
+/* Insert-comment buttons — centered on the left/right border of the hover box.
+   Positioned at left:0 / right:0 with translateX(-50%/+50%) so they straddle
+   the span edge — the inner half is always over the span, eliminating any gap
+   that would cause :hover to deactivate as the mouse moves toward the button. */
+.text-editor-insert-before,
+.text-editor-insert-after {
+  position: absolute;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid rgba(42, 93, 202, 0.55);
+  background: var(--surface-1);
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  z-index: 10;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.05s, background 0.05s;
+}
+
+.text-editor-insert-before {
+  left: 0;
+  transform: translate(-50%, -50%);
+}
+
+.text-editor-insert-after {
+  right: 0;
+  transform: translate(50%, -50%);
+}
+
+[data-token-type="move"]:hover .text-editor-insert-before,
+[data-token-type="move"]:hover .text-editor-insert-after {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.text-editor-insert-before:hover,
+.text-editor-insert-after:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
 }
 
 .text-editor [data-variation-depth="0"] {

@@ -21,7 +21,20 @@ export const MIN_COL_WIDTH_PX = 90;
 export const MAX_COL_WIDTH_PX = 560;
 
 /** Metadata columns shown when no user preference exists for a tab. */
-export const DEFAULT_METADATA_KEYS: readonly string[] = ["identifier", "source", "revision"];
+export const DEFAULT_METADATA_KEYS: readonly string[] = ["White", "Black", "Result", "Opening", "ECO", "Date"];
+
+/**
+ * Canonical display order for metadata keys.
+ *
+ * Keys appear in this order first, then any remaining keys alphabetically,
+ * then the system keys (identifier, source, revision) last.
+ */
+export const METADATA_CANONICAL_ORDER: readonly string[] = [
+  "White", "WhiteElo", "Black", "BlackElo", "Result", "Opening", "ECO", "Event", "Date",
+];
+
+/** System keys always placed last in the metadata catalog. */
+export const METADATA_LAST_KEYS: readonly string[] = ["identifier", "source", "revision"];
 
 // ── Shared types ──────────────────────────────────────────────────────────────
 

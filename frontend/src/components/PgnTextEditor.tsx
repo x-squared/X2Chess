@@ -125,6 +125,14 @@ type CommentBlockProps = {
 const CommentBlock = ({ token, isFocused, onEdit }: CommentBlockProps): ReactElement => {
   const ref = useRef<HTMLDivElement>(null);
 
+  // Set initial text on mount only — never update reactively.
+  // Passing token.text as React children would cause React to reconcile the
+  // text node on every model update, resetting the caret position.
+  useEffect((): void => {
+    if (ref.current) ref.current.innerText = token.text;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally run once on mount
+
   /** Move caret to end of element when this comment should receive focus. */
   useEffect((): void => {
     if (!isFocused || !ref.current) return;
@@ -156,9 +164,10 @@ const CommentBlock = ({ token, isFocused, onEdit }: CommentBlockProps): ReactEle
 
   const className: string = [
     "text-editor-comment",
-    token.introStyling ? "intro" : "",
+    "text-editor-comment-block",
+    token.introStyling ? "text-editor-comment-intro" : "",
     token.plainLiteralComment ? "plain" : "",
-    isFocused ? "pending-focus" : "",
+    isFocused ? "text-editor-comment-new" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -174,9 +183,7 @@ const CommentBlock = ({ token, isFocused, onEdit }: CommentBlockProps): ReactEle
       data-focus-first-comment-at-start={token.focusFirstCommentAtStart ? "true" : undefined}
       onInput={handleInput}
       onKeyDown={handleKeyDown}
-    >
-      {token.text}
-    </div>
+    />
   );
 };
 
@@ -217,7 +224,6 @@ const MoveSpan = ({
   t,
 }: MoveSpanProps): ReactElement => {
   const moveId: string = String(token.dataset.nodeId ?? "");
-  const [hovered, setHovered] = useState<boolean>(false);
 
   const handleClick = useCallback((): void => {
     onMoveClick(moveId);
@@ -246,7 +252,7 @@ const MoveSpan = ({
     [moveId, onInsertComment],
   );
 
-  const className: string = [token.className, isSelected ? "selected-move" : ""]
+  const className: string = [token.className, isSelected ? "text-editor-move-selected" : ""]
     .filter(Boolean)
     .join(" ");
 
@@ -254,6 +260,7 @@ const MoveSpan = ({
     <span
       className={className}
       data-kind="move"
+      data-token-type="move"
       data-node-id={moveId}
       data-variation-depth={String(token.dataset.variationDepth ?? 0)}
       data-move-side={String(token.dataset.moveSide ?? "")}
@@ -261,32 +268,30 @@ const MoveSpan = ({
       tabIndex={0}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
-      onMouseEnter={(): void => { setHovered(true); }}
-      onMouseLeave={(): void => { setHovered(false); }}
     >
+      {/* Before-button: shown left of move on hover via CSS */}
+      <button
+        type="button"
+        className="text-editor-insert-before"
+        tabIndex={-1}
+        onClick={handleInsertBefore}
+        aria-label={t("editor.insertBefore", "Insert comment before move")}
+        aria-hidden="true"
+      >
+        +
+      </button>
       {token.text}
-      {hovered && (
-        <span className="text-editor-insert-overlay" aria-hidden="true">
-          <button
-            type="button"
-            className="text-editor-insert-before"
-            tabIndex={-1}
-            onClick={handleInsertBefore}
-            aria-label={t("editor.insertBefore", "Insert comment before move")}
-          >
-            +
-          </button>
-          <button
-            type="button"
-            className="text-editor-insert-after"
-            tabIndex={-1}
-            onClick={handleInsertAfter}
-            aria-label={t("editor.insertAfter", "Insert comment after move")}
-          >
-            +
-          </button>
-        </span>
-      )}
+      {/* After-button: shown right of move on hover via CSS */}
+      <button
+        type="button"
+        className="text-editor-insert-after"
+        tabIndex={-1}
+        onClick={handleInsertAfter}
+        aria-label={t("editor.insertAfter", "Insert comment after move")}
+        aria-hidden="true"
+      >
+        +
+      </button>
     </span>
   );
 };

@@ -65,4 +65,13 @@ export type ResourceCapabilities = {
    * @returns Created canonical game reference and revision metadata.
    */
   createGame: (resourceRef: PgnResourceRef, pgnText: string, title: string) => Promise<PgnCreateGameResult>;
+
+  /**
+   * Swap the display order of two games.
+   * Throws if the adapter for the given kind does not support reordering.
+   *
+   * @param gameRef First game reference.
+   * @param neighborGameRef Second game reference (the swap target).
+   */
+  reorderGame: (gameRef: PgnGameRef, neighborGameRef: PgnGameRef) => Promise<void>;
 };

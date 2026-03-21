@@ -284,12 +284,12 @@ export const createSourcePickerAdapter = ({ state }: SourcePickerDeps): SourceAd
       const selectedPathRaw: unknown = await tauriInvoke("pick_games_directory");
       const selectedPath: string = String(selectedPathRaw || "").trim();
       if (!selectedPath) return null;
-      const resolved: TauriRootResolution | null = await resolveTauriRootAndGamesDirectory(selectedPath);
-      if (!resolved) return null;
+      // Use the picked path directly — the user chose exactly this folder.
+      // The games/ subdirectory heuristic only applies to auto-detection.
       return {
         kind: "tauri",
-        rootPath: resolved.rootPath,
-        gamesPath: resolved.gamesPath,
+        rootPath: selectedPath,
+        gamesPath: selectedPath,
       };
     }
     throw new Error("Local folder access is not supported in this browser runtime.");
@@ -305,10 +305,10 @@ export const createSourcePickerAdapter = ({ state }: SourcePickerDeps): SourceAd
         if (extension === "pgn") {
           return { type: "file", title: baseName.replace(/\.[^.]+$/, ""), locator: filePath };
         }
-        if (extension === "db" || extension.startsWith("sql")) {
+        if (extension === "x2chess") {
           return { type: "db", title: baseName.replace(/\.[^.]+$/, ""), locator: filePath };
         }
-        throw new Error("Unsupported resource file. Choose .pgn or database file (.db/.sql*).");
+        throw new Error("Unsupported resource file. Choose a .pgn file or an .x2chess database.");
       }
       const folderRoot: SourceRoot | null = await pickSourceRoot();
       if (!folderRoot) return null;

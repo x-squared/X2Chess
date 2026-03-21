@@ -17,7 +17,7 @@ import type { PgnResourceKind } from "../domain/kinds";
  * - Returns kind-indexed adapter map for `createResourceClient`.
  */
 export const createDefaultAdapters = (): Record<PgnResourceKind, PgnResourceAdapter> => ({
-  db: createDbAdapter(),
+  db: createDbAdapter(() => { throw new Error("No DbGateway configured for default adapter."); }),
   directory: createDirectoryAdapter(),
   file: createFileAdapter(),
 });

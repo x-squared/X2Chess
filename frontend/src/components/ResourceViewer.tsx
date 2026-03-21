@@ -103,8 +103,15 @@ const hydrateRows = (
         if (k && String(k) !== "game") discovered.add(String(k));
       });
     }
+    // Build a useful game label: prefer "White vs Black" from metadata, fall back to titleHint.
+    const metaWhite: string = String((metaRaw as Record<string, unknown> | null)?.White ?? "").trim();
+    const metaBlack: string = String((metaRaw as Record<string, unknown> | null)?.Black ?? "").trim();
+    const gameLabel: string =
+      metaWhite && metaBlack && metaWhite !== "?" && metaBlack !== "?"
+        ? `${metaWhite} \u2013 ${metaBlack}`
+        : String(record.titleHint ?? identifier ?? t("resources.table.unknown", "Untitled"));
     return {
-      game: String(record.titleHint ?? identifier ?? t("resources.table.unknown", "Untitled")),
+      game: gameLabel,
       identifier,
       source: metadata.source,
       revision: metadata.revision,
@@ -171,6 +178,8 @@ export const ResourceViewer = (): ReactElement => {
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
   const [dialogKey, setDialogKey] = useState<number>(0);
+  // Per-tab column filter strings; keyed by tabId.
+  const [columnFiltersMap, setColumnFiltersMap] = useState<Record<string, Record<string, string>>>({});
 
   const columnResizeRef = useRef<ColumnResizeState | null>(null);
   const dragKeyRef = useRef<string>("");
@@ -226,11 +235,12 @@ export const ResourceViewer = (): ReactElement => {
           );
         } catch (err: unknown) {
           const msg: string = err instanceof Error ? err.message : String(err);
+          const errorMessage: string = msg || t("resources.error", "Unable to load resource.");
           setTabs((p: TabState[]): TabState[] =>
-            p.map((t: TabState): TabState =>
-              t.tabId === activeTabId
-                ? { ...t, isLoading: false, errorMessage: msg || t("resources.error", "Unable to load resource.") }
-                : t,
+            p.map((tab: TabState): TabState =>
+              tab.tabId === activeTabId
+                ? { ...tab, isLoading: false, errorMessage }
+                : tab,
             ),
           );
         }
@@ -283,6 +293,10 @@ export const ResourceViewer = (): ReactElement => {
 
   const activeTab: TabState | null =
     tabs.find((t: TabState): boolean => t.tabId === activeTabId) ?? null;
+
+  const columnFilters: Record<string, string> = columnFiltersMap[activeTabId ?? ""] ?? {};
+
+  const supportsReorder: boolean = activeTab?.resourceRef.kind === "db";
 
   // ── Handlers ─────────────────────────────────────────────────────────
 
@@ -392,6 +406,56 @@ export const ResourceViewer = (): ReactElement => {
     [activeTabId],
   );
 
+  const handleFilterChange = useCallback((key: string, value: string): void => {
+    setColumnFiltersMap((prev: Record<string, Record<string, string>>): Record<string, Record<string, string>> => {
+      const tabId: string = activeTabId ?? "";
+      const existing: Record<string, string> = prev[tabId] ?? {};
+      const updated: Record<string, string> = { ...existing, [key]: value };
+      return { ...prev, [tabId]: updated };
+    });
+  }, [activeTabId]);
+
+  const reloadTab = useCallback((tabId: string | null): void => {
+    if (!tabId) return;
+    setTabs((prev: TabState[]): TabState[] =>
+      prev.map((t: TabState): TabState =>
+        t.tabId === tabId ? { ...t, rows: [], isLoading: false, errorMessage: "" } : t,
+      ),
+    );
+  }, []);
+
+  const handleMoveUp = useCallback((
+    row: TabState["rows"][number],
+    neighborRow: TabState["rows"][number],
+  ): void => {
+    if (!row?.sourceRef || !neighborRow?.sourceRef) return;
+    void (async (): Promise<void> => {
+      try {
+        await services.reorderGameInResource(row.sourceRef, neighborRow.sourceRef);
+        reloadTab(activeTabId);
+      } catch (err: unknown) {
+        const message: string = err instanceof Error ? err.message : String(err);
+        void message;
+      }
+    })();
+  }, [activeTabId, reloadTab, services]);
+
+  const handleMoveDown = useCallback((
+    row: TabState["rows"][number],
+    neighborRow: TabState["rows"][number],
+  ): void => {
+    if (!row?.sourceRef || !neighborRow?.sourceRef) return;
+    void (async (): Promise<void> => {
+      try {
+        await services.reorderGameInResource(row.sourceRef, neighborRow.sourceRef);
+        reloadTab(activeTabId);
+      } catch (err: unknown) {
+        const message: string = err instanceof Error ? err.message : String(err);
+        void message;
+      }
+    })();
+  }, [activeTabId, reloadTab, services]);
+
   const handleMetadataReset = useCallback((): void => {
     if (!activeTabId) return;
     setTabs((prev: TabState[]): TabState[] =>
@@ -416,26 +480,25 @@ export const ResourceViewer = (): ReactElement => {
 
   return (
     <section className="resource-viewer-card">
-      <div
-        id="resource-viewer-resize-handle"
-        className="resource-viewer-resize-handle"
-        aria-hidden="true"
-      />
-
       <ResourceTabBar
         tabs={tabs}
         activeTabId={activeTabId}
         onTabSelect={handleTabSelect}
         onTabClose={handleTabClose}
         onMetadataOpen={handleMetadataOpen}
-        onOpenResource={(): void => { /* TODO: wire to open-resource picker */ }}
+        onOpenResource={(): void => { services.openResource(); }}
         t={t}
       />
 
       <ResourceTable
         activeTab={activeTab}
+        columnFilters={columnFilters}
+        supportsReorder={supportsReorder}
         t={t}
         onRowOpen={handleRowOpen}
+        onFilterChange={handleFilterChange}
+        onMoveUp={handleMoveUp}
+        onMoveDown={handleMoveDown}
         onResizeStart={handleResizeStart}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}

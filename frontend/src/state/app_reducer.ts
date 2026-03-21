@@ -41,6 +41,16 @@ export type SessionItemState = {
   isActive: boolean;
   /** True when the session has no persisted source (never saved to disk). */
   isUnsaved: boolean;
+  /** PGN White header, empty string if not set. */
+  white: string;
+  /** PGN Black header, empty string if not set. */
+  black: string;
+  /** PGN Event header, empty string if not set. */
+  event: string;
+  /** PGN Date header, empty string if not set. */
+  date: string;
+  /** Locator string of the persisted source (file path / URI), empty when unsaved. */
+  sourceLocator: string;
 };
 
 /** Complete React-owned application state. */
@@ -125,6 +135,14 @@ export type AppStoreState = {
   activeResourceErrorMessage: string;
   /** Full list of open resource tab identities (without row data). */
   resourceViewerTabSnapshots: ResourceTabSnapshot[];
+
+  // ── Board preview ───────────────────────────────────────────────────────
+  /**
+   * When set, `ChessBoard` shows this FEN instead of replaying from `currentPly`.
+   * Used for variation moves that are off the main line.  Cleared when the user
+   * navigates to any mainline position.
+   */
+  boardPreview: { fen: string; lastMove?: [string, string] | null } | null;
 };
 
 /** Initial state — all fields start empty/false/zero before startup completes. */
@@ -168,6 +186,8 @@ export const initialAppStoreState: AppStoreState = {
   activeResourceRowCount: 0,
   activeResourceErrorMessage: "",
   resourceViewerTabSnapshots: [],
+  // Board preview
+  boardPreview: null,
 };
 
 /** Pure reducer — never mutates state, always returns a new object. */
@@ -247,6 +267,9 @@ export const appReducer = (state: AppStoreState, action: AppAction): AppStoreSta
         activeResourceTabLocator: active?.locator ?? "",
       };
     }
+
+    case "set_board_preview":
+      return { ...state, boardPreview: action.preview };
 
     default:
       return state;

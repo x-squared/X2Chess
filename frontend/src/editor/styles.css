@@ -179,30 +179,77 @@
   opacity: 0.85;
 }
 
-/* Branch header toggle button */
+/* Branch header toggle button — renders as a badge pill */
 .tree-collapse-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 0.3em;
-  padding: 0.1em 0.4em 0.1em 0;
-  border: none;
-  background: none;
+  vertical-align: middle;
+  gap: 0.25em;
+  padding: 0.1em 0.55em 0.1em 0.4em;
+  margin-right: 0.4em;
+  border-radius: 999px;
+  border: 1px solid rgba(42, 93, 202, 0.38);
+  background: rgba(42, 93, 202, 0.10);
   font-family: inherit;
-  font-size: inherit;
-  font-weight: 600;
-  color: var(--text-secondary);
+  font-size: 0.82em;
+  font-weight: 700;
+  color: #1e4499;
   cursor: pointer;
   user-select: none;
-  margin-bottom: 0.15em;
+  line-height: 1.5;
 }
 
 .tree-collapse-toggle:hover {
-  color: var(--text-primary);
+  background: rgba(42, 93, 202, 0.17);
+  border-color: rgba(42, 93, 202, 0.55);
+  color: var(--accent-strong, #1f4ca8);
+}
+
+/* Progressively lighter badge per depth */
+.tree-depth-2 .tree-collapse-toggle {
+  border-color: rgba(107, 143, 201, 0.32);
+  background: rgba(107, 143, 201, 0.08);
+  color: #3a5f9a;
+}
+
+.tree-depth-2 .tree-collapse-toggle:hover {
+  background: rgba(107, 143, 201, 0.14);
+  border-color: rgba(107, 143, 201, 0.48);
+}
+
+.tree-depth-3 .tree-collapse-toggle {
+  border-color: rgba(154, 176, 216, 0.28);
+  background: rgba(154, 176, 216, 0.07);
+  color: #5a7aaa;
+}
+
+.tree-depth-3 .tree-collapse-toggle:hover {
+  background: rgba(154, 176, 216, 0.13);
+  border-color: rgba(154, 176, 216, 0.42);
+}
+
+.tree-depth-4plus .tree-collapse-toggle {
+  border-color: rgba(195, 206, 223, 0.24);
+  background: rgba(195, 206, 223, 0.06);
+  color: #7a92b4;
+}
+
+.tree-depth-4plus .tree-collapse-toggle:hover {
+  background: rgba(195, 206, 223, 0.12);
+  border-color: rgba(195, 206, 223, 0.38);
 }
 
 .tree-collapse-glyph {
-  font-size: 0.7em;
+  font-size: 0.65em;
   line-height: 1;
+}
+
+/* Align the move/comment tokens in tree blocks with the badge */
+.text-editor-block.tree-depth-1 > span,
+.text-editor-block.tree-depth-2 > span,
+.text-editor-block.tree-depth-3 > span,
+.text-editor-block.tree-depth-4plus > span {
+  vertical-align: middle;
 }
 
 /* Branch header label span (non-interactive, emitted as inline token) */

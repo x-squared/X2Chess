@@ -56,4 +56,13 @@ export interface PgnResourceAdapter {
    * @param title Title hint.
    */
   create(resourceRef: PgnResourceRef, pgnText: string, title: string): Promise<PgnCreateGameResult>;
+
+  /**
+   * Swap the display order of two games.
+   * Optional: only adapters that support explicit ordering need to implement this.
+   *
+   * @param gameRef First game reference.
+   * @param neighborGameRef Second game reference (the swap target).
+   */
+  reorder?(gameRef: PgnGameRef, neighborGameRef: PgnGameRef): Promise<void>;
 }

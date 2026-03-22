@@ -2,6 +2,7 @@ import type { PgnCreateGameResult, PgnListGamesResult, PgnLoadGameResult, PgnSav
 import type { PgnGameRef } from "./game_ref";
 import type { PgnResourceKind } from "./kinds";
 import type { PgnResourceRef } from "./resource_ref";
+import type { MoveFrequencyEntry } from "./move_frequency";
 
 /**
  * Canonical adapter contracts.
@@ -65,4 +66,34 @@ export interface PgnResourceAdapter {
    * @param neighborGameRef Second game reference (the swap target).
    */
   reorder?(gameRef: PgnGameRef, neighborGameRef: PgnGameRef): Promise<void>;
+
+  /**
+   * Search for games that contain a given position, identified by a pre-computed
+   * FEN hash (first 4 space-delimited fields, FNV-1a 16-char hex string).
+   * Optional: only adapters with position indexes need to implement this.
+   *
+   * @param positionHash 16-char hex string computed by the frontend position indexer.
+   * @param resourceRef Resource to search within.
+   */
+  searchByPositionHash?(positionHash: string, resourceRef: PgnResourceRef): Promise<PgnGameRef[]>;
+
+  /**
+   * Search for games whose header metadata (White, Black, Event) matches the
+   * query string (case-insensitive substring match).
+   * Optional: only adapters that persist structured metadata need to implement this.
+   *
+   * @param query Substring to match against player names, event, etc.
+   * @param resourceRef Resource to search within.
+   */
+  searchByText?(query: string, resourceRef: PgnResourceRef): Promise<PgnGameRef[]>;
+
+  /**
+   * Return move-frequency statistics for all moves played from the given position
+   * across the games in this resource.
+   * Optional: only adapters with a move-edge index need to implement this.
+   *
+   * @param positionHash 16-char hex FNV-1a hash of the position to explore.
+   * @param resourceRef Resource to query.
+   */
+  explorePosition?(positionHash: string, resourceRef: PgnResourceRef): Promise<MoveFrequencyEntry[]>;
 }

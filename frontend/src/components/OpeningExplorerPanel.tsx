@@ -26,6 +26,8 @@ type OpeningExplorerPanelProps = {
   onSourceChange: (source: "masters" | "lichess") => void;
   enabled: boolean;
   onToggle: (enabled: boolean) => void;
+  /** Opens the external database settings dialog (E9). */
+  onOpenSettings: () => void;
   t: (key: string, fallback?: string) => string;
 };
 
@@ -106,6 +108,7 @@ export const OpeningExplorerPanel = ({
   onSourceChange,
   enabled,
   onToggle,
+  onOpenSettings,
   t,
 }: OpeningExplorerPanelProps): ReactElement => {
   const handleSourceChange = useCallback(
@@ -137,6 +140,16 @@ export const OpeningExplorerPanel = ({
           <option value="masters">{t("opening.source.masters", "Masters")}</option>
           <option value="lichess">{t("opening.source.lichess", "Lichess")}</option>
         </select>
+
+        <button
+          type="button"
+          className="opening-explorer-settings-btn"
+          aria-label={t("opening.panel.settings", "Settings")}
+          title={t("opening.panel.settings", "Settings")}
+          onClick={onOpenSettings}
+        >
+          ⚙
+        </button>
 
         <button
           type="button"

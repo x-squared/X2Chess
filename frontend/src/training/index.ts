@@ -39,6 +39,8 @@ export {
 // Protocols
 export { REPLAY_PROTOCOL } from "./protocols/replay_protocol";
 export type { ReplayProtocolOptions } from "./protocols/replay_protocol";
+export { OPENING_PROTOCOL } from "./protocols/opening_protocol";
+export type { OpeningProtocolOptions } from "./protocols/opening_protocol";
 
 // Hooks
 export { useTrainingSession } from "./hooks/useTrainingSession";

@@ -1,9 +1,16 @@
 import { createDirectoryAdapter } from "../../../resource/adapters/directory/directory_adapter";
 import { createFileAdapter as createCanonicalFileAdapter } from "../../../resource/adapters/file/file_adapter";
 import { createDbAdapter } from "../../../resource/adapters/db/db_adapter";
-import { buildPositionIndex } from "./position_indexer";
-import type { FsGateway } from "../../../resource/io/fs_gateway";
-import type { DbGateway } from "../../../resource/io/db_gateway";
+import { buildPositionIndex, buildMoveEdgeIndex } from "./position_indexer";
+import { readSidecar, writeSidecar } from "../../../resource/adapters/directory/sidecar";
+import {
+  searchAcrossResources,
+  searchTextAcrossResources,
+  exploreAcrossResources,
+  type PositionSearchHit,
+  type TextSearchHit,
+} from "../../../resource/client/search_coordinator";
+import type { MoveFrequencyEntry } from "../../../resource/domain/move_frequency";
 import { createResourceClient, type ResourceClient } from "../../../resource/client/api";
 import {
   mapSourceKind,
@@ -19,6 +26,7 @@ import {
 import type { PgnGameRef } from "../../../resource/domain/game_ref";
 import type { PgnResourceRef } from "../../../resource/domain/resource_ref";
 import { createSourcePickerAdapter } from "./source_picker_adapter";
+import { isTauriRuntime, buildTauriFsGateway, buildTauriDbGateway } from "./tauri_gateways";
 
 /**
  * Source Gateway module.
@@ -46,56 +54,6 @@ type SourceGatewayDeps = {
   state: SourceGatewayState;
 };
 
-type TauriWindowLike = Window & {
-  __TAURI_INTERNALS__?: unknown;
-  __TAURI__?: {
-    core?: {
-      invoke?: (command: string, payload?: Record<string, unknown>) => Promise<unknown>;
-    };
-  };
-};
-
-const isTauriRuntime = (): boolean => {
-  const runtimeWindow = window as TauriWindowLike;
-  return Boolean(runtimeWindow.__TAURI_INTERNALS__ || runtimeWindow.__TAURI__);
-};
-
-const buildTauriFsGateway = (): FsGateway => ({
-  readTextFile: async (path: string): Promise<string> => {
-    const runtimeWindow = window as TauriWindowLike;
-    const invokeFn = runtimeWindow.__TAURI__?.core?.invoke;
-    if (typeof invokeFn !== "function") {
-      throw new Error("Tauri invoke API is unavailable.");
-    }
-    return String(await invokeFn("load_text_file", { filePath: path }));
-  },
-  writeTextFile: async (path: string, content: string): Promise<void> => {
-    const runtimeWindow = window as TauriWindowLike;
-    const invokeFn = runtimeWindow.__TAURI__?.core?.invoke;
-    if (typeof invokeFn !== "function") {
-      throw new Error("Tauri invoke API is unavailable.");
-    }
-    await invokeFn("write_text_file", { filePath: path, content });
-  },
-});
-
-const buildTauriDbGateway = (dbPath: string): DbGateway => {
-  const invoke = (): ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) => {
-    const runtimeWindow = window as TauriWindowLike;
-    const fn = runtimeWindow.__TAURI__?.core?.invoke;
-    if (typeof fn !== "function") throw new Error("Tauri invoke API is unavailable.");
-    return fn as (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
-  };
-  return {
-    query: async (sql: string, params?: unknown[]): Promise<unknown[]> => {
-      const result = await invoke()("query_db", { dbPath, sql, params: params ?? [] });
-      return Array.isArray(result) ? result : [];
-    },
-    execute: async (sql: string, params?: unknown[]): Promise<void> => {
-      await invoke()("execute_db", { dbPath, sql, params: params ?? [] });
-    },
-  };
-};
 
 /**
  * Create source gateway boundary.
@@ -117,20 +75,36 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
     detectDefaultSourceRoot: () => Promise<unknown>;
   };
   const dbAdapter = isTauriRuntime()
-    ? createDbAdapter(buildTauriDbGateway, { buildPositionIndex })
+    ? createDbAdapter(buildTauriDbGateway, { buildPositionIndex, buildMoveEdgeIndex })
     : createDbAdapter(
         () => { throw new Error("Database resources require the desktop application."); },
-        { buildPositionIndex },
+        { buildPositionIndex, buildMoveEdgeIndex },
       );
   const canonicalFileAdapter = createCanonicalFileAdapter({ fsGateway: buildTauriFsGateway() });
+
+  const tauriFsGateway = buildTauriFsGateway();
 
   const directoryAdapter = createDirectoryAdapter({
     listGames: async (resourceRef: PgnResourceRef) => {
       const rows: SourceListEntry[] = await sourcePickerAdapter.list({
         sourceRef: { kind: "file", locator: resourceRef.locator },
       });
+
+      // Apply sidecar ordering when available (Phase 5).
+      const sidecar = isTauriRuntime()
+        ? await readSidecar(tauriFsGateway, resourceRef.locator)
+        : { version: 1 as const, games: {} };
+
+      const orderedRows = [...rows].sort((a, b) => {
+        const idA = String(a.sourceRef?.recordId || "");
+        const idB = String(b.sourceRef?.recordId || "");
+        const oA = sidecar.games[idA]?.orderIndex ?? Infinity;
+        const oB = sidecar.games[idB]?.orderIndex ?? Infinity;
+        return oA - oB;
+      });
+
       return {
-        entries: rows.map((row: SourceListEntry) => ({
+        entries: orderedRows.map((row: SourceListEntry) => ({
           gameRef: {
             kind: "directory",
             locator: String(row.sourceRef?.locator || resourceRef.locator || ""),
@@ -183,15 +157,44 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
         pgnText,
         title,
       );
+      const recordId = String(created.sourceRef?.recordId || "");
+
+      // Update sidecar: assign next orderIndex for the new game.
+      if (isTauriRuntime() && recordId) {
+        const sidecar = await readSidecar(tauriFsGateway, resourceRef.locator);
+        const maxOrder = Object.values(sidecar.games).reduce(
+          (m, g) => Math.max(m, g.orderIndex ?? -1),
+          -1,
+        );
+        sidecar.games[recordId] = { orderIndex: maxOrder + 1 };
+        await writeSidecar(tauriFsGateway, resourceRef.locator, sidecar);
+      }
+
       return {
         gameRef: {
           kind: "directory",
           locator: String(created.sourceRef?.locator || resourceRef.locator || ""),
-          recordId: String(created.sourceRef?.recordId || ""),
+          recordId,
         },
         revisionToken: String(created.revisionToken || ""),
         title: String(created.titleHint || ""),
       };
+    },
+
+    reorder: async (gameRef: PgnGameRef, neighborGameRef: PgnGameRef) => {
+      if (!isTauriRuntime()) return;
+      const dirLocator = gameRef.locator;
+      const sidecar = await readSidecar(tauriFsGateway, dirLocator);
+      // Swap orderIndex values (or assign them if not yet present).
+      const allOrders = Object.values(sidecar.games).map((g) => g.orderIndex ?? 0);
+      const maxOrder = allOrders.length > 0 ? Math.max(...allOrders) : 0;
+      const idA = gameRef.recordId;
+      const idB = neighborGameRef.recordId;
+      const oA = sidecar.games[idA]?.orderIndex ?? maxOrder + 1;
+      const oB = sidecar.games[idB]?.orderIndex ?? maxOrder + 2;
+      sidecar.games[idA] = { ...(sidecar.games[idA] ?? {}), orderIndex: oB };
+      sidecar.games[idB] = { ...(sidecar.games[idB] ?? {}), orderIndex: oA };
+      await writeSidecar(tauriFsGateway, dirLocator, sidecar);
     },
   });
 
@@ -366,12 +369,68 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
     );
   };
 
+  /**
+   * Fan out a position hash search across the provided canonical resource refs.
+   *
+   * @param positionHash 16-char FNV-1a hex hash of the first four FEN fields.
+   * @param resourceRefs Canonical resource refs to search (typically all open DB tabs).
+   * @returns Flat list of matching game refs with their originating resource ref.
+   */
+  const searchByPositionAcross = async (
+    positionHash: string,
+    resourceRefs: PgnResourceRef[],
+  ): Promise<PositionSearchHit[]> =>
+    searchAcrossResources(
+      positionHash,
+      resourceRefs,
+      (hash: string, ref: PgnResourceRef): Promise<PgnGameRef[]> =>
+        resourceClient.searchByPositionHash(hash, ref),
+    );
+
+  /**
+   * Fan out a full-text search across the provided canonical resource refs.
+   *
+   * @param query Substring to match against White, Black, Event, Site metadata.
+   * @param resourceRefs Canonical resource refs to search.
+   * @returns Flat list of matching game refs with their originating resource ref.
+   */
+  const searchTextAcross = async (
+    query: string,
+    resourceRefs: PgnResourceRef[],
+  ): Promise<TextSearchHit[]> =>
+    searchTextAcrossResources(
+      query,
+      resourceRefs,
+      (q: string, ref: PgnResourceRef): Promise<PgnGameRef[]> =>
+        resourceClient.searchByText(q, ref),
+    );
+
+  /**
+   * Fan out a position exploration across the provided canonical resource refs.
+   *
+   * @param positionHash 16-char FNV-1a hex hash of the position to explore.
+   * @param resourceRefs Canonical resource refs to query.
+   * @returns Merged move-frequency list sorted by count descending.
+   */
+  const explorePositionAcross = async (
+    positionHash: string,
+    resourceRefs: PgnResourceRef[],
+  ): Promise<MoveFrequencyEntry[]> =>
+    exploreAcrossResources(
+      positionHash,
+      resourceRefs,
+      (hash: string, ref: PgnResourceRef) => resourceClient.explorePosition(hash, ref),
+    );
+
   return {
     chooseFileSourceRoot,
     chooseResourceByPicker,
     createGameInResource,
     getAdapterKinds: (): string[] => (supportsFileKind ? ["file", "directory", "db"] : ["directory"]),
     listGames,
+    searchByPositionAcross,
+    searchTextAcross,
+    explorePositionAcross,
     listGamesForResource: async (resourceRef: SourceRef): Promise<SourceListEntry[]> => {
       const listed = await resourceClient.listGames(
         toCanonicalResourceRefFromSource(resourceRef || { kind: "directory", locator: "" }),

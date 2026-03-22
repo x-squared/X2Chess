@@ -3,6 +3,9 @@ import { createRuntimeConfigService } from "./runtime_config_service";
 import { createSourceGateway } from "./source_gateway";
 import type { PlayerRecord } from "../app_shell/app_state";
 import type { SourceRefLike } from "../runtime/bootstrap_shared";
+import type { PgnResourceRef } from "../../../resource/domain/resource_ref";
+import type { PositionSearchHit, TextSearchHit } from "../../../resource/client/search_coordinator";
+import type { MoveFrequencyEntry } from "../../../resource/domain/move_frequency";
 
 type ResourcesState = {
   gameDirectoryHandle: unknown | null;
@@ -110,6 +113,21 @@ export const createResourcesCapabilities = ({
     titleHint,
   );
 
+  const searchByPositionAcross = async (
+    positionHash: string,
+    resourceRefs: PgnResourceRef[],
+  ): Promise<PositionSearchHit[]> => sourceGateway.searchByPositionAcross(positionHash, resourceRefs);
+
+  const searchTextAcross = async (
+    query: string,
+    resourceRefs: PgnResourceRef[],
+  ): Promise<TextSearchHit[]> => sourceGateway.searchTextAcross(query, resourceRefs);
+
+  const explorePositionAcross = async (
+    positionHash: string,
+    resourceRefs: PgnResourceRef[],
+  ): Promise<MoveFrequencyEntry[]> => sourceGateway.explorePositionAcross(positionHash, resourceRefs);
+
   const reorderGameInResource = async (
     sourceRef: SourceRefLike,
     neighborSourceRef: SourceRefLike,
@@ -162,5 +180,8 @@ export const createResourcesCapabilities = ({
     saveGameBySourceRef,
     savePlayerStoreToClientData: playerStoreService.savePlayerStoreToClientData,
     scheduleAutosave,
+    searchByPositionAcross,
+    searchTextAcross,
+    explorePositionAcross,
   };
 };

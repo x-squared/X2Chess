@@ -1,4 +1,3 @@
-import type { TauriInvokeFn } from "./tauri_invoke_types";
 import { extractPgnMetadata, PGN_STANDARD_METADATA_KEYS } from "../../../resource/domain/metadata";
 import type {
   SourceAdapter,
@@ -8,6 +7,25 @@ import type {
   SourceSaveResult,
   SourceRef,
 } from "./source_types";
+import {
+  isTauriRuntime,
+  supportsDirectoryPicker,
+  tauriInvoke,
+  ensureFsPermission,
+  pathBaseUnix,
+  asDirectoryHandle,
+  tryGetDirectoryHandle,
+  resolveTauriRootAndGamesDirectory,
+  type PermissionHandleLike,
+  type FileLike,
+  type WritableLike,
+  type FileHandleLike,
+  type DirectoryEntryLike,
+  type DirectoryHandleLike,
+  type TauriRootResolution,
+} from "./picker_fs_helpers";
+
+// ── Picker-specific types ─────────────────────────────────────────────────────
 
 type PickerState = {
   gameDirectoryHandle: unknown | null;
@@ -17,61 +35,6 @@ type PickerState = {
 
 type SourcePickerDeps = {
   state: PickerState;
-};
-
-type PermissionDescriptor = { mode: "read" | "readwrite" };
-
-type PermissionHandleLike = {
-  queryPermission?: (descriptor: PermissionDescriptor) => Promise<string>;
-  requestPermission?: (descriptor: PermissionDescriptor) => Promise<string>;
-};
-
-type FileLike = {
-  text: () => Promise<string>;
-  lastModified?: number;
-};
-
-type WritableLike = {
-  write: (content: string) => Promise<void>;
-  close: () => Promise<void>;
-};
-
-type FileHandleLike = PermissionHandleLike & {
-  getFile: () => Promise<FileLike>;
-  createWritable: () => Promise<WritableLike>;
-};
-
-type DirectoryEntryLike = {
-  kind?: string;
-  name?: string;
-  getFile?: () => Promise<FileLike>;
-};
-
-type DirectoryHandleLike = PermissionHandleLike & {
-  getDirectoryHandle: (name: string, options: { create: boolean }) => Promise<DirectoryHandleLike>;
-  getFileHandle: (name: string, options: { create: boolean }) => Promise<FileHandleLike>;
-  values: () => AsyncIterable<DirectoryEntryLike>;
-};
-
-type DirectoryHandleWithMethods = {
-  getDirectoryHandle: (name: string, options: { create: boolean }) => Promise<unknown>;
-  getFileHandle: (name: string, options: { create: boolean }) => Promise<unknown>;
-  values?: () => AsyncIterable<DirectoryEntryLike>;
-};
-
-const asDirectoryHandle = (value: unknown): DirectoryHandleWithMethods | null => {
-  if (!value || typeof value !== "object") return null;
-  const candidate = value as DirectoryHandleWithMethods;
-  if (typeof candidate.getDirectoryHandle !== "function" || typeof candidate.getFileHandle !== "function") {
-    return null;
-  }
-  return candidate;
-};
-
-type RuntimeWindow = Window & {
-  showDirectoryPicker?: (options?: { mode?: "read" | "readwrite" }) => Promise<DirectoryHandleLike>;
-  __TAURI_INTERNALS__?: unknown;
-  __TAURI__?: unknown;
 };
 
 type BrowserSourceRoot = {
@@ -110,122 +73,9 @@ type FileSourceRef = {
   createIfMissing?: boolean;
 };
 
-type TauriRootResolution = {
-  rootPath: string;
-  gamesPath: string;
-  folderName: string;
-};
-
 type MetadataPayload = ReturnType<typeof extractPgnMetadata>;
 
-const supportsDirectoryPicker = (): boolean => {
-  const runtimeWindow: RuntimeWindow = window as RuntimeWindow;
-  return typeof runtimeWindow.showDirectoryPicker === "function";
-};
-
-const isTauriRuntime = (): boolean => {
-  const runtimeWindow: RuntimeWindow = window as RuntimeWindow;
-  return Boolean(runtimeWindow.__TAURI_INTERNALS__ || runtimeWindow.__TAURI__);
-};
-
-let tauriInvokeFnPromise: Promise<TauriInvokeFn> | null = null;
-
-const getTauriInvoke = async (): Promise<TauriInvokeFn> => {
-  if (!tauriInvokeFnPromise) {
-    tauriInvokeFnPromise = import("@tauri-apps/api/core").then((mod): TauriInvokeFn => mod.invoke as TauriInvokeFn);
-  }
-  return tauriInvokeFnPromise;
-};
-
-const tauriInvoke = async (
-  command: string,
-  payload: Record<string, unknown> = {},
-): Promise<unknown> => {
-  const invokeFn: TauriInvokeFn = await getTauriInvoke();
-  return invokeFn(command, payload);
-};
-
-const ensureFsPermission = async (
-  handle: PermissionHandleLike | null | undefined,
-  mode: "read" | "readwrite" = "read",
-): Promise<boolean> => {
-  if (!handle || typeof handle.queryPermission !== "function" || typeof handle.requestPermission !== "function") {
-    return true;
-  }
-  const descriptor: PermissionDescriptor = { mode };
-  const current: string = await handle.queryPermission(descriptor);
-  if (current === "granted") return true;
-  const requested: string = await handle.requestPermission(descriptor);
-  return requested === "granted";
-};
-
-const pathJoinUnix = (...parts: string[]): string =>
-  parts
-    .filter(Boolean)
-    .map((part: string, index: number): string => {
-      if (index === 0) return String(part).replace(/\/+$/, "");
-      return String(part).replace(/^\/+|\/+$/g, "");
-    })
-    .filter(Boolean)
-    .join("/");
-
-const pathParentUnix = (pathValue: string): string => {
-  const normalized: string = String(pathValue || "").replace(/\/+$/, "");
-  const index: number = normalized.lastIndexOf("/");
-  if (index <= 0) return normalized;
-  return normalized.slice(0, index);
-};
-
-const pathBaseUnix = (pathValue: string): string =>
-  String(pathValue || "")
-    .replace(/\\/g, "/")
-    .split("/")
-    .filter(Boolean)
-    .pop() || "";
-
-const tryGetDirectoryHandle = async (
-  parentHandle: unknown,
-  childName: string,
-): Promise<DirectoryHandleLike | null> => {
-  const directoryHandle = asDirectoryHandle(parentHandle);
-  if (!directoryHandle) return null;
-  try {
-    return (await directoryHandle.getDirectoryHandle(childName, { create: false })) as DirectoryHandleLike;
-  } catch {
-    return null;
-  }
-};
-
-const resolveTauriRootAndGamesDirectory = async (selectedPath: string): Promise<TauriRootResolution | null> => {
-  const selected: string = String(selectedPath || "").trim();
-  if (!selected) return null;
-  const selectedIsGames: boolean = selected.toLowerCase().endsWith("/games");
-  if (selectedIsGames) {
-    return {
-      rootPath: pathParentUnix(selected),
-      gamesPath: selected,
-      folderName: selected.split("/").filter(Boolean).pop() || selected,
-    };
-  }
-  const nestedGamesPath: string = pathJoinUnix(selected, "games");
-  try {
-    const nestedGames: unknown = await tauriInvoke("list_pgn_files", { gamesDirectory: nestedGamesPath });
-    if (Array.isArray(nestedGames)) {
-      return {
-        rootPath: selected,
-        gamesPath: nestedGamesPath,
-        folderName: selected.split("/").filter(Boolean).pop() || selected,
-      };
-    }
-  } catch {
-    // Use selected folder as games root when nested folder does not exist.
-  }
-  return {
-    rootPath: selected,
-    gamesPath: selected,
-    folderName: selected.split("/").filter(Boolean).pop() || selected,
-  };
-};
+// ── Small private helpers ─────────────────────────────────────────────────────
 
 const createFileSourceRef = (locator: string, fileName: string): FileSourceRef => ({
   kind: "file",
@@ -247,6 +97,8 @@ const defaultMetadataPayload = (): MetadataPayload => ({
   availableMetadataKeys: [...PGN_STANDARD_METADATA_KEYS],
 });
 
+// ── Adapter factory ───────────────────────────────────────────────────────────
+
 export const createSourcePickerAdapter = ({ state }: SourcePickerDeps): SourceAdapter & {
   pickSourceRoot: () => Promise<SourceRoot | null>;
   applySourceRoot: (sourceRoot: SourceRoot | null) => void;
@@ -266,7 +118,9 @@ export const createSourcePickerAdapter = ({ state }: SourcePickerDeps): SourceAd
 
   const pickSourceRoot = async (): Promise<SourceRoot | null> => {
     if (supportsDirectoryPicker()) {
-      const runtimeWindow: RuntimeWindow = window as RuntimeWindow;
+      const runtimeWindow = window as Window & {
+        showDirectoryPicker?: (options?: { mode?: "read" | "readwrite" }) => Promise<DirectoryHandleLike>;
+      };
       const pickDir = runtimeWindow.showDirectoryPicker;
       if (!pickDir) throw new Error("Directory picker is not available.");
       const dirHandle = await pickDir({ mode: "readwrite" });
@@ -284,8 +138,6 @@ export const createSourcePickerAdapter = ({ state }: SourcePickerDeps): SourceAd
       const selectedPathRaw: unknown = await tauriInvoke("pick_games_directory");
       const selectedPath: string = String(selectedPathRaw || "").trim();
       if (!selectedPath) return null;
-      // Use the picked path directly — the user chose exactly this folder.
-      // The games/ subdirectory heuristic only applies to auto-detection.
       return {
         kind: "tauri",
         rootPath: selectedPath,
@@ -317,11 +169,7 @@ export const createSourcePickerAdapter = ({ state }: SourcePickerDeps): SourceAd
         .split("/")
         .filter(Boolean)
         .pop() || "Local files";
-      return {
-        type: "folder",
-        title: folderTitle,
-        sourceRoot: folderRoot,
-      };
+      return { type: "folder", title: folderTitle, sourceRoot: folderRoot };
     }
 
     if (supportsDirectoryPicker()) {
@@ -332,11 +180,7 @@ export const createSourcePickerAdapter = ({ state }: SourcePickerDeps): SourceAd
         .split("/")
         .filter(Boolean)
         .pop() || "Local files";
-      return {
-        type: "folder",
-        title: folderTitle,
-        sourceRoot: folderRoot,
-      };
+      return { type: "folder", title: folderTitle, sourceRoot: folderRoot };
     }
 
     throw new Error("Local folder/file access is not supported in this browser runtime.");
@@ -362,11 +206,7 @@ export const createSourcePickerAdapter = ({ state }: SourcePickerDeps): SourceAd
     if (!detectedGamesPath) return null;
     const resolved: TauriRootResolution | null = await resolveTauriRootAndGamesDirectory(detectedGamesPath);
     if (!resolved) return null;
-    return {
-      kind: "tauri",
-      rootPath: resolved.rootPath,
-      gamesPath: resolved.gamesPath,
-    };
+    return { kind: "tauri", rootPath: resolved.rootPath, gamesPath: resolved.gamesPath };
   };
 
   const list = async (options: { sourceRef?: SourceRef | null } = {}): Promise<SourceListEntry[]> => {
@@ -382,12 +222,12 @@ export const createSourcePickerAdapter = ({ state }: SourcePickerDeps): SourceAd
       const entries: SourceListEntry[] = [];
       for await (const entry of gamesDirectoryHandle.values()) {
         if (!entry || entry.kind !== "file") continue;
-        const fileName: string = String(entry.name || "");
+        const fileName: string = String((entry as DirectoryEntryLike).name || "");
         if (!fileName.toLowerCase().endsWith(".pgn")) continue;
         let metadataPayload: MetadataPayload = defaultMetadataPayload();
         try {
-          if (typeof entry.getFile !== "function") continue;
-          const file: FileLike = await entry.getFile();
+          if (typeof (entry as DirectoryEntryLike).getFile !== "function") continue;
+          const file: FileLike = await (entry as DirectoryEntryLike).getFile!();
           metadataPayload = extractPgnMetadata(await file.text());
         } catch {
           // Keep listing robust; metadata is optional.
@@ -488,7 +328,7 @@ export const createSourcePickerAdapter = ({ state }: SourcePickerDeps): SourceAd
       const fileHandle: FileHandleLike = (await gamesDirectoryHandle.getFileHandle(fileName, { create: createIfMissing })) as FileHandleLike;
       const hasPermission: boolean = await ensureFsPermission(fileHandle, "readwrite");
       if (!hasPermission) throw new Error("Write permission denied.");
-      const writable = await fileHandle.createWritable();
+      const writable: WritableLike = await fileHandle.createWritable();
       await writable.write(String(pgnText || ""));
       await writable.close();
       const file: FileLike = await fileHandle.getFile();

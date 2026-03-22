@@ -38,7 +38,10 @@ type TrainingLauncherProps = {
 
 const PROTOCOLS = [
   { id: "replay", label: "Game Replay" },
+  { id: "opening", label: "Opening Trainer" },
 ] as const;
+
+type ProtocolId = typeof PROTOCOLS[number]["id"];
 
 /**
  * Modal dialog for configuring and launching a training session.
@@ -52,7 +55,7 @@ export const TrainingLauncher = ({
   onCancel,
 }: TrainingLauncherProps): ReactElement => {
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const [protocol, setProtocol] = useState<"replay">("replay");
+  const [protocol, setProtocol] = useState<ProtocolId>("replay");
   const [side, setSide] = useState<ReplayProtocolOptions["side"]>("white");
   const [startPly, setStartPly] = useState<number>(0);
   const [allowRetry, setAllowRetry] = useState<boolean>(true);
@@ -66,20 +69,23 @@ export const TrainingLauncher = ({
   }, []);
 
   const handleStart = useCallback((): void => {
-    const options: ReplayProtocolOptions = {
-      side,
-      startPly,
-      allowRetry,
-      showOpponentMoves,
-      opponentMoveDelayMs: opponentDelayMs,
-      allowHints,
-      maxHintsPerGame: maxHints,
-    };
+    const protocolOptions: Record<string, unknown> =
+      protocol === "opening"
+        ? { shuffle: true, maxPositions: 0 }
+        : ({
+            side,
+            startPly,
+            allowRetry,
+            showOpponentMoves,
+            opponentMoveDelayMs: opponentDelayMs,
+            allowHints,
+            maxHintsPerGame: maxHints,
+          } satisfies ReplayProtocolOptions);
     const config: TrainingConfig = {
       sourceGameRef: sourceRef,
       pgnText,
       protocol,
-      protocolOptions: options as unknown as Record<string, unknown>,
+      protocolOptions,
     };
     dialogRef.current?.close();
     onStart(config);
@@ -110,7 +116,7 @@ export const TrainingLauncher = ({
               className="training-launcher-select"
               value={protocol}
               onChange={(e: ChangeEvent<HTMLSelectElement>): void => {
-                setProtocol(e.target.value as "replay");
+                setProtocol(e.target.value as ProtocolId);
               }}
             >
               {PROTOCOLS.map((p) => (
@@ -127,8 +133,8 @@ export const TrainingLauncher = ({
             <span className="training-launcher-game-title">{gameTitle}</span>
           </div>
 
-          {/* Side */}
-          <fieldset className="training-launcher-fieldset">
+          {/* Replay-only options */}
+          {protocol === "replay" && <><fieldset className="training-launcher-fieldset">
             <legend className="training-launcher-legend">
               {t("training.launcher.side", "Side:")}
             </legend>
@@ -229,6 +235,7 @@ export const TrainingLauncher = ({
             />
             {t("training.launcher.allowHints", "Allow hints")}
           </label>
+          </>}
         </div>
 
         <div className="training-launcher-actions">

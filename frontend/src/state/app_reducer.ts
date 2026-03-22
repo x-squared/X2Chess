@@ -51,6 +51,11 @@ export type SessionItemState = {
   date: string;
   /** Locator string of the persisted source (file path / URI), empty when unsaved. */
   sourceLocator: string;
+  /**
+   * Composite game identifier for training badge lookups:
+   * `"${kind}:${locator}:${recordId}"`, or empty for unsaved sessions.
+   */
+  sourceGameRef: string;
 };
 
 /** Complete React-owned application state. */

@@ -423,10 +423,10 @@ These are additional phases appended to the main phase list:
 
 | Phase | Deliverable |
 |---|---|
-| T13 | `TrainingTranscriptStore` — load index from archive directory at tab open |
-| T14 | `ResourceTable` training badge rendering |
-| T15 | `TrainingHistoryStrip` in text editor view |
-| T16 | Training history side panel (list of sessions, per-session score breakdown) |
+| T13 | ✅ `transcript_storage.ts` — localStorage badge + session history store |
+| T14 | ✅ `ResourceTable` training badge rendering (`TrainingBadgeChip`) |
+| T15 | ✅ `TrainingHistoryStrip` in text editor view |
+| T16 | ✅ `TrainingHistoryPanel` — session list with score bars |
 
 ---
 

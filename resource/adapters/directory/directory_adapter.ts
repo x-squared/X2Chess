@@ -27,6 +27,7 @@ type DirectoryAdapterDeps = {
   loadGame?: (gameRef: PgnGameRef) => Promise<PgnLoadGameResult>;
   saveGame?: (gameRef: PgnGameRef, pgnText: string, options?: PgnSaveOptions) => Promise<PgnSaveGameResult>;
   createGame?: (resourceRef: PgnResourceRef, pgnText: string, title: string) => Promise<PgnCreateGameResult>;
+  reorder?: (gameRef: PgnGameRef, neighborGameRef: PgnGameRef) => Promise<void>;
 };
 
 /**
@@ -66,4 +67,10 @@ export const createDirectoryAdapter = (deps: DirectoryAdapterDeps = {}): PgnReso
     }
     return createGame(resourceRef, pgnText, title);
   },
+
+  reorder: deps.reorder
+    ? async (gameRef: PgnGameRef, neighborGameRef: PgnGameRef): Promise<void> => {
+        return deps.reorder!(gameRef, neighborGameRef);
+      }
+    : undefined,
 });

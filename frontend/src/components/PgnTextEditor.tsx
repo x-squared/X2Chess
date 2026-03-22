@@ -48,10 +48,8 @@ import {
   parseQaAnnotations,
   hasQaAnnotations,
   stripQaAnnotations,
-  replaceQaAnnotation,
-  appendQaAnnotation,
 } from "../resources_viewer/qa_parser";
-import type { QaAnnotation } from "../resources_viewer/qa_parser";
+import { useQaDialog } from "../editor/useQaDialog";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -446,18 +444,6 @@ const TokenView = ({
 
 // ── PgnTextEditor (root) ──────────────────────────────────────────────────────
 
-// ── Q/A dialog state ──────────────────────────────────────────────────────────
-
-type QaDialogState = {
-  /** ID of the comment being edited/created. */
-  commentId: string;
-  /** Raw text of the comment (for edit). */
-  rawText: string;
-  /** Index of the annotation being edited, or -1 for insert. */
-  editIndex: number;
-  /** Pre-filled values when editing. */
-  initial?: QaAnnotation;
-};
 
 /** Renders the full PGN annotation editor from the computed token plan. */
 export const PgnTextEditor = (): ReactElement => {
@@ -521,7 +507,7 @@ export const PgnTextEditor = (): ReactElement => {
   );
 
   // ── Q/A dialog state (UV10/UV11) ─────────────────────────────────────────────
-  const [qaDialog, setQaDialog] = useState<QaDialogState | null>(null);
+  const { qaDialog, handleEditQa, handleInsertQa, handleQaDialogSave, handleQaDialogClose } = useQaDialog(services);
 
   const handleToggle = useCallback((key: string): void => {
     setCollapsedPaths((prev: ReadonlySet<string>): ReadonlySet<string> => {
@@ -558,55 +544,6 @@ export const PgnTextEditor = (): ReactElement => {
     },
     [services],
   );
-
-  // UV11: open read/edit dialog for an existing Q/A annotation.
-  const handleEditQa = useCallback(
-    (commentId: string, index: number, rawText: string): void => {
-      const annotations = parseQaAnnotations(rawText);
-      setQaDialog({
-        commentId,
-        rawText,
-        editIndex: index,
-        initial: annotations[index],
-      });
-    },
-    [],
-  );
-
-  // UV10: insert Q/A on a move — insert a new empty comment first, then open dialog.
-  const handleInsertQa = useCallback(
-    (moveId: string): void => {
-      // Open insert dialog targeted at this move's comment.
-      // We use commentId="" to signal "new annotation after move".
-      setQaDialog({ commentId: "", rawText: "", editIndex: -1, initial: undefined });
-      // Also insert a comment node so the model knows a comment is pending.
-      services.insertComment(moveId, "after");
-    },
-    [services],
-  );
-
-  const handleQaDialogSave = useCallback(
-    (_moveId: string, annotation: QaAnnotation): void => {
-      if (!qaDialog) return;
-      if (qaDialog.commentId && qaDialog.editIndex >= 0) {
-        // Edit existing annotation.
-        const updated = replaceQaAnnotation(qaDialog.rawText, qaDialog.editIndex, annotation);
-        services.saveCommentText(qaDialog.commentId, updated);
-      } else if (qaDialog.commentId) {
-        // Append new annotation to an existing comment.
-        const updated = appendQaAnnotation(qaDialog.rawText, annotation);
-        services.saveCommentText(qaDialog.commentId, updated);
-      }
-      // When commentId is empty, the insertComment above created the comment;
-      // pendingFocusCommentId will point to it — the user can type the Q/A there.
-      setQaDialog(null);
-    },
-    [qaDialog, services],
-  );
-
-  const handleQaDialogClose = useCallback((): void => {
-    setQaDialog(null);
-  }, []);
 
   if (!pgnModel) {
     return (

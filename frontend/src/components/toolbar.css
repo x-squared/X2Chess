@@ -1,0 +1,116 @@
+.toolbar-box {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  margin-bottom: 0.55rem;
+}
+
+.editor-box {
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-1);
+  padding: 0.55rem;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.move-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.toolbar-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-2);
+  padding: 0.3rem;
+}
+
+.toolbar-pgn-layout {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+
+.toolbar-pgn-layout .pgn-layout-btn {
+  width: auto;
+  min-width: 3.1rem;
+  height: 32px;
+  padding: 0 0.45rem;
+  border: none;
+  border-radius: 0;
+  border-right: 1px solid var(--border-subtle);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.toolbar-pgn-layout .pgn-layout-btn:last-child {
+  border-right: none;
+}
+
+.toolbar-pgn-layout .pgn-layout-btn.active {
+  background: var(--accent);
+  color: #ffffff;
+  box-shadow: inset 0 0 0 1px var(--accent-strong);
+}
+
+.icon-button {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface-1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.icon-button img {
+  width: 18px;
+  height: 18px;
+}
+
+.icon-button:hover {
+  background: #f8fbff;
+  border-color: #9fb2d1;
+}
+
+.icon-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: #f9fafb;
+}
+
+.icon-button.icon-button-text {
+  width: auto;
+  min-width: 52px;
+  padding: 0 0.45rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.icon-button.icon-button-format {
+  min-width: 32px;
+  width: 32px;
+  padding: 0;
+}
+
+.icon-button.active {
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
+}
+

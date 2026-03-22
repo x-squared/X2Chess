@@ -31,6 +31,7 @@ import {
   useRef,
   useCallback,
   useId,
+  useMemo,
   type ReactElement,
   type FormEvent,
   type PointerEvent as ReactPointerEvent,
@@ -64,6 +65,7 @@ import { ResourceTable } from "./ResourceTable";
 import { ResourceMetadataDialog } from "./ResourceMetadataDialog";
 import { MetadataSchemaEditor } from "./MetadataSchemaEditor";
 import { NewGameDialog } from "./NewGameDialog";
+import { ResourceToolbar } from "./ResourceToolbar";
 import {
   loadSchemas,
   saveSchemas,
@@ -71,6 +73,8 @@ import {
 } from "../resources_viewer/schema_storage";
 import type { MetadataSchema } from "../../../resource/domain/metadata_schema";
 import { BUILT_IN_SCHEMA } from "../../../resource/domain/metadata_schema";
+import { loadBadgesForRefs } from "../training/transcript_storage";
+import type { TrainingBadge } from "../training/transcript_storage";
 
 // ── Local types ───────────────────────────────────────────────────────────────
 
@@ -349,6 +353,23 @@ export const ResourceViewer = (): ReactElement => {
   const sortConfig: SortConfig | null = sortMap[activeTabId ?? ""] ?? null;
 
   const supportsReorder: boolean = activeTab?.resourceRef.kind === "db";
+
+  // ── Training badges (T14) ─────────────────────────────────────────────
+
+  const trainingBadges: Map<string, TrainingBadge> = useMemo((): Map<string, TrainingBadge> => {
+    const rows = activeTab?.rows ?? [];
+    const refs = rows
+      .map((row): string => {
+        const r = row.sourceRef;
+        if (!r) return "";
+        const kind = typeof r["kind"] === "string" ? r["kind"] : "";
+        const locator = typeof r["locator"] === "string" ? r["locator"] : "";
+        const recordId = typeof r["recordId"] === "string" ? r["recordId"] : "";
+        return `${kind}:${locator}:${recordId}`;
+      })
+      .filter((ref): boolean => ref !== "");
+    return loadBadgesForRefs(refs);
+  }, [activeTab?.rows]);
 
   // ── Handlers ─────────────────────────────────────────────────────────
 
@@ -705,96 +726,22 @@ export const ResourceViewer = (): ReactElement => {
 
       {/* Group-by toolbar (UV3) */}
       {activeTab && (
-        <div className="resource-groupby-toolbar">
-          <span className="resource-groupby-label">
-            {t("resources.groupby.label", "Group by:")}
-          </span>
-          {groupByState.fields.length > 0 && (
-            <span className="resource-groupby-pills">
-              {groupByState.fields.map((field: string, idx: number): ReactElement => (
-                <span key={field} className="resource-groupby-pill">
-                  <button
-                    type="button"
-                    className="resource-groupby-pill-up"
-                    disabled={idx === 0}
-                    aria-label={t("resources.groupby.moveUp", "Move level up")}
-                    onClick={(): void => { handleGroupByMoveUp(field); }}
-                  >↑</button>
-                  <span className="resource-groupby-pill-label">{field}</span>
-                  <button
-                    type="button"
-                    className="resource-groupby-pill-remove"
-                    aria-label={t("resources.groupby.remove", "Remove group level")}
-                    onClick={(): void => { handleGroupByRemove(field); }}
-                  >×</button>
-                </span>
-              ))}
-            </span>
-          )}
-          {availableGroupByFields.length > 0 && (
-            <select
-              className="resource-groupby-add"
-              value=""
-              aria-label={t("resources.groupby.add", "Add group level")}
-              onChange={(e): void => {
-                if (e.target.value) handleGroupByAdd(e.target.value);
-              }}
-            >
-              <option value="">{t("resources.groupby.addPlaceholder", "+ Add level")}</option>
-              {availableGroupByFields.map((f) => (
-                <option key={f} value={f}>{f}</option>
-              ))}
-            </select>
-          )}
-          {groupByState.fields.length > 0 && (
-            <button
-              type="button"
-              className="resource-groupby-clear"
-              onClick={handleGroupByClear}
-            >
-              {t("resources.groupby.clear", "Clear")}
-            </button>
-          )}
-          {hasActiveFilters && (
-            <button
-              type="button"
-              className="resource-filter-clear-all"
-              onClick={handleClearFilters}
-            >
-              {t("resources.filter.clearAll", "Clear filters")}
-            </button>
-          )}
-          {/* Schema chooser (MD4) */}
-          <span className="resource-schema-label">
-            {t("resources.schema.label", "Schema:")}
-          </span>
-          <select
-            className="resource-schema-select"
-            value={activeSchema.id}
-            aria-label={t("resources.schema.select", "Select metadata schema")}
-            onChange={(e): void => { handleSchemaSelect(e.target.value); }}
-          >
-            <option value={BUILT_IN_SCHEMA.id}>{BUILT_IN_SCHEMA.name}</option>
-            {schemas.map((s) => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-          </select>
-          <button
-            type="button"
-            className="resource-schema-manage-btn"
-            onClick={handleSchemaManage}
-          >
-            {t("resources.schema.manage", "Manage schemas…")}
-          </button>
-          {/* New game button (NG6) */}
-          <button
-            type="button"
-            className="resource-new-game-btn"
-            onClick={handleNewGame}
-          >
-            {t("resources.newGame", "+ New game")}
-          </button>
-        </div>
+        <ResourceToolbar
+          groupByState={groupByState}
+          availableGroupByFields={availableGroupByFields}
+          hasActiveFilters={hasActiveFilters}
+          activeSchema={activeSchema}
+          schemas={schemas}
+          t={t}
+          onGroupByAdd={handleGroupByAdd}
+          onGroupByRemove={handleGroupByRemove}
+          onGroupByMoveUp={handleGroupByMoveUp}
+          onGroupByClear={handleGroupByClear}
+          onClearFilters={handleClearFilters}
+          onSchemaSelect={handleSchemaSelect}
+          onSchemaManage={handleSchemaManage}
+          onNewGame={handleNewGame}
+        />
       )}
 
       <ResourceTable
@@ -802,11 +749,13 @@ export const ResourceViewer = (): ReactElement => {
         columnFilters={columnFilters}
         groupByState={groupByState}
         sortConfig={sortConfig}
+        activeSchema={activeSchema}
         colDragActiveKey={colDragActiveKey}
         supportsReorder={supportsReorder}
         t={t}
         onRowOpen={handleRowOpen}
         onFilterChange={handleFilterChange}
+        onClearFilters={handleClearFilters}
         onMoveUp={handleMoveUp}
         onMoveDown={handleMoveDown}
         onResizeStart={handleResizeStart}
@@ -814,6 +763,7 @@ export const ResourceViewer = (): ReactElement => {
         onColDrop={handleColDrop}
         onSortChange={handleSortChange}
         onToggleGroup={handleToggleGroup}
+        trainingBadges={trainingBadges}
       />
 
       <ResourceMetadataDialog

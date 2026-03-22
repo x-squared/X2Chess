@@ -41,13 +41,17 @@ import {
   selectPgnModel,
   selectSessions,
   selectActiveSessionId,
+  selectDevToolsEnabled,
 } from "../state/selectors";
 import { useTranslator } from "../hooks/useTranslator";
 import { useAppStartup } from "../hooks/useAppStartup";
 import { useEngineAnalysis } from "../hooks/useEngineAnalysis";
 import { useOpeningExplorer } from "../hooks/useOpeningExplorer";
+import { useExtDatabaseSettings } from "../hooks/useExtDatabaseSettings";
+import { ExtDatabaseSettingsDialog } from "./ExtDatabaseSettingsDialog";
 import { useTablebaseProbe } from "../hooks/useTablebaseProbe";
 import { useVsEngine } from "../hooks/useVsEngine";
+import { useGameAnnotation } from "../hooks/useGameAnnotation";
 import { useMoveEntry } from "../hooks/useMoveEntry";
 import { collectStudyItems } from "../model/study_items";
 import { getHeaderValue } from "../model/pgn_headers";
@@ -61,10 +65,10 @@ import { GameSessionsPanel } from "./GameSessionsPanel";
 import { ChessBoard } from "./ChessBoard";
 import { PgnTextEditor } from "./PgnTextEditor";
 import { ResourceViewer } from "./ResourceViewer";
-import { AnalysisPanel } from "./AnalysisPanel";
-import { OpeningExplorerPanel } from "./OpeningExplorerPanel";
-import { TablebasePanel } from "./TablebasePanel";
+import { ToolbarRow } from "./ToolbarRow";
+import { RightPanelStack } from "./RightPanelStack";
 import { PlayVsEngineDialog } from "./PlayVsEngineDialog";
+import { AnnotateGameDialog } from "./AnnotateGameDialog";
 import { DisambiguationDialog } from "./DisambiguationDialog";
 import { PromotionPicker } from "./PromotionPicker";
 import { ExtractPositionDialog } from "./ExtractPositionDialog";
@@ -73,6 +77,9 @@ import { StudyOverlay } from "./StudyOverlay";
 import type { PromotionPiece } from "./PromotionPicker";
 import { useTrainingSession } from "../training/hooks/useTrainingSession";
 import { REPLAY_PROTOCOL } from "../training/protocols/replay_protocol";
+import { OPENING_PROTOCOL } from "../training/protocols/opening_protocol";
+import { TrainingHistoryStrip } from "../training/components/TrainingHistoryStrip";
+import { TrainingHistoryPanel } from "../training/components/TrainingHistoryPanel";
 import { TrainingLauncher } from "../training/components/TrainingLauncher";
 import { TrainingOverlay } from "../training/components/TrainingOverlay";
 import { MoveOutcomeHint } from "../training/components/MoveOutcomeHint";
@@ -100,6 +107,7 @@ export const AppShell = (): ReactElement => {
   const pgnText: string = selectPgnText(state);
   const sessions = selectSessions(state);
   const activeSessionId = selectActiveSessionId(state);
+  const devToolsEnabled: boolean = selectDevToolsEnabled(state);
   const activeSession = sessions.find((s) => s.sessionId === activeSessionId);
   const t: (key: string, fallback?: string) => string = useTranslator();
 
@@ -109,6 +117,10 @@ export const AppShell = (): ReactElement => {
   // G8: play vs engine
   const vsEngine = useVsEngine(findBestMove);
   const [showVsEngineDialog, setShowVsEngineDialog] = useState(false);
+
+  // G9: batch game annotation
+  const gameAnnotation = useGameAnnotation(findBestMove);
+  const [showAnnotateDialog, setShowAnnotateDialog] = useState(false);
 
   // Sync vs-engine board position to boardPreview.
   useEffect((): void => {
@@ -138,7 +150,12 @@ export const AppShell = (): ReactElement => {
 
   const currentFen = fenAtPly(moves, currentPly);
 
-  const openingExplorer = useOpeningExplorer(currentFen);
+  const extDbSettings = useExtDatabaseSettings();
+  const openingExplorer = useOpeningExplorer(
+    currentFen,
+    extDbSettings.settings.openingExplorer.speeds,
+    extDbSettings.settings.openingExplorer.ratings,
+  );
   const tablebase = useTablebaseProbe(currentFen);
   const sideToMove: "w" | "b" = currentFen.split(" ")[1] === "b" ? "b" : "w";
 
@@ -191,9 +208,17 @@ export const AppShell = (): ReactElement => {
     handleCancel,
   } = useMoveEntry();
 
+  /** Convert a UCI string (e.g. "e2e4", "e7e8q") from a panel into a board move. */
+  const handlePanelMoveClick = useCallback((uci: string): void => {
+    if (uci.length < 4) return;
+    onMovePlayed(uci.slice(0, 2), uci.slice(2, 4));
+  }, [onMovePlayed]);
+
   // ── Training session ───────────────────────────────────────────────────────
-  const trainingControls = useTrainingSession(REPLAY_PROTOCOL);
+  const trainingControls = useTrainingSession([REPLAY_PROTOCOL, OPENING_PROTOCOL]);
   const [showTrainingLauncher, setShowTrainingLauncher] = useState(false);
+  const [showTrainingHistory, setShowTrainingHistory] = useState(false);
+  const [showExtDbSettings, setShowExtDbSettings] = useState(false);
   const [pendingTrainingPromotion, setPendingTrainingPromotion] = useState<{
     from: string;
     to: string;
@@ -267,7 +292,22 @@ export const AppShell = (): ReactElement => {
   );
 
   const trainingGameTitle = activeSession?.title ?? t("training.launcher.untitled", "Untitled game");
-  const trainingSourceRef = activeSession?.sourceLocator || activeSession?.sessionId || "";
+  const trainingSourceRef = activeSession?.sourceGameRef || activeSession?.sessionId || "";
+
+  // T11: engine hint during training — call findBestMove on the training FEN.
+  const handleTrainingHint = useCallback((): void => {
+    trainingControls.requestHint();
+    const fen = trainingControls.sessionState?.position.fen;
+    if (!fen) return;
+    void findBestMove({ fen, moves: [] }, { movetime: 1500 }).then((best) => {
+      if (!best) return;
+      const uci = best.uci;
+      if (uci.length >= 4) {
+        setHintMove({ from: uci.slice(0, 2), to: uci.slice(2, 4) });
+      }
+    });
+  }, [trainingControls, findBestMove, setHintMove]);
+
   const isDirty: boolean =
     activeSession?.dirtyState === "dirty" || activeSession?.dirtyState === "error";
 
@@ -465,11 +505,20 @@ export const AppShell = (): ReactElement => {
   }, []);
 
   // Ctrl/Cmd+S — save active game.
+  // Ctrl/Cmd+Z — undo.  Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y — redo.  (M5)
   useEffect((): (() => void) => {
     const handler = (e: KeyboardEvent): void => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+      const withMeta = e.metaKey || e.ctrlKey;
+      if (!withMeta) return;
+      if (e.key === "s") {
         e.preventDefault();
         services.saveActiveGameNow();
+      } else if (e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        services.undo();
+      } else if ((e.key === "z" && e.shiftKey) || e.key === "y") {
+        e.preventDefault();
+        services.redo();
       }
     };
     window.addEventListener("keydown", handler);
@@ -554,7 +603,7 @@ export const AppShell = (): ReactElement => {
                 hintsExhausted={hintsExhausted}
                 t={t}
                 onSkip={trainingControls.skipMove}
-                onHint={trainingControls.requestHint}
+                onHint={handleTrainingHint}
                 onAbort={trainingControls.abort}
               />
             )}
@@ -581,314 +630,79 @@ export const AppShell = (): ReactElement => {
 
             {/* ── Editor pane (toolbar + PGN text editor) ── */}
             <div className="text-editor-wrap board-editor-pane">
-              <div className="toolbar-box">
-                <div className="move-toolbar">
-                  {/* Navigation button group */}
-                  <div className="toolbar-group toolbar-group-nav">
-                    <button
-                      id="btn-first"
-                      className="icon-button"
-                      type="button"
-                      title={t("controls.first", "|<")}
-                      disabled={isAtStart}
-                      onClick={(): void => { services.gotoFirst(); }}
-                    >
-                      <img src="/icons/toolbar/nav-first.svg" alt={t("controls.first", "|<")} />
-                    </button>
-                    <button
-                      id="btn-prev"
-                      className="icon-button"
-                      type="button"
-                      title={t("controls.prev", "<")}
-                      disabled={isAtStart}
-                      onClick={(): void => { services.gotoPrev(); }}
-                    >
-                      <img src="/icons/toolbar/nav-prev.svg" alt={t("controls.prev", "<")} />
-                    </button>
-                    <button
-                      id="btn-next"
-                      className="icon-button"
-                      type="button"
-                      title={t("controls.next", ">")}
-                      disabled={isAtEnd}
-                      onClick={(): void => { services.gotoNext(); }}
-                    >
-                      <img src="/icons/toolbar/nav-next.svg" alt={t("controls.next", ">")} />
-                    </button>
-                    <button
-                      id="btn-last"
-                      className="icon-button"
-                      type="button"
-                      title={t("controls.last", ">|")}
-                      disabled={isAtEnd}
-                      onClick={(): void => { services.gotoLast(); }}
-                    >
-                      <img src="/icons/toolbar/nav-last.svg" alt={t("controls.last", ">|")} />
-                    </button>
-                  </div>
-
-                  {/* Edit / format button group */}
-                  <div className="toolbar-group toolbar-group-edit">
-                    <button
-                      id="btn-comment-bold"
-                      className="icon-button icon-button-text icon-button-format"
-                      type="button"
-                      title={t("toolbar.commentBold", "Bold comment text")}
-                      aria-label={t("toolbar.commentBold", "Bold comment text")}
-                    >
-                      <strong>B</strong>
-                    </button>
-                    <button
-                      id="btn-comment-italic"
-                      className="icon-button icon-button-text icon-button-format"
-                      type="button"
-                      title={t("toolbar.commentItalic", "Italic comment text")}
-                      aria-label={t("toolbar.commentItalic", "Italic comment text")}
-                    >
-                      <em>I</em>
-                    </button>
-                    <button
-                      id="btn-comment-underline"
-                      className="icon-button icon-button-text icon-button-format"
-                      type="button"
-                      title={t("toolbar.commentUnderline", "Underline comment text")}
-                      aria-label={t("toolbar.commentUnderline", "Underline comment text")}
-                    >
-                      <u>U</u>
-                    </button>
-
-                    {/* PGN layout buttons */}
-                    <div
-                      className="toolbar-pgn-layout"
-                      role="radiogroup"
-                      aria-label={t("toolbar.pgnLayout.group", "PGN layout")}
-                    >
-                      <button
-                        id="btn-pgn-layout-plain"
-                        className={`icon-button icon-button-text pgn-layout-btn${layoutMode === "plain" ? " active" : ""}`}
-                        type="button"
-                        data-pgn-layout="plain"
-                        title={t("toolbar.pgnLayout.plain", "Plain — literal PGN")}
-                        aria-pressed={layoutMode === "plain" ? "true" : "false"}
-                        onClick={(): void => { services.setLayoutMode("plain"); }}
-                      >
-                        {t("toolbar.pgnLayout.plainShort", "Plain")}
-                      </button>
-                      <button
-                        id="btn-pgn-layout-text"
-                        className={`icon-button icon-button-text pgn-layout-btn${layoutMode === "text" ? " active" : ""}`}
-                        type="button"
-                        data-pgn-layout="text"
-                        title={t("toolbar.pgnLayout.text", "Text — narrative layout")}
-                        aria-pressed={layoutMode === "text" ? "true" : "false"}
-                        onClick={(): void => { services.setLayoutMode("text"); }}
-                      >
-                        {t("toolbar.pgnLayout.textShort", "Text")}
-                      </button>
-                      <button
-                        id="btn-pgn-layout-tree"
-                        className={`icon-button icon-button-text pgn-layout-btn${layoutMode === "tree" ? " active" : ""}`}
-                        type="button"
-                        data-pgn-layout="tree"
-                        title={t(
-                          "toolbar.pgnLayout.tree",
-                          "Tree — structure view (same as Text for now)",
-                        )}
-                        aria-pressed={layoutMode === "tree" ? "true" : "false"}
-                        onClick={(): void => { services.setLayoutMode("tree"); }}
-                      >
-                        {t("toolbar.pgnLayout.treeShort", "Tree")}
-                      </button>
-                    </div>
-
-                    <button
-                      id="btn-comment-left"
-                      className="icon-button"
-                      type="button"
-                      title={t("toolbar.commentLeft", "Insert comment left")}
-                    >
-                      <img
-                        src="/icons/toolbar/comment-left.svg"
-                        alt={t("toolbar.commentLeft", "Insert comment left")}
-                      />
-                    </button>
-                    <button
-                      id="btn-comment-right"
-                      className="icon-button"
-                      type="button"
-                      title={t("toolbar.commentRight", "Insert comment right")}
-                    >
-                      <img
-                        src="/icons/toolbar/comment-right.svg"
-                        alt={t("toolbar.commentRight", "Insert comment right")}
-                      />
-                    </button>
-                    <button
-                      id="btn-linebreak"
-                      className="icon-button"
-                      type="button"
-                      title={t("toolbar.linebreak", "Insert line break")}
-                    >
-                      <img
-                        src="/icons/toolbar/linebreak.svg"
-                        alt={t("toolbar.linebreak", "Insert line break")}
-                      />
-                    </button>
-                    <button
-                      id="btn-indent"
-                      className="icon-button"
-                      type="button"
-                      title={t("toolbar.indent", "Insert indent")}
-                    >
-                      <img
-                        src="/icons/toolbar/indent.svg"
-                        alt={t("toolbar.indent", "Insert indent")}
-                      />
-                    </button>
-                    <button
-                      id="btn-default-indent"
-                      className="icon-button"
-                      type="button"
-                      title={t("pgn.defaultIndent", "Default indent")}
-                      onClick={(): void => { services.applyDefaultIndent(); }}
-                    >
-                      <img
-                        src="/icons/toolbar/default-indent.svg"
-                        alt={t("pgn.defaultIndent", "Default indent")}
-                      />
-                    </button>
-                    {isSetUpGame && (
-                      <button
-                        id="btn-edit-start-pos"
-                        className="icon-button icon-button-text"
-                        type="button"
-                        title={t("toolbar.editStartPos", "Edit starting position")}
-                        onClick={(): void => { setShowEditStartPos(true); }}
-                      >
-                        {t("toolbar.editStartPosShort", "Position")}
-                      </button>
-                    )}
-                    <button
-                      id="btn-save"
-                      className={`icon-button icon-button-text${isDirty ? " icon-button--dirty" : ""}`}
-                      type="button"
-                      title={t("toolbar.save", "Save game (Ctrl+S)")}
-                      disabled={!isDirty}
-                      onClick={(): void => { services.saveActiveGameNow(); }}
-                    >
-                      {t("toolbar.saveShort", "Save")}
-                    </button>
-                    <button
-                      id="btn-study"
-                      className="icon-button icon-button-text"
-                      type="button"
-                      title={t("toolbar.study", "Start study mode (Q/A prompts)")}
-                      disabled={studyItems.length === 0 || studyActive}
-                      onClick={handleStartStudy}
-                    >
-                      {t("toolbar.studyShort", "Study")}
-                    </button>
-                    <button
-                      id="btn-extract"
-                      className="icon-button icon-button-text"
-                      type="button"
-                      title={t("toolbar.extract", "Extract current position as new game")}
-                      onClick={(): void => { setShowExtractDialog(true); }}
-                    >
-                      {t("toolbar.extractShort", "Extract")}
-                    </button>
-                    <button
-                      id="btn-hint"
-                      className="icon-button icon-button-text"
-                      type="button"
-                      title={t("toolbar.hint", "Show best-move hint")}
-                      onClick={handleShowHint}
-                    >
-                      {t("toolbar.hintShort", "Hint")}
-                    </button>
-                    <button
-                      id="btn-train"
-                      className="icon-button icon-button-text"
-                      type="button"
-                      title={t("toolbar.train", "Start training session")}
-                      disabled={trainingControls.phase !== "idle"}
-                      onClick={(): void => { setShowTrainingLauncher(true); }}
-                    >
-                      {t("toolbar.trainShort", "Train")}
-                    </button>
-                    <button
-                      id="btn-vs-engine"
-                      className={`icon-button icon-button-text${vsEngine.active ? " icon-button--active" : ""}`}
-                      type="button"
-                      title={vsEngine.active ? t("toolbar.vsEngineStop", "Stop engine game") : t("toolbar.vsEngine", "Play vs engine")}
-                      disabled={!engineName}
-                      onClick={(): void => {
-                        if (vsEngine.active) vsEngine.stop();
-                        else setShowVsEngineDialog(true);
-                      }}
-                    >
-                      {vsEngine.active ? t("toolbar.vsEngineStopShort", "Stop") : t("toolbar.vsEngineShort", "vs Engine")}
-                    </button>
-                    <button
-                      id="btn-undo"
-                      className="icon-button"
-                      type="button"
-                      title={t("toolbar.undo", "Undo")}
-                      disabled={!canUndo}
-                      onClick={(): void => { services.undo(); }}
-                    >
-                      <img src="/icons/toolbar/undo.svg" alt={t("toolbar.undo", "Undo")} />
-                    </button>
-                    <button
-                      id="btn-redo"
-                      className="icon-button"
-                      type="button"
-                      title={t("toolbar.redo", "Redo")}
-                      disabled={!canRedo}
-                      onClick={(): void => { services.redo(); }}
-                    >
-                      <img src="/icons/toolbar/redo.svg" alt={t("toolbar.redo", "Redo")} />
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <ToolbarRow
+                isAtStart={isAtStart}
+                isAtEnd={isAtEnd}
+                canUndo={canUndo}
+                canRedo={canRedo}
+                isDirty={isDirty}
+                layoutMode={layoutMode}
+                isSetUpGame={isSetUpGame}
+                studyItemCount={studyItems.length}
+                studyActive={studyActive}
+                trainingPhase={trainingControls.phase}
+                engineName={engineName}
+                vsEngineActive={vsEngine.active}
+                t={t}
+                onGotoFirst={(): void => { services.gotoFirst(); }}
+                onGotoPrev={(): void => { services.gotoPrev(); }}
+                onGotoNext={(): void => { services.gotoNext(); }}
+                onGotoLast={(): void => { services.gotoLast(); }}
+                onSetLayoutMode={(mode): void => { services.setLayoutMode(mode); }}
+                onApplyDefaultIndent={(): void => { services.applyDefaultIndent(); }}
+                onSave={(): void => { services.saveActiveGameNow(); }}
+                onUndo={(): void => { services.undo(); }}
+                onRedo={(): void => { services.redo(); }}
+                onShowEditStartPos={(): void => { setShowEditStartPos(true); }}
+                onShowExtractDialog={(): void => { setShowExtractDialog(true); }}
+                onShowHint={handleShowHint}
+                onStartStudy={handleStartStudy}
+                onShowTrainingLauncher={(): void => { setShowTrainingLauncher(true); }}
+                onShowAnnotateDialog={(): void => { setShowAnnotateDialog(true); }}
+                onVsEngineClick={(): void => {
+                  if (vsEngine.active) vsEngine.stop();
+                  else setShowVsEngineDialog(true);
+                }}
+              />
 
               {/* Editor area — React PgnTextEditor */}
               <div className="editor-box">
+                {trainingControls.phase === "idle" && (
+                  <TrainingHistoryStrip
+                    sourceGameRef={trainingSourceRef}
+                    onTrainAgain={(): void => { setShowTrainingLauncher(true); }}
+                    onViewHistory={(): void => { setShowTrainingHistory(true); }}
+                    t={t}
+                  />
+                )}
                 <PgnTextEditor />
               </div>
             </div>
           </div>
 
-          {/* ── Engine analysis panel ── */}
-          <AnalysisPanel
+          {/* ── Right panel stack (analysis, explorer, search) ── */}
+          <RightPanelStack
             variations={variations}
             isAnalyzing={isAnalyzing}
             engineName={engineName}
             sideToMove={sideToMove}
-            t={t}
             onStartAnalysis={handleStartAnalysis}
             onStopAnalysis={stopAnalysis}
-          />
-
-          {/* ── Opening explorer panel (E1) ── */}
-          <OpeningExplorerPanel
-            result={openingExplorer.result}
-            isLoading={openingExplorer.isLoading}
-            source={openingExplorer.source}
-            onSourceChange={openingExplorer.setSource}
-            enabled={openingExplorer.enabled}
-            onToggle={openingExplorer.setEnabled}
+            openingResult={openingExplorer.result}
+            openingIsLoading={openingExplorer.isLoading}
+            openingSource={openingExplorer.source}
+            openingEnabled={openingExplorer.enabled}
+            onOpeningSourceChange={openingExplorer.setSource}
+            onOpeningToggle={openingExplorer.setEnabled}
+            onOpenSettings={(): void => { setShowExtDbSettings(true); }}
+            tbResult={tablebase.result}
+            tbIsLoading={tablebase.isLoading}
+            tbEnabled={tablebase.enabled}
+            onTbToggle={tablebase.setEnabled}
             t={t}
-          />
-
-          {/* ── Tablebase probe panel (E2) ── */}
-          <TablebasePanel
-            result={tablebase.result}
-            isLoading={tablebase.isLoading}
-            enabled={tablebase.enabled}
-            onToggle={tablebase.setEnabled}
-            t={t}
+            onMoveClick={handlePanelMoveClick}
+            onImportPgn={services.openPgnText}
+            onOpenGame={services.openGameFromRef}
           />
 
           {/* Vertical resize handle (between board/editor and resource viewer) */}
@@ -904,7 +718,7 @@ export const AppShell = (): ReactElement => {
         </section>
 
         {/* ── Developer dock ── */}
-        <DevDock />
+        {devToolsEnabled && <DevDock />}
 
         {/* ── Move entry dialogs ── */}
         {pendingFork && (
@@ -1010,6 +824,25 @@ export const AppShell = (): ReactElement => {
         )}
 
         {/* ── Training dialogs ── */}
+        {showExtDbSettings && (
+          <ExtDatabaseSettingsDialog
+            settings={extDbSettings.settings}
+            onSave={(speeds, ratings): void => {
+              extDbSettings.setOpeningExplorerSpeeds(speeds);
+              extDbSettings.setOpeningExplorerRatings(ratings);
+            }}
+            onClose={(): void => { setShowExtDbSettings(false); }}
+            t={t}
+          />
+        )}
+        {showTrainingHistory && (
+          <TrainingHistoryPanel
+            sourceGameRef={trainingSourceRef}
+            onClose={(): void => { setShowTrainingHistory(false); }}
+            onTrainAgain={(): void => { setShowTrainingHistory(false); setShowTrainingLauncher(true); }}
+            t={t}
+          />
+        )}
         {showTrainingLauncher && (
           <TrainingLauncher
             gameTitle={trainingGameTitle}
@@ -1046,6 +879,24 @@ export const AppShell = (): ReactElement => {
               onDiscard={trainingControls.confirmResult}
             />
           )}
+        {/* ── Annotate game dialog (G9) ── */}
+        {showAnnotateDialog && (
+          <AnnotateGameDialog
+            phase={gameAnnotation.phase}
+            progress={gameAnnotation.progress}
+            annotatedModel={gameAnnotation.annotatedModel}
+            engineName={engineName}
+            t={t}
+            onStart={(opts): void => { gameAnnotation.start(selectPgnModel(state) ?? (() => { throw new Error(); })(), opts); }}
+            onApply={(model): void => {
+              setShowAnnotateDialog(false);
+              rawServices.applyPgnModelEdit(model, null);
+            }}
+            onCancel={gameAnnotation.cancel}
+            onClose={(): void => { setShowAnnotateDialog(false); }}
+          />
+        )}
+
         {/* ── Play vs engine dialogs (G8) ── */}
         {showVsEngineDialog && (
           <PlayVsEngineDialog

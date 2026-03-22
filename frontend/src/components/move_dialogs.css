@@ -1,0 +1,279 @@
+/* ── DisambiguationDialog (M2) ─────────────────────────────────────────────── */
+
+.disambiguation-dialog {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0;
+  max-width: 480px;
+  width: 100%;
+  background: var(--bg-panel);
+  color: var(--text);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+.disambiguation-dialog::backdrop {
+  background: rgba(0,0,0,0.4);
+}
+.disambiguation-dialog-content {
+  padding: 1.25rem 1.5rem 1.5rem;
+}
+.disambiguation-dialog-title {
+  font-weight: 600;
+  font-size: 1rem;
+  margin: 0 0 0.75rem;
+}
+.disambiguation-dialog-desc {
+  font-size: 0.875rem;
+  margin: 0 0 1rem;
+  color: var(--text-secondary, #94a3b8);
+}
+.disambiguation-dialog-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+.disambiguation-dialog-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+.disambiguation-dialog-option input[type="radio"] {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+.disambiguation-dialog-option-label {
+  line-height: 1.4;
+}
+.disambiguation-dialog-option-note {
+  color: var(--text-secondary, #94a3b8);
+  font-size: 0.8rem;
+}
+.disambiguation-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+.disambiguation-dialog-btn-cancel,
+.disambiguation-dialog-btn-confirm {
+  padding: 0.375rem 0.875rem;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  font-size: 0.875rem;
+  cursor: pointer;
+  background: var(--bg-input, #1e293b);
+  color: var(--text);
+}
+.disambiguation-dialog-btn-confirm {
+  background: var(--accent, #3b82f6);
+  color: #fff;
+  border-color: var(--accent, #3b82f6);
+}
+
+/* ── PromotionPicker (M3) ──────────────────────────────────────────────────── */
+
+.promotion-picker-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.promotion-picker-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+}
+.promotion-picker-panel {
+  position: relative;
+  z-index: 1;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem 1.25rem 1.25rem;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+  text-align: center;
+}
+.promotion-picker-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin: 0 0 0.875rem;
+}
+.promotion-picker-pieces {
+  display: flex;
+  gap: 0.5rem;
+}
+.promotion-picker-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.5rem 0.75rem;
+  border: 2px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-input, #1e293b);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.1s, background 0.1s;
+  min-width: 56px;
+}
+.promotion-picker-btn--default {
+  border-color: var(--accent, #3b82f6);
+  background: color-mix(in srgb, var(--accent, #3b82f6) 12%, transparent);
+}
+.promotion-picker-btn:hover {
+  border-color: var(--accent, #3b82f6);
+}
+.promotion-picker-symbol {
+  font-size: 2rem;
+  line-height: 1;
+}
+.promotion-picker-name {
+  font-size: 0.7rem;
+  color: var(--text-secondary, #94a3b8);
+}
+
+/* ── TruncationMenu (M6) ───────────────────────────────────────────────────── */
+
+.truncation-menu {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+  min-width: 240px;
+  padding: 0.25rem 0;
+  font-size: 0.8125rem;
+}
+.truncation-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.4rem 0.875rem;
+  border: none;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+  line-height: 1.4;
+}
+.truncation-menu-item:hover {
+  background: var(--bg-hover, rgba(255,255,255,0.06));
+}
+.truncation-menu-item--danger {
+  color: #ef4444;
+}
+.truncation-menu-san {
+  color: var(--text-secondary, #94a3b8);
+  font-size: 0.75rem;
+}
+.truncation-menu-separator {
+  height: 1px;
+  background: var(--border);
+  margin: 0.25rem 0;
+}
+
+/* ── Confirm dialog (M8 navigate-away guard) ─────────────────────────────── */
+.confirm-dialog {
+  border: 1px solid var(--border, #444);
+  border-radius: 8px;
+  background: var(--surface, #2a2a2a);
+  color: var(--text, #eee);
+  padding: 0;
+  max-width: 380px;
+  width: 90vw;
+}
+.confirm-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+}
+.confirm-dialog-content {
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.confirm-dialog-message {
+  margin: 0;
+  font-size: 0.95rem;
+}
+.confirm-dialog-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.confirm-dialog-btn {
+  padding: 0.35rem 0.9rem;
+  border-radius: 4px;
+  border: 1px solid var(--border, #555);
+  background: var(--button-bg, #3a3a3a);
+  color: var(--text, #eee);
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+.confirm-dialog-btn:hover {
+  background: var(--button-hover, #4a4a4a);
+}
+.confirm-dialog-btn--discard {
+  color: var(--danger, #f87171);
+  border-color: var(--danger, #f87171);
+}
+.confirm-dialog-btn--cancel {
+  background: transparent;
+}
+
+/* ── ExtractPositionDialog (UV5) ─────────────────────────────────────────── */
+.extract-dialog {
+  border: 1px solid var(--border, #444);
+  border-radius: 8px;
+  background: var(--surface, #2a2a2a);
+  color: var(--text, #eee);
+  padding: 0;
+  max-width: 440px;
+  width: 92vw;
+}
+.extract-dialog::backdrop { background: rgba(0,0,0,0.5); }
+.extract-dialog-content {
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+.extract-dialog-title { margin: 0; font-size: 1.05rem; }
+.extract-dialog-position-label { margin: 0; font-size: 0.875rem; color: var(--text-secondary, #aaa); }
+.extract-dialog-fieldset {
+  border: 1px solid var(--border, #555);
+  border-radius: 4px;
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.extract-dialog-legend { font-size: 0.8rem; color: var(--text-secondary, #aaa); padding: 0 0.3rem; }
+.extract-dialog-radio { display: flex; gap: 0.5rem; align-items: center; font-size: 0.875rem; cursor: pointer; }
+.extract-dialog-field { display: flex; flex-direction: column; gap: 0.3rem; }
+.extract-dialog-label { font-size: 0.8rem; color: var(--text-secondary, #aaa); }
+.extract-dialog-input {
+  padding: 0.3rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid var(--border, #555);
+  background: var(--input-bg, #1e1e1e);
+  color: var(--text, #eee);
+  font-size: 0.875rem;
+}
+.extract-dialog-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
+.extract-dialog-btn-cancel,
+.extract-dialog-btn-extract {
+  padding: 0.35rem 0.9rem;
+  border-radius: 4px;
+  border: 1px solid var(--border, #555);
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+.extract-dialog-btn-cancel { background: transparent; color: var(--text, #eee); }
+.extract-dialog-btn-extract {
+  background: var(--accent, #3b82f6);
+  color: white;
+  border-color: var(--accent, #3b82f6);
+}
+

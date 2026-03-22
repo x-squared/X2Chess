@@ -5,10 +5,11 @@
  * debounced 200ms. Exposes the result and loading state to the UI.
  *
  * Integration API:
- * - `const explorer = useOpeningExplorer(fen)` — pass the current board FEN.
+ * - `const explorer = useOpeningExplorer(fen, speeds?, ratings?)` — pass the
+ *   current board FEN and optional Lichess filter settings from E9.
  *
  * Communication API:
- * - Returns `{ result, isLoading, source, setSource, speeds, setSpeed, enabled, setEnabled }`
+ * - Returns `{ result, isLoading, source, setSource, enabled, setEnabled }`
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -24,7 +25,11 @@ export type OpeningExplorerState = {
   setEnabled: (enabled: boolean) => void;
 };
 
-export const useOpeningExplorer = (fen: string): OpeningExplorerState => {
+export const useOpeningExplorer = (
+  fen: string,
+  speeds: string[] = [],
+  ratings: number[] = [],
+): OpeningExplorerState => {
   const [result, setResult] = useState<OpeningResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [source, setSource] = useState<"masters" | "lichess">("masters");
@@ -34,13 +39,22 @@ export const useOpeningExplorer = (fen: string): OpeningExplorerState => {
   const abortRef = useRef<AbortController | null>(null);
 
   const fetchResult = useCallback(
-    async (queryFen: string, querySource: "masters" | "lichess"): Promise<void> => {
+    async (
+      queryFen: string,
+      querySource: "masters" | "lichess",
+      querySpeeds: string[],
+      queryRatings: number[],
+    ): Promise<void> => {
       abortRef.current?.abort();
       abortRef.current = new AbortController();
 
       setIsLoading(true);
 
-      const options: OpeningQueryOptions = { source: querySource };
+      const options: OpeningQueryOptions = {
+        source: querySource,
+        speeds: querySpeeds.length > 0 ? querySpeeds : undefined,
+        ratings: queryRatings.length > 0 ? queryRatings : undefined,
+      };
       const data = await LICHESS_OPENING_ADAPTER.query(queryFen, options);
 
       setResult(data);
@@ -54,13 +68,15 @@ export const useOpeningExplorer = (fen: string): OpeningExplorerState => {
 
     if (debounceRef.current !== null) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout((): void => {
-      void fetchResult(fen, source);
+      void fetchResult(fen, source, speeds, ratings);
     }, 200);
 
     return (): void => {
       if (debounceRef.current !== null) clearTimeout(debounceRef.current);
     };
-  }, [fen, source, enabled, fetchResult]);
+    // speeds/ratings are arrays — compare by join to avoid unnecessary re-fetches.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fen, source, enabled, fetchResult, speeds.join(","), ratings.join(",")]);
 
   // Clear result when disabled.
   useEffect((): void => {

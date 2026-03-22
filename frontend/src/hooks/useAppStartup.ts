@@ -53,6 +53,9 @@ import { useAppContext } from "../state/app_context";
 import type { AppStartupServices } from "../state/ServiceContext";
 import type { AppAction } from "../state/actions";
 import type { PgnModel } from "../model/pgn_model";
+import type { PgnResourceRef } from "../../../resource/domain/resource_ref";
+import type { PositionSearchHit, TextSearchHit } from "../../../resource/client/search_coordinator";
+import type { MoveFrequencyEntry } from "../../../resource/domain/move_frequency";
 import type { Dispatch } from "react";
 import {
   createAppServicesBundle,
@@ -295,6 +298,12 @@ export const useAppStartup = (): AppStartupServices => {
           { kind: String(neighbor?.kind ?? "db"), locator: String(neighbor?.locator ?? ""), recordId: neighbor?.recordId == null ? undefined : String(neighbor.recordId) },
         );
       },
+      searchByPosition: async (positionHash: string, resourceRefs: PgnResourceRef[]): Promise<PositionSearchHit[]> =>
+        bundle.resources.searchByPositionAcross(positionHash, resourceRefs),
+      searchByText: async (query: string, resourceRefs: PgnResourceRef[]): Promise<TextSearchHit[]> =>
+        bundle.resources.searchTextAcross(query, resourceRefs),
+      explorePosition: async (positionHash: string, resourceRefs: PgnResourceRef[]): Promise<MoveFrequencyEntry[]> =>
+        bundle.resources.explorePositionAcross(positionHash, resourceRefs),
       openGameFromRef: (sourceRef: unknown): void => {
         void (async (): Promise<void> => {
           const ref = sourceRef as { kind?: string; locator?: string; recordId?: unknown } | null;

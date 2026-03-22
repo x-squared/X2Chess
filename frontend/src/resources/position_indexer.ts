@@ -12,6 +12,7 @@
 
 import { Chess } from "chess.js";
 import type { BuildPositionIndex, PositionRecord } from "../../../resource/adapters/db/position_index";
+import type { BuildMoveEdgeIndex, MoveEdge } from "../../../resource/adapters/db/move_edge_index";
 
 // ── FNV-1a 32-bit hash ─────────────────────────────────────────────────────
 
@@ -29,7 +30,7 @@ const fnv1a32 = (str: string, offsetBasis: number): number => {
  * Only the first four space-separated FEN fields are hashed (piece placement,
  * side to move, castling rights, en passant), ignoring halfmove/fullmove counters.
  */
-const hashFen = (fen: string): string => {
+export const hashFen = (fen: string): string => {
   const normalised = fen.split(" ").slice(0, 4).join(" ");
   const h1 = fnv1a32(normalised, 0x811c9dc5);
   const h2 = fnv1a32(normalised, 0x5ac3a53d);
@@ -57,6 +58,38 @@ export const buildPositionIndex: BuildPositionIndex = (pgnText: string): Positio
     }
 
     return records;
+  } catch {
+    return [];
+  }
+};
+
+/**
+ * Build a move-edge index from a PGN string.
+ *
+ * For each half-move, records the position hash before the move, the move in
+ * SAN and UCI notation, and the game result.
+ *
+ * @param pgnText Raw PGN source (only the first game is indexed).
+ * @returns Array of move edges; empty on parse error.
+ */
+export const buildMoveEdgeIndex: BuildMoveEdgeIndex = (pgnText: string): MoveEdge[] => {
+  try {
+    const loader = new Chess();
+    loader.loadPgn(pgnText);
+    const history = loader.history({ verbose: true });
+    const result: string = loader.header()["Result"] ?? "*";
+
+    const replay = new Chess();
+    const edges: MoveEdge[] = [];
+
+    for (const move of history) {
+      const positionHash = hashFen(replay.fen());
+      const uci = `${move.from}${move.to}${move.promotion ?? ""}`;
+      edges.push({ positionHash, moveSan: move.san, moveUci: uci, result });
+      replay.move(move);
+    }
+
+    return edges;
   } catch {
     return [];
   }

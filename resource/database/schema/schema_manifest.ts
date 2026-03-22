@@ -73,4 +73,35 @@ export const MIGRATIONS: readonly Migration[] = [
       `ALTER TABLE games ADD COLUMN kind TEXT NOT NULL DEFAULT 'game'`,
     ],
   },
+  {
+    version: 6,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS training_transcripts (
+        session_id     TEXT    PRIMARY KEY,
+        source_game_id TEXT    NOT NULL,
+        protocol       TEXT    NOT NULL,
+        started_at     INTEGER NOT NULL,
+        completed_at   INTEGER,
+        aborted        INTEGER NOT NULL DEFAULT 0,
+        config_json    TEXT    NOT NULL DEFAULT '{}',
+        ply_records    TEXT    NOT NULL DEFAULT '[]',
+        annotations    TEXT    NOT NULL DEFAULT '[]'
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_transcripts_game ON training_transcripts(source_game_id)`,
+    ],
+  },
+  {
+    version: 7,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS move_edges (
+        position_hash TEXT NOT NULL,
+        move_san      TEXT NOT NULL,
+        move_uci      TEXT NOT NULL,
+        result        TEXT NOT NULL DEFAULT '*',
+        game_id       TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+        PRIMARY KEY (position_hash, game_id, move_uci)
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_move_edges_hash ON move_edges(position_hash)`,
+    ],
+  },
 ] as const;

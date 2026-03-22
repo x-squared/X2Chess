@@ -8,6 +8,7 @@ import type { PgnSaveOptions } from "../domain/contracts";
 import type { PgnGameRef } from "../domain/game_ref";
 import type { PgnResourceKind } from "../domain/kinds";
 import type { PgnResourceRef } from "../domain/resource_ref";
+import type { MoveFrequencyEntry } from "../domain/move_frequency";
 
 /**
  * Resource client capability contracts.
@@ -74,4 +75,33 @@ export type ResourceCapabilities = {
    * @param neighborGameRef Second game reference (the swap target).
    */
   reorderGame: (gameRef: PgnGameRef, neighborGameRef: PgnGameRef) => Promise<void>;
+
+  /**
+   * Search a resource for games containing the given position hash.
+   * Returns an empty array when the adapter does not support position search.
+   *
+   * @param positionHash 16-char hex FNV-1a hash of the first four FEN fields.
+   * @param resourceRef Resource to search within.
+   */
+  searchByPositionHash: (positionHash: string, resourceRef: PgnResourceRef) => Promise<PgnGameRef[]>;
+
+  /**
+   * Search a resource for games whose metadata (White, Black, Event) contains
+   * the query string (case-insensitive substring match).
+   * Returns an empty array when the adapter does not support text search.
+   *
+   * @param query Substring to match.
+   * @param resourceRef Resource to search within.
+   */
+  searchByText: (query: string, resourceRef: PgnResourceRef) => Promise<PgnGameRef[]>;
+
+  /**
+   * Return aggregated move-frequency statistics for the given position across
+   * all games in one resource.
+   * Returns an empty array when the adapter does not support move-edge indexes.
+   *
+   * @param positionHash 16-char hex FNV-1a hash of the position to explore.
+   * @param resourceRef Resource to query.
+   */
+  explorePosition: (positionHash: string, resourceRef: PgnResourceRef) => Promise<MoveFrequencyEntry[]>;
 };

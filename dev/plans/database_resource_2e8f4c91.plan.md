@@ -171,39 +171,44 @@ silently upgraded on open.
 
 ## Incremental delivery phases
 
-### Phase 1 — DB CRUD (in progress)
+### Phase 1 — DB CRUD ✅
 
 - ✅ Design decisions locked
-- [ ] SQL schema in `schema_manifest.ts` (migration arrays)
-- [ ] `runMigrations(db)` in `runner.ts`
-- [ ] `createDbAdapter(gatewayForPath)` in `db_adapter.ts`
-- [ ] Rust: `rusqlite` dep, `query_db` / `execute_db` / `pick_x2chess_file` / `create_x2chess_file`
-- [ ] `buildTauriDbGateway` in `source_gateway.ts`
-- [ ] Wire `createDbAdapter` replacing `createDeferredDbSourceAdapter`
-- [ ] Enable `db` kind in picker when Tauri runtime
-- [ ] Update picker filter to `.x2chess`
+- ✅ SQL schema in `schema_manifest.ts` (migration arrays)
+- ✅ `runMigrations(db)` in `runner.ts`
+- ✅ `createDbAdapter(gatewayForPath)` in `db_adapter.ts`
+- ✅ Rust: `rusqlite` dep, `query_db` / `execute_db` / `pick_x2chess_file` / `create_x2chess_file`
+- ✅ `buildTauriDbGateway` in `source_gateway.ts`
+- ✅ Wire `createDbAdapter` replacing `createDeferredDbSourceAdapter`
+- ✅ Enable `db` kind in picker when Tauri runtime
+- ✅ Update picker filter to `.x2chess`
 
-### Phase 2 — Hardening
+### Phase 2 — Hardening ✅
 
-- WAL mode + foreign keys pragma on DB open
-- Migration runner: handle multi-statement safety
-- Integration tests with in-memory sqlite (better-sqlite3 via tsx)
+- ✅ WAL mode + foreign keys pragma on DB open
+- ✅ Migration runner: handle multi-statement safety (sequential steps in ledger)
+- [ ] Integration tests with in-memory sqlite (better-sqlite3 via tsx)
 
-### Phase 3 — Position indexing
+### Phase 3 — Position indexing ✅
 
-- `buildPositionIndex` utility
-- Index positions on `create`/`save`
-- `search` method on DB adapter
+- ✅ `buildPositionIndex` utility (`position_indexer.ts`)
+- ✅ Index positions on `create`/`save`
+- ✅ `searchByPositionHash` method on DB adapter + `PgnResourceAdapter` contract
 
-### Phase 4 — Cross-resource search UI
+### Phase 4 — Cross-resource search UI ✅
 
-- Filter bar + chips in resource viewer
-- `SearchCoordinator`
-- "Search all open resources" mode
-- Game ordering UI (drag-and-drop + up/down buttons)
+- ✅ `resource/client/search_coordinator.ts` — `searchAcrossResources` fans out across adapters via `Promise.allSettled`
+- ✅ `searchByPositionHash` on `ResourceCapabilities` + `createResourceClient`
+- ✅ `source_gateway.ts` — `searchByPositionAcross` wires coordinator to frontend
+- ✅ `ServiceContext` — `searchByPosition` service callback
+- ✅ `usePositionSearch` hook — hashes current board FEN, fans out to open resource tabs
+- ✅ `PositionSearchPanel` component — search button + result list with open-game action
+- ✅ Wired into `AppShell`
+- Game ordering UI (drag-and-drop rows) — deferred; up/down buttons already in place
 
-### Phase 5 — Directory sidecar
+### Phase 5 — Directory sidecar ✅
 
-- `.x2chess-meta.json` (or confirmed name) alongside PGN directories
-- Stores ordering and extended metadata
-- Updated on `save` and `create`
+- ✅ `.x2chess-meta.json` alongside PGN directories (`sidecar.ts`)
+- ✅ Stores ordering and extended metadata
+- ✅ Updated on `create`; `reorder` swaps orderIndex in sidecar
+- ✅ Applied on `list` to sort rows by persisted order

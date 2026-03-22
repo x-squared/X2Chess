@@ -23,6 +23,8 @@ type TablebasePanelProps = {
   isLoading: boolean;
   enabled: boolean;
   onToggle: (enabled: boolean) => void;
+  /** Called with the UCI string of the selected move (e.g. "e2e4"). */
+  onMoveClick?: (uci: string) => void;
   t: (key: string, fallback?: string) => string;
 };
 
@@ -52,12 +54,19 @@ const wdlClass = (wdl: TbWdl): string => {
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
-const MoveRow = ({ move }: { move: TbMoveEntry }): ReactElement => (
-  <tr className="tb-move-row">
+const MoveRow = ({
+  move,
+  onMoveClick,
+}: {
+  move: TbMoveEntry;
+  onMoveClick?: (uci: string) => void;
+}): ReactElement => (
+  <tr
+    className={`tb-move-row${onMoveClick ? " tb-move-row--clickable" : ""}`}
+    onClick={onMoveClick ? () => onMoveClick(move.uci) : undefined}
+    title={onMoveClick ? `${move.san} — click to play` : undefined}
+  >
     <td className="tb-move-san">{move.san}</td>
-    <td className={`tb-move-wdl ${wdlClass(move.wdl)}`}>
-      {wdlLabel(move.wdl)}
-    </td>
     <td className="tb-move-dtz">
       {move.dtz !== undefined ? `DTZ ${move.dtz}` : ""}
     </td>
@@ -71,6 +80,29 @@ const MoveRow = ({ move }: { move: TbMoveEntry }): ReactElement => (
   </tr>
 );
 
+type MoveGroupProps = {
+  label: string;
+  moves: TbMoveEntry[];
+  wdl: TbWdl;
+  onMoveClick?: (uci: string) => void;
+};
+
+const MoveGroup = ({ label, moves, wdl, onMoveClick }: MoveGroupProps): ReactElement | null => {
+  if (moves.length === 0) return null;
+  return (
+    <div className="tb-group">
+      <div className={`tb-group-header ${wdlClass(wdl)}`}>{label}</div>
+      <table className="tb-moves-table">
+        <tbody>
+          {moves.map((m) => (
+            <MoveRow key={m.uci} move={m} onMoveClick={onMoveClick} />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
 // ── Component ──────────────────────────────────────────────────────────────────
 
 /**
@@ -81,27 +113,20 @@ export const TablebasePanel = ({
   isLoading,
   enabled,
   onToggle,
+  onMoveClick,
   t,
 }: TablebasePanelProps): ReactElement => {
   const handleToggle = useCallback((): void => {
     onToggle(!enabled);
   }, [enabled, onToggle]);
 
-  // Sort moves: wins first (by dtz asc), then draws, then losses (by dtz desc).
-  const sortedMoves = result ? [...result.moves].sort((a, b) => {
-    const order: Record<TbWdl, number> = {
-      win: 0, cursed_win: 1, draw: 2, blessed_loss: 3, loss: 4, unknown: 5,
-    };
-    const diff = order[a.wdl] - order[b.wdl];
-    if (diff !== 0) return diff;
-    if (a.wdl === "win" || a.wdl === "cursed_win") {
-      return (a.dtz ?? 999) - (b.dtz ?? 999);
-    }
-    if (a.wdl === "loss" || a.wdl === "blessed_loss") {
-      return (b.dtz ?? 999) - (a.dtz ?? 999);
-    }
-    return 0;
-  }) : [];
+  // Group and sort moves by outcome.
+  const byDtzAsc  = (a: TbMoveEntry, b: TbMoveEntry): number => (a.dtz ?? 999) - (b.dtz ?? 999);
+  const byDtzDesc = (a: TbMoveEntry, b: TbMoveEntry): number => (b.dtz ?? 999) - (a.dtz ?? 999);
+
+  const winningMoves  = result ? result.moves.filter((m) => m.wdl === "win" || m.wdl === "cursed_win").sort(byDtzAsc)  : [];
+  const drawingMoves  = result ? result.moves.filter((m) => m.wdl === "draw" || m.wdl === "blessed_loss")              : [];
+  const losingMoves   = result ? result.moves.filter((m) => m.wdl === "loss" || m.wdl === "unknown").sort(byDtzDesc)   : [];
 
   return (
     <div className="tablebase-panel">
@@ -152,22 +177,12 @@ export const TablebasePanel = ({
             </p>
           )}
 
-          {!isLoading && result && sortedMoves.length > 0 && (
-            <table className="tb-moves-table">
-              <thead>
-                <tr>
-                  <th>{t("tablebase.col.move", "Move")}</th>
-                  <th>{t("tablebase.col.result", "Result")}</th>
-                  <th>{t("tablebase.col.dtz", "DTZ")}</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedMoves.map((m) => (
-                  <MoveRow key={m.uci} move={m} />
-                ))}
-              </tbody>
-            </table>
+          {!isLoading && result && (winningMoves.length > 0 || drawingMoves.length > 0 || losingMoves.length > 0) && (
+            <div className="tb-groups">
+              <MoveGroup label={t("tablebase.group.winning", "Winning")} moves={winningMoves} wdl="win"  onMoveClick={onMoveClick} />
+              <MoveGroup label={t("tablebase.group.drawing", "Drawing")} moves={drawingMoves} wdl="draw" onMoveClick={onMoveClick} />
+              <MoveGroup label={t("tablebase.group.losing",  "Losing")}  moves={losingMoves}  wdl="loss" onMoveClick={onMoveClick} />
+            </div>
           )}
         </div>
       )}

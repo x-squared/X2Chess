@@ -19,6 +19,8 @@ import type {
   GroupByState,
   SortConfig,
 } from "../resources_viewer/viewer_utils";
+import type { MetadataSchema, MetadataFieldDefinition } from "../../../resource/domain/metadata_schema";
+import type { TrainingBadge } from "../training/transcript_storage";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -27,12 +29,15 @@ type ResourceTableProps = {
   columnFilters: Record<string, string>;
   groupByState: GroupByState;
   sortConfig: SortConfig | null;
+  /** Active metadata schema for type-aware column filters (UV2). */
+  activeSchema: MetadataSchema | null;
   /** Key of the column currently being pointer-dragged (for visual feedback). */
   colDragActiveKey: string;
   supportsReorder: boolean;
   t: (key: string, fallback?: string) => string;
   onRowOpen: (rowIndex: number) => void;
   onFilterChange: (key: string, value: string) => void;
+  onClearFilters: () => void;
   onMoveUp: (row: ResourceRow, neighborRow: ResourceRow) => void;
   onMoveDown: (row: ResourceRow, neighborRow: ResourceRow) => void;
   onResizeStart: (key: string, e: ReactPointerEvent<HTMLSpanElement>) => void;
@@ -42,6 +47,8 @@ type ResourceTableProps = {
   onColDrop: (targetKey: string) => void;
   onSortChange: (key: string) => void;
   onToggleGroup: (groupKey: string) => void;
+  /** Training badges keyed by `"kind:locator:recordId"` composite ref (T14). */
+  trainingBadges?: Map<string, TrainingBadge>;
 };
 
 // ── Internal types ────────────────────────────────────────────────────────────
@@ -140,6 +147,65 @@ const KindBadge = ({
   </span>
 );
 
+// ── Training badge chip (T14) ─────────────────────────────────────────────────
+
+/** Extract the composite `"kind:locator:recordId"` ref from a row's sourceRef. */
+const rowSourceGameRef = (row: ResourceRow): string => {
+  const r = row.sourceRef;
+  if (!r) return "";
+  const kind = typeof r["kind"] === "string" ? r["kind"] : "";
+  const locator = typeof r["locator"] === "string" ? r["locator"] : "";
+  const recordId = typeof r["recordId"] === "string" ? r["recordId"] : "";
+  return `${kind}:${locator}:${recordId}`;
+};
+
+const TrainingBadgeChip = ({ badge }: { badge: TrainingBadge }): ReactElement => (
+  <span
+    className="training-badge"
+    title={`${badge.sessionCount} session${badge.sessionCount === 1 ? "" : "s"}, best ${badge.bestScore}%`}
+  >
+    <span className="training-badge__score">{badge.bestScore}%</span>
+    <span className="training-badge__count">×{badge.sessionCount}</span>
+  </span>
+);
+
+// ── Type-aware filter helpers (UV2) ───────────────────────────────────────────
+
+/**
+ * Apply a type-aware filter to a raw cell value.
+ * - number columns: supports `>N`, `<N`, `=N` prefix operators.
+ * - select columns: exact match (case-insensitive) or empty = show all.
+ * - date / text: substring match (case-insensitive).
+ */
+const applyFilter = (
+  raw: string,
+  filterVal: string,
+  fieldDef?: MetadataFieldDefinition,
+): boolean => {
+  if (!filterVal) return true;
+  const type = fieldDef?.type ?? "text";
+
+  if (type === "number") {
+    const trimmed = filterVal.trim();
+    const op = trimmed[0];
+    if (op === ">" || op === "<" || op === "=") {
+      const threshold = parseFloat(trimmed.slice(1).trim());
+      const cellNum = parseFloat(raw);
+      if (!isFinite(threshold) || !isFinite(cellNum)) return false;
+      if (op === ">") return cellNum > threshold;
+      if (op === "<") return cellNum < threshold;
+      return cellNum === threshold;
+    }
+    // No operator: substring match on the numeric string.
+  }
+
+  if (type === "select") {
+    return filterVal === "" || raw.toLowerCase() === filterVal.toLowerCase();
+  }
+
+  return raw.toLowerCase().includes(filterVal.toLowerCase());
+};
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 /** Game table with resizable, reorderable columns, filter row, sort, group-by, and kind badge. */
@@ -148,11 +214,13 @@ export const ResourceTable = ({
   columnFilters,
   groupByState,
   sortConfig,
+  activeSchema,
   colDragActiveKey,
   supportsReorder,
   t,
   onRowOpen,
   onFilterChange,
+  onClearFilters,
   onMoveUp,
   onMoveDown,
   onResizeStart,
@@ -160,15 +228,22 @@ export const ResourceTable = ({
   onColDrop,
   onSortChange,
   onToggleGroup,
+  trainingBadges,
 }: ResourceTableProps): ReactElement => {
   const allRows = activeTab?.rows ?? [];
 
-  // 1. Filter
+  // Build field-definition lookup for type-aware filtering (UV2).
+  const fieldDefMap = new Map<string, MetadataFieldDefinition>(
+    (activeSchema?.fields ?? []).map((f) => [f.key, f]),
+  );
+  const hasActiveFilter = Object.values(columnFilters).some((v) => v !== "");
+
+  // 1. Filter (UV2: type-aware operators)
   const filteredRows = allRows.filter((row: ResourceRow): boolean =>
     Object.entries(columnFilters).every(([key, val]: [string, string]): boolean => {
       if (!val) return true;
       const text = key === "game" ? row.game : String(row.metadata[key] ?? "");
-      return text.toLowerCase().includes(val.toLowerCase());
+      return applyFilter(text, val, fieldDefMap.get(key));
     }),
   );
 
@@ -278,19 +353,69 @@ export const ResourceTable = ({
               })}
             </tr>
             <tr className="resource-filter-row">
-              {activeTab.metadataColumnOrder.map((key: string): ReactElement => (
-                <th key={key} className="resource-filter-cell">
-                  <input
-                    type="text"
-                    className={`resource-filter-input${columnFilters[key] ? " resource-filter-input--active" : ""}`}
-                    aria-label={`Filter ${key}`}
-                    value={columnFilters[key] ?? ""}
-                    onChange={(e: ChangeEvent<HTMLInputElement>): void => {
-                      onFilterChange(key, e.target.value);
-                    }}
-                  />
+              {activeTab.metadataColumnOrder.map((key: string): ReactElement => {
+                const fieldDef = fieldDefMap.get(key);
+                const filterVal = columnFilters[key] ?? "";
+                const isActive = Boolean(filterVal);
+                const cellClass = `resource-filter-cell${isActive ? " resource-filter-cell--active" : ""}`;
+
+                // Select columns get a dropdown of allowed values (UV2).
+                if (fieldDef?.type === "select" && fieldDef.selectValues?.length) {
+                  return (
+                    <th key={key} className={cellClass}>
+                      <select
+                        className={`resource-filter-select${isActive ? " resource-filter-input--active" : ""}`}
+                        aria-label={`Filter ${key}`}
+                        value={filterVal}
+                        onChange={(e: ChangeEvent<HTMLSelectElement>): void => {
+                          onFilterChange(key, e.target.value);
+                        }}
+                      >
+                        <option value="">—</option>
+                        {fieldDef.selectValues.map((v) => (
+                          <option key={v} value={v}>{v}</option>
+                        ))}
+                      </select>
+                    </th>
+                  );
+                }
+
+                // Number columns show a placeholder hint for operators (UV2).
+                const placeholder =
+                  fieldDef?.type === "number"
+                    ? ">2000"
+                    : fieldDef?.type === "date"
+                      ? "2024"
+                      : "";
+
+                return (
+                  <th key={key} className={cellClass}>
+                    <input
+                      type="text"
+                      className={`resource-filter-input${isActive ? " resource-filter-input--active" : ""}`}
+                      aria-label={`Filter ${key}`}
+                      placeholder={placeholder}
+                      value={filterVal}
+                      onChange={(e: ChangeEvent<HTMLInputElement>): void => {
+                        onFilterChange(key, e.target.value);
+                      }}
+                    />
+                  </th>
+                );
+              })}
+              {/* Clear-all button in last cell (only visible when a filter is active) */}
+              {hasActiveFilter && (
+                <th className="resource-filter-cell resource-filter-cell--clear" key="__clear__">
+                  <button
+                    type="button"
+                    className="resource-filter-clear-btn"
+                    title={t("resources.table.clearFilters", "Clear all filters")}
+                    onClick={onClearFilters}
+                  >
+                    ✕
+                  </button>
                 </th>
-              ))}
+              )}
             </tr>
           </thead>
           <tbody>
@@ -363,6 +488,11 @@ export const ResourceTable = ({
                             </span>
                           )}
                           <KindBadge kind={row.kind} t={t} />
+                          {trainingBadges && (() => {
+                            const ref = rowSourceGameRef(row);
+                            const badge = ref ? trainingBadges.get(ref) : undefined;
+                            return badge ? <TrainingBadgeChip badge={badge} /> : null;
+                          })()}
                           <button type="button" className="resource-open-button">
                             {row.game}
                           </button>

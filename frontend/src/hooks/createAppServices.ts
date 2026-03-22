@@ -93,8 +93,15 @@ export const toSessionItem = (raw: unknown, activeSessionId: string | null): Ses
   const sessionId: string = typeof session.sessionId === "string" ? session.sessionId : "";
   const pgnModel: unknown = (session.snapshot as { pgnModel?: unknown } | null)?.pgnModel;
   const hv = (key: string): string => getHeaderValue(pgnModel, key, "").trim();
-  const sourceRef = session.sourceRef as { locator?: unknown } | null | undefined;
+  const sourceRef = session.sourceRef as { kind?: unknown; locator?: unknown; recordId?: unknown } | null | undefined;
   const sourceLocator: string = typeof sourceRef?.locator === "string" ? sourceRef.locator : "";
+  const sourceGameRef: string = sourceRef
+    ? [
+        typeof sourceRef.kind === "string" ? sourceRef.kind : "",
+        typeof sourceRef.locator === "string" ? sourceRef.locator : "",
+        typeof sourceRef.recordId === "string" ? sourceRef.recordId : "",
+      ].join(":")
+    : "";
   return {
     sessionId,
     title: typeof session.title === "string" ? session.title : sessionId,
@@ -107,6 +114,7 @@ export const toSessionItem = (raw: unknown, activeSessionId: string | null): Ses
     event: hv("Event"),
     date: hv("Date"),
     sourceLocator,
+    sourceGameRef,
   };
 };
 

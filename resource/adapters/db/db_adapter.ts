@@ -21,8 +21,10 @@ import type { PgnResourceRef } from "../../domain/resource_ref";
 import type { PgnListGamesResult, PgnLoadGameResult, PgnSaveGameResult, PgnCreateGameResult } from "../../domain/actions";
 import type { DbGateway } from "../../io/db_gateway";
 import { runMigrations } from "../../database/migrations/runner";
-import { extractPgnMetadata } from "../../domain/metadata";
 import type { BuildPositionIndex } from "./position_index";
+import type { BuildMoveEdgeIndex } from "./move_edge_index";
+import type { MoveFrequencyEntry } from "../../domain/move_frequency";
+import { asMetaRow, makeWritePositionIndex, makeWriteMoveEdgeIndex, writeMetadata } from "./db_indexer";
 
 // ── Per-path migration cache ───────────────────────────────────────────────────
 
@@ -66,12 +68,6 @@ type GameRow = {
   kind: string;
 };
 
-type MetaRow = {
-  game_id: string;
-  meta_key: string;
-  val_str: string | null;
-};
-
 const asGameRow = (r: unknown): GameRow => {
   const v = r as Record<string, unknown>;
   return {
@@ -84,55 +80,13 @@ const asGameRow = (r: unknown): GameRow => {
   };
 };
 
-const asMetaRow = (r: unknown): MetaRow => {
-  const v = r as Record<string, unknown>;
-  return {
-    game_id: String(v.game_id ?? ""),
-    meta_key: String(v.meta_key ?? ""),
-    val_str: v.val_str == null ? null : String(v.val_str),
-  };
-};
-
 // ── Kind detection ─────────────────────────────────────────────────────────────
 
 /** Detect game kind from PGN text: 'position' if [SetUp "1"] is present. */
 const detectKind = (pgnText: string): string =>
   /\[SetUp\s+"1"\]/i.test(pgnText) ? "position" : "game";
 
-// ── Metadata helpers ───────────────────────────────────────────────────────────
-
-const makeWritePositionIndex = (indexer: BuildPositionIndex | undefined) =>
-  async (db: DbGateway, gameId: string, pgnText: string): Promise<void> => {
-    if (!indexer) return;
-    const records = indexer(pgnText);
-    for (const { ply, hash } of records) {
-      await db.execute(
-        "INSERT OR IGNORE INTO position_hashes (hash, game_id, ply) VALUES (?, ?, ?)",
-        [hash, gameId, ply],
-      );
-    }
-  };
-
-const writeMetadata = async (
-  db: DbGateway,
-  gameId: string,
-  pgnText: string,
-): Promise<void> => {
-  const { metadata, availableMetadataKeys } = extractPgnMetadata(pgnText);
-
-  for (const key of availableMetadataKeys) {
-    const val = String(metadata[key] ?? "");
-    if (!val) continue;
-    await db.execute(
-      "INSERT OR REPLACE INTO game_metadata (game_id, meta_key, val_str) VALUES (?, ?, ?)",
-      [gameId, key, val],
-    );
-    await db.execute(
-      "INSERT OR IGNORE INTO metadata_keys (key, value_type) VALUES (?, 'string')",
-      [key],
-    );
-  }
-};
+// ── Read-side metadata helpers ─────────────────────────────────────────────────
 
 const loadMetadataForGames = async (
   db: DbGateway,
@@ -175,9 +129,10 @@ const loadAvailableMetadataKeys = async (db: DbGateway): Promise<string[]> => {
  */
 export const createDbAdapter = (
   gatewayForPath: (dbPath: string) => DbGateway,
-  options?: { buildPositionIndex?: BuildPositionIndex },
+  options?: { buildPositionIndex?: BuildPositionIndex; buildMoveEdgeIndex?: BuildMoveEdgeIndex },
 ): PgnResourceAdapter => {
   const writePositionIndex = makeWritePositionIndex(options?.buildPositionIndex);
+  const writeMoveEdgeIndex = makeWriteMoveEdgeIndex(options?.buildMoveEdgeIndex);
   return {
   kind: "db",
 
@@ -276,6 +231,8 @@ export const createDbAdapter = (
     await writeMetadata(db, gameId, pgnText);
     await db.execute("DELETE FROM position_hashes WHERE game_id = ?", [gameId]);
     await writePositionIndex(db, gameId, pgnText);
+    await db.execute("DELETE FROM move_edges WHERE game_id = ?", [gameId]);
+    await writeMoveEdgeIndex(db, gameId, pgnText);
 
     return { gameRef, revisionToken: newToken };
   },
@@ -308,12 +265,79 @@ export const createDbAdapter = (
     );
     await writeMetadata(db, id, pgnText);
     await writePositionIndex(db, id, pgnText);
+    await writeMoveEdgeIndex(db, id, pgnText);
 
     return {
       gameRef: { kind: "db", locator: dbPath, recordId: id },
       revisionToken,
       title: titleHint,
     };
+  },
+
+  searchByPositionHash: async (positionHash: string, resourceRef: PgnResourceRef): Promise<PgnGameRef[]> => {
+    const dbPath = String(resourceRef.locator || "").trim();
+    if (!dbPath || !positionHash) return [];
+    const db = gatewayForPath(dbPath);
+    await ensureMigrated(db, dbPath);
+    const rows = await db.query(
+      "SELECT DISTINCT game_id FROM position_hashes WHERE hash = ?",
+      [positionHash],
+    );
+    return rows.map((r) => ({
+      kind: "db" as const,
+      locator: dbPath,
+      recordId: String((r as Record<string, unknown>).game_id ?? ""),
+    })).filter((ref) => ref.recordId !== "");
+  },
+
+  explorePosition: async (positionHash: string, resourceRef: PgnResourceRef): Promise<MoveFrequencyEntry[]> => {
+    const dbPath = String(resourceRef.locator || "").trim();
+    if (!dbPath || !positionHash) return [];
+    const db = gatewayForPath(dbPath);
+    await ensureMigrated(db, dbPath);
+    const rows = await db.query(
+      `SELECT move_san, move_uci,
+              COUNT(*) AS count,
+              SUM(CASE result WHEN '1-0'     THEN 1 ELSE 0 END) AS white_wins,
+              SUM(CASE result WHEN '1/2-1/2' THEN 1 ELSE 0 END) AS draws,
+              SUM(CASE result WHEN '0-1'     THEN 1 ELSE 0 END) AS black_wins
+       FROM move_edges
+       WHERE position_hash = ?
+       GROUP BY move_san, move_uci
+       ORDER BY COUNT(*) DESC`,
+      [positionHash],
+    );
+    return rows.map((r) => {
+      const v = r as Record<string, unknown>;
+      return {
+        san:        String(v.move_san   ?? ""),
+        uci:        String(v.move_uci   ?? ""),
+        count:      Number(v.count      ?? 0),
+        whiteWins:  Number(v.white_wins ?? 0),
+        draws:      Number(v.draws      ?? 0),
+        blackWins:  Number(v.black_wins ?? 0),
+      };
+    }).filter((e) => e.san !== "");
+  },
+
+  searchByText: async (query: string, resourceRef: PgnResourceRef): Promise<PgnGameRef[]> => {
+    const dbPath = String(resourceRef.locator || "").trim();
+    const q = String(query || "").trim();
+    if (!dbPath || !q) return [];
+    const db = gatewayForPath(dbPath);
+    await ensureMigrated(db, dbPath);
+    const pattern = `%${q}%`;
+    const rows = await db.query(
+      `SELECT DISTINCT game_id FROM game_metadata
+       WHERE meta_key IN ('White', 'Black', 'Event', 'Site')
+         AND LOWER(val_str) LIKE LOWER(?)`,
+      [pattern],
+    );
+    return rows.map((r) => ({
+      kind: "db" as const,
+      locator: dbPath,
+      recordId: String((r as Record<string, unknown>).game_id ?? ""),
+    })).filter((ref) => ref.recordId !== "");
   },
 
   reorder: async (gameRef: PgnGameRef, neighborGameRef: PgnGameRef): Promise<void> => {

@@ -54,8 +54,8 @@ const getTauriApis = (): { invoke: TauriInvoke; listen: TauriListen } => {
 // ── Output event payload ──────────────────────────────────────────────────────
 
 type EngineOutputPayload = {
-  id: string;
-  line: string;
+  /** The UCI output line, or null when the engine process exits. */
+  line: string | null;
 };
 
 // ── Factory ───────────────────────────────────────────────────────────────────
@@ -85,12 +85,14 @@ export const createTauriEngine = (
 
   const subscribeToOutput = async (): Promise<void> => {
     if (_unlistenFn) return;
-    const { listen } = await getTauriApis();
+    const { listen } = getTauriApis();
+    // Listen to the per-engine event channel emitted by the Rust backend.
+    const eventName = `engine://output/${config.id}`;
     _unlistenFn = await listen(
-      "engine-output",
+      eventName,
       (event: { payload: unknown }): void => {
         const payload = event.payload as EngineOutputPayload;
-        if (payload.id !== config.id) return;
+        if (payload.line === null) return; // engine exited sentinel
         for (const handler of outputHandlers) {
           handler(payload.line);
         }
@@ -102,14 +104,14 @@ export const createTauriEngine = (
     async ensureSpawned(): Promise<void> {
       if (_spawned) return;
       await subscribeToOutput();
-      const { invoke } = await getTauriApis();
-      await invoke("spawn_engine", { id: config.id, path: config.path });
+      const { invoke } = getTauriApis();
+      await invoke("spawn_engine", { engineId: config.id, path: config.path });
       _spawned = true;
     },
 
     async send(line: string): Promise<void> {
-      const { invoke } = await getTauriApis();
-      await invoke("send_to_engine", { id: config.id, line });
+      const { invoke } = getTauriApis();
+      await invoke("send_to_engine", { engineId: config.id, line });
     },
 
     onOutput(handler: (line: string) => void): () => void {
@@ -123,8 +125,8 @@ export const createTauriEngine = (
     async kill(): Promise<void> {
       _spawned = false;
       if (_unlistenFn) { _unlistenFn(); _unlistenFn = null; }
-      const { invoke } = await getTauriApis();
-      await invoke("kill_engine", { id: config.id });
+      const { invoke } = getTauriApis();
+      await invoke("kill_engine", { engineId: config.id });
     },
   };
 };

@@ -3,6 +3,7 @@ import type { PgnResourceAdapter } from "../domain/contracts";
 import { PGN_RESOURCE_KINDS, type PgnResourceKind } from "../domain/kinds";
 import type { PgnGameRef } from "../domain/game_ref";
 import type { PgnResourceRef } from "../domain/resource_ref";
+import type { MoveFrequencyEntry } from "../domain/move_frequency";
 
 /**
  * Resource client factory.
@@ -64,5 +65,20 @@ export const createResourceClient = (
       throw new Error(`Adapter for kind '${gameRef.kind}' does not support reordering.`);
     }
     return adapter.reorder(gameRef, neighborGameRef);
+  },
+  searchByPositionHash: async (positionHash: string, resourceRef: PgnResourceRef): Promise<PgnGameRef[]> => {
+    const adapter: PgnResourceAdapter = resolveAdapter(adapters, resourceRef.kind);
+    if (typeof adapter.searchByPositionHash !== "function") return [];
+    return adapter.searchByPositionHash(positionHash, resourceRef);
+  },
+  searchByText: async (query: string, resourceRef: PgnResourceRef): Promise<PgnGameRef[]> => {
+    const adapter: PgnResourceAdapter = resolveAdapter(adapters, resourceRef.kind);
+    if (typeof adapter.searchByText !== "function") return [];
+    return adapter.searchByText(query, resourceRef);
+  },
+  explorePosition: async (positionHash: string, resourceRef: PgnResourceRef): Promise<MoveFrequencyEntry[]> => {
+    const adapter: PgnResourceAdapter = resolveAdapter(adapters, resourceRef.kind);
+    if (typeof adapter.explorePosition !== "function") return [];
+    return adapter.explorePosition(positionHash, resourceRef);
   },
 });

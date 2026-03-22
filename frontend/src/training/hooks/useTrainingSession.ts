@@ -18,6 +18,7 @@
 import { useReducer, useCallback, useRef } from "react";
 import type { TrainingProtocol, TrainingConfig, TrainingSessionState, UserMoveInput, ResultSummary } from "../domain/training_protocol";
 import type { TrainingTranscript } from "../domain/training_transcript";
+import { saveTranscriptBadge } from "../transcript_storage";
 import {
   createTranscript,
   addPlyRecord,
@@ -128,26 +129,37 @@ export type TrainingSessionControls = {
 };
 
 export const useTrainingSession = (
-  protocol: TrainingProtocol,
+  protocols: TrainingProtocol | TrainingProtocol[],
 ): TrainingSessionControls => {
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
   const movePlyStartTimeRef = useRef<number>(Date.now());
+  const protocolsArr = Array.isArray(protocols) ? protocols : [protocols];
+  const activeProtocolRef = useRef<TrainingProtocol>(protocolsArr[0]!);
+  const activeSourceGameRefRef = useRef<string>("");
+
+  // Convenience accessor — always use ref so callbacks don't need to re-create.
+  const getProtocol = (): TrainingProtocol => activeProtocolRef.current;
 
   const start = useCallback(
     (config: TrainingConfig): void => {
-      const sessionState = protocol.initialize(config);
+      const found = protocolsArr.find((p) => p.id === config.protocol) ?? protocolsArr[0];
+      if (found) activeProtocolRef.current = found;
+      activeSourceGameRefRef.current = config.sourceGameRef;
+      const sessionState = activeProtocolRef.current.initialize(config);
       const transcript = createTranscript(config);
       movePlyStartTimeRef.current = Date.now();
       dispatch({ type: "start", sessionState, transcript });
     },
-    [protocol],
+    // protocolsArr is derived from stable prop — eslint-disable is intentional.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
   );
 
   const submitMove = useCallback(
     (move: UserMoveInput): void => {
       if (!state.sessionState || !state.transcript) return;
 
-      const result = protocol.evaluateMove(move, state.sessionState);
+      const result = getProtocol().evaluateMove(move, state.sessionState);
       const timeTaken = Date.now() - movePlyStartTimeRef.current;
       movePlyStartTimeRef.current = Date.now();
 
@@ -198,18 +210,18 @@ export const useTrainingSession = (
             ? state.sessionState.wrongCount + 1
             : state.sessionState.wrongCount,
       };
-      newSession = protocol.advance(newSession);
+      newSession = getProtocol().advance(newSession);
 
-      if (protocol.isComplete(newSession)) {
+      if (getProtocol().isComplete(newSession)) {
         const finalTranscript = completeTranscript(newTranscript);
-        const summary = protocol.summarize(newSession, finalTranscript);
+        const summary = getProtocol().summarize(newSession, finalTranscript);
         dispatch({ type: "review", summary, transcript: finalTranscript });
         return;
       }
 
       dispatch({ type: "advance", sessionState: newSession, transcript: newTranscript, feedback: result.feedback });
     },
-    [state.sessionState, state.transcript, protocol],
+    [state.sessionState, state.transcript],
   );
 
   const skipMove = useCallback((): void => {
@@ -238,17 +250,17 @@ export const useTrainingSession = (
       ...state.sessionState,
       skippedCount: state.sessionState.skippedCount + 1,
     };
-    newSession = protocol.advance(newSession);
+    newSession = getProtocol().advance(newSession);
 
-    if (protocol.isComplete(newSession)) {
+    if (getProtocol().isComplete(newSession)) {
       const finalTranscript = completeTranscript(newTranscript);
-      const summary = protocol.summarize(newSession, finalTranscript);
+      const summary = getProtocol().summarize(newSession, finalTranscript);
       dispatch({ type: "review", summary, transcript: finalTranscript });
       return;
     }
 
     dispatch({ type: "advance", sessionState: newSession, transcript: newTranscript, feedback: "skip" });
-  }, [state.sessionState, state.transcript, protocol]);
+  }, [state.sessionState, state.transcript]);
 
   const requestHint = useCallback((): void => {
     if (!state.sessionState) return;
@@ -268,16 +280,25 @@ export const useTrainingSession = (
     if (!state.transcript) { dispatch({ type: "idle" }); return; }
     const aborted = abortTranscript(state.transcript);
     if (state.sessionState) {
-      const summary = protocol.summarize(state.sessionState, aborted);
+      const summary = getProtocol().summarize(state.sessionState, aborted);
       dispatch({ type: "review", summary, transcript: aborted });
     } else {
       dispatch({ type: "idle" });
     }
-  }, [state.transcript, state.sessionState, protocol]);
+  }, [state.transcript, state.sessionState]);
 
   const confirmResult = useCallback((): void => {
+    if (state.summary && activeSourceGameRefRef.current) {
+      const s = state.summary;
+      saveTranscriptBadge(
+        activeSourceGameRefRef.current,
+        s.scorePercent,
+        activeProtocolRef.current.id,
+        { correct: s.correct, wrong: s.wrong, skipped: s.skipped, total: s.total, gradeLabel: s.gradeLabel },
+      );
+    }
     dispatch({ type: "idle" });
-  }, []);
+  }, [state.summary]);
 
   return {
     phase: state.phase,

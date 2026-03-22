@@ -337,7 +337,7 @@ They update as the user navigates moves (debounced 200ms).
 | E4 | Endgame panel UI + `endgame_client.ts` | E2 |
 | E5 | `game_db.ts` contract + `lichess_games.ts` adapter | None |
 | E6 | Game search UI + import to local DB | E5 + resource plan |
-| E7 | Chess.com opening + games adapters | E1, E5 |
-| E8 | `x2chess_backend` adapter (all three categories) | E1, E2, E5 |
-| E9 | Settings UI for provider configuration | E3, E4, E6 |
-| E10 | Local Syzygy adapter | Engines plan |
+| E7 | ✅ Chess.com opening + games adapters | E1, E5 |
+| E8 | `x2chess_backend` adapter (all three categories) — deferred (no backend yet) | E1, E2, E5 |
+| E9 | ✅ Settings UI for provider configuration (`ExtDatabaseSettingsDialog`, `useExtDatabaseSettings`) | E3, E4, E6 |
+| E10 | Local Syzygy adapter — deferred | Engines plan |

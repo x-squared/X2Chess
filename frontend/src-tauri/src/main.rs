@@ -1,12 +1,16 @@
 use std::collections::HashMap;
 use std::env;
 use std::fs;
+use std::io::{BufRead, BufReader, Write};
 use std::path::{Component, Path, PathBuf};
-use std::sync::Mutex;
+use std::process::{Child, Command, Stdio};
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 use rusqlite::types::ValueRef;
 use rusqlite::{params_from_iter, Connection};
 use serde_json::{json, Value as JsonValue};
+use tauri::Emitter;
 
 fn is_simple_file_name(file_name: &str) -> bool {
   let path = Path::new(file_name);
@@ -249,6 +253,104 @@ fn execute_db(
   Ok(())
 }
 
+// ── Engine process management (G3) ───────────────────────────────────────────
+
+struct EngineProcess {
+  stdin: Mutex<Box<dyn Write + Send>>,
+  /// Keep the Child handle alive so the process isn't orphaned.
+  _child: Arc<Mutex<Child>>,
+}
+
+struct EngineState {
+  engines: Mutex<HashMap<String, EngineProcess>>,
+}
+
+/// Spawn a UCI engine process and start streaming its output as Tauri events.
+/// Each stdout line is emitted as `engine://output/{engine_id}` with payload `{ line: "..." }`.
+#[tauri::command]
+fn spawn_engine(
+  app: tauri::AppHandle,
+  state: tauri::State<EngineState>,
+  engine_id: String,
+  path: String,
+) -> Result<(), String> {
+  let mut child = Command::new(&path)
+    .stdin(Stdio::piped())
+    .stdout(Stdio::piped())
+    .stderr(Stdio::null())
+    .spawn()
+    .map_err(|e| format!("Failed to spawn engine at {path}: {e}"))?;
+
+  let stdin: Box<dyn Write + Send> = Box::new(
+    child.stdin.take().ok_or("Engine stdin not available")?
+  );
+  let stdout = child.stdout.take().ok_or("Engine stdout not available")?;
+
+  let child_arc = Arc::new(Mutex::new(child));
+  let app_handle = app.clone();
+  let eid = engine_id.clone();
+
+  // Background thread: read stdout line by line and emit Tauri events.
+  thread::spawn(move || {
+    let reader = BufReader::new(stdout);
+    for line_result in reader.lines() {
+      match line_result {
+        Ok(line) => {
+          let event = format!("engine://output/{eid}");
+          let _ = app_handle.emit(&event, serde_json::json!({ "line": line }));
+        }
+        Err(_) => break,
+      }
+    }
+    // Engine process ended — emit a sentinel event.
+    let event = format!("engine://output/{eid}");
+    let _ = app_handle.emit(&event, serde_json::json!({ "line": null }));
+  });
+
+  let proc = EngineProcess {
+    stdin: Mutex::new(stdin),
+    _child: child_arc,
+  };
+
+  state.engines
+    .lock()
+    .map_err(|e| e.to_string())?
+    .insert(engine_id, proc);
+
+  Ok(())
+}
+
+/// Send a UCI command line to a running engine (appends `\n` automatically).
+#[tauri::command]
+fn send_to_engine(
+  state: tauri::State<EngineState>,
+  engine_id: String,
+  line: String,
+) -> Result<(), String> {
+  let engines = state.engines.lock().map_err(|e| e.to_string())?;
+  let proc = engines.get(&engine_id).ok_or("Engine not found")?;
+  let mut stdin = proc.stdin.lock().map_err(|e| e.to_string())?;
+  stdin.write_all(line.as_bytes()).map_err(|e| e.to_string())?;
+  stdin.write_all(b"\n").map_err(|e| e.to_string())?;
+  stdin.flush().map_err(|e| e.to_string())?;
+  Ok(())
+}
+
+/// Kill a running engine process and remove it from the registry.
+#[tauri::command]
+fn kill_engine(
+  state: tauri::State<EngineState>,
+  engine_id: String,
+) -> Result<(), String> {
+  let mut engines = state.engines.lock().map_err(|e| e.to_string())?;
+  if let Some(proc) = engines.remove(&engine_id) {
+    if let Ok(mut child) = proc._child.lock() {
+      let _ = child.kill();
+    }
+  }
+  Ok(())
+}
+
 #[tauri::command]
 fn pick_x2chess_file() -> Option<String> {
   rfd::FileDialog::new()
@@ -278,6 +380,7 @@ fn create_x2chess_file(suggested_name: String) -> Option<String> {
 fn main() {
   tauri::Builder::default()
     .manage(DbState { connections: Mutex::new(HashMap::new()) })
+    .manage(EngineState { engines: Mutex::new(HashMap::new()) })
     .invoke_handler(tauri::generate_handler![
       detect_default_games_directory,
       pick_games_directory,
@@ -294,6 +397,9 @@ fn main() {
       execute_db,
       pick_x2chess_file,
       create_x2chess_file,
+      spawn_engine,
+      send_to_engine,
+      kill_engine,
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

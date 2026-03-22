@@ -1,0 +1,356 @@
+/* ── Metadata Schema Editor (MD3) ──────────────────────────────────────────── */
+
+.schema-editor-dialog {
+  border: none;
+  border-radius: 8px;
+  padding: 0;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  max-width: 560px;
+  width: 96vw;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.schema-editor-dialog::backdrop {
+  background: rgba(0,0,0,0.3);
+}
+
+.schema-editor-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  overflow-y: auto;
+}
+
+.schema-editor-title {
+  margin: 0;
+  font-weight: 700;
+  font-size: 1em;
+  color: var(--text, #0f172a);
+}
+
+.schema-editor-name-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.87em;
+  color: var(--text-muted, #475569);
+}
+
+.schema-editor-name-input {
+  padding: 0.35em 0.6em;
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 4px;
+  font-size: 0.95em;
+  background: var(--surface, #fff);
+  color: var(--text, #0f172a);
+}
+
+.schema-editor-fields-heading {
+  margin: 0;
+  font-size: 0.87em;
+  font-weight: 600;
+  color: var(--text-muted, #475569);
+}
+
+.schema-field-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.schema-field-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  background: var(--surface-2, #f8fafc);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 4px;
+  font-size: 0.87em;
+}
+
+.schema-field-handle {
+  color: var(--text-muted, #94a3b8);
+  cursor: grab;
+  font-size: 1.1em;
+}
+
+.schema-field-key {
+  flex: 1;
+  font-weight: 600;
+  color: var(--text, #0f172a);
+}
+
+.schema-field-type {
+  color: var(--text-muted, #64748b);
+  font-size: 0.85em;
+}
+
+.schema-field-required {
+  font-size: 0.78em;
+  color: var(--accent, #2563eb);
+  background: var(--accent-soft, #eff6ff);
+  padding: 0.1em 0.4em;
+  border-radius: 999px;
+}
+
+.schema-field-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.schema-icon-btn {
+  padding: 0.2em 0.35em;
+  font-size: 0.85em;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  cursor: pointer;
+  color: var(--text-muted, #64748b);
+  line-height: 1;
+}
+
+.schema-icon-btn:hover {
+  background: var(--surface, #fff);
+  border-color: var(--border, #cbd5e1);
+}
+
+.schema-icon-btn--danger:hover {
+  color: var(--danger, #dc2626);
+}
+
+.schema-icon-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.schema-field-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: var(--surface, #fff);
+  border: 1px solid var(--accent, #2563eb);
+  border-radius: 4px;
+  font-size: 0.87em;
+}
+
+.schema-field-edit-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.schema-field-edit-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  color: var(--text-muted, #475569);
+}
+
+.schema-field-edit-label--inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.schema-field-edit-label--full {
+  flex: 1 1 100%;
+}
+
+.schema-field-edit-input,
+.schema-field-edit-select {
+  padding: 0.3em 0.5em;
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 4px;
+  font-size: 0.93em;
+  background: var(--surface, #fff);
+  color: var(--text, #0f172a);
+}
+
+.schema-select-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  padding: 4px;
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 4px;
+  min-height: 2.2em;
+}
+
+.schema-select-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0.1em 0.5em;
+  background: var(--accent-soft, #eff6ff);
+  border: 1px solid var(--accent, #2563eb);
+  border-radius: 999px;
+  font-size: 0.85em;
+  color: var(--accent, #2563eb);
+}
+
+.schema-select-pill-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--accent, #2563eb);
+  font-size: 0.85em;
+  padding: 0 1px;
+  line-height: 1;
+}
+
+.schema-select-values-input {
+  border: none;
+  outline: none;
+  font-size: 0.9em;
+  flex: 1;
+  min-width: 80px;
+  background: transparent;
+  color: var(--text, #0f172a);
+}
+
+.schema-field-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.schema-editor-add-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.schema-editor-import-error {
+  color: var(--danger, #dc2626);
+  font-size: 0.85em;
+  margin: 0;
+}
+
+.schema-editor-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  border-top: 1px solid var(--border, #e2e8f0);
+  padding-top: 0.75rem;
+  margin-top: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.schema-editor-footer-left,
+.schema-editor-footer-right {
+  display: flex;
+  gap: 0.4rem;
+}
+
+/* Shared schema button styles */
+.schema-btn {
+  padding: 0.35em 0.9em;
+  border-radius: 4px;
+  font-size: 0.9em;
+  cursor: pointer;
+  border: 1px solid var(--border, #cbd5e1);
+}
+
+.schema-btn--primary {
+  background: var(--accent, #2563eb);
+  color: #fff;
+  border-color: var(--accent, #2563eb);
+  font-weight: 600;
+}
+
+.schema-btn--primary:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.schema-btn--secondary {
+  background: var(--surface, #fff);
+  color: var(--text, #0f172a);
+}
+
+.schema-btn--ghost {
+  background: transparent;
+  color: var(--text-muted, #64748b);
+  border-color: transparent;
+}
+
+.schema-btn--ghost:hover {
+  background: var(--surface-2, #f1f5f9);
+  border-color: var(--border, #cbd5e1);
+}
+
+/* ── MetadataFieldInput ─────────────────────────────────────────────────── */
+
+.metadata-field-input {
+  font-size: 0.82rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  background: var(--bg-input, var(--surface-2));
+  color: var(--text-primary);
+  padding: 0.2rem 0.35rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.metadata-field-text,
+.metadata-field-number {
+  height: 1.75rem;
+}
+
+.metadata-field-select {
+  height: 1.75rem;
+  cursor: pointer;
+}
+
+.metadata-field-flag {
+  width: 1rem;
+  height: 1rem;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+
+.metadata-field-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1rem;
+}
+
+.metadata-field-date-part {
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--bg-input, var(--surface-2));
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  padding: 0.15rem 0.2rem;
+  height: 1.75rem;
+  box-sizing: border-box;
+  -moz-appearance: textfield;
+}
+.metadata-field-date-part::-webkit-inner-spin-button,
+.metadata-field-date-part::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.metadata-field-date-dd,
+.metadata-field-date-mm {
+  width: 3rem;
+}
+.metadata-field-date-yyyy {
+  width: 4rem;
+}
+
+.metadata-field-date-sep {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  user-select: none;
+}
+

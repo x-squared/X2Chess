@@ -21,6 +21,9 @@
 import { createContext, useContext } from "react";
 import type { ReactNode, ReactElement } from "react";
 import type { PgnModel } from "../model/pgn_model";
+import type { PositionSearchHit, TextSearchHit } from "../../../resource/client/search_coordinator";
+import type { MoveFrequencyEntry } from "../../../resource/domain/move_frequency";
+import type { PgnResourceRef } from "../../../resource/domain/resource_ref";
 
 /** All service operations available to the component tree. */
 export type AppStartupServices = {
@@ -90,6 +93,26 @@ export type AppStartupServices = {
    */
   reorderGameInResource: (sourceRef: unknown, neighborSourceRef: unknown) => Promise<void>;
 
+  /**
+   * Search for games containing the given position across multiple resources.
+   * @param positionHash - 16-char FNV-1a hex hash of the first four FEN fields.
+   * @param resourceRefs - Canonical resource refs to fan out to.
+   */
+  searchByPosition: (positionHash: string, resourceRefs: PgnResourceRef[]) => Promise<PositionSearchHit[]>;
+  /**
+   * Search across resources for games whose metadata contains the query string.
+   * @param query Substring matched against White, Black, Event, Site fields.
+   * @param resourceRefs Canonical resource refs to fan out to.
+   */
+  searchByText: (query: string, resourceRefs: PgnResourceRef[]) => Promise<TextSearchHit[]>;
+  /**
+   * Return aggregated move-frequency statistics for the current position across
+   * the provided resource refs, merged by UCI key.
+   * @param positionHash 16-char FNV-1a hex hash of the position.
+   * @param resourceRefs Canonical resource refs to fan out to.
+   */
+  explorePosition: (positionHash: string, resourceRefs: PgnResourceRef[]) => Promise<MoveFrequencyEntry[]>;
+
   // ── Session management ─────────────────────────────────────────────────
   /**
    * Activate a different open session.
@@ -142,6 +165,9 @@ const defaultServices: AppStartupServices = {
   openResource: noop,
   openPgnText: noop,
   reorderGameInResource: async () => {},
+  searchByPosition: async () => [],
+  searchByText: async () => [],
+  explorePosition: async () => [],
   switchSession: noop,
   closeSession: noop,
   setMenuOpen: noop,

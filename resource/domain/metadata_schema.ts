@@ -152,6 +152,64 @@ export const KNOWN_PGN_METADATA_KEYS = Object.freeze([
   "X2Style",
 ]);
 
+// ── User-defined schema types (MD1) ───────────────────────────────────────────
+
+export type MetadataFieldType = "text" | "date" | "select" | "number" | "flag";
+
+export type MetadataFieldDefinition = {
+  key: string;
+  label: string;
+  type: MetadataFieldType;
+  required: boolean;
+  /** Controls column order; gaps allowed; ties sort by key. */
+  orderIndex: number;
+  /** Allowed values — only for type = "select". */
+  selectValues?: string[];
+  /** Tooltip / help text shown in the definition editor. */
+  description?: string;
+};
+
+export type MetadataSchema = {
+  /** Stable UUID. */
+  id: string;
+  name: string;
+  /** Monotonically increasing; incremented on each save. */
+  version: number;
+  fields: MetadataFieldDefinition[];
+};
+
+/**
+ * Built-in read-only schema based on the PGN Seven Tag Roster plus common
+ * extensions. Used when no user-defined schema is associated with a resource.
+ */
+export const BUILT_IN_SCHEMA: MetadataSchema = Object.freeze({
+  id: "builtin",
+  name: "Standard PGN",
+  version: 1,
+  fields: [
+    { key: "Event",       label: "Event",        type: "text",   required: false, orderIndex: 10 },
+    { key: "Site",        label: "Site",         type: "text",   required: false, orderIndex: 20 },
+    { key: "Date",        label: "Date",         type: "date",   required: false, orderIndex: 30 },
+    { key: "Round",       label: "Round",        type: "text",   required: false, orderIndex: 40 },
+    { key: "White",       label: "White",        type: "text",   required: false, orderIndex: 50 },
+    { key: "Black",       label: "Black",        type: "text",   required: false, orderIndex: 60 },
+    {
+      key: "Result",
+      label: "Result",
+      type: "select",
+      required: false,
+      orderIndex: 70,
+      selectValues: ["1-0", "0-1", "1/2-1/2", "*"],
+    },
+    { key: "WhiteElo",    label: "White Elo",    type: "number", required: false, orderIndex: 80 },
+    { key: "BlackElo",    label: "Black Elo",    type: "number", required: false, orderIndex: 90 },
+    { key: "ECO",         label: "ECO",          type: "text",   required: false, orderIndex: 100 },
+    { key: "Opening",     label: "Opening",      type: "text",   required: false, orderIndex: 110 },
+    { key: "TimeControl", label: "Time Control", type: "text",   required: false, orderIndex: 120 },
+    { key: "Annotator",   label: "Annotator",    type: "text",   required: false, orderIndex: 130 },
+  ] as MetadataFieldDefinition[],
+});
+
 export const PGN_METADATA_SCHEMA: Readonly<Record<string, MetadataFieldSchemaEntry>> = Object.freeze({
   Event: { key: "Event", parse: parseStringValue },
   Site: { key: "Site", parse: parseStringValue },

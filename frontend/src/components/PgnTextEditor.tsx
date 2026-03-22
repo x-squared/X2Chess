@@ -33,6 +33,25 @@ import {
 } from "../state/selectors";
 import { useServiceContext } from "../state/ServiceContext";
 import { useTranslator } from "../hooks/useTranslator";
+import {
+  truncateAfter,
+  truncateBefore,
+  deleteVariation,
+  deleteVariationsAfter,
+  promoteToMainline,
+  findCursorForMoveId,
+} from "../model/pgn_move_ops";
+import { TruncationMenu } from "./TruncationMenu";
+import type { TruncationAction } from "./TruncationMenu";
+import { QaBadge, QaInsertDialog } from "./QaBadge";
+import {
+  parseQaAnnotations,
+  hasQaAnnotations,
+  stripQaAnnotations,
+  replaceQaAnnotation,
+  appendQaAnnotation,
+} from "../resources_viewer/qa_parser";
+import type { QaAnnotation } from "../resources_viewer/qa_parser";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -205,6 +224,10 @@ type MoveSpanProps = {
    * @param position - Whether to insert before or after the move.
    */
   onInsertComment: (moveId: string, position: "before" | "after") => void;
+  /** Called when the user requests Q/A insertion on this move (UV10). */
+  onInsertQa: (moveId: string) => void;
+  /** Called when the user right-clicks a move to open the truncation context menu. */
+  onContextMenu: (moveId: string, san: string, isInVariation: boolean, rect: DOMRect) => void;
   /** Translator function. */
   t: (key: string, fallback?: string) => string;
 };
@@ -221,6 +244,8 @@ const MoveSpan = ({
   isSelected,
   onMoveClick,
   onInsertComment,
+  onInsertQa,
+  onContextMenu,
   t,
 }: MoveSpanProps): ReactElement => {
   const moveId: string = String(token.dataset.nodeId ?? "");
@@ -228,6 +253,16 @@ const MoveSpan = ({
   const handleClick = useCallback((): void => {
     onMoveClick(moveId);
   }, [moveId, onMoveClick]);
+
+  const handleContextMenu = useCallback(
+    (e: MouseEvent<HTMLSpanElement>): void => {
+      e.preventDefault();
+      const rect = (e.currentTarget as HTMLSpanElement).getBoundingClientRect();
+      const isInVariation = (token.dataset.variationDepth as number ?? 0) > 0;
+      onContextMenu(moveId, token.text, isInVariation, rect);
+    },
+    [moveId, token.text, token.dataset.variationDepth, onContextMenu],
+  );
 
   const handleKeyDown = (e: KeyboardEvent<HTMLSpanElement>): void => {
     if (e.key === "Enter" || e.key === " ") {
@@ -252,6 +287,14 @@ const MoveSpan = ({
     [moveId, onInsertComment],
   );
 
+  const handleQaClick = useCallback(
+    (e: MouseEvent): void => {
+      e.stopPropagation();
+      onInsertQa(moveId);
+    },
+    [moveId, onInsertQa],
+  );
+
   const className: string = [token.className, isSelected ? "text-editor-move-selected" : ""]
     .filter(Boolean)
     .join(" ");
@@ -268,6 +311,7 @@ const MoveSpan = ({
       tabIndex={0}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
+      onContextMenu={handleContextMenu}
     >
       {/* Before-button: shown left of move on hover via CSS */}
       <button
@@ -292,6 +336,17 @@ const MoveSpan = ({
       >
         +
       </button>
+      {/* Q/A insert button (UV10) */}
+      <button
+        type="button"
+        className="text-editor-insert-qa"
+        tabIndex={-1}
+        onClick={handleQaClick}
+        aria-label={t("editor.insertQa", "Add Q/A annotation")}
+        aria-hidden="true"
+      >
+        ?
+      </button>
     </span>
   );
 };
@@ -302,16 +357,20 @@ type TokenViewProps = {
   token: PlanToken;
   selectedMoveId: string | null;
   pendingFocusCommentId: string | null;
+  layoutMode: "plain" | "text" | "tree";
   onMoveClick: (moveId: string) => void;
   onInsertComment: (moveId: string, position: "before" | "after") => void;
   onCommentEdit: (commentId: string, newText: string) => void;
+  onEditQa: (commentId: string, index: number, rawText: string) => void;
+  onInsertQa: (moveId: string) => void;
+  onContextMenu: (moveId: string, san: string, isInVariation: boolean, rect: DOMRect) => void;
   t: (key: string, fallback?: string) => string;
 };
 
 /**
  * Dispatches a plan token to the appropriate sub-component.
  *
- * - `comment` tokens → `<CommentBlock>`
+ * - `comment` tokens → `<CommentBlock>` (with optional `<QaBadge>` in text/tree mode)
  * - `move` inline tokens → `<MoveSpan>`
  * - All other inline tokens (move_number, nag, result, space) → plain `<span>`
  */
@@ -319,19 +378,42 @@ const TokenView = ({
   token,
   selectedMoveId,
   pendingFocusCommentId,
+  layoutMode,
   onMoveClick,
   onInsertComment,
   onCommentEdit,
+  onEditQa,
+  onInsertQa,
+  onContextMenu,
   t,
 }: TokenViewProps): ReactElement => {
   if (token.kind === "comment") {
     const ct: CommentToken = token;
+    const showQaBadge: boolean =
+      layoutMode !== "plain" && !ct.plainLiteralComment && hasQaAnnotations(ct.rawText);
+    const qaAnnotations = showQaBadge ? parseQaAnnotations(ct.rawText) : [];
+    // Show stripped text in the editable block when Q/A is present in text/tree mode.
+    const displayToken: CommentToken =
+      showQaBadge
+        ? { ...ct, text: stripQaAnnotations(ct.rawText) }
+        : ct;
     return (
-      <CommentBlock
-        token={ct}
-        isFocused={ct.commentId === pendingFocusCommentId}
-        onEdit={onCommentEdit}
-      />
+      <>
+        {showQaBadge && (
+          <QaBadge
+            annotations={qaAnnotations}
+            t={t}
+            onEdit={(index: number): void => {
+              onEditQa(ct.commentId, index, ct.rawText);
+            }}
+          />
+        )}
+        <CommentBlock
+          token={displayToken}
+          isFocused={ct.commentId === pendingFocusCommentId}
+          onEdit={onCommentEdit}
+        />
+      </>
     );
   }
 
@@ -344,6 +426,8 @@ const TokenView = ({
         isSelected={String(it.dataset.nodeId ?? "") === selectedMoveId}
         onMoveClick={onMoveClick}
         onInsertComment={onInsertComment}
+        onInsertQa={onInsertQa}
+        onContextMenu={onContextMenu}
         t={t}
       />
     );
@@ -362,6 +446,19 @@ const TokenView = ({
 
 // ── PgnTextEditor (root) ──────────────────────────────────────────────────────
 
+// ── Q/A dialog state ──────────────────────────────────────────────────────────
+
+type QaDialogState = {
+  /** ID of the comment being edited/created. */
+  commentId: string;
+  /** Raw text of the comment (for edit). */
+  rawText: string;
+  /** Index of the annotation being edited, or -1 for insert. */
+  editIndex: number;
+  /** Pre-filled values when editing. */
+  initial?: QaAnnotation;
+};
+
 /** Renders the full PGN annotation editor from the computed token plan. */
 export const PgnTextEditor = (): ReactElement => {
   const services = useServiceContext();
@@ -375,6 +472,56 @@ export const PgnTextEditor = (): ReactElement => {
   // ── Collapse state (tree mode only; reset when model changes) ───────────────
   const [collapsedPaths, setCollapsedPaths] = useState<ReadonlySet<string>>(new Set());
   useEffect((): void => { setCollapsedPaths(new Set()); }, [pgnModel]);
+
+  // ── Truncation context menu state (M6/M7) ────────────────────────────────────
+  type ContextMenuState = {
+    moveId: string;
+    san: string;
+    isInVariation: boolean;
+    anchorRect: DOMRect;
+  };
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+
+  const handleMoveContextMenu = useCallback(
+    (moveId: string, san: string, isInVariation: boolean, rect: DOMRect): void => {
+      setContextMenu({ moveId, san, isInVariation, anchorRect: rect });
+    },
+    [],
+  );
+
+  const handleTruncationAction = useCallback(
+    (action: TruncationAction): void => {
+      if (!pgnModel) return;
+      const cursor = findCursorForMoveId(pgnModel, action.moveId);
+      if (!cursor) return;
+      let newModel: import("../model/pgn_model").PgnModel;
+      let newCursor: import("../model/pgn_move_ops").PgnCursor | null;
+      switch (action.type) {
+        case "delete_from_here":
+          [newModel, newCursor] = truncateAfter(pgnModel, cursor);
+          break;
+        case "delete_before_here":
+          [newModel, newCursor] = truncateBefore(pgnModel, cursor);
+          break;
+        case "delete_variation":
+          [newModel, newCursor] = deleteVariation(pgnModel, cursor);
+          break;
+        case "delete_variations_after":
+          [newModel, newCursor] = deleteVariationsAfter(pgnModel, cursor);
+          break;
+        case "promote_to_mainline":
+          [newModel, newCursor] = promoteToMainline(pgnModel, cursor);
+          break;
+        default:
+          return;
+      }
+      services.applyPgnModelEdit(newModel, newCursor?.moveId ?? null);
+    },
+    [pgnModel, services],
+  );
+
+  // ── Q/A dialog state (UV10/UV11) ─────────────────────────────────────────────
+  const [qaDialog, setQaDialog] = useState<QaDialogState | null>(null);
 
   const handleToggle = useCallback((key: string): void => {
     setCollapsedPaths((prev: ReadonlySet<string>): ReadonlySet<string> => {
@@ -411,6 +558,55 @@ export const PgnTextEditor = (): ReactElement => {
     },
     [services],
   );
+
+  // UV11: open read/edit dialog for an existing Q/A annotation.
+  const handleEditQa = useCallback(
+    (commentId: string, index: number, rawText: string): void => {
+      const annotations = parseQaAnnotations(rawText);
+      setQaDialog({
+        commentId,
+        rawText,
+        editIndex: index,
+        initial: annotations[index],
+      });
+    },
+    [],
+  );
+
+  // UV10: insert Q/A on a move — insert a new empty comment first, then open dialog.
+  const handleInsertQa = useCallback(
+    (moveId: string): void => {
+      // Open insert dialog targeted at this move's comment.
+      // We use commentId="" to signal "new annotation after move".
+      setQaDialog({ commentId: "", rawText: "", editIndex: -1, initial: undefined });
+      // Also insert a comment node so the model knows a comment is pending.
+      services.insertComment(moveId, "after");
+    },
+    [services],
+  );
+
+  const handleQaDialogSave = useCallback(
+    (_moveId: string, annotation: QaAnnotation): void => {
+      if (!qaDialog) return;
+      if (qaDialog.commentId && qaDialog.editIndex >= 0) {
+        // Edit existing annotation.
+        const updated = replaceQaAnnotation(qaDialog.rawText, qaDialog.editIndex, annotation);
+        services.saveCommentText(qaDialog.commentId, updated);
+      } else if (qaDialog.commentId) {
+        // Append new annotation to an existing comment.
+        const updated = appendQaAnnotation(qaDialog.rawText, annotation);
+        services.saveCommentText(qaDialog.commentId, updated);
+      }
+      // When commentId is empty, the insertComment above created the comment;
+      // pendingFocusCommentId will point to it — the user can type the Q/A there.
+      setQaDialog(null);
+    },
+    [qaDialog, services],
+  );
+
+  const handleQaDialogClose = useCallback((): void => {
+    setQaDialog(null);
+  }, []);
 
   if (!pgnModel) {
     return (
@@ -486,9 +682,13 @@ export const PgnTextEditor = (): ReactElement => {
                     token={token}
                     selectedMoveId={selectedMoveId}
                     pendingFocusCommentId={pendingFocusCommentId}
+                    layoutMode={layoutMode}
                     onMoveClick={handleMoveClick}
                     onInsertComment={handleInsertComment}
                     onCommentEdit={handleCommentEdit}
+                    onEditQa={handleEditQa}
+                    onInsertQa={handleInsertQa}
+                    onContextMenu={handleMoveContextMenu}
                     t={t}
                   />
                 );
@@ -496,6 +696,26 @@ export const PgnTextEditor = (): ReactElement => {
           </div>
         );
       })}
+      {qaDialog !== null && (
+        <QaInsertDialog
+          moveId={qaDialog.commentId}
+          initial={qaDialog.initial}
+          t={t}
+          onSave={handleQaDialogSave}
+          onClose={handleQaDialogClose}
+        />
+      )}
+      {contextMenu !== null && (
+        <TruncationMenu
+          moveId={contextMenu.moveId}
+          san={contextMenu.san}
+          isInVariation={contextMenu.isInVariation}
+          anchorRect={contextMenu.anchorRect}
+          t={t}
+          onAction={handleTruncationAction}
+          onClose={(): void => { setContextMenu(null); }}
+        />
+      )}
     </div>
   );
 };

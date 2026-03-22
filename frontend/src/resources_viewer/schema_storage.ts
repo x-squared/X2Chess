@@ -1,0 +1,144 @@
+/**
+ * schema_storage — read/write user-defined metadata schemas from localStorage.
+ *
+ * Integration API:
+ * - Exports: `loadSchemas`, `saveSchemas`, `findSchema`, `upsertSchema`,
+ *   `deleteSchema`, `validateSchemaJson`.
+ *
+ * Configuration API:
+ * - Schemas are persisted under the key `x2chess.metadata-schemas` in
+ *   `localStorage`.  No other configuration is required.
+ *
+ * Communication API:
+ * - Pure functions except for `loadSchemas` / `saveSchemas` which access
+ *   `localStorage`.
+ */
+
+import type { MetadataSchema, MetadataFieldDefinition } from "../../../resource/domain/metadata_schema";
+
+const STORAGE_KEY = "x2chess.metadata-schemas";
+
+// ── Serialized container ───────────────────────────────────────────────────────
+
+type SchemasContainer = {
+  schemas: MetadataSchema[];
+};
+
+// ── Read ───────────────────────────────────────────────────────────────────────
+
+/** Load all user-defined schemas from localStorage. Returns `[]` if none saved. */
+export const loadSchemas = (): MetadataSchema[] => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as SchemasContainer;
+    if (!Array.isArray(parsed?.schemas)) return [];
+    return parsed.schemas;
+  } catch {
+    return [];
+  }
+};
+
+// ── Write ──────────────────────────────────────────────────────────────────────
+
+/** Persist the full schemas list to localStorage. */
+export const saveSchemas = (schemas: MetadataSchema[]): void => {
+  const container: SchemasContainer = { schemas };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(container));
+};
+
+// ── Lookup ─────────────────────────────────────────────────────────────────────
+
+/** Find a schema by id, or `null` if not found. */
+export const findSchema = (
+  schemas: MetadataSchema[],
+  id: string,
+): MetadataSchema | null =>
+  schemas.find((s) => s.id === id) ?? null;
+
+// ── Upsert / delete ────────────────────────────────────────────────────────────
+
+/**
+ * Insert or replace a schema in the list.
+ * Returns a new array (does not mutate the input).
+ */
+export const upsertSchema = (
+  schemas: MetadataSchema[],
+  schema: MetadataSchema,
+): MetadataSchema[] => {
+  const existing = schemas.findIndex((s) => s.id === schema.id);
+  if (existing === -1) return [...schemas, schema];
+  return schemas.map((s, i) => (i === existing ? schema : s));
+};
+
+/**
+ * Remove a schema by id.
+ * Returns a new array (does not mutate the input).
+ */
+export const deleteSchema = (
+  schemas: MetadataSchema[],
+  id: string,
+): MetadataSchema[] => schemas.filter((s) => s.id !== id);
+
+// ── Export / import ────────────────────────────────────────────────────────────
+
+export type SchemaExportFile = {
+  "x2chess-schema": "1";
+  schema: MetadataSchema;
+};
+
+/** Serialize a schema to the export JSON format. */
+export const exportSchemaToJson = (schema: MetadataSchema): string =>
+  JSON.stringify({ "x2chess-schema": "1", schema }, null, 2);
+
+/**
+ * Parse and validate an import JSON string.
+ * Returns the schema, or throws with a descriptive message on error.
+ */
+export const validateSchemaJson = (json: string): MetadataSchema => {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    throw new Error("Invalid JSON");
+  }
+  const obj = parsed as Record<string, unknown>;
+  if (obj["x2chess-schema"] !== "1") {
+    throw new Error("Not a valid X2Chess schema file (missing x2chess-schema: \"1\")");
+  }
+  const schema = obj.schema as MetadataSchema | undefined;
+  if (!schema || typeof schema.id !== "string" || typeof schema.name !== "string") {
+    throw new Error("Schema file is malformed: missing id or name");
+  }
+  if (!Array.isArray(schema.fields)) {
+    throw new Error("Schema file is malformed: fields must be an array");
+  }
+  return schema;
+};
+
+// ── Reorder helpers ────────────────────────────────────────────────────────────
+
+/**
+ * Renumber field `orderIndex` values to 10, 20, 30, … preserving their
+ * current order. Leaves gaps for future insertions.
+ */
+export const renumberFields = (
+  fields: MetadataFieldDefinition[],
+): MetadataFieldDefinition[] =>
+  fields.map((f, i) => ({ ...f, orderIndex: (i + 1) * 10 }));
+
+/**
+ * Move the field at `fromIndex` to `toIndex`.
+ * Returns a new array with renumbered `orderIndex` values.
+ */
+export const moveField = (
+  fields: MetadataFieldDefinition[],
+  fromIndex: number,
+  toIndex: number,
+): MetadataFieldDefinition[] => {
+  if (fromIndex === toIndex) return fields;
+  const arr = [...fields];
+  const [item] = arr.splice(fromIndex, 1);
+  arr.splice(toIndex, 0, item);
+  return renumberFields(arr);
+};

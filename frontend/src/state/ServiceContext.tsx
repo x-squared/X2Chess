@@ -20,6 +20,7 @@
 
 import { createContext, useContext } from "react";
 import type { ReactNode, ReactElement } from "react";
+import type { PgnModel } from "../model/pgn_model";
 
 /** All service operations available to the component tree. */
 export type AppStartupServices = {
@@ -60,6 +61,13 @@ export type AppStartupServices = {
    * @param value - Raw value from the UI (will be normalized before applying).
    */
   updateGameInfoHeader: (key: string, value: string) => void;
+
+  // ── Move entry ─────────────────────────────────────────────────────────
+  /**
+   * Apply an edited PGN model (result of appendMove, replaceMove, etc.) and
+   * navigate the board cursor to `targetMoveId` if provided.
+   */
+  applyPgnModelEdit: (newModel: PgnModel, targetMoveId: string | null) => void;
 
   // ── Undo / Redo ────────────────────────────────────────────────────────
   undo: () => void;
@@ -127,6 +135,7 @@ const defaultServices: AppStartupServices = {
   saveCommentText: noop,
   applyDefaultIndent: noop,
   updateGameInfoHeader: noop,
+  applyPgnModelEdit: noop,
   undo: noop,
   redo: noop,
   openGameFromRef: noop,

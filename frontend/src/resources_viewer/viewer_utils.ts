@@ -4,18 +4,21 @@
  * Integration API:
  * - Exports: canonical `clampWidth`, `readPrefsMap`, `writePrefsMap`,
  *   `persistTabPrefs`, `reconcileColumns`, and shared types.
+ * - Exports: `GroupByState`, `SortConfig`, and their localStorage helpers.
  *
  * Configuration API:
- * - Column-width bounds and storage key are compile-time constants.
+ * - Column-width bounds and storage keys are compile-time constants.
  *
  * Communication API:
- * - `readPrefsMap` / `writePrefsMap` use `window.localStorage`.
+ * - `readPrefsMap` / `writePrefsMap` / `readGroupByState` / `writeGroupByState`
+ *   use `window.localStorage`.
  * - All other exports are pure functions with no I/O.
  */
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 export const PREFS_STORAGE_KEY = "x2chess.resourceViewerColumnPrefs.v1";
+export const GROUP_BY_STORAGE_PREFIX = "x2chess.groupby.";
 export const DEFAULT_COL_WIDTH_PX = 160;
 export const MIN_COL_WIDTH_PX = 90;
 export const MAX_COL_WIDTH_PX = 560;
@@ -45,6 +48,7 @@ export type ResourceRef = {
 
 export type ResourceRow = {
   game: string;
+  kind: "game" | "position";
   identifier: string;
   source: string;
   revision: string;
@@ -69,6 +73,18 @@ export type TabPrefs = {
   visibleMetadataKeys: string[];
   metadataColumnOrder: string[];
   columnWidths: Record<string, number>;
+};
+
+export type GroupByState = {
+  /** Ordered list of metadata keys to group by (first = outermost level). */
+  fields: string[];
+  /** Composite group keys that are collapsed. Format: `"depth:value"`. */
+  collapsedKeys: string[];
+};
+
+export type SortConfig = {
+  key: string;
+  dir: "asc" | "desc";
 };
 
 // ── Column-width clamp ────────────────────────────────────────────────────────
@@ -109,6 +125,40 @@ export const persistTabPrefs = (tab: TabState): void => {
     columnWidths: { ...tab.columnWidths },
   };
   writePrefsMap(map);
+};
+
+// ── Group-by localStorage helpers ─────────────────────────────────────────────
+
+export const readGroupByState = (tabId: string): GroupByState => {
+  try {
+    const raw: string | null =
+      window.localStorage?.getItem(`${GROUP_BY_STORAGE_PREFIX}${tabId}`) ?? null;
+    if (!raw) return { fields: [], collapsedKeys: [] };
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return { fields: [], collapsedKeys: [] };
+    const obj = parsed as Record<string, unknown>;
+    return {
+      fields: Array.isArray(obj.fields)
+        ? (obj.fields as unknown[]).filter((v): v is string => typeof v === "string")
+        : [],
+      collapsedKeys: Array.isArray(obj.collapsedKeys)
+        ? (obj.collapsedKeys as unknown[]).filter((v): v is string => typeof v === "string")
+        : [],
+    };
+  } catch {
+    return { fields: [], collapsedKeys: [] };
+  }
+};
+
+export const writeGroupByState = (tabId: string, state: GroupByState): void => {
+  try {
+    window.localStorage?.setItem(
+      `${GROUP_BY_STORAGE_PREFIX}${tabId}`,
+      JSON.stringify(state),
+    );
+  } catch {
+    // Storage unavailable.
+  }
 };
 
 // ── Column-order reconciliation ───────────────────────────────────────────────

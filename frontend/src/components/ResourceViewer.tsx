@@ -4,21 +4,23 @@
  * Manages tab identity from `AppStoreState` (populated by `useAppStartup`) and
  * loads game rows via the `resource_loader` service registry.  Handles tab
  * selection/close, column resize (pointer capture), column drag-to-reorder
- * (DragEvent), and the metadata column selector dialog.
+ * (pointer events — not HTML5 DnD to avoid conflict with file-drop), the
+ * metadata column selector dialog, multi-level group-by, and column sorting.
  *
  * Integration API:
  * - `<ResourceViewer />` — rendered by `AppShell` as the resource viewer card;
  *   no props required.
  *
  * Configuration API:
- * - No props.  Tab list flows from `AppStoreState.resourceViewerTabSnapshots`
- *   (populated by `useAppStartup` via `set_resource_tabs` action).
- * - Column preferences are persisted to `localStorage` under
+ * - No props.  Tab list flows from `AppStoreState.resourceViewerTabSnapshots`.
+ * - Column preferences persisted to `localStorage` under
  *   `x2chess.resourceViewerColumnPrefs.v1`.
+ * - Group-by configuration persisted to `localStorage` under
+ *   `x2chess.groupby.<tabId>`.
  *
  * Communication API:
- * - Inbound: re-renders when `resourceViewerTabSnapshots` or `activeResourceTabId`
- *   change via the `AppStoreState`.
+ * - Inbound: re-renders when `resourceViewerTabSnapshots` or
+ *   `activeResourceTabId` change via the `AppStoreState`.
  * - Outbound: loads rows via `getResourceLoaderService()` on tab activation;
  *   opens games via `useServiceContext().openGameFromRef()`.
  */
@@ -31,7 +33,6 @@ import {
   useId,
   type ReactElement,
   type FormEvent,
-  type DragEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { useAppContext } from "../state/app_context";
@@ -49,14 +50,27 @@ import {
   writePrefsMap,
   persistTabPrefs,
   reconcileColumns,
+  readGroupByState,
+  writeGroupByState,
   DEFAULT_METADATA_KEYS,
   type TabState,
   type TabPrefs,
   type ResourceRef,
+  type GroupByState,
+  type SortConfig,
 } from "../resources_viewer/viewer_utils";
 import { ResourceTabBar } from "./ResourceTabBar";
 import { ResourceTable } from "./ResourceTable";
 import { ResourceMetadataDialog } from "./ResourceMetadataDialog";
+import { MetadataSchemaEditor } from "./MetadataSchemaEditor";
+import { NewGameDialog } from "./NewGameDialog";
+import {
+  loadSchemas,
+  saveSchemas,
+  upsertSchema,
+} from "../resources_viewer/schema_storage";
+import type { MetadataSchema } from "../../../resource/domain/metadata_schema";
+import { BUILT_IN_SCHEMA } from "../../../resource/domain/metadata_schema";
 
 // ── Local types ───────────────────────────────────────────────────────────────
 
@@ -76,7 +90,7 @@ const hydrateRows = (
   const rows = (Array.isArray(entries) ? entries : []).map((entry: unknown) => {
     const record: Record<string, unknown> =
       entry && typeof entry === "object" ? (entry as Record<string, unknown>) : {};
-    const sourceRefRaw: unknown = record.sourceRef;
+    const sourceRefRaw: unknown = record.sourceRef ?? record.gameRef;
     const sourceRef: Record<string, unknown> =
       sourceRefRaw && typeof sourceRefRaw === "object"
         ? (sourceRefRaw as Record<string, unknown>)
@@ -110,8 +124,14 @@ const hydrateRows = (
       metaWhite && metaBlack && metaWhite !== "?" && metaBlack !== "?"
         ? `${metaWhite} \u2013 ${metaBlack}`
         : String(record.titleHint ?? identifier ?? t("resources.table.unknown", "Untitled"));
+
+    // Derive game kind from the entry's gameKind field.
+    const rawKind: unknown = record.gameKind;
+    const kind: "game" | "position" = rawKind === "position" ? "position" : "game";
+
     return {
       game: gameLabel,
+      kind,
       identifier,
       source: metadata.source,
       revision: metadata.revision,
@@ -163,7 +183,7 @@ const initTab = (snapshot: ResourceTabSnapshot): TabState => {
 
 // ── ResourceViewer ────────────────────────────────────────────────────────────
 
-/** Renders the resource viewer: tab bar, game table, and metadata dialog. */
+/** Renders the resource viewer: tab bar, group-by toolbar, game table, and metadata dialog. */
 export const ResourceViewer = (): ReactElement => {
   const { state } = useAppContext();
   const services = useServiceContext();
@@ -180,9 +200,22 @@ export const ResourceViewer = (): ReactElement => {
   const [dialogKey, setDialogKey] = useState<number>(0);
   // Per-tab column filter strings; keyed by tabId.
   const [columnFiltersMap, setColumnFiltersMap] = useState<Record<string, Record<string, string>>>({});
+  // Per-tab group-by state; keyed by tabId.
+  const [groupByMap, setGroupByMap] = useState<Record<string, GroupByState>>({});
+  // Per-tab sort config; keyed by tabId.
+  const [sortMap, setSortMap] = useState<Record<string, SortConfig | null>>({});
+  // Currently-dragged column key (pointer-based, not HTML5 DnD).
+  const [colDragActiveKey, setColDragActiveKey] = useState<string>("");
+  // User-defined metadata schemas.
+  const [schemas, setSchemas] = useState<MetadataSchema[]>(() => loadSchemas());
+  // Per-tab selected schema ID (null = built-in).
+  const [tabSchemaMap, setTabSchemaMap] = useState<Record<string, string | null>>({});
+  const [schemaEditorOpen, setSchemaEditorOpen] = useState<boolean>(false);
+  const [editingSchema, setEditingSchema] = useState<MetadataSchema | null>(null);
+  const [newGameDialogOpen, setNewGameDialogOpen] = useState<boolean>(false);
 
   const columnResizeRef = useRef<ColumnResizeState | null>(null);
-  const dragKeyRef = useRef<string>("");
+  const colDragKeyRef = useRef<string>("");
 
   // ── Sync tab list from state snapshot ─────────────────────────────────
 
@@ -202,6 +235,17 @@ export const ResourceViewer = (): ReactElement => {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabSnapshots, activeTabIdFromState]);
+
+  // ── Load group-by from localStorage when a tab first becomes active ───
+
+  useEffect((): void => {
+    if (!activeTabId) return;
+    setGroupByMap((prev): Record<string, GroupByState> => {
+      if (prev[activeTabId]) return prev;
+      const loaded = readGroupByState(activeTabId);
+      return { ...prev, [activeTabId]: loaded };
+    });
+  }, [activeTabId]);
 
   // ── Row loading ────────────────────────────────────────────────────────
 
@@ -269,14 +313,20 @@ export const ResourceViewer = (): ReactElement => {
     };
 
     const onUp = (): void => {
-      if (!columnResizeRef.current) return;
-      const key: string = columnResizeRef.current.key;
-      columnResizeRef.current = null;
-      setTabs((prev: TabState[]): TabState[] => {
-        const tab: TabState | undefined = prev.find((t: TabState): boolean => t.tabId === activeTabId);
-        if (tab && key) persistTabPrefs(tab);
-        return prev;
-      });
+      if (columnResizeRef.current) {
+        const key: string = columnResizeRef.current.key;
+        columnResizeRef.current = null;
+        setTabs((prev: TabState[]): TabState[] => {
+          const tab: TabState | undefined = prev.find((t: TabState): boolean => t.tabId === activeTabId);
+          if (tab && key) persistTabPrefs(tab);
+          return prev;
+        });
+      }
+      // Also clear any column drag that was in progress.
+      if (colDragKeyRef.current) {
+        colDragKeyRef.current = "";
+        setColDragActiveKey("");
+      }
     };
 
     window.addEventListener("pointermove", onMove);
@@ -295,6 +345,8 @@ export const ResourceViewer = (): ReactElement => {
     tabs.find((t: TabState): boolean => t.tabId === activeTabId) ?? null;
 
   const columnFilters: Record<string, string> = columnFiltersMap[activeTabId ?? ""] ?? {};
+  const groupByState: GroupByState = groupByMap[activeTabId ?? ""] ?? { fields: [], collapsedKeys: [] };
+  const sortConfig: SortConfig | null = sortMap[activeTabId ?? ""] ?? null;
 
   const supportsReorder: boolean = activeTab?.resourceRef.kind === "db";
 
@@ -338,24 +390,18 @@ export const ResourceViewer = (): ReactElement => {
     [activeTab],
   );
 
-  const handleDragStart = useCallback(
-    (key: string, e: DragEvent<HTMLTableCellElement>): void => {
-      dragKeyRef.current = key;
-      e.dataTransfer.setData("text/plain", key);
-      e.dataTransfer.effectAllowed = "move";
-    },
-    [],
-  );
+  // ── Pointer-based column drag (UV1) ───────────────────────────────────
 
-  const handleDragOver = useCallback((e: DragEvent<HTMLTableCellElement>): void => {
-    e.preventDefault();
+  const handleColDragStart = useCallback((key: string): void => {
+    colDragKeyRef.current = key;
+    setColDragActiveKey(key);
   }, []);
 
-  const handleDrop = useCallback(
-    (targetKey: string, e: DragEvent<HTMLTableCellElement>): void => {
-      e.preventDefault();
-      const fromKey: string = dragKeyRef.current;
-      dragKeyRef.current = "";
+  const handleColDrop = useCallback(
+    (targetKey: string): void => {
+      const fromKey: string = colDragKeyRef.current;
+      colDragKeyRef.current = "";
+      setColDragActiveKey("");
       if (!fromKey || fromKey === targetKey || !activeTabId) return;
       setTabs((prev: TabState[]): TabState[] =>
         prev.map((t: TabState): TabState => {
@@ -374,6 +420,84 @@ export const ResourceViewer = (): ReactElement => {
     },
     [activeTabId],
   );
+
+  // ── Sort (UV4) ────────────────────────────────────────────────────────
+
+  const handleSortChange = useCallback((key: string): void => {
+    if (!activeTabId) return;
+    setSortMap((prev): Record<string, SortConfig | null> => {
+      const current: SortConfig | null = prev[activeTabId] ?? null;
+      let next: SortConfig | null;
+      if (!current || current.key !== key) {
+        next = { key, dir: "asc" };
+      } else if (current.dir === "asc") {
+        next = { key, dir: "desc" };
+      } else {
+        next = null;
+      }
+      return { ...prev, [activeTabId]: next };
+    });
+  }, [activeTabId]);
+
+  // ── Group-by (UV3) ────────────────────────────────────────────────────
+
+  const handleGroupByAdd = useCallback((field: string): void => {
+    if (!activeTabId) return;
+    setGroupByMap((prev): Record<string, GroupByState> => {
+      const current: GroupByState = prev[activeTabId] ?? { fields: [], collapsedKeys: [] };
+      if (current.fields.includes(field)) return prev;
+      const next: GroupByState = { ...current, fields: [...current.fields, field] };
+      writeGroupByState(activeTabId, next);
+      return { ...prev, [activeTabId]: next };
+    });
+  }, [activeTabId]);
+
+  const handleGroupByRemove = useCallback((field: string): void => {
+    if (!activeTabId) return;
+    setGroupByMap((prev): Record<string, GroupByState> => {
+      const current: GroupByState = prev[activeTabId] ?? { fields: [], collapsedKeys: [] };
+      const next: GroupByState = { ...current, fields: current.fields.filter((f) => f !== field) };
+      writeGroupByState(activeTabId, next);
+      return { ...prev, [activeTabId]: next };
+    });
+  }, [activeTabId]);
+
+  const handleGroupByMoveUp = useCallback((field: string): void => {
+    if (!activeTabId) return;
+    setGroupByMap((prev): Record<string, GroupByState> => {
+      const current: GroupByState = prev[activeTabId] ?? { fields: [], collapsedKeys: [] };
+      const idx = current.fields.indexOf(field);
+      if (idx <= 0) return prev;
+      const fields = [...current.fields];
+      [fields[idx - 1], fields[idx]] = [fields[idx], fields[idx - 1]];
+      const next: GroupByState = { ...current, fields };
+      writeGroupByState(activeTabId, next);
+      return { ...prev, [activeTabId]: next };
+    });
+  }, [activeTabId]);
+
+  const handleGroupByClear = useCallback((): void => {
+    if (!activeTabId) return;
+    const next: GroupByState = { fields: [], collapsedKeys: [] };
+    writeGroupByState(activeTabId, next);
+    setGroupByMap((prev) => ({ ...prev, [activeTabId]: next }));
+  }, [activeTabId]);
+
+  const handleToggleGroup = useCallback((groupKey: string): void => {
+    if (!activeTabId) return;
+    setGroupByMap((prev): Record<string, GroupByState> => {
+      const current: GroupByState = prev[activeTabId] ?? { fields: [], collapsedKeys: [] };
+      const collapsed = new Set(current.collapsedKeys);
+      if (collapsed.has(groupKey)) {
+        collapsed.delete(groupKey);
+      } else {
+        collapsed.add(groupKey);
+      }
+      const next: GroupByState = { ...current, collapsedKeys: [...collapsed] };
+      writeGroupByState(activeTabId, next);
+      return { ...prev, [activeTabId]: next };
+    });
+  }, [activeTabId]);
 
   const handleMetadataOpen = useCallback((): void => {
     setDialogKey((k: number): number => k + 1);
@@ -413,6 +537,11 @@ export const ResourceViewer = (): ReactElement => {
       const updated: Record<string, string> = { ...existing, [key]: value };
       return { ...prev, [tabId]: updated };
     });
+  }, [activeTabId]);
+
+  const handleClearFilters = useCallback((): void => {
+    if (!activeTabId) return;
+    setColumnFiltersMap((prev) => ({ ...prev, [activeTabId]: {} }));
   }, [activeTabId]);
 
   const reloadTab = useCallback((tabId: string | null): void => {
@@ -476,6 +605,90 @@ export const ResourceViewer = (): ReactElement => {
     setIsDialogOpen(false);
   }, [activeTabId]);
 
+  // ── Schema handlers (MD4) ─────────────────────────────────────────────
+
+  const activeSchemaId: string | null = tabSchemaMap[activeTabId ?? ""] ?? null;
+  const activeSchema: MetadataSchema =
+    schemas.find((s) => s.id === activeSchemaId) ?? BUILT_IN_SCHEMA;
+
+  const handleSchemaSelect = useCallback((id: string): void => {
+    if (!activeTabId) return;
+    setTabSchemaMap((prev) => ({ ...prev, [activeTabId]: id === "builtin" ? null : id }));
+  }, [activeTabId]);
+
+  const handleSchemaManage = useCallback((): void => {
+    setEditingSchema(null);
+    setSchemaEditorOpen(true);
+  }, []);
+
+  const handleSchemaSave = useCallback((saved: MetadataSchema): void => {
+    setSchemas((prev) => {
+      const next = upsertSchema(prev, saved);
+      saveSchemas(next);
+      return next;
+    });
+    setSchemaEditorOpen(false);
+    setEditingSchema(null);
+  }, []);
+
+  const handleSchemaEditorClose = useCallback((): void => {
+    setSchemaEditorOpen(false);
+    setEditingSchema(null);
+  }, []);
+
+  // ── New game (NG6) ────────────────────────────────────────────────────
+
+  const handleNewGame = useCallback((): void => {
+    setNewGameDialogOpen(true);
+  }, []);
+
+  const handleNewGameCreate = useCallback((pgn: string): void => {
+    setNewGameDialogOpen(false);
+    services.openPgnText(pgn);
+  }, [services]);
+
+  const handleNewGameClose = useCallback((): void => {
+    setNewGameDialogOpen(false);
+  }, []);
+
+  // ── MD8: derive effective tab with column order from active schema ────
+
+  const schemaOrderedKeys: string[] | null =
+    activeSchema.id !== BUILT_IN_SCHEMA.id
+      ? [...activeSchema.fields]
+          .sort((a, b) =>
+            a.orderIndex !== b.orderIndex
+              ? a.orderIndex - b.orderIndex
+              : a.key.localeCompare(b.key),
+          )
+          .map((f) => f.key)
+      : null;
+
+  const activeTabForTable: TabState | null = (() => {
+    if (!activeTab || !schemaOrderedKeys) return activeTab;
+    const schemaSet = new Set(schemaOrderedKeys);
+    const rest = activeTab.metadataColumnOrder.filter(
+      (k: string): boolean => !schemaSet.has(k) && k !== "game",
+    );
+    const newOrder = ["game", ...schemaOrderedKeys, ...rest];
+    return { ...activeTab, metadataColumnOrder: newOrder, visibleMetadataKeys: schemaOrderedKeys };
+  })();
+
+  // ── Available fields for group-by (exclude system keys and "game") ────
+
+  const availableGroupByFields: string[] = activeTab
+    ? activeTab.availableMetadataKeys.filter(
+        (k: string): boolean =>
+          k !== "game" &&
+          k !== "identifier" &&
+          k !== "source" &&
+          k !== "revision" &&
+          !groupByState.fields.includes(k),
+      )
+    : [];
+
+  const hasActiveFilters: boolean = Object.values(columnFilters).some((v) => Boolean(v));
+
   // ── Render ────────────────────────────────────────────────────────────
 
   return (
@@ -490,9 +703,106 @@ export const ResourceViewer = (): ReactElement => {
         t={t}
       />
 
+      {/* Group-by toolbar (UV3) */}
+      {activeTab && (
+        <div className="resource-groupby-toolbar">
+          <span className="resource-groupby-label">
+            {t("resources.groupby.label", "Group by:")}
+          </span>
+          {groupByState.fields.length > 0 && (
+            <span className="resource-groupby-pills">
+              {groupByState.fields.map((field: string, idx: number): ReactElement => (
+                <span key={field} className="resource-groupby-pill">
+                  <button
+                    type="button"
+                    className="resource-groupby-pill-up"
+                    disabled={idx === 0}
+                    aria-label={t("resources.groupby.moveUp", "Move level up")}
+                    onClick={(): void => { handleGroupByMoveUp(field); }}
+                  >↑</button>
+                  <span className="resource-groupby-pill-label">{field}</span>
+                  <button
+                    type="button"
+                    className="resource-groupby-pill-remove"
+                    aria-label={t("resources.groupby.remove", "Remove group level")}
+                    onClick={(): void => { handleGroupByRemove(field); }}
+                  >×</button>
+                </span>
+              ))}
+            </span>
+          )}
+          {availableGroupByFields.length > 0 && (
+            <select
+              className="resource-groupby-add"
+              value=""
+              aria-label={t("resources.groupby.add", "Add group level")}
+              onChange={(e): void => {
+                if (e.target.value) handleGroupByAdd(e.target.value);
+              }}
+            >
+              <option value="">{t("resources.groupby.addPlaceholder", "+ Add level")}</option>
+              {availableGroupByFields.map((f) => (
+                <option key={f} value={f}>{f}</option>
+              ))}
+            </select>
+          )}
+          {groupByState.fields.length > 0 && (
+            <button
+              type="button"
+              className="resource-groupby-clear"
+              onClick={handleGroupByClear}
+            >
+              {t("resources.groupby.clear", "Clear")}
+            </button>
+          )}
+          {hasActiveFilters && (
+            <button
+              type="button"
+              className="resource-filter-clear-all"
+              onClick={handleClearFilters}
+            >
+              {t("resources.filter.clearAll", "Clear filters")}
+            </button>
+          )}
+          {/* Schema chooser (MD4) */}
+          <span className="resource-schema-label">
+            {t("resources.schema.label", "Schema:")}
+          </span>
+          <select
+            className="resource-schema-select"
+            value={activeSchema.id}
+            aria-label={t("resources.schema.select", "Select metadata schema")}
+            onChange={(e): void => { handleSchemaSelect(e.target.value); }}
+          >
+            <option value={BUILT_IN_SCHEMA.id}>{BUILT_IN_SCHEMA.name}</option>
+            {schemas.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="resource-schema-manage-btn"
+            onClick={handleSchemaManage}
+          >
+            {t("resources.schema.manage", "Manage schemas…")}
+          </button>
+          {/* New game button (NG6) */}
+          <button
+            type="button"
+            className="resource-new-game-btn"
+            onClick={handleNewGame}
+          >
+            {t("resources.newGame", "+ New game")}
+          </button>
+        </div>
+      )}
+
       <ResourceTable
-        activeTab={activeTab}
+        activeTab={activeTabForTable}
         columnFilters={columnFilters}
+        groupByState={groupByState}
+        sortConfig={sortConfig}
+        colDragActiveKey={colDragActiveKey}
         supportsReorder={supportsReorder}
         t={t}
         onRowOpen={handleRowOpen}
@@ -500,9 +810,10 @@ export const ResourceViewer = (): ReactElement => {
         onMoveUp={handleMoveUp}
         onMoveDown={handleMoveDown}
         onResizeStart={handleResizeStart}
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
-        onDrop={handleDrop}
+        onColDragStart={handleColDragStart}
+        onColDrop={handleColDrop}
+        onSortChange={handleSortChange}
+        onToggleGroup={handleToggleGroup}
       />
 
       <ResourceMetadataDialog
@@ -515,6 +826,22 @@ export const ResourceViewer = (): ReactElement => {
         onClose={handleMetadataClose}
         onReset={handleMetadataReset}
       />
+
+      {schemaEditorOpen && (
+        <MetadataSchemaEditor
+          schema={editingSchema}
+          t={t}
+          onSave={handleSchemaSave}
+          onClose={handleSchemaEditorClose}
+        />
+      )}
+
+      {newGameDialogOpen && (
+        <NewGameDialog
+          onCreate={handleNewGameCreate}
+          onClose={handleNewGameClose}
+        />
+      )}
     </section>
   );
 };

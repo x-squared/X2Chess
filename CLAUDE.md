@@ -99,9 +99,15 @@ the same area) is a violation.
 - `resource_docs_cleanup_f409e241.plan.md` — resource API docs compliance
 - `full_react_rewrite_08d1b94a.plan.md` — React migration (completed)
 - `developer_tools_toggle_7c98bd50.plan.md` — developer-tools toggle
+- `database_resource_2e8f4c91.plan.md` — SQLite `.x2chess` resource (Phase 1+5 in progress)
 - `resource_ext_databases_a1b2c3d4.plan.md` — external game/opening/endgame database integration
-- `engines_integration_e5f6a7b8.plan.md` — chess engine (UCI) integration
+- `engines_integration_e5f6a7b8.plan.md` — chess engine (UCI) integration; Maia-2 for training
 - `training_mode_c9d0e1f2.plan.md` — training mode (Replay protocol + transcript/merge infrastructure)
+- `move_entry_game_editing_b3c4d5e6.plan.md` — board-only move entry, variation forks, truncation, dirty flag
+- `text_mode_layout_example_f7a8b9c0.plan.md` — text-mode layout example with `[[br]]`/`[[indent]]` markers
+- `metadata_definition_system_d1e2f3a4.plan.md` — metadata schemas (types, dialog, export/import)
+- `new_game_setup_e5f6a7b8.plan.md` — New Game dialog (standard / custom FEN, castling, Chess960)
+- `resource_viewer_ux_c2d3e4f5.plan.md` — DnD fix, filter/group, position extraction, game kind, Q/A annotations
 
 ## Key types / entry points
 

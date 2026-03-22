@@ -217,6 +217,23 @@ export const useAppStartup = (): AppStartupServices => {
         bundle.applyModelUpdate(newModel, null, { recordHistory: true });
       },
 
+      // Move entry
+      applyPgnModelEdit: (newModel: PgnModel, targetMoveId: string | null): void => {
+        bundle.applyModelUpdate(newModel, null, { recordHistory: true });
+        if (targetMoveId) {
+          const pos = (bundle.legacyState.movePositionById as Record<string, { mainlinePly?: number | null; fen?: string; lastMove?: [string, string] | null } | undefined> | undefined)?.[targetMoveId];
+          if (pos && typeof pos.mainlinePly === "number") {
+            bundle.legacyState.selectedMoveId = targetMoveId;
+            bundle.legacyState.boardPreview = null;
+            void bundle.navigation.gotoPly(pos.mainlinePly, { animate: false });
+          } else if (pos?.fen) {
+            bundle.legacyState.selectedMoveId = targetMoveId;
+            bundle.legacyState.boardPreview = { fen: pos.fen, lastMove: pos.lastMove ?? null } as unknown as import("../board/runtime").BoardPreviewLike;
+            syncStateToReact();
+          }
+        }
+      },
+
       // History
       undo: (): void => {
         bundle.history.performUndo();

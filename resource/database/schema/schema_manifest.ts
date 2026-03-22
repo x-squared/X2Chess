@@ -67,4 +67,10 @@ export const MIGRATIONS: readonly Migration[] = [
       `CREATE INDEX IF NOT EXISTS idx_position_hashes_hash ON position_hashes(hash)`,
     ],
   },
+  {
+    version: 5,
+    statements: [
+      `ALTER TABLE games ADD COLUMN kind TEXT NOT NULL DEFAULT 'game'`,
+    ],
+  },
 ] as const;

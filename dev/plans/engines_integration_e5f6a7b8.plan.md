@@ -292,20 +292,47 @@ Add as a background task with no board rendering requirement.
 
 ---
 
-## Bundled Stockfish
+## Supported engines
 
-For app distribution, bundle Stockfish as a Tauri sidecar:
-- `src-tauri/binaries/stockfish-aarch64-apple-darwin` (macOS ARM)
-- `src-tauri/binaries/stockfish-x86_64-unknown-linux-gnu` (Linux)
-- `src-tauri/binaries/stockfish-x86_64-pc-windows-msvc.exe` (Windows)
+The architecture is engine-agnostic (UCI protocol). Any UCI-compatible engine
+works. The table below lists engines of particular interest.
 
-In `tauri.conf.json`:
-```json
-{ "bundle": { "externalBin": ["binaries/stockfish"] } }
-```
+| Engine | License | Elo (approx) | Notes |
+|---|---|---|---|
+| **Stockfish** | GPL-3.0 | 3600+ | Reference engine; strongest; NNUE evaluation; bundling deferred — to be discussed at app delivery time |
+| **Maia Chess / Maia-2** | GPL-3.0 | Configurable 1100–1900 | Trained on human games; plays human-like mistakes at the selected level; single `maia2` model covers all Elo ranges; **primary engine for training mode** |
+| **Leela Chess Zero (Lc0)** | GPL-3.0 | 3600+ | Neural network MCTS; GPU-optimized; different evaluation style from alpha-beta engines; large weights download |
+| **Ethereal** | GPL-3.0 | 3450+ | C, NNUE; high code quality; good educational reference |
+| **Fairy-Stockfish** | GPL-3.0 | — | Stockfish variant with support for Xiangqi, Shogi, Crazyhouse, Antichess, etc. Useful if variant support is added |
+| **Arasan** | **MIT** | ~2800–3000 | C++; cross-platform; **most permissive license** for bundling (no source-distribution requirement) |
+| **Reckless / Rustic** | Open source | ~2000–2600 | Rust-native engines; architecturally interesting given Tauri's Rust foundation |
 
-For the browser/web build: Stockfish-WASM (`stockfish.js` npm package) as
-a Web Worker fallback, automatically selected when not in Tauri runtime.
+### Licensing note
+
+All GPL-3.0 engines can be bundled in the app for commercial distribution, but
+require distributing the engine source code and GPL-3.0 license text alongside.
+A 2022 legal case (Stockfish vs ChessBase) confirmed enforcement. Arasan (MIT)
+has no such requirement.
+
+Add the licenses in a suitable distribution location. Add this either to a creat-distribution workflow, or do it right now.
+
+### Priority for X2Chess use cases
+
+| Use case | Recommended engine |
+|---|---|
+| Play vs computer at human-like level | **Maia-2** (human-like mistakes at configured Elo) |
+| Real-time position analysis | Stockfish (user-installed) or Lc0 |
+| Game annotation | Stockfish (user-installed) |
+| Best-move hints | Any engine; Stockfish preferred |
+| Variants (Crazyhouse, etc.) | Fairy-Stockfish |
+| Bundled fallback (permissive license) | Arasan |
+
+### Stockfish bundling
+
+Deferred — not included in initial Tauri app bundle. To be discussed at
+delivery time. Users install Stockfish independently (`brew install stockfish`
+on macOS; package managers on Linux; manual on Windows) and configure the path
+in `config/engines.json`.
 
 ---
 
@@ -325,22 +352,25 @@ a Web Worker fallback, automatically selected when not in Tauri runtime.
 Scores displayed from White's perspective in the UI (normalized from
 side-to-move perspective in UCI output).
 
+This is to be configurable.
+
 ---
 
 ## Open questions
 
-1. **Engine bundling size**: Stockfish 16 binary is ~80MB. Is this acceptable
-   in the Tauri app bundle, or should we prompt users to install it separately?
-2. **Multiple simultaneous engines**: should analysis and play-vs share the
-   same engine process, or run separate instances?
-3. **Pondering**: should the engine ponder (think on opponent's time) in
-   play-vs mode? Configurable option.
-4. **NNUE weights**: Stockfish uses NNUE evaluation by default. The bundled
-   binary includes weights; no extra download needed. For Leela Zero, the
-   weights file must be downloaded separately.
-5. **Web fallback**: Stockfish-WASM runs in a Web Worker and has API parity
-   with UCI. However, it is significantly slower than the native binary.
-   Should we warn users when running in degraded WASM mode?
+1. **Multiple simultaneous engines**: should analysis and play-vs share the
+   same engine process, or run separate instances? -> a choice to be made when engines are started.
+2. **Pondering**: should the engine ponder (think on opponent's time) in
+   play-vs mode? Configurable option. -> let the user choose (setting, but overridable when using engine in play)
+3. **Lc0 weights**: Leela Zero requires a separate weights file download
+   (~100MB+). Should the app guide users through this, or treat Lc0 as
+   entirely self-managed? -> make a note, discuss later.
+4. **Maia-2 distribution**: the `maia2` single model covers all Elo levels.
+   Weights are ~200MB. Could be bundled as the training-mode companion engine
+   — discuss at delivery time alongside Stockfish bundling decision. -> defer
+5. **Web fallback**: if a WASM engine is needed (browser build), Stockfish-WASM
+   is the most mature option. Should we warn users when running in degraded
+   WASM mode? -> yes, but that should not be necessary, I hope, as we do no browser setup.
 
 ---
 
@@ -355,7 +385,6 @@ side-to-move perspective in UCI output).
 | G5 | `engine_manager.ts` + config loading | G4 |
 | G6 | Analysis panel UI (`AnalysisPanel.tsx`) + real-time board arrows | G5 |
 | G7 | Best-move hint button in editor toolbar | G5 |
-| G8 | Play vs engine: session mode + engine response loop | G5 |
+| G8 | Play vs engine (Maia-2 for human-like play; any configured engine) | G5 |
 | G9 | Game annotation batch analysis | G5 |
-| G10 | Stockfish WASM adapter (web fallback) | G2 |
-| G11 | Bundled Stockfish sidecar in Tauri app | G4 |
+| G10 | Stockfish WASM adapter (web fallback, deferred) | G2 |

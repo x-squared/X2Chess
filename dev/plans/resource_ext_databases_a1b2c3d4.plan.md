@@ -180,6 +180,10 @@ type TbMoveEntry = {
 
 ### User configuration
 
+Configuration lives in `config/ext-sources.json` in the app data directory.
+The structure is versioned and user-editable; the app provides a settings UI
+to manage it.
+
 ```typescript
 type ExtSourceConfig = {
   gameDatabases: GameDbSourceConfig[];
@@ -190,18 +194,51 @@ type ExtSourceConfig = {
 type GameDbSourceConfig =
   | { type: "lichess"; maxResults?: number }
   | { type: "chessdotcom"; username?: string }
+  | { type: "x2chess_backend"; url: string; apiKey?: string; label: string }
   | { type: "custom"; url: string; apiKey?: string; label: string };
 
 type OpeningDbSourceConfig =
-  | { type: "lichess"; defaultSpeed?: string[]; defaultRatingRange?: [number, number] }
+  | { type: "lichess"; defaultSpeeds?: string[]; defaultRatingRange?: [number, number] }
   | { type: "chessdotcom" }
+  | { type: "x2chess_backend"; url: string; label: string }
   | { type: "custom"; url: string; label: string };
 
 type TbSourceConfig =
   | { type: "lichess" }
+  | { type: "x2chess_backend"; url: string; label: string }
   | { type: "syzygy_local"; enginePath: string; tbPath: string }
   | { type: "custom"; url: string; label: string };
 ```
+
+**Configuration is additive**: users can have multiple providers of each type
+active simultaneously. The client fans out to all enabled providers and merges
+results (for game search) or uses the first available (for opening/endgame).
+
+---
+
+## Own backend support
+
+An X2Chess backend service can proxy all three external source types. This is
+useful when:
+- A commercial API requires a server-side API key (not safe to embed in client)
+- Rate-limit pooling across many users is needed
+- A large tablebase (Syzygy 7-piece, ~149GB) is hosted once for all users
+- YottaBase / LumbrasGigaBase or other commercial DBs are licensed server-side
+
+The `x2chess_backend` adapter type targets an X2Chess-hosted REST API that
+mirrors the same interfaces as the individual third-party adapters:
+
+```
+GET /api/ext/opening?fen=...&speeds=...      → OpeningResult
+GET /api/ext/tablebase?fen=...               → TbProbeResult
+POST /api/ext/games/search                   → GameSearchResult
+GET  /api/ext/games/{id}                     → PGN text
+```
+
+This means the frontend adapter layer is identical for hosted and self-service
+sources — only the base URL differs. Backend implementation is out of scope
+for the initial release but the `x2chess_backend` adapter type reserves the
+integration point in the config schema.
 
 ---
 
@@ -209,41 +246,44 @@ type TbSourceConfig =
 
 ### Phase E1 — Lichess opening explorer (highest value, fully free)
 
-Lichess provides a well-documented REST API at `https://explorer.lichess.ovh/`:
+Lichess provides a well-documented REST API:
 - `GET /lichess?fen=...&speeds=...&ratings=...` for master/club games
 - `GET /masters?fen=...` for over-the-board master games
 - No API key required; rate-limited to ~5 req/s
 
 Implementation: `resource-ext/adapters/opening/lichess_opening.ts`
 
-This is the **first concrete adapter to build** — it has no auth requirement,
-returns immediate value, and exercises the full `OpeningDatabaseAdapter` contract.
+**First adapter to build** — no auth, exercises the full `OpeningDatabaseAdapter`
+contract, immediately useful.
 
 ### Phase E2 — Lichess tablebase API (7-piece, free)
 
-`https://tablebase.lichess.ovh/standard?fen=...`
+`GET /standard?fen=...` at tablebase.lichess.ovh.
 
 Returns WDL, DTZ, and per-move breakdown. No auth required. Piece-count check
-before querying (reject positions with > 7 pieces). This powers an "endgame
-probe" panel in the board view.
+before querying (reject positions with > 7 pieces). Powers the endgame probe
+panel.
+
+The adapter is written against the generic `EndgameTbAdapter` contract so that
+an `x2chess_backend` or `custom` tablebase can be hot-swapped with zero
+frontend changes.
 
 ### Phase E3 — Lichess game search
 
-`https://lichess.org/api/games/user/{username}` (stream NDJSON).
+`GET /api/games/user/{username}` (streams NDJSON).
 
-Most useful for "load my recent games from Lichess." Requires optional
-OAuth token for private games. First implementation: public games only.
+First implementation: public games only. OAuth token optional for private
+games; stored in OS keychain via Tauri's secure store.
 
 ### Phase E4 — Chess.com games
 
-`https://api.chess.com/pub/player/{username}/games/{YYYY}/{MM}`.
-Public, no auth. Slightly different structure (PGN embedded in JSON).
+`GET /pub/player/{username}/games/{YYYY}/{MM}`.
+Public, no auth. PGN embedded in response JSON.
 
-### Phase E5 — Local Syzygy (optional, deferred)
+### Phase E5 — Local Syzygy (deferred)
 
-Requires a locally installed Syzygy tablebase path and a probe binary or
-engine integration. Defer until engine integration (see engines plan) is in
-place, since the engine can probe Syzygy natively.
+Requires engine integration (see engines plan) — the engine can probe Syzygy
+natively via UCI `setoption name SyzygyPath`. Defer to engine phase.
 
 ---
 
@@ -255,32 +295,35 @@ place, since the engine can probe Syzygy natively.
 | Board view — endgame panel | Tablebase probe for current position (when ≤ 7 pieces) |
 | Resource viewer — search bar | Cross-database game search |
 | Import dialog | Import selected external games into local `.x2chess` DB |
+| Settings dialog | Configure active providers per category |
 
-The opening explorer panel and tablebase panel are rendered below the board
-when available. They update as the user navigates moves (debounced 200ms).
+Opening explorer and tablebase panels render below the board when enabled.
+They update as the user navigates moves (debounced 200ms).
 
 ---
 
 ## Caching strategy
 
 - Opening queries: `Map<fen+options, OpeningResult>` in-memory per session;
-  no persistence (data changes over time).
+  no persistence (data changes as games are played).
 - Tablebase probes: `Map<fen, TbProbeResult>` in-memory per session; probes
-  are deterministic so results can be persisted to `localStorage` long-term.
-- Game searches: no caching (user-initiated, results change).
+  are deterministic so results may also be persisted to `localStorage`.
+- Game searches: no caching (user-initiated; results change).
 
 ---
 
 ## Open questions
 
-1. **Auth flow for Chess.com / Lichess OAuth**: should tokens be stored in
-   the OS keychain via Tauri's secure store, or in a local config file?
-2. **Rate limiting**: should the client expose a global rate-limiter, or
-   trust each adapter to handle its own limits?
-3. **Offline mode**: should adapters degrade gracefully (return empty) or
-   surface a clear "unavailable" state in the UI?
-4. **YottaBase / OpeningMaster**: these don't appear to have public APIs;
-   may require scraping or bulk PGN download. Defer until an official API exists.
+1. **Auth flow**: Lichess/Chess.com OAuth tokens — OS keychain (Tauri secure
+   store) or local config file?
+2. **Rate limiting**: global rate-limiter in the client, or per-adapter?
+3. **Offline mode**: adapters degrade gracefully (return empty + show
+   "unavailable" badge) vs blocking the panel entirely.
+4. **YottaBase / LumbrasGigaBase / OpeningMaster**: no public REST APIs found;
+   access requires bulk PGN download or commercial agreements. Candidate for
+   own-backend proxy when/if licensed.
+5. **Backend hosting**: if a shared X2Chess backend is deployed, should the app
+   default to it, or require explicit opt-in?
 
 ---
 
@@ -291,8 +334,10 @@ when available. They update as the user navigates moves (debounced 200ms).
 | E1 | `opening_db.ts` contract + `lichess_opening.ts` adapter | None |
 | E2 | `endgame_tb.ts` contract + `lichess_tb.ts` adapter | None |
 | E3 | `ext_config.ts` + `opening_client.ts` + opening panel UI | E1 |
-| E4 | Endgame panel UI + tablebase client | E2 |
+| E4 | Endgame panel UI + `endgame_client.ts` | E2 |
 | E5 | `game_db.ts` contract + `lichess_games.ts` adapter | None |
 | E6 | Game search UI + import to local DB | E5 + resource plan |
 | E7 | Chess.com opening + games adapters | E1, E5 |
-| E8 | Local Syzygy adapter | Engines plan |
+| E8 | `x2chess_backend` adapter (all three categories) | E1, E2, E5 |
+| E9 | Settings UI for provider configuration | E3, E4, E6 |
+| E10 | Local Syzygy adapter | Engines plan |

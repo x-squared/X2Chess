@@ -63,6 +63,7 @@ type GameRow = {
   revision_token: string;
   order_index: number;
   created_at: number;
+  kind: string;
 };
 
 type MetaRow = {
@@ -79,6 +80,7 @@ const asGameRow = (r: unknown): GameRow => {
     revision_token: String(v.revision_token ?? ""),
     order_index: Number(v.order_index ?? 0),
     created_at: Number(v.created_at ?? 0),
+    kind: String(v.kind ?? "game"),
   };
 };
 
@@ -90,6 +92,12 @@ const asMetaRow = (r: unknown): MetaRow => {
     val_str: v.val_str == null ? null : String(v.val_str),
   };
 };
+
+// ── Kind detection ─────────────────────────────────────────────────────────────
+
+/** Detect game kind from PGN text: 'position' if [SetUp "1"] is present. */
+const detectKind = (pgnText: string): string =>
+  /\[SetUp\s+"1"\]/i.test(pgnText) ? "position" : "game";
 
 // ── Metadata helpers ───────────────────────────────────────────────────────────
 
@@ -180,7 +188,7 @@ export const createDbAdapter = (
     await ensureMigrated(db, dbPath);
 
     const gameRows = (await db.query(
-      "SELECT id, title_hint, revision_token, order_index, created_at FROM games ORDER BY order_index ASC, created_at ASC",
+      "SELECT id, title_hint, revision_token, order_index, created_at, kind FROM games ORDER BY order_index ASC, created_at ASC",
     )).map(asGameRow);
 
     const gameIds = gameRows.map((r) => r.id);
@@ -196,6 +204,7 @@ export const createDbAdapter = (
           revisionToken: row.revision_token,
           metadata,
           availableMetadataKeys,
+          gameKind: row.kind === "position" ? "position" : "game",
         };
       }),
     };
@@ -258,9 +267,10 @@ export const createDbAdapter = (
 
     const newToken = generateRevisionToken();
     const now = Date.now();
+    const kind = detectKind(pgnText);
     await db.execute(
-      "UPDATE games SET pgn_text = ?, revision_token = ?, updated_at = ? WHERE id = ?",
-      [pgnText, newToken, now, gameId],
+      "UPDATE games SET pgn_text = ?, revision_token = ?, updated_at = ?, kind = ? WHERE id = ?",
+      [pgnText, newToken, now, kind, gameId],
     );
     await db.execute("DELETE FROM game_metadata WHERE game_id = ?", [gameId]);
     await writeMetadata(db, gameId, pgnText);
@@ -289,11 +299,12 @@ export const createDbAdapter = (
     const revisionToken = generateRevisionToken();
     const now = Date.now();
     const titleHint = String(title || "").trim();
+    const kind = detectKind(pgnText);
 
     await db.execute(
-      `INSERT INTO games (id, pgn_text, title_hint, created_at, updated_at, order_index, revision_token)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [id, pgnText, titleHint, now, now, orderIndex, revisionToken],
+      `INSERT INTO games (id, pgn_text, title_hint, created_at, updated_at, order_index, revision_token, kind)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, pgnText, titleHint, now, now, orderIndex, revisionToken, kind],
     );
     await writeMetadata(db, id, pgnText);
     await writePositionIndex(db, id, pgnText);

@@ -377,8 +377,44 @@ fn create_x2chess_file(suggested_name: String) -> Option<String> {
     .map(|path| path.to_string_lossy().to_string())
 }
 
+// ── Native HTTP (Tier 2 web import) ──────────────────────────────────────────
+
+/// Make an HTTP GET request from the OS network stack (no CORS restrictions).
+///
+/// Used by the Tier 2 web import path to fetch chess site HTML with a realistic
+/// browser User-Agent, bypassing 403 errors that reject headless browser fetches.
+///
+/// Returns the raw response body as a UTF-8 string, or an error string.
+#[tauri::command]
+async fn native_http_get(
+  url: String,
+  headers: HashMap<String, String>,
+) -> Result<String, String> {
+  let client = reqwest::Client::builder()
+    .build()
+    .map_err(|e| format!("HTTP client error: {e}"))?;
+  let mut request = client.get(&url);
+  for (key, value) in &headers {
+    request = request.header(key.as_str(), value.as_str());
+  }
+  let response = request
+    .send()
+    .await
+    .map_err(|e| format!("HTTP request failed: {e}"))?;
+  let status = response.status();
+  if !status.is_success() {
+    return Err(format!("HTTP {}", status.as_u16()));
+  }
+  response
+    .text()
+    .await
+    .map_err(|e| format!("Failed to read response body: {e}"))
+}
+
 fn main() {
   tauri::Builder::default()
+    .plugin(tauri_plugin_updater::Builder::new().build())
+    .plugin(tauri_plugin_process::init())
     .manage(DbState { connections: Mutex::new(HashMap::new()) })
     .manage(EngineState { engines: Mutex::new(HashMap::new()) })
     .invoke_handler(tauri::generate_handler![
@@ -400,6 +436,7 @@ fn main() {
       spawn_engine,
       send_to_engine,
       kill_engine,
+      native_http_get,
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

@@ -53,6 +53,7 @@ import { useTablebaseProbe } from "../hooks/useTablebaseProbe";
 import { useVsEngine } from "../hooks/useVsEngine";
 import { useGameAnnotation } from "../hooks/useGameAnnotation";
 import { useMoveEntry } from "../hooks/useMoveEntry";
+import { useWebImport } from "../hooks/useWebImport";
 import { collectStudyItems } from "../model/study_items";
 import { getHeaderValue } from "../model/pgn_headers";
 import { STANDARD_STARTING_FEN } from "../editor/fen_utils";
@@ -113,6 +114,8 @@ export const AppShell = (): ReactElement => {
 
   const { variations, isAnalyzing, engineName, startAnalysis, stopAnalysis, findBestMove } =
     useEngineAnalysis();
+
+  const { resolveUrl } = useWebImport();
 
   // G8: play vs engine
   const vsEngine = useVsEngine(findBestMove);
@@ -499,6 +502,7 @@ export const AppShell = (): ReactElement => {
       setDropOverlayVisible: (visible: boolean): void => {
         if (overlayRef.current) overlayRef.current.hidden = !visible;
       },
+      resolveUrl,
     });
     bindEvents();
     // eslint-disable-next-line react-hooks/exhaustive-deps

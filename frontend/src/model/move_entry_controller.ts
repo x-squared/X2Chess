@@ -105,11 +105,16 @@ export const resolveMoveEntry = (
     return null;
   }
 
-  const chessMove = chess.move({
-    from: boardMove.from,
-    to: boardMove.to,
-    promotion: boardMove.promotion ?? "q",
-  });
+  let chessMove;
+  try {
+    chessMove = chess.move({
+      from: boardMove.from,
+      to: boardMove.to,
+      promotion: boardMove.promotion ?? "q",
+    });
+  } catch {
+    return { kind: "illegal" };
+  }
 
   if (!chessMove) return { kind: "illegal" };
   const san: string = chessMove.san;

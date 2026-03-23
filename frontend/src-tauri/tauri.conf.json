@@ -29,5 +29,14 @@
   "bundle": {
     "active": true,
     "targets": "all"
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg5MkQxRTcxMEYzOEZGMUYKUldRZi96Z1BjUjR0aVZvZUpBb21JeXkvcWdXcFVQS1ZjME0wbHowY3QrRGZha1F4Q253MFhVU0UK",
+      "endpoints": [
+        "https://x-squared.github.io/X2Chess/latest.json"
+      ],
+      "dialog": false
+    }
   }
 }

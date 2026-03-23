@@ -102,16 +102,45 @@ interface BoardConnection {
    */
   onStateChange(handler: (state: BoardState) => void): () => void;
 
-  /** Send LED commands. Empty array = all LEDs off. */
-  setLeds(leds: LedCommand[]): Promise<void>;
+  /** Send a LED signal (static state, animation, or off). */
+  sendSignal(signal: LedSignal): Promise<void>;
 
   disconnect(): Promise<void>;
 }
 
+// A single lit square with optional colour.
+// Boards without colour support treat any colour as "on".
 type LedCommand = {
   square: SquareId;
-  color?: "white" | "red" | "orange"; // board-dependent, falls back to on/off
+  color?: "white" | "red" | "orange";
 };
+
+// One frame of an animation: which squares are lit and for how long.
+type LedFrame = {
+  leds: LedCommand[];
+  durationMs: number;
+};
+
+// A LED signal is either a persistent state, a timed animation, or a clear.
+type LedSignal =
+  | { kind: "static";   leds: LedCommand[] }                      // held until next signal
+  | { kind: "sequence"; frames: LedFrame[]; repeat?: number }      // animated; repeat=0 means loop
+  | { kind: "off" };                                               // all LEDs off
+
+// Named application signals dispatched by the app layer.
+// The adapter translates these to LedSignal using the active BoardProfile.
+type BoardSignalKind =
+  | "connection_confirmed"   // board just connected: brief all-on flash
+  | "position_set"           // position loaded/confirmed: sweep rank 1→8
+  | "computer_move"          // engine played; from+to held until user responds
+  | "move_accepted"          // user's move auto-advanced: brief from+to flash
+  | "illegal_move"           // piece placed illegally: flash affected squares
+  | "check"                  // move gave check: king square pulses
+  | "hint"                   // user requested hint: from+to lit (like computer_move)
+  | "sync_deviation"         // app position ≠ board: mismatch squares held
+  | "study_correct"          // correct study answer: positive flash
+  | "study_wrong"            // wrong study answer: flash affected squares
+  | "all_off";               // explicit clear
 ```
 
 ### `BoardGateway` (I/O injection interface, implemented by Tauri adapters)
@@ -319,24 +348,58 @@ function boardDiff(before: BoardState, after: BoardState): MoveCandidate | null
 
 ## LED scenarios
 
-### Scenario A: Computer move indicator
-When the engine plays a move (in vs-engine mode or annotation mode):
-1. Turn off all LEDs
-2. Light `from` square (orange / board default) + `to` square (red / board default)
-3. LEDs remain on until:
-   - User physically makes the move on the board (next board state change), or
-   - User explicitly dismisses (e.g. navigates away)
+LEDs are a general **feedback channel**. The app dispatches named
+`BoardSignalKind` values; `usePhysicalBoard` translates them to `LedSignal`
+using the active profile's signal map, then calls `connection.sendSignal()`.
+Boards without LED support ignore signals silently.
 
-### Scenario B: Position sync deviation
-When the app's current game position diverges from the physical board state
-(user navigated the game tree, loaded a different game, etc.):
-1. Compute diff between `appBoardState` (derived from FEN) and `physicalBoardState`
-2. Squares where a piece should be removed → light in one colour
-3. Squares where a piece should be placed → light in another colour
-4. Updated on every board state change and every app position change
+| Signal | Trigger | Default pattern |
+|---|---|---|
+| `connection_confirmed` | Board connects | All on 300 ms, then off |
+| `position_set` | Position loaded or setup confirmed | Sweep rank 1→8 (40 ms/rank), then off |
+| `computer_move` | Engine plays a move | `from` orange + `to` red, **held** until physical response |
+| `move_accepted` | User's physical move auto-advances | Brief flash `from`+`to` (2× 150 ms), then off |
+| `illegal_move` | Piece placed with no legal match | Rapid flash affected squares (3× 100 ms), then off |
+| `check` | Move gives check | King square pulses (2× 200 ms), then off |
+| `hint` | User presses Hint | Same as `computer_move` (held) |
+| `sync_deviation` | App position ≠ board position | Wrong squares lit, **held**; updated on every change |
+| `study_correct` | Correct study answer | All on 400 ms (positive), then off |
+| `study_wrong` | Wrong study answer | Moved squares rapid-flash (3× 80 ms), then off |
+| `all_off` | Explicit clear / navigation away | All LEDs off immediately |
 
-`computeSyncLeds(appState: BoardState, physicalState: BoardState): LedCommand[]`
-is a pure function in `board_diff.ts`.
+### Signal priority and pre-emption
+
+Signals are pre-emptive — a new `sendSignal()` call always cancels any
+in-progress animation and immediately starts the new one. Priority is managed
+by the app (e.g. `sync_deviation` is suppressed while `computer_move` is
+held; it resumes after the physical move is made).
+
+### Profile signal map
+
+Each `BoardProfile` may override individual signal definitions. A board with
+only on/off LEDs maps all colours to `on`. A board with no LEDs sets
+`supportsLeds: false` and `usePhysicalBoard` skips all signal dispatch:
+
+```typescript
+type BoardProfile = {
+  // ... (transport, commands, framing, encoding, squareMap as before)
+  supportsLeds: boolean;
+  // Per-signal overrides; signals absent from this map use the default above.
+  signalOverrides?: Partial<Record<BoardSignalKind, LedSignal>>;
+};
+```
+
+### Pure helper functions (`board_diff.ts`)
+
+```typescript
+// Compute the LedSignal for a sync_deviation from two board states.
+function computeSyncSignal(
+  appState: BoardState, physicalState: BoardState
+): LedSignal;
+
+// Compute the LedSignal for a computer_move or hint.
+function computeMoveSignal(from: SquareId, to: SquareId): LedSignal;
+```
 
 ---
 

@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "updated": "2026-03-23",
+  "rules": {
+    "webImport": {
+      "version": 1,
+      "url": "rules/web-import/v1.json"
+    }
+  }
+}

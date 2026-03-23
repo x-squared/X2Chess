@@ -5,19 +5,64 @@ alwaysApply: true
 
 # User Manual Maintenance Rule
 
-Use `doc/user-manual.qmd` as the source of truth for user-facing behavior.
+`doc/user-manual.qmd` is the living end-user guide for X2Chess. It must
+accurately reflect the current state of the application at all times.
 
-## End-of-step checklist (run before completing any substantial work step)
+## When to update
 
-- Check whether changes affect user-visible UI, workflows, labels, controls, shortcuts, or behavior.
-- If yes, update `doc/user-manual.qmd` in the same step:
-  - Update "Last updated" date.
-  - Update relevant usage instructions and examples.
-  - Remove instructions that no longer match current behavior.
-- If user flows changed significantly, include a short migration note in the manual.
-- If no user-facing impact exists, explicitly confirm no user-manual update is required.
+Update the user manual **in the same session** as any change that falls into
+one of these categories:
+
+| Category | Examples |
+|---|---|
+| New user-facing feature | New dialog, new toolbar button, new panel, new mode |
+| Changed behavior | Button renamed, workflow altered, keyboard shortcut changed |
+| Removed feature | Panel removed, button disabled/hidden, mode dropped |
+| New keyboard shortcut | Any new or changed shortcut |
+| New configuration option | New menu item, new setting, new schema field type |
+| Changed terminology | Label rename visible to the user |
+
+Do **not** update the manual for: pure refactoring, CSS changes, internal
+module splits, type changes, test additions, or performance improvements that
+have no visible effect.
+
+## Required changes when updating
+
+1. **Update "Last updated" date** at the top to today's date (`YYYY-MM-DD`).
+2. **Add, edit, or remove** the relevant section(s) — never leave a section
+   that contradicts current behavior.
+3. **Write for end users**, not implementers. Concrete action/result phrasing:
+   *"Click X to do Y"* not *"The handler dispatches action Z"*.
+4. **Do not document planned features** as if they are implemented. If a
+   feature is in-plan but not yet in the UI, omit it.
+
+## Section checklist
+
+When finishing a session with user-facing changes, run through these sections
+and update any that are affected:
+
+- [ ] Application layout overview
+- [ ] Opening and managing games (drag/drop, paste, new game dialog)
+- [ ] Game info and metadata
+- [ ] Navigation (toolbar buttons, keyboard shortcuts)
+- [ ] PGN text editor (layout modes, comments, Q/A, directives)
+- [ ] Chess board (move entry, disambiguation, promotion, flip, hint, extract)
+- [ ] Saving (save button, autosave/manual mode, undo/redo)
+- [ ] Engine analysis (start/stop, variations, vs engine, annotate)
+- [ ] Opening explorer (toggle, source, settings)
+- [ ] Tablebase (toggle, results)
+- [ ] Study mode (requirements, workflow)
+- [ ] Training mode (launcher, protocols, result/merge)
+- [ ] Resource viewer (browse, group-by, filter, schema editor, new game)
+- [ ] Menu panel (all menu items)
+- [ ] Developer tools (dock tabs, diagnostic panels)
+- [ ] Keyboard shortcuts summary table
 
 ## Documentation discipline
 
-- Write for end users, not implementers.
-- Prefer step-by-step instructions and concrete action/result phrasing.
+- Step-by-step numbered lists for multi-step workflows.
+- Tables for reference material (shortcuts, options).
+- Avoid internal jargon (`dispatch`, `reducer`, `hook`, `selector`, etc.).
+- Keep each section self-contained — a user should not need to read the whole
+  manual to understand one workflow.
+- If behavior differs between platforms (macOS vs Windows), note both.

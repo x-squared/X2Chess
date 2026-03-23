@@ -20,7 +20,7 @@
  * - Inbound: re-renders when relevant `AppStoreState` fields change.
  */
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import type { ReactElement, ChangeEvent } from "react";
 import { SUPPORTED_LOCALES } from "../app_shell/i18n";
 import { useAppContext } from "../state/app_context";
@@ -34,6 +34,9 @@ import {
 } from "../state/selectors";
 import { useServiceContext } from "../state/ServiceContext";
 import { useTranslator } from "../hooks/useTranslator";
+import { useUpdateCheck } from "../hooks/useUpdateCheck";
+import { UpdateBanner } from "./UpdateBanner";
+import { WebImportRulesPanel } from "./WebImportRulesPanel";
 import type { SessionItemState } from "../state/app_reducer";
 
 /** Reads the build timestamp injected by Vite at build time (falls back to "dev"). */
@@ -60,6 +63,8 @@ export const MenuPanel = (): ReactElement => {
   const t: (key: string, fallback?: string) => string = useTranslator();
 
   const buildLabel: string = resolveBuildLabel();
+  const { update, installUpdate, dismissUpdate } = useUpdateCheck();
+  const [webImportRulesOpen, setWebImportRulesOpen] = useState<boolean>(false);
 
   /** Save mode of the currently active session, or "auto" if none. */
   const activeSaveMode: string =
@@ -97,6 +102,12 @@ export const MenuPanel = (): ReactElement => {
             ×
           </button>
         </div>
+
+        <UpdateBanner
+          update={update}
+          onInstall={installUpdate}
+          onDismiss={dismissUpdate}
+        />
 
         <div className="controls controls-menu">
           {/* Move speed */}
@@ -194,7 +205,21 @@ export const MenuPanel = (): ReactElement => {
           >
             {t("controls.saveNow", "Save now")}
           </button>
+
+          {/* Web import rules */}
+          <button
+            id="btn-web-import-rules"
+            className="source-button"
+            type="button"
+            onClick={(): void => { setWebImportRulesOpen(true); }}
+          >
+            {t("controls.webImportRules", "Web Import Rules…")}
+          </button>
         </div>
+
+        {webImportRulesOpen && (
+          <WebImportRulesPanel onClose={(): void => { setWebImportRulesOpen(false); }} />
+        )}
 
         <div className="app-menu-footer">
           <span

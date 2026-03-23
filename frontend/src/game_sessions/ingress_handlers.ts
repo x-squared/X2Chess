@@ -31,6 +31,14 @@ type IngressDeps = {
   isLikelyPgnText: (value: string) => boolean;
   openGameFromIncomingText: (pgnText: string, options?: OpenGameOptions) => boolean | Promise<boolean>;
   setDropOverlayVisible?: (isVisible: boolean) => void;
+  /**
+   * Optional URL resolver. When provided, called instead of `openGameFromIncomingText`
+   * when the pasted or dropped text is detected as an HTTP/HTTPS URL.
+   * The resolver is responsible for fetching the resource and opening it.
+   *
+   * @param url - The full URL string that was pasted or dropped.
+   */
+  resolveUrl?: (url: string) => Promise<void>;
 };
 
 type DropSourceHints = {
@@ -102,6 +110,9 @@ const hasAcceptedTransfer = (transfer: DataTransfer | null): boolean => {
   return hasTransferFiles(transfer) || hasText;
 };
 
+/** Returns true if the string looks like an HTTP or HTTPS URL. */
+const isHttpUrl = (value: string): boolean => /^https?:\/\/\S+/i.test(value.trim());
+
 /**
  * Create ingress handlers for drop/paste game creation.
  */
@@ -110,6 +121,7 @@ export const createGameIngressHandlers = ({
   isLikelyPgnText,
   openGameFromIncomingText,
   setDropOverlayVisible,
+  resolveUrl,
 }: IngressDeps) => {
   let dragDepth = 0;
   let isDropOverlayVisible = false;
@@ -177,6 +189,10 @@ export const createGameIngressHandlers = ({
         }
 
         const plainText: string = transfer.getData("text/plain");
+        if (resolveUrl && isHttpUrl(plainText)) {
+          void resolveUrl(plainText.trim());
+          return;
+        }
         if (!isLikelyPgnText(plainText)) return;
         void openGameFromIncomingText(plainText, { preferInsertIntoActiveResource: true });
       });
@@ -184,11 +200,21 @@ export const createGameIngressHandlers = ({
 
     window.addEventListener("paste", (event: ClipboardEvent): void => {
       const target: EventTarget | null = event.target;
-      if (target instanceof HTMLElement) {
-        const tag: string = target.tagName.toLowerCase();
-        if (tag === "input" || tag === "textarea" || target.isContentEditable) return;
+      const targetAny: unknown = target;
+      if (targetAny !== null && typeof (targetAny as Record<string, unknown>).tagName === "string") {
+        const tag: string = (targetAny as { tagName: string }).tagName.toLowerCase();
+        if (
+          tag === "input" ||
+          tag === "textarea" ||
+          Boolean((targetAny as { isContentEditable?: unknown }).isContentEditable)
+        )
+          return;
       }
       const plainText: string = event.clipboardData?.getData("text/plain") || "";
+      if (resolveUrl && isHttpUrl(plainText)) {
+        void resolveUrl(plainText.trim());
+        return;
+      }
       if (!isLikelyPgnText(plainText)) return;
       void openGameFromIncomingText(plainText, { preferInsertIntoActiveResource: true });
     });

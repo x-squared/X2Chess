@@ -1,0 +1,45 @@
+[
+  {
+    "id": "lichess-game",
+    "label": "Lichess game",
+    "urlPattern": "^https?://lichess\\.org/([a-zA-Z0-9]{8})",
+    "strategy": "api",
+    "fetchUrl": "https://lichess.org/game/export/$1?evals=false&clocks=false",
+    "responseType": "pgn",
+    "requestHeaders": { "Accept": "application/x-chess-pgn" }
+  },
+  {
+    "id": "lichess-puzzle",
+    "label": "Lichess puzzle",
+    "urlPattern": "^https?://lichess\\.org/training/([a-zA-Z0-9]+)",
+    "strategy": "api",
+    "fetchUrl": "https://lichess.org/api/puzzle/$1",
+    "responseType": "json.pgn",
+    "fieldPaths": { "pgn": "game.pgn" }
+  },
+  {
+    "id": "chessdotcom-daily-puzzle",
+    "label": "Chess.com daily puzzle",
+    "urlPattern": "^https?://(www\\.)?chess\\.com/(puzzles|daily-chess-puzzle)",
+    "strategy": "api",
+    "fetchUrl": "https://api.chess.com/pub/puzzle",
+    "responseType": "json.fen+pgn",
+    "fieldPaths": { "title": "title" }
+  },
+  {
+    "id": "chessdotcom-game",
+    "label": "Chess.com live game",
+    "urlPattern": "^https?://(www\\.)?chess\\.com/game/(live|daily)/([0-9]+)",
+    "strategy": "api",
+    "fetchUrl": "https://api.chess.com/pub/game/$3",
+    "responseType": "json.pgn",
+    "fieldPaths": { "pgn": "pgn" }
+  },
+  {
+    "id": "direct-pgn",
+    "label": "Direct PGN file URL",
+    "urlPattern": "\\.pgn(\\?.*)?$",
+    "strategy": "direct",
+    "responseType": "pgn"
+  }
+]

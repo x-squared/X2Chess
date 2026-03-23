@@ -9,6 +9,7 @@ import "./components/metadata_schema.css";
 import "./components/new_game_dialog.css";
 import "./components/move_dialogs.css";
 import "./components/ext_db_panels.css";
+import "./components/web_import_rules.css";
 import "./training/styles.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";

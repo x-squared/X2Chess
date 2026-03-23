@@ -1,0 +1,8 @@
+{
+  "name": "@x2chess/boards",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Physical chess board integration (Millennium ChessLink, DGT)",
+  "type": "module",
+  "main": "./index.ts"
+}

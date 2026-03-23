@@ -1,114 +1,395 @@
 # X2Chess User Manual
 
-Last updated: 2026-03-19
+Last updated: 2026-03-23
 
 ## Who this manual is for
 
-This manual is for people using the X2Chess application to read, navigate, and edit PGN content.
+This manual is for people using the X2Chess application to open, navigate,
+edit, and study chess games in PGN format.
 
-## Accessing the menu
+---
 
-- Use the menu icon in the top-right corner of the main panel to open the side menu.
-- The menu opens from the right and contains app-level controls (for example speed and sound).
-- Close it with the close button, by pressing `Esc`, or by clicking outside the menu.
-- The menu also contains **Developer Tools** and **Open Developer Dock** controls.
+## Application layout
 
-## How the text editor works
+X2Chess has three main areas:
 
-The text editor is the main place where you inspect and edit game notation and variations.
+- **Left: Resource viewer** — browse and open games from your collection.
+- **Centre: Board and editor** — the chess board and PGN text editor side by side.
+- **Right: Analysis panels** — engine analysis, opening explorer, tablebase,
+  and search panels stacked vertically.
+- **Top: Menu bar** — session tabs, game info, and the menu icon.
 
-## What you see in the editor
+---
 
-- **Mainline moves** are shown prominently (bold) to distinguish the primary game flow.
-- **Variations** are shown with nested indentation and lighter visual weight.
-- **Comments** appear inline and can be edited directly.
-- **Move selection** is highlighted and linked to board position updates.
+## Opening and managing games
 
-## Selecting moves and syncing with the board
+### Opening a game from your collection
 
-- Click a move token in the editor to select it.
-- When you select a mainline move, the board jumps to that move immediately.
-- When you select a variation move, the board shows a position preview for that variation context.
+1. The resource viewer (left panel) shows your game databases and files.
+2. Click a game row to open it in the centre editor.
+3. The game opens as a new tab in the session tab strip at the top.
 
-## Adding comments with the toolbar
+### Opening a game by drag-and-drop or paste
 
-After selecting a move, you can use these buttons:
+- **Drag** one or more `.pgn` files onto the app window to open them.
+- **Paste** PGN text anywhere in the app (`Cmd/Ctrl + V`) to open it as a new
+  game.
 
-- **Insert comment left**: adds/focuses a comment before the selected move.
-- **Insert comment right**: adds/focuses a comment after the selected move.
-- **Insert line break**: inserts a line-break directive in a right-side comment.
-- **Insert indent**: inserts an indent directive in a right-side comment.
-- **Default indent**: applies indent directives across variation boundaries for cleaner nested layout.
+### Working with multiple games
 
-If a comment already exists in the requested position, X2Chess focuses the existing comment instead of creating duplicates.
+- Open games appear as tabs in the tab strip above the board.
+- Click a tab to switch to that game. Each game maintains its own position,
+  undo history, and editor state.
+- Close a tab with the × button on the tab.
 
-## Editing comments directly
+### Creating a new game
 
-- Click into a comment and type to edit.
-- Leaving a comment empty removes it automatically.
-- Newly inserted comments are briefly highlighted so they are easy to find.
+- Click **+ New game** in the resource viewer toolbar.
+- The New Game dialog opens. Choose:
+  - **Standard** — starts from the normal starting position.
+  - **Custom FEN** — enter any FEN string to start from a specific position.
+  - **Chess960** — tick the Chess960 checkbox to generate a random starting
+    position following Chess960 rules.
+- Click **Create** to open the new game in the editor.
 
-## Keyboard behavior in the editor
+---
 
-- **Arrow Left / Arrow Right**: move selection to previous/next move.
-- **Arrow Down**: enter the first available variation from the selected move.
-- **Arrow Left** at variation start: jump back to the parent move.
-- **Shift + Arrow Left / Right**: jump to existing comment before/after selected move.
-- **Cmd/Ctrl + Z**: undo editor changes.
-- **Cmd/Ctrl + Shift + Z** or **Cmd/Ctrl + Y**: redo editor changes.
+## Game info and metadata
 
-## Working with multiple open games
+The game info bar sits above the board. It shows the players, event, date, and
+result for the active game.
 
-- Open games appear in a tab strip above the Game-Viewer.
-- Open a game by:
-  - Dragging and dropping `.pgn` files onto the app.
-  - Pasting PGN text onto the app.
-- Each tab can be closed individually.
-- Switching tabs restores that game's own Game-Viewer state.
-- Closing a tab frees that session's runtime snapshot resources.
+- Click any field to edit it directly.
+- Metadata fields depend on the active schema (see **Metadata schemas** below).
+- The **Result** field accepts `1-0`, `0-1`, `½-½`, or `*`.
 
-## Saving behavior
+---
 
-- Save status is shown in the app (`Saving...`, `Saved`, or error).
-- In the menu, choose **Save mode** for the active game:
-  - `Autosave`: changes are written automatically.
-  - `Manual`: changes are kept local until you press **Save now**.
-- Save behavior is source-aware and always bound to the active game session.
+## Navigating a game
 
-## Developer dock (AST, DOM, Raw PGN)
+### Toolbar navigation buttons
 
-- Enable **Developer Tools** in the menu.
-- Click **Open Developer Dock** to open the fixed bottom dock.
-- Use tabs to switch between:
-  - `AST`
-  - `DOM`
-  - `Raw PGN`
-- The dock always shows the same game/model state as the main Game-Viewer.
-- Raw PGN edits in the dock feed back into the same parse/update pipeline as the main editor.
-- Closing the dock hides these views without changing the active game.
+| Button | Action | Keyboard |
+|---|---|---|
+| \|< | Go to start | — |
+| < | Go to previous move | Arrow Left |
+| > | Go to next move | Arrow Right |
+| >\| | Go to end | — |
 
-## Personalizing text editor behavior
+### Keyboard shortcuts in the editor
 
-Text editor behavior can be customized through runtime config override file:
+| Key | Action |
+|---|---|
+| Arrow Left | Previous move |
+| Arrow Right | Next move |
+| Arrow Down | Enter first variation |
+| Arrow Left (at variation start) | Return to parent move |
+| Shift + Arrow Left | Jump to comment before selected move |
+| Shift + Arrow Right | Jump to comment after selected move |
+| Cmd/Ctrl + Z | Undo |
+| Cmd/Ctrl + Shift + Z  or  Cmd/Ctrl + Y | Redo |
 
-- Built-in default config is bundled in the client.
-- User override file (for selected runtime folder): `config/user-config.json`
+---
 
-You only need to set keys you want to change. Example:
+## The PGN text editor
 
-```json
-{
-  "textEditor": {
-    "fontSizePx": 16,
-    "lineHeight": 1.55,
-    "showAstView": true,
-    "showDomView": false
-  }
-}
-```
+The text editor is the primary surface for reading and editing game notation.
 
-## Notes for effective editing
+### What you see
 
-- Select a move first, then apply comment/indent actions.
-- Use the text editor as the primary editing surface; use the Raw PGN dock tab for bulk paste/import.
-- Use undo/redo frequently when restructuring comments and variations.
+- **Mainline moves** are shown prominently (bold).
+- **Variations** are nested with lighter visual weight.
+- **Comments** appear inline in the text flow.
+- The **selected move** is highlighted; selecting a move updates the board.
+
+### PGN layout modes
+
+Use the **Plain / Text / Tree** buttons in the toolbar to switch layout:
+
+- **Plain** — compact, literal PGN notation, close to the raw file format.
+- **Text** — narrative layout with line breaks and indentation for readability.
+  Uses `[[br]]` and `[[indent]]` markers in comments to control formatting.
+- **Tree** — structured view emphasising variation branching (same rendering as
+  Text for now).
+
+### Adding and editing comments
+
+1. Select a move in the editor.
+2. Use the toolbar buttons to add a comment:
+   - **Insert comment left** — adds a comment before the selected move.
+   - **Insert comment right** — adds a comment after the selected move.
+3. Click into a comment and type to edit it directly.
+4. Leaving a comment empty removes it automatically.
+5. Newly inserted comments are briefly highlighted.
+
+### Formatting within comments (Text mode)
+
+In Text layout mode, comments support two directives:
+
+- `[[br]]` — inserts a line break at that point in the narrative.
+- `[[indent]]` — indents the text that follows, useful for nested variation
+  annotations.
+
+Use the toolbar buttons **Insert line break** and **Insert indent** to insert
+these at the cursor position. **Default indent** applies standard indentation
+across variation boundaries automatically.
+
+### Q/A annotations
+
+Moves can carry Q/A (question/answer) annotations used by Study mode. A badge
+on the move token indicates a Q/A annotation is present. To add or edit one,
+right-click a move token or use the Q/A button in the editor context menu.
+
+---
+
+## The chess board
+
+### Making moves (move entry)
+
+When no engine game is active, you can enter moves directly on the board:
+
+1. Click or drag a piece to a destination square.
+2. If the move is unambiguous, it is played immediately.
+3. If the move is ambiguous (e.g. two rooks can reach the same square), the
+   **Disambiguation dialog** opens — choose the correct piece.
+4. If a pawn reaches the back rank, the **Promotion picker** appears — choose
+   the promotion piece.
+5. The move is added to the game at the current position. If you are not at the
+   end of the game, a new variation is created.
+
+### Board orientation
+
+Use the **Flip board** button (below the board) to swap which side plays from
+the bottom.
+
+### Best-move hint
+
+Click the **Hint** button in the toolbar to highlight the engine's recommended
+move on the board. The hint clears automatically when you advance to the next
+move.
+
+### Editing the starting position
+
+For games that start from a custom position:
+
+1. Click **Position** in the toolbar (visible when the game has a custom FEN).
+2. The **Edit Starting Position** dialog opens — drag pieces to set up the
+   desired position, or enter a FEN string directly.
+3. Click **Confirm** to update the game's starting position.
+
+### Extracting the current position
+
+To create a new game starting from the current board position:
+
+1. Click **Extract** in the toolbar.
+2. The **Extract Position** dialog confirms the FEN.
+3. Click **Extract** to open a new game session from that position.
+
+---
+
+## Saving
+
+- The **Save** button in the toolbar is highlighted when the game has unsaved
+  changes.
+- Click **Save** (or press `Cmd/Ctrl + S`) to save to the source file or database.
+- Undo and redo are available with the toolbar buttons or keyboard shortcuts.
+
+---
+
+## Engine analysis
+
+The **Analysis panel** is in the right column.
+
+### Starting and stopping analysis
+
+- Click **Start** in the Analysis panel to begin real-time analysis of the
+  current position.
+- Click **Stop** to halt analysis.
+- Analysis restarts automatically when you navigate to a new move while it is
+  running.
+
+### Reading the analysis
+
+- The panel shows the top engine lines (variations), each with:
+  - **Score** — evaluation in pawns (positive = white advantage).
+  - **Depth** — search depth reached.
+  - **Principal variation** — the sequence of best moves found.
+- Click a move in an engine line to preview that position on the board.
+
+### Play vs engine
+
+1. Click **vs Engine** in the toolbar.
+2. The **Play vs Engine** dialog opens — choose your colour and time control.
+3. Click **Start** to begin. The engine plays the opposite colour.
+4. Make your moves on the board. The engine responds automatically.
+5. Click **Stop** (toolbar button turns to "Stop" while a game is active) to
+   end the game at any time.
+
+### Annotate game with engine
+
+1. Click **Annotate** in the toolbar.
+2. The **Annotate Game** dialog opens — configure the engine depth and which
+   moves to annotate.
+3. Click **Run** to process the game. Engine evaluations and best moves are
+   added as comments.
+
+---
+
+## Opening explorer
+
+The **Opening Explorer panel** is in the right column, below the Analysis
+panel.
+
+- Toggle it on/off with the switch in the panel header.
+- Switch between **Masters** (master-level OTB games) and **Lichess** (online
+  games) databases using the source selector.
+- The panel shows moves played from the current position, with frequency and
+  win-rate statistics.
+- Click a move in the explorer to play it on the board.
+- Configure ratings and time controls via **Settings** (⚙ icon in the panel
+  header).
+
+---
+
+## Tablebase
+
+The **Tablebase panel** is in the right column, below the Opening Explorer.
+
+- Toggle it on/off with the switch in the panel header.
+- When the position has 7 or fewer pieces, the panel shows the tablebase
+  result (Win / Draw / Loss) and the best move with DTZ (distance to zeroing).
+- Click a move in the tablebase result to play it on the board.
+
+---
+
+## Study mode
+
+Study mode presents Q/A annotation pairs as interactive prompts.
+
+### Requirements
+
+The game must contain at least one Q/A annotation (see **Q/A annotations**
+above). The **Study** toolbar button is enabled only when annotations are
+present.
+
+### Running a study session
+
+1. Click **Study** in the toolbar.
+2. A prompt overlay appears on the board showing the question from the first
+   annotation.
+3. Make the move on the board that you think is the answer.
+4. The overlay reveals whether your move was correct and shows the annotated
+   answer.
+5. Click **Next** to advance to the next Q/A item.
+6. The session ends when all items have been shown.
+
+---
+
+## Training mode
+
+Training mode replays moves from the game to test your recall.
+
+### Starting a training session
+
+1. Click **Train** in the toolbar.
+2. The **Training Launcher** dialog opens. Choose a protocol:
+   - **Replay** — play through the game move by move from memory.
+   - **Opening** — drill the opening moves specifically.
+3. Click **Start**.
+
+### During training
+
+- The board shows the position. You are expected to play the correct move.
+- A **history strip** above the board records your move attempts.
+- Correct moves advance the position. Incorrect moves are flagged.
+- At the end, a **result summary** shows your score and lets you merge correct
+  moves back into the game or start again.
+
+---
+
+## Resource viewer
+
+The resource viewer (left panel) lets you browse, filter, and group your game
+collection.
+
+### Browsing
+
+- Games and collections appear as rows in the table.
+- Click a row to open that game.
+- The viewer supports multiple tabs for different open collections.
+
+### Grouping
+
+Use the **Group by** toolbar above the table to organise rows into collapsible
+groups:
+
+1. Click the **+ Add level** dropdown and select a field (e.g. Event, White,
+   Result).
+2. The table regroups immediately.
+3. Add further levels for nested grouping.
+4. Use the **↑** button on a pill to promote that level. Use **×** to remove
+   it.
+5. Click **Clear** to remove all grouping.
+
+### Filtering
+
+- Click a column header value to filter by that value.
+- Active filters are shown above the table.
+- Click **Clear filters** to remove all active filters.
+
+### Metadata schemas
+
+A schema defines which metadata fields appear in the game info bar and the
+resource table.
+
+- The **Schema** selector in the resource toolbar switches the active schema.
+- Click **Manage schemas…** to open the **Schema Editor**:
+  - Add, rename, or remove custom schemas.
+  - For each schema, define fields: name, type (text, number, flag, select),
+    and optional default value.
+  - Schemas are saved locally and persist across sessions.
+
+---
+
+## Menu
+
+Click the **☰** icon in the top-right corner to open the app menu.
+
+- **Developer Tools** toggle — enables the Developer Dock and other diagnostic
+  panels.
+- **Save mode** — switch between Autosave and Manual save for the active game.
+- Additional app-level settings appear here as features are added.
+
+Close the menu with the close button, `Esc`, or by clicking outside it.
+
+---
+
+## Developer tools
+
+Enable **Developer Tools** in the menu to access diagnostic panels.
+
+### Developer Dock
+
+Click **Open Developer Dock** (or use the toggle in the menu) to open a
+fixed bottom dock with three tabs:
+
+- **AST** — the internal parse tree for the current PGN.
+- **DOM** — the rendered document object model of the editor.
+- **Raw PGN** — the raw PGN text; edits here feed back into the parse pipeline.
+
+The dock always reflects the same game and position as the main editor.
+
+---
+
+## Keyboard shortcuts summary
+
+| Shortcut | Action |
+|---|---|
+| Arrow Left / Right | Navigate moves |
+| Arrow Down | Enter variation |
+| Shift + Arrow Left/Right | Jump to comment |
+| Cmd/Ctrl + Z | Undo |
+| Cmd/Ctrl + Shift + Z | Redo |
+| Cmd/Ctrl + S | Save |
+| Cmd/Ctrl + V | Paste PGN |
+| Esc | Close dialogs / menu |

@@ -1,0 +1,83 @@
+---
+description: Keep the manual test checklist up to date after every user-facing change
+alwaysApply: true
+---
+
+# Manual Checklist Maintenance Rule
+
+`dev/test/manual-checklist.md` is the living manual test checklist for X2Chess.
+It must reflect every testable user-facing behaviour at all times.
+
+## When to update
+
+Update the checklist **in the same session** as any change that introduces, alters,
+or removes something a user can observe or interact with:
+
+| Trigger | Examples |
+|---|---|
+| New feature | New dialog, new toolbar button, new panel, new import method |
+| Changed behaviour | Renamed button, altered workflow, new keyboard shortcut |
+| Removed feature | Panel removed, mode dropped, shortcut changed |
+| Bug fix that changes observable behaviour | Fix for a crash, silent failure, or wrong result |
+| New plan phase completed | Any phase in a `dev/plans/*.plan.md` that ships UI |
+
+Do **not** update for: pure refactoring, type changes, test additions, internal
+module splits, or performance work with no visible effect.
+
+## Required actions when updating
+
+1. **Add new items** for every new testable behaviour.
+   - Use the section that matches the feature area (LAYOUT, BOARD, ENGINE, etc.).
+   - If no section fits, add a new `## SECTION — Name` heading.
+2. **Update existing items** if a behaviour changed (do not leave stale descriptions).
+3. **Remove items** for features that were deleted entirely.
+4. **Update "Last updated" date** at the top to today's date.
+5. **Reset any `[x]` to `[ ]`** for items whose behaviour changed — they need re-verification.
+
+## Item format
+
+```
+- [ ] **SECTION-N** — One sentence describing exactly what to do and what to expect.
+```
+
+- The ID (`SECTION-N`) must be unique across the entire file.
+- The description must be concrete enough that the user can reference it by ID
+  (e.g. "WEBIMPORT-3 doesn't work") and you will immediately know what it refers to.
+- Use imperative or declarative phrasing focused on the observable result:
+  *"Paste `https://lichess.org/<id>` opens the full game PGN."*
+  Not: *"Test Lichess import."*
+
+## Numbering
+
+- Within each section, number items sequentially: `SECTION-1`, `SECTION-2`, etc.
+- When inserting a new item mid-section, append at the end — do not renumber
+  existing items (the user may have recorded failures against old IDs).
+
+## Section list (current)
+
+| Section prefix | Area |
+|---|---|
+| LAYOUT | App shell and layout |
+| SESSION | Game tabs |
+| OPEN | Opening games |
+| NEWGAME | New Game dialog |
+| GAMEINFO | Game info / metadata headers |
+| NAV | Board navigation |
+| BOARD | Chess board and move entry |
+| PGNEDIT | PGN text editor |
+| SAVE | Saving games |
+| UNDOREDO | Undo / Redo |
+| ENGINE | Engine analysis |
+| VSENGINE | Play vs engine |
+| ANNOTATE | Auto-annotation |
+| OPENING | Opening explorer |
+| TB | Endgame tablebase |
+| RESOURCE | Resource viewer |
+| DB | SQLite .x2chess database |
+| STUDY | Study mode |
+| TRAINING | Training mode |
+| WEBIMPORT | Web import (URL paste/drop) |
+| DEVTOOLS | Developer tools dock |
+| KB | Keyboard shortcuts |
+
+Add a new row when a genuinely new feature area is introduced.

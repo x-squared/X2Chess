@@ -49,6 +49,8 @@ before working on frontend or resource code.** Key files:
 The remaining rules govern manual/doc maintenance and are lower-priority for
 code tasks but should be consulted when editing `doc/`.
 
+| `manual-checklist-maintenance.mdc` | Any user-facing feature change |
+
 ## Key commands (run from `frontend/`)
 
 ```bash
@@ -108,6 +110,9 @@ the same area) is a violation.
 - `metadata_definition_system_d1e2f3a4.plan.md` — metadata schemas (types, dialog, export/import)
 - `new_game_setup_e5f6a7b8.plan.md` — New Game dialog (standard / custom FEN, castling, Chess960)
 - `resource_viewer_ux_c2d3e4f5.plan.md` — DnD fix, filter/group, position extraction, game kind, Q/A annotations
+- `physical_boards_9a2b3c4d.plan.md` — physical chess board integration (Millennium ChessLink, DGT; USB + BLE)
+- `web_import_5f6a7b8c.plan.md` — import positions/games from chess websites via rule-based URL adapters
+- `ota_updates_8d9e0f1a.plan.md` — OTA update channels: full app updater (Tauri) + rules server (data-only)
 
 ## Key types / entry points
 

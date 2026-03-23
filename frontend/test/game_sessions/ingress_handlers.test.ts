@@ -136,6 +136,47 @@ test("drop derives source and resource refs from dropped file path", async () =>
   });
 });
 
+test("paste of https URL calls resolveUrl instead of openGameFromIncomingText", async () => {
+  const pasteListeners: Array<(e: ClipboardEvent) => void> = [];
+  const previousWindow = globalThis.window;
+  globalThis.window = {
+    addEventListener: (_name: string, handler: (e: ClipboardEvent) => void) => {
+      pasteListeners.push(handler);
+    },
+  } as unknown as typeof globalThis.window;
+
+  try {
+    const panel = createMockPanel();
+    const opened: string[] = [];
+    const resolved: string[] = [];
+
+    const handlers = createGameIngressHandlers({
+      appPanelEl: panel,
+      isLikelyPgnText: () => false,
+      openGameFromIncomingText: (text) => { opened.push(text); return true; },
+      resolveUrl: async (url) => { resolved.push(url); },
+    });
+    handlers.bindEvents();
+
+    // Use a plain object for target — document is unavailable in the Node test environment.
+    const pasteEvent = {
+      target: { tagName: "DIV", isContentEditable: false },
+      clipboardData: {
+        getData: () => "https://lichess.org/abcd1234",
+      },
+    } as unknown as ClipboardEvent;
+
+    for (const listener of pasteListeners) listener(pasteEvent);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert.equal(opened.length, 0, "should NOT call openGameFromIncomingText for a URL");
+    assert.equal(resolved.length, 1, "should call resolveUrl once");
+    assert.equal(resolved[0], "https://lichess.org/abcd1234");
+  } finally {
+    globalThis.window = previousWindow;
+  }
+});
+
 test("drag overlay visibility toggles during drag lifecycle", async () => {
   await withWindowStub(async () => {
     const panel = createMockPanel();

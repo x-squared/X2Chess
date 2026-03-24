@@ -54,6 +54,7 @@ import { useVsEngine } from "../hooks/useVsEngine";
 import { useGameAnnotation } from "../hooks/useGameAnnotation";
 import { useMoveEntry } from "../hooks/useMoveEntry";
 import { useWebImport } from "../hooks/useWebImport";
+import { WebImportBrowserPanel } from "./WebImportBrowserPanel";
 import { collectStudyItems } from "../model/study_items";
 import { getHeaderValue } from "../model/pgn_headers";
 import { STANDARD_STARTING_FEN } from "../editor/fen_utils";
@@ -114,7 +115,12 @@ export const AppShell = (): ReactElement => {
   const { variations, isAnalyzing, engineName, startAnalysis, stopAnalysis, findBestMove } =
     useEngineAnalysis();
 
-  const { resolveUrl } = useWebImport();
+  const {
+    resolveUrl,
+    browserPanelState,
+    closeBrowserPanel,
+    handleCaptureResult,
+  } = useWebImport();
 
   // G8: play vs engine
   const vsEngine = useVsEngine(findBestMove);
@@ -878,6 +884,16 @@ export const AppShell = (): ReactElement => {
               </button>
             </div>
           </dialog>
+        )}
+        {/* ── Web import browser panel (W4 — Tier 3) ── */}
+        {browserPanelState !== null && (
+          <WebImportBrowserPanel
+            gateway={browserPanelState.gateway}
+            url={browserPanelState.url}
+            captureScript={browserPanelState.captureScript}
+            onCaptureResult={handleCaptureResult}
+            onClose={closeBrowserPanel}
+          />
         )}
       </main>
     </ServiceContextProvider>

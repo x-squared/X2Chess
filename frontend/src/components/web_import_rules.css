@@ -1,3 +1,100 @@
+/* ── Web Import Rules Panel (W3) + Browser Panel (W4) ─────────────────────── */
+
+/* ── Browser Panel ──────────────────────────────────────────────────────────── */
+
+.web-browser-panel-overlay {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 200;
+}
+
+.web-browser-panel {
+  background: var(--surface-1);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(16, 32, 54, 0.22);
+  padding: 0;
+  width: min(440px, 96vw);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+}
+
+.web-browser-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 0.9rem 0.6rem;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-2);
+  flex-shrink: 0;
+}
+
+.web-browser-panel-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.web-browser-panel-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.55rem 0.7rem;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.web-browser-panel-address {
+  flex: 1;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  font-size: 0.78rem;
+  background: var(--surface-1);
+  color: var(--text-primary);
+  min-width: 0;
+}
+
+.web-browser-panel-address:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
+}
+
+.web-browser-panel-hint {
+  margin: 0;
+  padding: 0.65rem 0.9rem 0.4rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.web-browser-panel-error {
+  margin: 0;
+  padding: 0.35rem 0.9rem;
+  font-size: 0.78rem;
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.web-browser-panel-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  padding: 0.6rem 0.9rem 0.75rem;
+  flex-shrink: 0;
+}
+
+.web-browser-panel-no-script {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  flex: 1;
+}
+
 /* ── Web Import Rules Panel (W3) ───────────────────────────────────────────── */
 
 .web-import-rules-dialog {

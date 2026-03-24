@@ -1,7 +1,7 @@
 # Web Import Plan — Positions and Games from Chess Websites
 
 **File:** `web_import_5f6a7b8c.plan.md`
-**Status:** Draft — awaiting design review.
+**Status:** W1–W4 implemented.
 
 ---
 

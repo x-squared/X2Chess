@@ -377,6 +377,135 @@ fn create_x2chess_file(suggested_name: String) -> Option<String> {
     .map(|path| path.to_string_lossy().to_string())
 }
 
+// ── Browser panel WebviewWindow (W4 — Tier 3 web import) ─────────────────────
+
+const BROWSER_WINDOW_LABEL: &str = "browser";
+
+/// Open a browser panel window navigating to the given URL.
+///
+/// If a browser window is already open, navigates it to the new URL instead of
+/// creating a second window.  Returns an error if the URL is invalid or the
+/// window cannot be created.
+#[tauri::command]
+fn open_browser_window(app: tauri::AppHandle, url: String) -> Result<(), String> {
+  let parsed = tauri::Url::parse(&url).map_err(|e| format!("Invalid URL: {e}"))?;
+
+  if let Some(existing) = app.get_webview_window(BROWSER_WINDOW_LABEL) {
+    // Navigate the existing window to the new URL.
+    existing
+      .navigate(parsed)
+      .map_err(|e| format!("Navigation failed: {e}"))
+  } else {
+    tauri::WebviewWindowBuilder::new(
+      &app,
+      BROWSER_WINDOW_LABEL,
+      tauri::WebviewUrl::External(parsed),
+    )
+    .title("X2Chess — Browser")
+    .width(960)
+    .height(740)
+    .build()
+    .map(|_| ())
+    .map_err(|e| format!("Failed to open browser window: {e}"))
+  }
+}
+
+/// Close the browser panel window.  No-op if it is not open.
+#[tauri::command]
+fn close_browser_window(app: tauri::AppHandle) -> Result<(), String> {
+  if let Some(window) = app.get_webview_window(BROWSER_WINDOW_LABEL) {
+    window.close().map_err(|e| e.to_string())
+  } else {
+    Ok(())
+  }
+}
+
+/// Navigate the browser window to a new URL.
+#[tauri::command]
+fn browser_window_navigate(app: tauri::AppHandle, url: String) -> Result<(), String> {
+  let window = app
+    .get_webview_window(BROWSER_WINDOW_LABEL)
+    .ok_or_else(|| "Browser window is not open".to_string())?;
+  let parsed = tauri::Url::parse(&url).map_err(|e| format!("Invalid URL: {e}"))?;
+  window.navigate(parsed).map_err(|e| e.to_string())
+}
+
+/// Navigate back in the browser window's session history.
+#[tauri::command]
+fn browser_window_go_back(app: tauri::AppHandle) -> Result<(), String> {
+  let window = app
+    .get_webview_window(BROWSER_WINDOW_LABEL)
+    .ok_or_else(|| "Browser window is not open".to_string())?;
+  window.eval("history.back()").map_err(|e| e.to_string())
+}
+
+/// Navigate forward in the browser window's session history.
+#[tauri::command]
+fn browser_window_go_forward(app: tauri::AppHandle) -> Result<(), String> {
+  let window = app
+    .get_webview_window(BROWSER_WINDOW_LABEL)
+    .ok_or_else(|| "Browser window is not open".to_string())?;
+  window.eval("history.forward()").map_err(|e| e.to_string())
+}
+
+/// Reload the current page in the browser window.
+#[tauri::command]
+fn browser_window_reload(app: tauri::AppHandle) -> Result<(), String> {
+  let window = app
+    .get_webview_window(BROWSER_WINDOW_LABEL)
+    .ok_or_else(|| "Browser window is not open".to_string())?;
+  window.eval("location.reload()").map_err(|e| e.to_string())
+}
+
+/// Evaluate a JS capture expression in the browser window and return the result.
+///
+/// `script` must be a short JS expression returning a FEN or PGN string, or
+/// `null`/`undefined`.  The result is returned as a Rust `Option<String>`:
+/// `Some(value)` on success, `None` if the script returned null/undefined.
+///
+/// Times out after 10 seconds if the script does not resolve.
+#[tauri::command]
+async fn browser_window_capture(
+  app: tauri::AppHandle,
+  script: String,
+) -> Result<Option<String>, String> {
+  let window = app
+    .get_webview_window(BROWSER_WINDOW_LABEL)
+    .ok_or_else(|| "Browser window is not open".to_string())?;
+
+  let (tx, rx) = tokio::sync::oneshot::channel::<String>();
+  let tx = Arc::new(Mutex::new(Some(tx)));
+  let tx2 = Arc::clone(&tx);
+
+  // Wrap the user-supplied expression so that async expressions are supported
+  // and errors are caught, always returning a JSON-serialisable value.
+  let wrapped = format!(
+    "(async()=>{{ try {{ const r = await ({script}); \
+     return r != null ? String(r) : null; }} \
+     catch {{ return null; }} }})()"
+  );
+
+  window
+    .evaluate_script_with_callback(&wrapped, move |result: String| {
+      if let Ok(mut guard) = tx2.lock() {
+        if let Some(sender) = guard.take() {
+          let _ = sender.send(result);
+        }
+      }
+    })
+    .map_err(|e| format!("Failed to evaluate capture script: {e}"))?;
+
+  let raw = tokio::time::timeout(std::time::Duration::from_secs(10), rx)
+    .await
+    .map_err(|_| "Capture script timed out after 10 seconds".to_string())?
+    .map_err(|_| "Capture channel closed unexpectedly".to_string())?;
+
+  // The callback delivers the JSON-serialised return value of the expression.
+  let value: serde_json::Value =
+    serde_json::from_str(&raw).unwrap_or(serde_json::Value::Null);
+  Ok(value.as_str().map(|s| s.to_string()))
+}
+
 // ── Native HTTP (Tier 2 web import) ──────────────────────────────────────────
 
 /// Make an HTTP GET request from the OS network stack (no CORS restrictions).
@@ -437,6 +566,13 @@ fn main() {
       send_to_engine,
       kill_engine,
       native_http_get,
+      open_browser_window,
+      close_browser_window,
+      browser_window_navigate,
+      browser_window_go_back,
+      browser_window_go_forward,
+      browser_window_reload,
+      browser_window_capture,
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

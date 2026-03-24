@@ -15,10 +15,10 @@
       {
         "label": "main",
         "title": "X2Chess",
-        "width": 1280,
-        "height": 900,
+        "width": 1400,
+        "height": 1060,
         "minWidth": 980,
-        "minHeight": 700,
+        "minHeight": 820,
         "dragDropEnabled": false
       }
     ],

@@ -32,6 +32,8 @@ type QaBadgeProps = {
   annotations: QaAnnotation[];
   /** Called when the user wants to edit an existing annotation. */
   onEdit?: (index: number) => void;
+  /** Called when the user wants to delete an existing annotation. */
+  onDelete?: (index: number) => void;
   t: (key: string, fallback?: string) => string;
 };
 
@@ -40,7 +42,7 @@ type QaBadgeProps = {
  * Clicking opens an inline popover with progressive reveal: question → hint → answer.
  * Multiple annotations are navigable with prev/next arrows.
  */
-export const QaBadge = ({ annotations, onEdit, t }: QaBadgeProps): ReactElement | null => {
+export const QaBadge = ({ annotations, onEdit, onDelete, t }: QaBadgeProps): ReactElement | null => {
   const [open, setOpen] = useState<boolean>(false);
   const [page, setPage] = useState<number>(0);
   const [hintVisible, setHintVisible] = useState<boolean>(false);
@@ -161,6 +163,15 @@ export const QaBadge = ({ annotations, onEdit, t }: QaBadgeProps): ReactElement 
                 onClick={(): void => { onEdit(page); handleClose(); }}
               >
                 {t("editor.qa.edit", "Edit")}
+              </button>
+            )}
+            {onDelete && (
+              <button
+                type="button"
+                className="qa-popover-delete-btn"
+                onClick={(): void => { onDelete(page); handleClose(); }}
+              >
+                {t("editor.qa.delete", "Delete")}
               </button>
             )}
             <button

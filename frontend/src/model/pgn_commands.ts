@@ -76,6 +76,21 @@ const visitVariation = (
   (Array.isArray(variation.trailingComments) ? variation.trailingComments : []).forEach((comment: PgnComment): void => visitComment(comment));
 };
 
+/** Return the raw text of the comment with the given ID, or null if not found. */
+export const getCommentRawById = (model: unknown, commentId: string): string | null => {
+  const typedModel = model as PgnModel;
+  if (!typedModel.root) return null;
+  let found: string | null = null;
+  visitVariation(
+    typedModel.root,
+    (): void => {},
+    (comment: PgnComment): void => {
+      if (comment.id === commentId) found = comment.raw;
+    },
+  );
+  return found;
+};
+
 export const setCommentTextById = (model: unknown, commentId: string, rawText: string): PgnModel => {
   const typedModel = model as PgnModel;
   const next = cloneModel(typedModel);

@@ -30,6 +30,7 @@ import {
   parsePgnToModel,
   ensureRequiredPgnHeaders,
   findExistingCommentIdAroundMove,
+  getCommentRawById,
   insertCommentAroundMove,
   normalizeX2StyleValue,
   setCommentTextById,
@@ -176,7 +177,7 @@ export const useAppStartup = (): AppStartupServices => {
         bundle.pgnRuntime.syncChessParseState(pgnText);
         syncStateToReact();
       },
-      insertComment: (moveId: string, position: "before" | "after"): void => {
+      insertComment: (moveId: string, position: "before" | "after"): { id: string; rawText: string } | null => {
         const existing = findExistingCommentIdAroundMove(
           bundle.legacyState.pgnModel,
           moveId,
@@ -185,14 +186,30 @@ export const useAppStartup = (): AppStartupServices => {
         if (existing) {
           bundle.legacyState.pendingFocusCommentId = existing;
           syncStateToReact();
-          return;
+          const rawText = getCommentRawById(bundle.legacyState.pgnModel, existing) ?? "";
+          return { id: existing, rawText };
         }
         const result = insertCommentAroundMove(
           bundle.legacyState.pgnModel,
           moveId,
           position,
         );
-        bundle.applyModelUpdate(result.model, result.insertedCommentId, { recordHistory: true });
+        bundle.applyModelUpdate(result.model, result.insertedCommentId, {
+          recordHistory: true,
+          preferredLayoutMode: bundle.legacyState.pgnLayoutMode,
+        });
+        return result.insertedCommentId ? { id: result.insertedCommentId, rawText: "" } : null;
+      },
+      focusCommentAroundMove: (moveId: string, position: "before" | "after"): void => {
+        const existing = findExistingCommentIdAroundMove(
+          bundle.legacyState.pgnModel,
+          moveId,
+          position,
+        );
+        if (existing) {
+          bundle.legacyState.pendingFocusCommentId = existing;
+          syncStateToReact();
+        }
       },
       saveCommentText: (commentId: string, text: string): void => {
         const newModel = setCommentTextById(
@@ -201,7 +218,10 @@ export const useAppStartup = (): AppStartupServices => {
           text,
         );
         if (newModel) {
-          bundle.applyModelUpdate(newModel, null, { recordHistory: false });
+          bundle.applyModelUpdate(newModel, null, {
+            recordHistory: false,
+            preferredLayoutMode: bundle.legacyState.pgnLayoutMode,
+          });
         }
       },
       applyDefaultIndent: (): void => {

@@ -34,6 +34,7 @@ export {
   resolveOwningMoveIdForCommentId,
   setFirstCommentIntroRole,
   setHeaderValue,
+  getCommentRawById,
   setCommentTextById,
   toggleFirstCommentIntroRole,
   X2_STYLE_HEADER_KEY,

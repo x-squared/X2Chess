@@ -335,14 +335,22 @@ const addComment = (state: PlanState, comment: PgnComment): void => {
   if (layoutMode === "tree") {
     // Show raw text literally — markers survive edits and are greyed via CSS.
     addCommentToken(state, comment, rawText, rawText, false, 0, applyIntroStyling, true, applyIntroStyling);
-    addSpace(state);
+    // Intro comment gets its own block so the first move starts on a new line.
+    if (applyIntroStyling) {
+      nextBlock(state);
+    } else {
+      addSpace(state);
+    }
     return;
   }
 
   // text mode: apply [[indent]] directive for block indentation.
+  // [[br]] markers are converted to newlines so the contentEditable shows
+  // visual line breaks (WYSIWYG). On save, newlines are normalized back to [[br]].
   const indentDirectiveDepth: number = getIndentDirectiveDepth(comment);
   const hasIndentDirective: boolean = indentDirectiveDepth > 0;
-  const visibleText: string = hasIndentDirective ? stripIndentDirectives(rawText) : rawText;
+  const strippedText: string = hasIndentDirective ? stripIndentDirectives(rawText) : rawText;
+  const visibleText: string = strippedText.replace(/\[\[br\]\]/gi, "\n");
   addCommentToken(
     state,
     comment,
@@ -535,6 +543,9 @@ const emitTreeVariation = (
   const childRavs: PgnVariation[] = [];
   let moveSide: "white" | "black" = "white";
 
+  // Track which move IDs had their commentsBefore hoisted before the move number.
+  const hoistedBeforeCommentMoveIds = new Set<string>();
+
   for (let idx: number = 0; idx < variation.entries.length; idx += 1) {
     const entry: PgnEntry = variation.entries[idx];
 
@@ -549,6 +560,13 @@ const emitTreeVariation = (
     }
 
     if (entry.type === "move_number") {
+      // Hoist commentsBefore of the immediately following move to appear before
+      // the move number, matching text/plain mode behaviour.
+      const lookahead: PgnEntry | undefined = variation.entries[idx + 1];
+      if (lookahead?.type === "move" && Array.isArray(lookahead.commentsBefore) && lookahead.commentsBefore.length > 0) {
+        lookahead.commentsBefore.forEach((c: PgnComment): void => addComment(state, c));
+        hoistedBeforeCommentMoveIds.add(lookahead.id);
+      }
       const parsed: MoveNumberInfo = parseMoveNumberToken(entry.text);
       if (parsed.side === "white" || parsed.side === "black") moveSide = parsed.side;
       addTextWithBreaks(
@@ -581,7 +599,9 @@ const emitTreeVariation = (
         ? `text-editor-main-move move-${side}`
         : `text-editor-variation-move move-${side}`;
 
-      entry.commentsBefore.forEach((c: PgnComment): void => addComment(state, c));
+      if (!hoistedBeforeCommentMoveIds.has(entry.id)) {
+        entry.commentsBefore.forEach((c: PgnComment): void => addComment(state, c));
+      }
       addTextWithBreaks(state, entry.san, moveClass, "move", {
         nodeId: entry.id,
         variationDepth: variation.depth,

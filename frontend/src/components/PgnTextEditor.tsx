@@ -131,24 +131,39 @@ type CommentBlockProps = {
 /**
  * Renders a single PGN comment as a `contentEditable` div.
  *
- * The element is intentionally **uncontrolled**: React sets the initial
- * `children` once on mount but never overwrites user edits.  The parent
- * must supply a stable key derived from the comment ID so that model updates
- * trigger a fresh mount with the new text.
+ * The element is semi-uncontrolled: `innerText` is set on mount and
+ * whenever `token.text` changes from an external source (e.g. QA dialog save,
+ * layout-mode switch). User keystrokes are NOT overwritten — a ref flag
+ * (`isUserEditPending`) suppresses the reactive update for the one render
+ * cycle immediately following an `onInput` event, after which external
+ * changes are tracked normally.
  *
- * Cmd/Ctrl+B/I/U apply bold, italic, and underline formatting via `execCommand`,
- * which remains the de-facto standard for `contentEditable` inline styling.
+ * Cmd/Ctrl+B/I/U apply bold, italic, and underline formatting via `execCommand`.
+ * In plain/tree mode (plainLiteralComment=true), Enter inserts `[[br]]` rather
+ * than a raw newline, keeping line-break markers visible as editable markup.
  */
 const CommentBlock = ({ token, isFocused, onEdit }: CommentBlockProps): ReactElement => {
   const ref = useRef<HTMLDivElement>(null);
+  // True for exactly one render cycle after the user makes an edit, so we
+  // skip the reactive innerText update and avoid clobbering the user's caret.
+  const isUserEditPending = useRef<boolean>(false);
 
-  // Set initial text on mount only — never update reactively.
-  // Passing token.text as React children would cause React to reconcile the
-  // text node on every model update, resetting the caret position.
+  // Set innerText on mount.
   useEffect((): void => {
     if (ref.current) ref.current.innerText = token.text;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // intentionally run once on mount
+
+  // Re-sync innerText when the model provides a new display value (e.g. QA
+  // dialog save, layout-mode switch).  Skipped for the render cycle that
+  // immediately follows a user input event.
+  useEffect((): void => {
+    if (isUserEditPending.current) {
+      isUserEditPending.current = false;
+      return;
+    }
+    if (ref.current) ref.current.innerText = token.text;
+  }, [token.text]);
 
   /** Move caret to end of element when this comment should receive focus. */
   useEffect((): void => {
@@ -164,17 +179,26 @@ const CommentBlock = ({ token, isFocused, onEdit }: CommentBlockProps): ReactEle
   }, [isFocused]);
 
   const handleInput = (e: FormEvent<HTMLDivElement>): void => {
+    isUserEditPending.current = true;
     onEdit(token.commentId, (e.currentTarget as HTMLDivElement).innerText);
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
+    // In plain/tree mode, Enter inserts the canonical [[br]] marker rather than
+    // a raw newline, keeping line-break markup visible and editable.
+    if (e.key === "Enter" && !e.shiftKey && !e.metaKey && !e.ctrlKey && token.plainLiteralComment) {
+      e.preventDefault();
+      // execCommand is deprecated but remains the only reliable way to insert
+      // text at the caret position inside a contentEditable element.
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
+      document.execCommand("insertText", false, "[[br]]");
+      return;
+    }
     const withMeta: boolean = e.metaKey || e.ctrlKey;
     if (!withMeta) return;
     const command: string | undefined = FORMAT_KEYS[e.key.toLowerCase()];
     if (!command) return;
     e.preventDefault();
-    // execCommand is deprecated but remains the only cross-browser API for
-    // inline formatting inside contentEditable elements.
     // eslint-disable-next-line @typescript-eslint/no-deprecated
     document.execCommand(command);
   };
@@ -204,6 +228,61 @@ const CommentBlock = ({ token, isFocused, onEdit }: CommentBlockProps): ReactEle
   );
 };
 
+// ── MoveActionBar ─────────────────────────────────────────────────────────────
+
+type MoveActionBarProps = {
+  moveId: string;
+  onInsertComment: (moveId: string, position: "before" | "after") => void;
+  onInsertQa: (moveId: string) => void;
+  t: (key: string, fallback?: string) => string;
+};
+
+/**
+ * Floating pill toolbar that appears below the currently selected move.
+ * Provides three actions: insert comment before, insert comment after, add Q/A.
+ */
+const MoveActionBar = ({ moveId, onInsertComment, onInsertQa, t }: MoveActionBarProps): ReactElement => (
+  <span className="move-action-bar" role="toolbar" aria-label={t("editor.moveActions", "Move actions")}>
+    <button
+      type="button"
+      className="move-action-btn"
+      tabIndex={-1}
+      onClick={(e: MouseEvent<HTMLButtonElement>): void => { e.stopPropagation(); onInsertComment(moveId, "before"); }}
+      title={t("editor.insertBefore", "Insert comment before")}
+    >
+      {/* Left arrow + plus: insert comment before move */}
+      <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+        <line x1="6" y1="6.5" x2="12" y2="6.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+        <line x1="9" y1="4" x2="9" y2="9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+        <polyline points="5,4 1.5,6.5 5,9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+      </svg>
+    </button>
+    <button
+      type="button"
+      className="move-action-btn move-action-btn-qa"
+      tabIndex={-1}
+      onClick={(e: MouseEvent<HTMLButtonElement>): void => { e.stopPropagation(); onInsertQa(moveId); }}
+      title={t("editor.insertQa", "Add Q/A annotation")}
+    >
+      ?
+    </button>
+    <button
+      type="button"
+      className="move-action-btn"
+      tabIndex={-1}
+      onClick={(e: MouseEvent<HTMLButtonElement>): void => { e.stopPropagation(); onInsertComment(moveId, "after"); }}
+      title={t("editor.insertAfter", "Insert comment after")}
+    >
+      {/* Plus + right arrow: insert comment after move */}
+      <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+        <line x1="1" y1="6.5" x2="7" y2="6.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+        <line x1="4" y1="4" x2="4" y2="9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+        <polyline points="8,4 11.5,6.5 8,9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+      </svg>
+    </button>
+  </span>
+);
+
 // ── MoveSpan ──────────────────────────────────────────────────────────────────
 
 type MoveSpanProps = {
@@ -217,7 +296,7 @@ type MoveSpanProps = {
    */
   onMoveClick: (moveId: string) => void;
   /**
-   * Called when the user clicks an insert-comment ± button.
+   * Called when the user clicks an insert-comment button in the action bar.
    * @param moveId - PGN move node ID adjacent to the insert point.
    * @param position - Whether to insert before or after the move.
    */
@@ -233,9 +312,8 @@ type MoveSpanProps = {
 /**
  * Renders a clickable SAN move token.
  *
- * Hover state is local (`useState`) so each span is self-contained and
- * no global hover atom is required.  The ± insert buttons appear on hover,
- * allowing the user to insert a comment before or after the move.
+ * When selected, a floating `MoveActionBar` appears below the move with
+ * three actions: insert comment before, insert comment after, add Q/A.
  */
 const MoveSpan = ({
   token,
@@ -269,30 +347,6 @@ const MoveSpan = ({
     }
   };
 
-  const handleInsertBefore = useCallback(
-    (e: MouseEvent): void => {
-      e.stopPropagation();
-      onInsertComment(moveId, "before");
-    },
-    [moveId, onInsertComment],
-  );
-
-  const handleInsertAfter = useCallback(
-    (e: MouseEvent): void => {
-      e.stopPropagation();
-      onInsertComment(moveId, "after");
-    },
-    [moveId, onInsertComment],
-  );
-
-  const handleQaClick = useCallback(
-    (e: MouseEvent): void => {
-      e.stopPropagation();
-      onInsertQa(moveId);
-    },
-    [moveId, onInsertQa],
-  );
-
   const className: string = [token.className, isSelected ? "text-editor-move-selected" : ""]
     .filter(Boolean)
     .join(" ");
@@ -311,40 +365,15 @@ const MoveSpan = ({
       onKeyDown={handleKeyDown}
       onContextMenu={handleContextMenu}
     >
-      {/* Before-button: shown left of move on hover via CSS */}
-      <button
-        type="button"
-        className="text-editor-insert-before"
-        tabIndex={-1}
-        onClick={handleInsertBefore}
-        aria-label={t("editor.insertBefore", "Insert comment before move")}
-        aria-hidden="true"
-      >
-        +
-      </button>
       {token.text}
-      {/* After-button: shown right of move on hover via CSS */}
-      <button
-        type="button"
-        className="text-editor-insert-after"
-        tabIndex={-1}
-        onClick={handleInsertAfter}
-        aria-label={t("editor.insertAfter", "Insert comment after move")}
-        aria-hidden="true"
-      >
-        +
-      </button>
-      {/* Q/A insert button (UV10) */}
-      <button
-        type="button"
-        className="text-editor-insert-qa"
-        tabIndex={-1}
-        onClick={handleQaClick}
-        aria-label={t("editor.insertQa", "Add Q/A annotation")}
-        aria-hidden="true"
-      >
-        ?
-      </button>
+      {isSelected && (
+        <MoveActionBar
+          moveId={moveId}
+          onInsertComment={onInsertComment}
+          onInsertQa={onInsertQa}
+          t={t}
+        />
+      )}
     </span>
   );
 };
@@ -360,6 +389,7 @@ type TokenViewProps = {
   onInsertComment: (moveId: string, position: "before" | "after") => void;
   onCommentEdit: (commentId: string, newText: string) => void;
   onEditQa: (commentId: string, index: number, rawText: string) => void;
+  onDeleteQa: (commentId: string, index: number, rawText: string) => void;
   onInsertQa: (moveId: string) => void;
   onContextMenu: (moveId: string, san: string, isInVariation: boolean, rect: DOMRect) => void;
   t: (key: string, fallback?: string) => string;
@@ -381,20 +411,20 @@ const TokenView = ({
   onInsertComment,
   onCommentEdit,
   onEditQa,
+  onDeleteQa,
   onInsertQa,
   onContextMenu,
   t,
 }: TokenViewProps): ReactElement => {
   if (token.kind === "comment") {
     const ct: CommentToken = token;
-    const showQaBadge: boolean =
-      layoutMode !== "plain" && !ct.plainLiteralComment && hasQaAnnotations(ct.rawText);
+    // Show QA badge in text/tree mode whenever annotations are present.
+    const showQaBadge: boolean = layoutMode !== "plain" && hasQaAnnotations(ct.rawText);
     const qaAnnotations = showQaBadge ? parseQaAnnotations(ct.rawText) : [];
-    // Show stripped text in the editable block when Q/A is present in text/tree mode.
-    const displayToken: CommentToken =
-      showQaBadge
-        ? { ...ct, text: stripQaAnnotations(ct.rawText) }
-        : ct;
+    // Compute stripped display text; omit the comment block if nothing remains.
+    const displayText: string = showQaBadge ? stripQaAnnotations(ct.rawText) : ct.text;
+    const hasDisplayText: boolean = displayText.trim().length > 0;
+    const displayToken: CommentToken = showQaBadge ? { ...ct, text: displayText } : ct;
     return (
       <>
         {showQaBadge && (
@@ -404,13 +434,18 @@ const TokenView = ({
             onEdit={(index: number): void => {
               onEditQa(ct.commentId, index, ct.rawText);
             }}
+            onDelete={(index: number): void => {
+              onDeleteQa(ct.commentId, index, ct.rawText);
+            }}
           />
         )}
-        <CommentBlock
-          token={displayToken}
-          isFocused={ct.commentId === pendingFocusCommentId}
-          onEdit={onCommentEdit}
-        />
+        {hasDisplayText && (
+          <CommentBlock
+            token={displayToken}
+            isFocused={ct.commentId === pendingFocusCommentId}
+            onEdit={onCommentEdit}
+          />
+        )}
       </>
     );
   }
@@ -507,7 +542,7 @@ export const PgnTextEditor = (): ReactElement => {
   );
 
   // ── Q/A dialog state (UV10/UV11) ─────────────────────────────────────────────
-  const { qaDialog, handleEditQa, handleInsertQa, handleQaDialogSave, handleQaDialogClose } = useQaDialog(services);
+  const { qaDialog, handleEditQa, handleInsertQa, handleQaDialogSave, handleQaDialogClose, handleDeleteQa } = useQaDialog(services);
 
   const handleToggle = useCallback((key: string): void => {
     setCollapsedPaths((prev: ReadonlySet<string>): ReadonlySet<string> => {
@@ -527,6 +562,8 @@ export const PgnTextEditor = (): ReactElement => {
   const handleMoveClick = useCallback(
     (moveId: string): void => {
       services.gotoMoveById(moveId);
+      // If an after-comment exists for this move, focus it for editing.
+      services.focusCommentAroundMove(moveId, "after");
     },
     [services],
   );
@@ -540,7 +577,9 @@ export const PgnTextEditor = (): ReactElement => {
 
   const handleCommentEdit = useCallback(
     (commentId: string, newText: string): void => {
-      services.saveCommentText(commentId, newText);
+      // Normalize any raw newlines (from Enter, paste, etc.) to [[br]] markers
+      // so the canonical PGN comment always uses the [[br]] convention.
+      services.saveCommentText(commentId, newText.replace(/\n/g, "[[br]]"));
     },
     [services],
   );
@@ -576,6 +615,21 @@ export const PgnTextEditor = (): ReactElement => {
             ))
           : undefined;
 
+        // When collapsed, build a short preview from the first few move tokens.
+        const collapsedPreview: string | null = (() => {
+          if (!isCollapsed || !block.isCollapsible) return null;
+          const PREVIEW_TYPES = new Set(["move_number", "move", "nag"]);
+          const parts: string[] = [];
+          for (const tok of block.tokens) {
+            if (tok.kind !== "inline") continue;
+            const it = tok as InlineToken;
+            if (!PREVIEW_TYPES.has(it.tokenType)) continue;
+            parts.push(it.text);
+            if (parts.length >= 8) break;
+          }
+          return parts.length > 0 ? parts.join(" ").replace(/\s+/g, " ").trim() : null;
+        })();
+
         return (
           <div
             key={block.key}
@@ -596,7 +650,11 @@ export const PgnTextEditor = (): ReactElement => {
                 onToggle={handleToggle}
               />
             )}
-            {/* When collapsed, render only the header (tokens hidden). */}
+            {/* Collapsed preview — first few moves followed by an ellipsis. */}
+            {isCollapsed && collapsedPreview !== null && (
+              <span className="tree-collapsed-preview">{collapsedPreview} …</span>
+            )}
+            {/* When expanded, render all tokens except the branch_header. */}
             {!isCollapsed && block.tokens
               .filter((tok: PlanToken): boolean =>
                 !(tok.kind === "inline" && tok.tokenType === "branch_header"),
@@ -624,6 +682,7 @@ export const PgnTextEditor = (): ReactElement => {
                     onInsertComment={handleInsertComment}
                     onCommentEdit={handleCommentEdit}
                     onEditQa={handleEditQa}
+                    onDeleteQa={handleDeleteQa}
                     onInsertQa={handleInsertQa}
                     onContextMenu={handleMoveContextMenu}
                     t={t}

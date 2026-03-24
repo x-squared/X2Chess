@@ -402,7 +402,7 @@
   color: var(--text-primary);
 }
 
-/* Group header rows (UV3) */
+/* Group header rows (UV3) — compact horizontal style */
 .resource-group-header {
   cursor: pointer;
   user-select: none;
@@ -413,22 +413,26 @@
 }
 
 .resource-group-header-cell {
-  background: var(--surface-2);
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface-2));
   border-bottom: 1px solid var(--border-subtle);
+  border-top: 1px solid color-mix(in srgb, var(--accent) 12%, transparent);
   font-weight: 600;
-  font-size: 0.8rem;
+  font-size: 0.76rem;
   color: var(--text-secondary);
-  padding: 0.28rem 0.5rem;
+  padding: 0.14rem 0.5rem;
+  letter-spacing: 0.01em;
 }
 
 .resource-group-header--depth1 .resource-group-header-cell {
-  padding-left: 1.5rem;
+  padding-left: 1.2rem;
   font-weight: 500;
+  font-size: 0.74rem;
 }
 
 .resource-group-header--depth2 .resource-group-header-cell {
-  padding-left: 3rem;
+  padding-left: 2.2rem;
   font-weight: 400;
+  font-size: 0.72rem;
 }
 
 .resource-group-toggle {
@@ -1157,5 +1161,101 @@
 .resource-new-game-btn:hover {
   background: var(--accent, #6366f1);
   color: #fff;
+}
+
+/* ── Right panel stack: tabbed layout ─────────────────────────────────── */
+
+.right-panel-stack {
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: linear-gradient(180deg, var(--surface-1), var(--surface-2));
+  box-shadow: var(--shadow-s);
+  margin-bottom: 0.9rem;
+  overflow: hidden;
+}
+
+.right-panel-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 0 0.4rem;
+  background: var(--surface-2);
+  scrollbar-width: none;
+}
+
+.right-panel-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.right-panel-tab {
+  flex: 0 0 auto;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 0.45rem 0.75rem 0.38rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.1s, border-color 0.1s;
+}
+
+.right-panel-tab:hover {
+  color: var(--text-primary);
+}
+
+.right-panel-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+.right-panel-body {
+  overflow: hidden;
+  min-height: 420px;
+  display: flex;
+  flex-direction: column;
+}
+
+.right-panel-content {
+  flex: 1;
+  overflow: auto;
+  padding: 0.6rem 0.75rem;
+}
+
+.right-panel-content[hidden] {
+  display: none;
+}
+
+/* Resources tab: no extra padding — ResourceViewer handles its own layout */
+.right-panel-content-resources {
+  padding: 0;
+  height: 100%;
+}
+
+/* When ResourceViewer is embedded inside the panel tab, strip its outer card
+   styling and let it fill the available height. */
+.right-panel-content-resources .resource-viewer-card {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0.3rem 0.5rem;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Let the resource table fill the remaining height instead of using the fixed
+   --resource-viewer-height variable. */
+.right-panel-content-resources .resource-table-wrap {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+  max-height: none;
 }
 

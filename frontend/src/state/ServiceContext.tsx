@@ -45,11 +45,19 @@ export type AppStartupServices = {
    */
   loadPgnText: (pgnText: string) => void;
   /**
-   * Insert a new comment node around the given move.
+   * Insert a new comment node around the given move, or focus the existing one.
+   * Returns `{ id, rawText }` for the comment (new or existing), or null on failure.
    * @param moveId - Target move node ID.
    * @param position - Whether to insert before or after the move.
    */
-  insertComment: (moveId: string, position: "before" | "after") => void;
+  insertComment: (moveId: string, position: "before" | "after") => { id: string; rawText: string } | null;
+  /**
+   * Focus an existing comment around the given move without creating a new one.
+   * No-op when no comment exists at that position.
+   * @param moveId - Target move node ID.
+   * @param position - Whether to look before or after the move.
+   */
+  focusCommentAroundMove: (moveId: string, position: "before" | "after") => void;
   /**
    * Persist the user's typed comment text back into the PGN model.
    * @param commentId - PGN comment node ID.
@@ -154,7 +162,8 @@ const defaultServices: AppStartupServices = {
   gotoLast: noop,
   gotoMoveById: noop,
   loadPgnText: noop,
-  insertComment: noop,
+  insertComment: (): null => null as null,
+  focusCommentAroundMove: noop,
   saveCommentText: noop,
   applyDefaultIndent: noop,
   updateGameInfoHeader: noop,

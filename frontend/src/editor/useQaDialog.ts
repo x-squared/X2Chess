@@ -37,6 +37,7 @@ export type UseQaDialogResult = {
   handleInsertQa: (moveId: string) => void;
   handleQaDialogSave: (moveId: string, annotation: QaAnnotation) => void;
   handleQaDialogClose: () => void;
+  handleDeleteQa: (commentId: string, index: number, rawText: string) => void;
 };
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
@@ -54,8 +55,10 @@ export const useQaDialog = (services: AppStartupServices): UseQaDialogResult => 
 
   const handleInsertQa = useCallback(
     (moveId: string): void => {
-      setQaDialog({ commentId: "", rawText: "", editIndex: -1, initial: undefined });
-      services.insertComment(moveId, "after");
+      // Create (or find) the comment first so we have its ID and current raw text.
+      const comment = services.insertComment(moveId, "after");
+      if (!comment) return;
+      setQaDialog({ commentId: comment.id, rawText: comment.rawText, editIndex: -1, initial: undefined });
     },
     [services],
   );
@@ -79,5 +82,13 @@ export const useQaDialog = (services: AppStartupServices): UseQaDialogResult => 
     setQaDialog(null);
   }, []);
 
-  return { qaDialog, handleEditQa, handleInsertQa, handleQaDialogSave, handleQaDialogClose };
+  const handleDeleteQa = useCallback(
+    (commentId: string, index: number, rawText: string): void => {
+      const updated = replaceQaAnnotation(rawText, index, null);
+      services.saveCommentText(commentId, updated);
+    },
+    [services],
+  );
+
+  return { qaDialog, handleEditQa, handleInsertQa, handleQaDialogSave, handleQaDialogClose, handleDeleteQa };
 };

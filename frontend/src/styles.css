@@ -18,6 +18,17 @@
   --focus-ring: 0 0 0 3px rgba(42, 93, 202, 0.25);
   --shadow-s: 0 1px 3px rgba(16, 32, 54, 0.08);
   --shadow-m: 0 6px 18px rgba(16, 32, 54, 0.12);
+  /* Compatibility aliases for panel CSS files that use generic dark-theme tokens */
+  --bg-panel: var(--surface-1);
+  --bg-input: var(--surface-2);
+  --border: var(--border-subtle);
+  --text: var(--text-primary);
+  --input-bg: var(--surface-2);
+  --text-muted: var(--text-secondary);
+  --surface: var(--surface-1);
+  --surface-0: var(--surface-2);
+  --error: var(--danger);
+  --success: #1f7a4f;
   --text-editor-font-size: 14px;
   --text-editor-line-height: 1.45;
   --text-editor-max-height: 62vh;
@@ -444,7 +455,8 @@ body.dev-dock-open .app {
 }
 
 .game-tab:hover .game-tab-save,
-.game-tab.active .game-tab-save {
+.game-tab.active .game-tab-save,
+.game-tab-save.always-visible {
   opacity: 1;
 }
 
@@ -461,7 +473,7 @@ body.dev-dock-open .app {
 }
 
 .text-editor {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: Georgia, "Palatino Linotype", Palatino, "Times New Roman", serif;
   font-size: var(--text-editor-font-size);
   line-height: var(--text-editor-line-height);
   color: var(--text-primary);
@@ -597,87 +609,6 @@ body.dev-dock-open .app {
   box-shadow: 0 0 0 1px rgba(42, 93, 202, 0.4);
 }
 
-/* Insert-comment buttons — centered on the left/right border of the hover box.
-   Positioned at left:0 / right:0 with translateX(-50%/+50%) so they straddle
-   the span edge — the inner half is always over the span, eliminating any gap
-   that would cause :hover to deactivate as the mouse moves toward the button. */
-.text-editor-insert-before,
-.text-editor-insert-after {
-  position: absolute;
-  top: 50%;
-  width: 16px;
-  height: 16px;
-  padding: 0;
-  border: 1px solid rgba(42, 93, 202, 0.55);
-  background: var(--surface-1);
-  border-radius: 50%;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--accent);
-  z-index: 10;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.05s, background 0.05s;
-}
-
-.text-editor-insert-before {
-  left: 0;
-  transform: translate(-50%, -50%);
-}
-
-.text-editor-insert-after {
-  right: 0;
-  transform: translate(50%, -50%);
-}
-
-[data-token-type="move"]:hover .text-editor-insert-before,
-[data-token-type="move"]:hover .text-editor-insert-after {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.text-editor-insert-before:hover,
-.text-editor-insert-after:hover {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-}
-
-/* Q/A insert button on move hover (UV10) */
-.text-editor-insert-qa {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.1em;
-  height: 1.1em;
-  padding: 0;
-  margin-left: 1px;
-  font-size: 0.7em;
-  font-weight: 700;
-  line-height: 1;
-  color: var(--accent);
-  background: transparent;
-  border: 1px solid var(--accent);
-  border-radius: 50%;
-  cursor: pointer;
-  opacity: 0;
-  pointer-events: none;
-  vertical-align: middle;
-  transition: opacity 0.15s, background 0.15s;
-}
-
-[data-token-type="move"]:hover .text-editor-insert-qa {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.text-editor-insert-qa:hover {
-  background: var(--accent-soft);
-}
 
 /* Q/A badge (UV9) */
 .qa-badge-wrap {
@@ -791,6 +722,7 @@ body.dev-dock-open .app {
 }
 
 .qa-popover-edit-btn,
+.qa-popover-delete-btn,
 .qa-popover-close-btn {
   padding: 0.2em 0.7em;
   font-size: 0.82em;
@@ -805,6 +737,16 @@ body.dev-dock-open .app {
   background: var(--accent-soft, #eff6ff);
   border-color: var(--accent, #2563eb);
   color: var(--accent, #2563eb);
+}
+
+.qa-popover-delete-btn {
+  color: var(--danger, #b4233a);
+  border-color: rgba(180, 35, 58, 0.35);
+}
+
+.qa-popover-delete-btn:hover {
+  background: var(--danger-soft, #fde9ee);
+  border-color: var(--danger, #b4233a);
 }
 
 /* Q/A insert dialog (UV10) */

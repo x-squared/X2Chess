@@ -95,7 +95,7 @@
 }
 
 .text-editor {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: "Palatino Linotype", Palatino, Georgia, "Book Antiqua", serif;
   font-size: var(--text-editor-font-size);
   line-height: var(--text-editor-line-height);
   color: var(--text-primary);
@@ -147,15 +147,23 @@
   pointer-events: auto;
 }
 
+/* Plain mode — monospace/technical appearance */
+.text-editor[data-layout-mode="plain"] {
+  font-family: "Courier New", Courier, monospace;
+}
+
 /* ── Tree mode ───────────────────────────────────────────────────────────── */
 
 .text-editor[data-layout-mode="tree"] .text-editor-block {
   border-left: 2px solid transparent;
-  padding-left: 0.6em;
+  padding-left: 0.5em;
   margin-bottom: 0.2em;
+  position: relative;
 }
 
-/* Depth classes — applied to .text-editor-block in tree mode */
+/* Depth classes — applied to .text-editor-block in tree mode.
+   margin-left shifts the whole block (including its left border guide line)
+   so each depth level is visually indented. */
 .text-editor-block.tree-depth-1 {
   border-left-color: var(--color-mainline, #2a5dca);
   font-weight: 500;
@@ -163,21 +171,39 @@
 
 .text-editor-block.tree-depth-2 {
   border-left-color: var(--color-depth-2, #6b8fc9);
-  padding-left: 1.4em;
+  margin-left: 0.9em;
 }
 
 .text-editor-block.tree-depth-3 {
   border-left-color: var(--color-depth-3, #9ab0d8);
-  padding-left: 2.2em;
+  margin-left: 1.8em;
   font-size: 0.95em;
 }
 
 .text-editor-block.tree-depth-4plus {
   border-left-color: var(--color-depth-4plus, #c3cedf);
-  padding-left: 3em;
+  margin-left: 2.7em;
   font-size: 0.9em;
   opacity: 0.85;
 }
+
+/* Horizontal elbow connector — bridges the parent's guide line to this block.
+   Each depth adds 0.9em, so the connector always spans 0.9em back. */
+.text-editor-block.tree-depth-2::before,
+.text-editor-block.tree-depth-3::before,
+.text-editor-block.tree-depth-4plus::before {
+  content: "";
+  position: absolute;
+  left: calc(-0.9em + 2px);
+  width: calc(0.9em - 4px);
+  top: 0.72em;
+  height: 1px;
+  opacity: 0.7;
+}
+
+.text-editor-block.tree-depth-2::before { background: var(--color-depth-2, #6b8fc9); }
+.text-editor-block.tree-depth-3::before { background: var(--color-depth-3, #9ab0d8); }
+.text-editor-block.tree-depth-4plus::before { background: var(--color-depth-4plus, #c3cedf); }
 
 /* Branch header toggle button — renders as a badge pill */
 .tree-collapse-toggle {
@@ -262,4 +288,63 @@ span[data-kind="branch_header"] {
 /* Muted markers in tree mode — [[br]] and [[indent]] show as literal greyed text */
 [data-layout-mode="tree"] .text-editor-comment.plain {
   color: var(--text-muted, #9aa3b0);
+}
+
+/* Collapsed variation preview — muted move text with ellipsis */
+.tree-collapsed-preview {
+  display: inline;
+  color: var(--text-muted, #9aa3b0);
+  font-size: 0.88em;
+  margin-left: 0.25em;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ── Move action bar ─────────────────────────────────────────────────────── */
+
+/* Floating pill toolbar below the selected move */
+.move-action-bar {
+  position: absolute;
+  top: calc(100% + 3px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 5px;
+  background: var(--surface-1);
+  border: 1px solid rgba(42, 93, 202, 0.40);
+  border-radius: 999px;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.12);
+  white-space: nowrap;
+  z-index: 20;
+  pointer-events: auto;
+  user-select: none;
+}
+
+.move-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.move-action-btn:hover {
+  background: var(--accent-soft, rgba(42, 93, 202, 0.10));
+  border-color: rgba(42, 93, 202, 0.38);
+}
+
+.move-action-btn-qa {
+  border-color: rgba(42, 93, 202, 0.38);
+  font-size: 10px;
 }

@@ -23,6 +23,7 @@ export {
   insertCommentAroundMove,
   removeCommentById,
   resolveOwningMoveIdForCommentId,
+  getCommentRawById,
   setCommentTextById,
   setFirstCommentIntroRole,
   toggleFirstCommentIntroRole,

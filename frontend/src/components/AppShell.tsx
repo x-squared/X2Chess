@@ -65,7 +65,6 @@ import { GameInfoEditor } from "./GameInfoEditor";
 import { GameSessionsPanel } from "./GameSessionsPanel";
 import { ChessBoard } from "./ChessBoard";
 import { PgnTextEditor } from "./PgnTextEditor";
-import { ResourceViewer } from "./ResourceViewer";
 import { ToolbarRow } from "./ToolbarRow";
 import { RightPanelStack } from "./RightPanelStack";
 import { PlayVsEngineDialog } from "./PlayVsEngineDialog";
@@ -400,7 +399,6 @@ export const AppShell = (): ReactElement => {
   const overlayRef = useRef<HTMLDivElement>(null);
   const boardEditorBoxRef = useRef<HTMLDivElement>(null);
   const boardResizeHandleRef = useRef<HTMLDivElement>(null);
-  const vertResizeHandleRef = useRef<HTMLDivElement>(null);
   /** Tracks the board width the user set via horizontal drag, so it can be restored when the resource viewer shrinks. */
   const intendedBoardWidthRef = useRef<number>(520);
 
@@ -445,51 +443,6 @@ export const AppShell = (): ReactElement => {
     };
   }, []);
 
-  // Wire up resource viewer vertical resize handle.
-  useEffect((): (() => void) => {
-    const handleEl = vertResizeHandleRef.current;
-    if (!handleEl) return (): void => {};
-
-    const clampRV = (px: number): number => Math.max(120, Math.min(600, Math.round(px)));
-    const clampBW = (px: number): number => Math.max(260, Math.min(680, Math.round(px)));
-
-    const getCSSInt = (prop: string, fallback: number): number => {
-      const raw = getComputedStyle(document.documentElement).getPropertyValue(prop);
-      const n = parseInt(raw, 10);
-      return Number.isFinite(n) ? n : fallback;
-    };
-
-    let startY = 0;
-    let startRV = 0;
-    let startBW = 0;
-
-    const onMove = (e: PointerEvent): void => {
-      const delta = e.clientY - startY;
-      const newRV = clampRV(startRV - delta);
-      const newBW = clampBW(Math.min(intendedBoardWidthRef.current, startBW + delta));
-      document.documentElement.style.setProperty("--resource-viewer-height", `${newRV}px`);
-      document.documentElement.style.setProperty("--board-column-width", `${newBW}px`);
-    };
-    const onUp = (): void => {};
-    const onDown = (e: PointerEvent): void => {
-      startY = e.clientY;
-      startRV = getCSSInt("--resource-viewer-height", 260);
-      startBW = getCSSInt("--board-column-width", 520);
-      handleEl.setPointerCapture(e.pointerId);
-      e.preventDefault();
-    };
-
-    handleEl.addEventListener("pointerdown", onDown);
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-    window.addEventListener("pointercancel", onUp);
-    return (): void => {
-      handleEl.removeEventListener("pointerdown", onDown);
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-      window.removeEventListener("pointercancel", onUp);
-    };
-  }, []);
 
   useEffect((): void => {
     const { bindEvents } = createGameIngressHandlers({
@@ -684,7 +637,7 @@ export const AppShell = (): ReactElement => {
             </div>
           </div>
 
-          {/* ── Right panel stack (analysis, explorer, search) ── */}
+          {/* ── Right panel stack (analysis, explorer, search, resources) ── */}
           <RightPanelStack
             variations={variations}
             isAnalyzing={isAnalyzing}
@@ -708,17 +661,6 @@ export const AppShell = (): ReactElement => {
             onImportPgn={services.openPgnText}
             onOpenGame={services.openGameFromRef}
           />
-
-          {/* Vertical resize handle (between board/editor and resource viewer) */}
-          <div
-            ref={vertResizeHandleRef}
-            id="resource-viewer-resize-handle"
-            className="resource-viewer-resize-handle"
-            aria-hidden="true"
-          />
-
-          {/* ── Resource viewer card ── */}
-          <ResourceViewer />
         </section>
 
         {/* ── Developer dock ── */}

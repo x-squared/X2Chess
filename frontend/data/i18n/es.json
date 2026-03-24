@@ -56,6 +56,7 @@
   "resources.table.source": "Fuente",
   "resources.table.revision": "Revision",
   "resources.table.unknown": "Sin titulo",
+  "resources.groupby.none": "ninguno",
   "toolbar.commentBold": "Texto de comentario en negrita",
   "toolbar.commentItalic": "Texto de comentario en cursiva",
   "toolbar.commentUnderline": "Subrayar texto de comentario"

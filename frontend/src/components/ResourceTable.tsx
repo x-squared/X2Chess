@@ -318,64 +318,82 @@ export const ResourceTable = ({
                       }
                     }}
                   >
-                    {/* Drag handle — pointer-based (UV1) */}
-                    <span
-                      className="resource-col-drag-handle"
-                      aria-hidden="true"
-                      title={t("resources.table.dragColumn", "Drag to reorder column")}
-                      onPointerDown={(e: ReactPointerEvent<HTMLSpanElement>): void => {
-                        e.stopPropagation();
-                        onColDragStart(key);
-                      }}
-                    >⠿</span>
-                    {/* Sortable label (UV4) */}
-                    <button
-                      type="button"
-                      className="resource-col-sort-btn"
-                      onClick={(): void => { onSortChange(key); }}
-                      aria-label={`Sort by ${resolveColLabel(key, t)}`}
-                    >
-                      {key === "game"
-                        ? t("resources.table.game", "Game")
-                        : resolveColLabel(key, t)}
-                      {isSortedAsc && <span className="resource-sort-indicator" aria-hidden="true">↑</span>}
-                      {isSortedDesc && <span className="resource-sort-indicator" aria-hidden="true">↓</span>}
-                    </button>
-                    <span
-                      className="resource-col-resize-handle"
-                      aria-hidden="true"
-                      onPointerDown={(e: ReactPointerEvent<HTMLSpanElement>): void => {
-                        onResizeStart(key, e);
-                      }}
-                    />
+                    <div className="resource-col-header-inner">
+                      {/* Drag handle — pointer-based (UV1) */}
+                      <span
+                        className="resource-col-drag-handle"
+                        aria-hidden="true"
+                        title={t("resources.table.dragColumn", "Drag to reorder column")}
+                        onPointerDown={(e: ReactPointerEvent<HTMLSpanElement>): void => {
+                          e.stopPropagation();
+                          onColDragStart(key);
+                        }}
+                      >⠿</span>
+                      {/* Sortable label (UV4) */}
+                      <button
+                        type="button"
+                        className="resource-col-sort-btn"
+                        onClick={(): void => { onSortChange(key); }}
+                        aria-label={`Sort by ${resolveColLabel(key, t)}`}
+                      >
+                        {key === "game"
+                          ? t("resources.table.game", "Game")
+                          : resolveColLabel(key, t)}
+                        {isSortedAsc && <span className="resource-sort-indicator" aria-hidden="true">↑</span>}
+                        {isSortedDesc && <span className="resource-sort-indicator" aria-hidden="true">↓</span>}
+                      </button>
+                      <span
+                        className="resource-col-resize-handle"
+                        aria-hidden="true"
+                        onPointerDown={(e: ReactPointerEvent<HTMLSpanElement>): void => {
+                          onResizeStart(key, e);
+                        }}
+                      />
+                    </div>
                   </th>
                 );
               })}
             </tr>
             <tr className="resource-filter-row">
-              {activeTab.metadataColumnOrder.map((key: string): ReactElement => {
+              {activeTab.metadataColumnOrder.map((key: string, idx: number): ReactElement => {
                 const fieldDef = fieldDefMap.get(key);
                 const filterVal = columnFilters[key] ?? "";
                 const isActive = Boolean(filterVal);
-                const cellClass = `resource-filter-cell${isActive ? " resource-filter-cell--active" : ""}`;
+                const isLastColumn = idx === activeTab.metadataColumnOrder.length - 1;
+                const hasInlineClear = hasActiveFilter && isLastColumn;
+                const cellClass = `resource-filter-cell${isActive ? " resource-filter-cell--active" : ""}${
+                  hasInlineClear ? " resource-filter-cell--clear" : ""
+                }`;
 
                 // Select columns get a dropdown of allowed values (UV2).
                 if (fieldDef?.type === "select" && fieldDef.selectValues?.length) {
                   return (
                     <th key={key} className={cellClass}>
-                      <select
-                        className={`resource-filter-select${isActive ? " resource-filter-input--active" : ""}`}
-                        aria-label={`Filter ${key}`}
-                        value={filterVal}
-                        onChange={(e: ChangeEvent<HTMLSelectElement>): void => {
-                          onFilterChange(key, e.target.value);
-                        }}
-                      >
-                        <option value="">—</option>
-                        {fieldDef.selectValues.map((v) => (
-                          <option key={v} value={v}>{v}</option>
-                        ))}
-                      </select>
+                      <div className="resource-filter-cell-inner">
+                        <select
+                          className={`resource-filter-select${isActive ? " resource-filter-input--active" : ""}`}
+                          aria-label={`Filter ${key}`}
+                          value={filterVal}
+                          onChange={(e: ChangeEvent<HTMLSelectElement>): void => {
+                            onFilterChange(key, e.target.value);
+                          }}
+                        >
+                          <option value="">—</option>
+                          {fieldDef.selectValues.map((v) => (
+                            <option key={v} value={v}>{v}</option>
+                          ))}
+                        </select>
+                        {hasInlineClear && (
+                          <button
+                            type="button"
+                            className="resource-filter-clear-btn"
+                            title={t("resources.table.clearFilters", "Clear all filters")}
+                            onClick={onClearFilters}
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
                     </th>
                   );
                 }
@@ -390,32 +408,31 @@ export const ResourceTable = ({
 
                 return (
                   <th key={key} className={cellClass}>
-                    <input
-                      type="text"
-                      className={`resource-filter-input${isActive ? " resource-filter-input--active" : ""}`}
-                      aria-label={`Filter ${key}`}
-                      placeholder={placeholder}
-                      value={filterVal}
-                      onChange={(e: ChangeEvent<HTMLInputElement>): void => {
-                        onFilterChange(key, e.target.value);
-                      }}
-                    />
+                    <div className="resource-filter-cell-inner">
+                      <input
+                        type="text"
+                        className={`resource-filter-input${isActive ? " resource-filter-input--active" : ""}`}
+                        aria-label={`Filter ${key}`}
+                        placeholder={placeholder}
+                        value={filterVal}
+                        onChange={(e: ChangeEvent<HTMLInputElement>): void => {
+                          onFilterChange(key, e.target.value);
+                        }}
+                      />
+                      {hasInlineClear && (
+                        <button
+                          type="button"
+                          className="resource-filter-clear-btn"
+                          title={t("resources.table.clearFilters", "Clear all filters")}
+                          onClick={onClearFilters}
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
                   </th>
                 );
               })}
-              {/* Clear-all button in last cell (only visible when a filter is active) */}
-              {hasActiveFilter && (
-                <th className="resource-filter-cell resource-filter-cell--clear" key="__clear__">
-                  <button
-                    type="button"
-                    className="resource-filter-clear-btn"
-                    title={t("resources.table.clearFilters", "Clear all filters")}
-                    onClick={onClearFilters}
-                  >
-                    ✕
-                  </button>
-                </th>
-              )}
             </tr>
           </thead>
           <tbody>

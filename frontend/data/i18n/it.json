@@ -56,6 +56,7 @@
   "resources.table.source": "Fonte",
   "resources.table.revision": "Revisione",
   "resources.table.unknown": "Senza titolo",
+  "resources.groupby.none": "nessuno",
   "toolbar.commentBold": "Testo commento in grassetto",
   "toolbar.commentItalic": "Testo commento in corsivo",
   "toolbar.commentUnderline": "Sottolinea testo commento"

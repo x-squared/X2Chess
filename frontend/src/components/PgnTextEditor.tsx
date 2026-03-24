@@ -21,7 +21,7 @@
  */
 
 import { useMemo, useRef, useEffect, useCallback, useState } from "react";
-import type { ReactElement, KeyboardEvent, FormEvent, MouseEvent } from "react";
+import type { ReactElement, KeyboardEvent as ReactKeyboardEvent, FormEvent, MouseEvent } from "react";
 import { buildTextEditorPlan } from "../editor/text_editor_plan";
 import type { PlanBlock, PlanToken, InlineToken, CommentToken } from "../editor/text_editor_plan";
 import { useAppContext } from "../state/app_context";
@@ -85,6 +85,25 @@ const treeDepthClass = (variationPath: readonly number[]): string => {
   return depth >= 4 ? "tree-depth-4plus" : `tree-depth-${depth}`;
 };
 
+/**
+ * Builds a map from parent variation-path key to the greatest child sibling index.
+ * Used to trim vertical tree spines for last-sibling blocks.
+ */
+const buildLastSiblingByParent = (blocks: readonly PlanBlock[]): ReadonlyMap<string, number> => {
+  const byParent: Map<string, number> = new Map<string, number>();
+  blocks.forEach((block: PlanBlock): void => {
+    const path: readonly number[] | undefined = block.variationPath;
+    if (!path || path.length <= 1) return;
+    const parentKey: string = pathKey(path.slice(0, -1));
+    const siblingIndex: number = path[path.length - 1] ?? 0;
+    const prev: number | undefined = byParent.get(parentKey);
+    if (prev === undefined || siblingIndex > prev) {
+      byParent.set(parentKey, siblingIndex);
+    }
+  });
+  return byParent;
+};
+
 // ── BranchHeader ──────────────────────────────────────────────────────────────
 
 type BranchHeaderProps = {
@@ -120,6 +139,8 @@ type CommentBlockProps = {
    * Set when the comment was just inserted by the user.
    */
   isFocused: boolean;
+  /** Called after one-time autofocus was consumed for this comment. */
+  onFocusHandled: (commentId: string) => void;
   /**
    * Called on every user keystroke inside the contentEditable element.
    * @param commentId - The PGN comment node ID.
@@ -142,7 +163,7 @@ type CommentBlockProps = {
  * In plain/tree mode (plainLiteralComment=true), Enter inserts `[[br]]` rather
  * than a raw newline, keeping line-break markers visible as editable markup.
  */
-const CommentBlock = ({ token, isFocused, onEdit }: CommentBlockProps): ReactElement => {
+const CommentBlock = ({ token, isFocused, onEdit, onFocusHandled }: CommentBlockProps): ReactElement => {
   const ref = useRef<HTMLDivElement>(null);
   // True for exactly one render cycle after the user makes an edit, so we
   // skip the reactive innerText update and avoid clobbering the user's caret.
@@ -176,14 +197,15 @@ const CommentBlock = ({ token, isFocused, onEdit }: CommentBlockProps): ReactEle
     range.collapse(false);
     sel.removeAllRanges();
     sel.addRange(range);
-  }, [isFocused]);
+    onFocusHandled(token.commentId);
+  }, [isFocused, onFocusHandled, token.commentId]);
 
   const handleInput = (e: FormEvent<HTMLDivElement>): void => {
     isUserEditPending.current = true;
     onEdit(token.commentId, (e.currentTarget as HTMLDivElement).innerText);
   };
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
+  const handleKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>): void => {
     // In plain/tree mode, Enter inserts the canonical [[br]] marker rather than
     // a raw newline, keeping line-break markup visible and editable.
     if (e.key === "Enter" && !e.shiftKey && !e.metaKey && !e.ctrlKey && token.plainLiteralComment) {
@@ -340,7 +362,7 @@ const MoveSpan = ({
     [moveId, token.text, token.dataset.variationDepth, onContextMenu],
   );
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLSpanElement>): void => {
+  const handleKeyDown = (e: ReactKeyboardEvent<HTMLSpanElement>): void => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       onMoveClick(moveId);
@@ -384,10 +406,12 @@ type TokenViewProps = {
   token: PlanToken;
   selectedMoveId: string | null;
   pendingFocusCommentId: string | null;
+  consumedFocusCommentId: string | null;
   layoutMode: "plain" | "text" | "tree";
   onMoveClick: (moveId: string) => void;
   onInsertComment: (moveId: string, position: "before" | "after") => void;
   onCommentEdit: (commentId: string, newText: string) => void;
+  onCommentFocusHandled: (commentId: string) => void;
   onEditQa: (commentId: string, index: number, rawText: string) => void;
   onDeleteQa: (commentId: string, index: number, rawText: string) => void;
   onInsertQa: (moveId: string) => void;
@@ -406,10 +430,12 @@ const TokenView = ({
   token,
   selectedMoveId,
   pendingFocusCommentId,
+  consumedFocusCommentId,
   layoutMode,
   onMoveClick,
   onInsertComment,
   onCommentEdit,
+  onCommentFocusHandled,
   onEditQa,
   onDeleteQa,
   onInsertQa,
@@ -442,7 +468,11 @@ const TokenView = ({
         {hasDisplayText && (
           <CommentBlock
             token={displayToken}
-            isFocused={ct.commentId === pendingFocusCommentId}
+            isFocused={
+              ct.commentId === pendingFocusCommentId &&
+              pendingFocusCommentId !== consumedFocusCommentId
+            }
+            onFocusHandled={onCommentFocusHandled}
             onEdit={onCommentEdit}
           />
         )}
@@ -477,6 +507,152 @@ const TokenView = ({
   );
 };
 
+type TokenRenderDeps = {
+  selectedMoveId: string | null;
+  pendingFocusCommentId: string | null;
+  consumedFocusCommentId: string | null;
+  layoutMode: "plain" | "text" | "tree";
+  onMoveClick: (moveId: string) => void;
+  onInsertComment: (moveId: string, position: "before" | "after") => void;
+  onCommentEdit: (commentId: string, newText: string) => void;
+  onCommentFocusHandled: (commentId: string) => void;
+  onEditQa: (commentId: string, index: number, rawText: string) => void;
+  onDeleteQa: (commentId: string, index: number, rawText: string) => void;
+  onInsertQa: (moveId: string) => void;
+  onContextMenu: (moveId: string, san: string, isInVariation: boolean, rect: DOMRect) => void;
+  t: (key: string, fallback?: string) => string;
+};
+
+const tokenStableKey = (token: PlanToken): string => (
+  token.kind === "comment"
+    ? `comment_${(token as CommentToken).commentId}`
+    : token.key
+);
+
+const renderToken = (token: PlanToken, deps: TokenRenderDeps): ReactElement => (
+  <TokenView
+    key={tokenStableKey(token)}
+    token={token}
+    selectedMoveId={deps.selectedMoveId}
+    pendingFocusCommentId={deps.pendingFocusCommentId}
+    consumedFocusCommentId={deps.consumedFocusCommentId}
+    layoutMode={deps.layoutMode}
+    onMoveClick={deps.onMoveClick}
+    onInsertComment={deps.onInsertComment}
+    onCommentEdit={deps.onCommentEdit}
+    onCommentFocusHandled={deps.onCommentFocusHandled}
+    onEditQa={deps.onEditQa}
+    onDeleteQa={deps.onDeleteQa}
+    onInsertQa={deps.onInsertQa}
+    onContextMenu={deps.onContextMenu}
+    t={deps.t}
+  />
+);
+
+type LinearModeViewProps = {
+  blocks: PlanBlock[];
+  deps: TokenRenderDeps;
+};
+
+const LinearModeView = ({ blocks, deps }: LinearModeViewProps): ReactElement => (
+  <>
+    {blocks.map((block: PlanBlock): ReactElement => (
+      <div
+        key={block.key}
+        className="text-editor-block"
+        style={block.indentDepth > 0 ? { paddingLeft: `${block.indentDepth * 1.5}em` } : undefined}
+        data-indent-depth={block.indentDepth > 0 ? block.indentDepth : undefined}
+      >
+        {block.tokens.map((token: PlanToken): ReactElement => renderToken(token, deps))}
+      </div>
+    ))}
+  </>
+);
+
+type TreeModeViewProps = {
+  blocks: PlanBlock[];
+  collapsedPaths: ReadonlySet<string>;
+  lastSiblingByParent: ReadonlyMap<string, number>;
+  onToggle: (key: string) => void;
+  deps: TokenRenderDeps;
+};
+
+const TreeModeView = ({
+  blocks,
+  collapsedPaths,
+  lastSiblingByParent,
+  onToggle,
+  deps,
+}: TreeModeViewProps): ReactElement => (
+  <>
+    {blocks.map((block: PlanBlock): ReactElement | null => {
+      // Hide blocks whose ancestor variation path is collapsed.
+      if (isBlockHidden(block.variationPath, collapsedPaths)) return null;
+
+      const depthClass: string = block.variationPath ? treeDepthClass(block.variationPath) : "";
+      const isCollapsed: boolean = block.variationPath
+        ? collapsedPaths.has(pathKey(block.variationPath))
+        : false;
+      const isTreeLastSibling: boolean = (() => {
+        const path: readonly number[] | undefined = block.variationPath;
+        if (!path || path.length <= 1) return false;
+        const parentKey: string = pathKey(path.slice(0, -1));
+        const siblingIndex: number = path[path.length - 1] ?? 0;
+        return lastSiblingByParent.get(parentKey) === siblingIndex;
+      })();
+
+      const branchLabelToken: InlineToken | undefined = block.isCollapsible
+        ? block.tokens.find(
+            (tok: PlanToken): tok is InlineToken =>
+              tok.kind === "inline" && tok.tokenType === "branch_header",
+          )
+        : undefined;
+
+      const collapsedPreview: string | null = (() => {
+        if (!isCollapsed || !block.isCollapsible) return null;
+        const previewTypes: Set<string> = new Set(["move_number", "move", "nag"]);
+        const parts: string[] = [];
+        for (const tok of block.tokens) {
+          if (tok.kind !== "inline") continue;
+          const it: InlineToken = tok as InlineToken;
+          if (!previewTypes.has(it.tokenType)) continue;
+          parts.push(it.text);
+          if (parts.length >= 8) break;
+        }
+        return parts.length > 0 ? parts.join(" ").replace(/\s+/g, " ").trim() : null;
+      })();
+
+      return (
+        <div
+          key={block.key}
+          className={["text-editor-block", depthClass].filter(Boolean).join(" ")}
+          style={block.indentDepth > 0 ? { paddingLeft: `${block.indentDepth * 1.5}em` } : undefined}
+          data-indent-depth={block.indentDepth > 0 ? block.indentDepth : undefined}
+          data-variation-path={block.variationPath ? pathKey(block.variationPath) : undefined}
+          data-tree-last-sibling={isTreeLastSibling ? "true" : undefined}
+        >
+          {block.isCollapsible && branchLabelToken && (
+            <BranchHeader
+              label={String(branchLabelToken.dataset.label ?? branchLabelToken.text)}
+              blockPathKey={pathKey(block.variationPath!)}
+              isCollapsed={isCollapsed}
+              onToggle={onToggle}
+            />
+          )}
+          {isCollapsed && collapsedPreview !== null && (
+            <span className="tree-collapsed-preview">{collapsedPreview} …</span>
+          )}
+          {!isCollapsed && block.tokens
+            .filter((tok: PlanToken): boolean =>
+              !(tok.kind === "inline" && tok.tokenType === "branch_header"),
+            )
+            .map((token: PlanToken): ReactElement => renderToken(token, deps))}
+        </div>
+      );
+    })}
+  </>
+);
+
 // ── PgnTextEditor (root) ──────────────────────────────────────────────────────
 
 
@@ -488,6 +664,7 @@ export const PgnTextEditor = (): ReactElement => {
   const layoutMode: "plain" | "text" | "tree" = selectLayoutMode(state);
   const selectedMoveId: string | null = selectSelectedMoveId(state);
   const pendingFocusCommentId: string | null = selectPendingFocusCommentId(state);
+  const [consumedFocusCommentId, setConsumedFocusCommentId] = useState<string | null>(null);
   const t: (key: string, fallback?: string) => string = useTranslator();
 
   // ── Collapse state (tree mode only; reset when model changes) ───────────────
@@ -558,6 +735,10 @@ export const PgnTextEditor = (): ReactElement => {
     (): PlanBlock[] => buildTextEditorPlan(pgnModel, { layoutMode }),
     [pgnModel, layoutMode],
   );
+  const lastSiblingByParent: ReadonlyMap<string, number> = useMemo(
+    (): ReadonlyMap<string, number> => buildLastSiblingByParent(blocks),
+    [blocks],
+  );
 
   const handleMoveClick = useCallback(
     (moveId: string): void => {
@@ -584,6 +765,34 @@ export const PgnTextEditor = (): ReactElement => {
     [services],
   );
 
+  useEffect((): void => {
+    setConsumedFocusCommentId(null);
+  }, [pendingFocusCommentId]);
+
+  const handleCommentFocusHandled = useCallback((commentId: string): void => {
+    setConsumedFocusCommentId(commentId);
+  }, []);
+
+  useEffect((): (() => void) => {
+    const shouldIgnoreHotkey = (target: EventTarget | null): boolean => {
+      if (!(target instanceof HTMLElement)) return false;
+      const tag: string = target.tagName.toLowerCase();
+      if (tag === "input" || tag === "textarea" || tag === "select") return true;
+      if (target.isContentEditable) return true;
+      return Boolean(target.closest("[contenteditable=\"true\"]"));
+    };
+
+    const onKeyDown = (event: globalThis.KeyboardEvent): void => {
+      if (shouldIgnoreHotkey(event.target)) return;
+      services.handleEditorArrowHotkey(event);
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return (): void => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [services]);
+
   if (!pgnModel) {
     return (
       <div className="text-editor text-editor-empty">
@@ -596,102 +805,48 @@ export const PgnTextEditor = (): ReactElement => {
 
   return (
     <div className="text-editor" data-layout-mode={layoutMode}>
-      {blocks.map((block: PlanBlock): ReactElement | null => {
-        // Hide blocks whose ancestor variation path is collapsed.
-        if (isBlockHidden(block.variationPath, collapsedPaths)) return null;
-
-        const depthClass: string = block.variationPath
-          ? treeDepthClass(block.variationPath)
-          : "";
-        const isCollapsed: boolean = block.variationPath
-          ? collapsedPaths.has(pathKey(block.variationPath))
-          : false;
-
-        // Find the branch_header label for collapsible blocks.
-        const branchLabelToken: InlineToken | undefined = block.isCollapsible
-          ? (block.tokens.find(
-              (tok: PlanToken): tok is InlineToken =>
-                tok.kind === "inline" && tok.tokenType === "branch_header",
-            ))
-          : undefined;
-
-        // When collapsed, build a short preview from the first few move tokens.
-        const collapsedPreview: string | null = (() => {
-          if (!isCollapsed || !block.isCollapsible) return null;
-          const PREVIEW_TYPES = new Set(["move_number", "move", "nag"]);
-          const parts: string[] = [];
-          for (const tok of block.tokens) {
-            if (tok.kind !== "inline") continue;
-            const it = tok as InlineToken;
-            if (!PREVIEW_TYPES.has(it.tokenType)) continue;
-            parts.push(it.text);
-            if (parts.length >= 8) break;
-          }
-          return parts.length > 0 ? parts.join(" ").replace(/\s+/g, " ").trim() : null;
-        })();
-
-        return (
-          <div
-            key={block.key}
-            className={["text-editor-block", depthClass].filter(Boolean).join(" ")}
-            style={
-              block.indentDepth > 0
-                ? { paddingLeft: `${block.indentDepth * 1.5}em` }
-                : undefined
-            }
-            data-indent-depth={block.indentDepth > 0 ? block.indentDepth : undefined}
-            data-variation-path={block.variationPath ? pathKey(block.variationPath) : undefined}
-          >
-            {block.isCollapsible && branchLabelToken && (
-              <BranchHeader
-                label={String(branchLabelToken.dataset.label ?? branchLabelToken.text)}
-                blockPathKey={pathKey(block.variationPath!)}
-                isCollapsed={isCollapsed}
-                onToggle={handleToggle}
-              />
-            )}
-            {/* Collapsed preview — first few moves followed by an ellipsis. */}
-            {isCollapsed && collapsedPreview !== null && (
-              <span className="tree-collapsed-preview">{collapsedPreview} …</span>
-            )}
-            {/* When expanded, render all tokens except the branch_header. */}
-            {!isCollapsed && block.tokens
-              .filter((tok: PlanToken): boolean =>
-                !(tok.kind === "inline" && tok.tokenType === "branch_header"),
-              )
-              .map((token: PlanToken): ReactElement => {
-                /**
-                 * Comment tokens use a stable key derived from their ID so that
-                 * React does not remount while the user is editing.  Inline tokens
-                 * use the positional key from the planner; reordering or structural
-                 * changes produce a new key and force a fresh mount.
-                 */
-                const stableKey: string =
-                  token.kind === "comment"
-                    ? `comment_${(token as CommentToken).commentId}`
-                    : token.key;
-
-                return (
-                  <TokenView
-                    key={stableKey}
-                    token={token}
-                    selectedMoveId={selectedMoveId}
-                    pendingFocusCommentId={pendingFocusCommentId}
-                    layoutMode={layoutMode}
-                    onMoveClick={handleMoveClick}
-                    onInsertComment={handleInsertComment}
-                    onCommentEdit={handleCommentEdit}
-                    onEditQa={handleEditQa}
-                    onDeleteQa={handleDeleteQa}
-                    onInsertQa={handleInsertQa}
-                    onContextMenu={handleMoveContextMenu}
-                    t={t}
-                  />
-                );
-              })}
-          </div>
-        );
-      })}
+      {layoutMode === "tree" ? (
+        <TreeModeView
+          blocks={blocks}
+          collapsedPaths={collapsedPaths}
+          lastSiblingByParent={lastSiblingByParent}
+          onToggle={handleToggle}
+          deps={{
+            selectedMoveId,
+            pendingFocusCommentId,
+            consumedFocusCommentId,
+            layoutMode,
+            onMoveClick: handleMoveClick,
+            onInsertComment: handleInsertComment,
+            onCommentEdit: handleCommentEdit,
+            onCommentFocusHandled: handleCommentFocusHandled,
+            onEditQa: handleEditQa,
+            onDeleteQa: handleDeleteQa,
+            onInsertQa: handleInsertQa,
+            onContextMenu: handleMoveContextMenu,
+            t,
+          }}
+        />
+      ) : (
+        <LinearModeView
+          blocks={blocks}
+          deps={{
+            selectedMoveId,
+            pendingFocusCommentId,
+            consumedFocusCommentId,
+            layoutMode,
+            onMoveClick: handleMoveClick,
+            onInsertComment: handleInsertComment,
+            onCommentEdit: handleCommentEdit,
+            onCommentFocusHandled: handleCommentFocusHandled,
+            onEditQa: handleEditQa,
+            onDeleteQa: handleDeleteQa,
+            onInsertQa: handleInsertQa,
+            onContextMenu: handleMoveContextMenu,
+            t,
+          }}
+        />
+      )}
       {qaDialog !== null && (
         <QaInsertDialog
           moveId={qaDialog.commentId}

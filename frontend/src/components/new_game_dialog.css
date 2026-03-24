@@ -326,12 +326,12 @@
   color: #b0b7c2;
 }
 
-.text-editor-comment {
+.newgame-dialog .text-editor-comment {
   color: #364960;
   font-weight: 400;
 }
 
-.text-editor-comment-block {
+.newgame-dialog .text-editor-comment-block {
   display: inline;
   margin-left: 0;
   padding-left: 0;
@@ -339,7 +339,7 @@
   white-space: pre-wrap;
 }
 
-.text-editor-comment-intro {
+.newgame-dialog .text-editor-comment-intro {
   display: inline-block;
   margin-bottom: 0.55rem;
   padding: 0.2rem 0.35rem;
@@ -348,12 +348,12 @@
   border-left: 3px solid #7c98c8;
 }
 
-.text-editor-comment-block:focus {
+.newgame-dialog .text-editor-comment-block:focus {
   outline: 1px dashed #8da7cf;
   background: #ebf2ff;
 }
 
-.text-editor-comment-new {
+.newgame-dialog .text-editor-comment-new {
   background: var(--accent-soft);
   outline: 1px solid #6e95dc;
   border-radius: 4px;

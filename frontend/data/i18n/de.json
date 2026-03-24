@@ -56,6 +56,7 @@
   "resources.table.source": "Quelle",
   "resources.table.revision": "Revision",
   "resources.table.unknown": "Ohne Titel",
+  "resources.groupby.none": "keine",
   "toolbar.commentBold": "Kommentar fett",
   "toolbar.commentItalic": "Kommentar kursiv",
   "toolbar.commentUnderline": "Kommentar unterstreichen"

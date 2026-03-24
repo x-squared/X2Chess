@@ -37,6 +37,11 @@ export type AppStartupServices = {
    * @param moveId - PGN model node ID of the target move.
    */
   gotoMoveById: (moveId: string) => void;
+  /**
+   * Handle editor arrow-key navigation shortcuts in selected-move context.
+   * Returns true when the key event was handled.
+   */
+  handleEditorArrowHotkey: (event: KeyboardEvent) => boolean;
 
   // ── PGN editing ────────────────────────────────────────────────────────
   /**
@@ -161,6 +166,7 @@ const defaultServices: AppStartupServices = {
   gotoNext: noop,
   gotoLast: noop,
   gotoMoveById: noop,
+  handleEditorArrowHotkey: (): boolean => false,
   loadPgnText: noop,
   insertComment: (): null => null as null,
   focusCommentAroundMove: noop,

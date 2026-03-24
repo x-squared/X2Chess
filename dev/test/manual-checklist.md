@@ -6,7 +6,7 @@
 - To report a failure, reference the item ID (e.g. "BOARD-3 doesn't work — knight promotion menu doesn't appear").
 - Reset `[x]` back to `[ ]` whenever the item is re-opened by a later change.
 
-**Last updated:** 2026-03-23
+**Last updated:** 2026-03-24
 
 ---
 
@@ -98,6 +98,10 @@
 - [ ] **PGNEDIT-8** — `[[br]]` directive in a comment text creates a new paragraph in text/tree mode.
 - [ ] **PGNEDIT-9** — `[[indent]]` directive indents a comment block in text/tree mode.
 - [ ] **PGNEDIT-10** — Truncation menu (⋯) on a move offers "Truncate here"; removes subsequent moves.
+- [ ] **PGNEDIT-11** — Clicking a half-move shows the move-action popup (left/?/right) above nearby move tokens and comment text in both Text and Tree modes.
+- [ ] **PGNEDIT-12** — In Tree mode, the first comment of each variation branch is rendered with intro styling before the branch moves.
+- [ ] **PGNEDIT-13** — In Tree mode, black connector lines render as vertical trunks with horizontal branches linking branch pills to deeper levels.
+- [ ] **PGNEDIT-14** — Clicking a comment focuses it for editing without leaving a persistent highlighted background after focus moves elsewhere.
 
 ---
 
@@ -173,9 +177,12 @@
 - [ ] **RESOURCE-4** — Filter input narrows results by the selected group-by field.
 - [ ] **RESOURCE-5** — Dragging a row reorders games within the resource.
 - [ ] **RESOURCE-6** — Q/A column shows the annotation badge (✓/✗/?) from the PGN.
-- [ ] **RESOURCE-7** — "New game" button in the viewer creates a blank game in that resource.
+- [ ] **RESOURCE-7** — "New game" button on the open-resource tabs row creates a blank game in that resource.
 - [ ] **RESOURCE-8** — Cross-resource position search returns matching games from all open resources.
 - [ ] **RESOURCE-9** — Cross-resource text search (White/Black/Event) returns matches.
+- [ ] **RESOURCE-10** — Resource table headers remain left-to-right aligned with body columns while reordering, resizing, sorting, and filtering.
+- [ ] **RESOURCE-11** — Group-by **Clear** button is always visible; it is disabled with no grouping and enabled once a group level is added.
+- [ ] **RESOURCE-12** — With no active grouping, the toolbar explicitly shows **none** next to **Group by:**.
 
 ---
 
@@ -261,6 +268,7 @@
 ## SHORTCUTS — Keyboard shortcuts
 
 - [ ] **KB-1** — `←` / `→` navigate moves (when not in an input field).
+- [ ] **KB-6** — With a move selected, `↓` enters the first variation and `←` at variation start returns to the parent move.
 - [ ] **KB-2** — `Cmd/Ctrl+Z` / `Cmd/Ctrl+Shift+Z` undo/redo.
 - [ ] **KB-3** — `Cmd/Ctrl+S` saves the active game.
 - [ ] **KB-4** — `F` flips the board.

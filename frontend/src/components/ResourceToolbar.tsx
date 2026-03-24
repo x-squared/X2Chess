@@ -10,7 +10,7 @@
  * Communication API:
  * - All interactions fire callbacks: `onGroupByAdd`, `onGroupByRemove`,
  *   `onGroupByMoveUp`, `onGroupByClear`, `onClearFilters`,
- *   `onSchemaSelect`, `onSchemaManage`, `onNewGame`.
+ *   `onSchemaSelect`, `onSchemaManage`.
  */
 
 import type { ReactElement } from "react";
@@ -32,7 +32,6 @@ type ResourceToolbarProps = {
   onClearFilters: () => void;
   onSchemaSelect: (id: string) => void;
   onSchemaManage: () => void;
-  onNewGame: () => void;
 };
 
 export const ResourceToolbar = ({
@@ -49,7 +48,6 @@ export const ResourceToolbar = ({
   onClearFilters,
   onSchemaSelect,
   onSchemaManage,
-  onNewGame,
 }: ResourceToolbarProps): ReactElement => (
   <div className="resource-groupby-toolbar">
     <span className="resource-groupby-label">
@@ -77,6 +75,11 @@ export const ResourceToolbar = ({
         ))}
       </span>
     )}
+    {groupByState.fields.length === 0 && (
+      <span className="resource-groupby-none">
+        {t("resources.groupby.none", "none")}
+      </span>
+    )}
     {availableGroupByFields.length > 0 && (
       <select
         className="resource-groupby-add"
@@ -92,11 +95,16 @@ export const ResourceToolbar = ({
         ))}
       </select>
     )}
-    {groupByState.fields.length > 0 && (
-      <button type="button" className="resource-groupby-clear" onClick={onGroupByClear}>
-        {t("resources.groupby.clear", "Clear")}
-      </button>
-    )}
+    <button
+      type="button"
+      className="resource-groupby-clear"
+      onClick={onGroupByClear}
+      disabled={groupByState.fields.length === 0}
+      aria-disabled={groupByState.fields.length === 0 ? "true" : undefined}
+      title={t("resources.groupby.clear", "Clear")}
+    >
+      {t("resources.groupby.clear", "Clear")}
+    </button>
     {hasActiveFilters && (
       <button type="button" className="resource-filter-clear-all" onClick={onClearFilters}>
         {t("resources.filter.clearAll", "Clear filters")}
@@ -122,9 +130,5 @@ export const ResourceToolbar = ({
       {t("resources.schema.manage", "Manage schemas…")}
     </button>
 
-    {/* New game button (NG6) */}
-    <button type="button" className="resource-new-game-btn" onClick={onNewGame}>
-      {t("resources.newGame", "+ New game")}
-    </button>
   </div>
 );

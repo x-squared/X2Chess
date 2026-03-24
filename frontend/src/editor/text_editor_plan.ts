@@ -327,23 +327,45 @@ const addComment = (state: PlanState, comment: PgnComment): void => {
   const applyIntroStyling: boolean = isFirstComment && !state.firstMoveEmitted;
 
   if (layoutMode === "plain") {
-    addCommentToken(state, comment, rawText, rawText, false, 0, false, true, false);
-    addSpace(state);
+    emitPlainComment(state, comment, rawText);
     return;
   }
 
   if (layoutMode === "tree") {
-    // Show raw text literally — markers survive edits and are greyed via CSS.
-    addCommentToken(state, comment, rawText, rawText, false, 0, applyIntroStyling, true, applyIntroStyling);
-    // Intro comment gets its own block so the first move starts on a new line.
-    if (applyIntroStyling) {
-      nextBlock(state);
-    } else {
-      addSpace(state);
-    }
+    emitTreeComment(state, comment, rawText, applyIntroStyling);
     return;
   }
 
+  emitTextComment(state, comment, rawText, applyIntroStyling);
+};
+
+const emitPlainComment = (state: PlanState, comment: PgnComment, rawText: string): void => {
+  addCommentToken(state, comment, rawText, rawText, false, 0, false, true, false);
+  addSpace(state);
+};
+
+const emitTreeComment = (
+  state: PlanState,
+  comment: PgnComment,
+  rawText: string,
+  applyIntroStyling: boolean,
+): void => {
+  // Show raw text literally — markers survive edits and are greyed via CSS.
+  addCommentToken(state, comment, rawText, rawText, false, 0, applyIntroStyling, true, applyIntroStyling);
+  // In tree mode, intro comments occupy their own line before branch moves.
+  if (applyIntroStyling) {
+    nextBlock(state);
+  } else {
+    addSpace(state);
+  }
+};
+
+const emitTextComment = (
+  state: PlanState,
+  comment: PgnComment,
+  rawText: string,
+  applyIntroStyling: boolean,
+): void => {
   // text mode: apply [[indent]] directive for block indentation.
   // [[br]] markers are converted to newlines so the contentEditable shows
   // visual line breaks (WYSIWYG). On save, newlines are normalized back to [[br]].
@@ -427,7 +449,6 @@ const emitVariation = (variation: PgnVariation, state: PlanState, strategyRegist
 
 const emitMove: StrategyFn = (entry, variation, state, strategyRegistry, flow): void => {
   if (entry.type !== "move") return;
-  state.firstMoveEmitted = true;
   const moveSide: "white" | "black" = flow.nextMoveSide === "black" ? "black" : "white";
   const moveClass: string = variation.depth === 0
     ? `text-editor-main-move move-${moveSide}`
@@ -442,6 +463,7 @@ const emitMove: StrategyFn = (entry, variation, state, strategyRegistry, flow): 
     "move",
     { nodeId: entry.id, variationDepth: variation.depth, moveSide },
   );
+  state.firstMoveEmitted = true;
   addSpace(state);
   entry.nags.forEach((nag: string): void => {
     addTextWithBreaks(state, nag, "text-editor-nag", "nag", { moveId: entry.id });
@@ -593,7 +615,6 @@ const emitTreeVariation = (
     }
 
     if (entry.type === "move") {
-      state.firstMoveEmitted = true;
       const side: "white" | "black" = moveSide;
       const moveClass: string = variation.depth === 0
         ? `text-editor-main-move move-${side}`
@@ -607,6 +628,7 @@ const emitTreeVariation = (
         variationDepth: variation.depth,
         moveSide: side,
       });
+      state.firstMoveEmitted = true;
       addSpace(state);
       entry.nags.forEach((nag: string): void => {
         addTextWithBreaks(state, nag, "text-editor-nag", "nag", { moveId: entry.id });

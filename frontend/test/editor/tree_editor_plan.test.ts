@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildTextEditorPlan } from "../../src/editor/text_editor_plan.js";
-import type { PlanBlock, PlanToken, InlineToken } from "../../src/editor/text_editor_plan.js";
+import type { PlanBlock, PlanToken, InlineToken, CommentToken } from "../../src/editor/text_editor_plan.js";
 
 // ── Model builders ────────────────────────────────────────────────────────────
 
@@ -59,6 +59,18 @@ const branchHeaderToken = (block: PlanBlock): InlineToken | undefined =>
 
 const blockPaths = (blocks: PlanBlock[]): string[] =>
   blocks.map((b) => (b.variationPath ? b.variationPath.join(".") : ""));
+
+const findCommentToken = (
+  blocks: PlanBlock[],
+  commentId: string,
+): CommentToken | undefined => (
+  blocks
+    .flatMap((b) => b.tokens)
+    .find(
+      (t: PlanToken): t is CommentToken =>
+        t.kind === "comment" && t.commentId === commentId,
+    )
+);
 
 // ── Tree block count ──────────────────────────────────────────────────────────
 
@@ -198,14 +210,36 @@ test("first comment of each RAV block independently gets introStyling", () => {
     moveNumber("1."), move("m1", "e4", { ravs: [rav] }),
   ]));
   const blocks = treeBlocks(m);
-  const mainComment = blocks[0].tokens.find((t) => t.kind === "comment") as
-    | { introStyling: boolean }
-    | undefined;
-  const ravComment = blocks[1].tokens.find((t) => t.kind === "comment") as
-    | { introStyling: boolean }
-    | undefined;
+  const mainComment = findCommentToken(blocks, "c1");
+  const ravComment = findCommentToken(blocks, "c2");
   assert.ok(mainComment?.introStyling, "main first comment should have introStyling");
   assert.ok(ravComment?.introStyling, "RAV first comment should have introStyling");
+});
+
+test("text mode: commentsBefore on first move still get introStyling", () => {
+  const m = model(variation(0, [
+    moveNumber("1."),
+    move("m1", "e4", { commentsBefore: [comment("c1", "Intro before first move")] }),
+  ]));
+  const blocks = textBlocks(m);
+  const tok = blocks[0].tokens.find((t) => t.kind === "comment") as
+    | { introStyling: boolean }
+    | undefined;
+  assert.ok(tok, "commentsBefore token should be emitted");
+  assert.equal(tok!.introStyling, true);
+});
+
+test("tree mode: commentsBefore on first move still get introStyling", () => {
+  const m = model(variation(0, [
+    moveNumber("1."),
+    move("m1", "e4", { commentsBefore: [comment("c1", "Intro before first move")] }),
+  ]));
+  const blocks = treeBlocks(m);
+  const tok = blocks[0].tokens.find((t) => t.kind === "comment") as
+    | { introStyling: boolean }
+    | undefined;
+  assert.ok(tok, "commentsBefore token should be emitted");
+  assert.equal(tok!.introStyling, true);
 });
 
 // ── Plain/text modes unaffected ───────────────────────────────────────────────

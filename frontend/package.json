@@ -7,7 +7,7 @@
     "dev": "vite --port 5287 --strictPort",
     "build": "tsc -p tsconfig.json --noEmit && vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsx --test \"test/**/*.test.ts\"",
+    "test": "node --test --import tsx \"test/**/*.test.ts\"",
     "preview": "vite preview --port 5287 --strictPort",
     "desktop:dev": "tauri dev",
     "desktop:pack": "tauri build --ci false"

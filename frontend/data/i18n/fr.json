@@ -56,6 +56,7 @@
   "resources.table.source": "Source",
   "resources.table.revision": "Revision",
   "resources.table.unknown": "Sans titre",
+  "resources.groupby.none": "aucun",
   "toolbar.commentBold": "Texte du commentaire en gras",
   "toolbar.commentItalic": "Texte du commentaire en italique",
   "toolbar.commentUnderline": "Souligner le texte du commentaire"

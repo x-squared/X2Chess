@@ -719,6 +719,7 @@ export const ResourceViewer = (): ReactElement => {
         activeTabId={activeTabId}
         onTabSelect={handleTabSelect}
         onTabClose={handleTabClose}
+        onNewGame={handleNewGame}
         onMetadataOpen={handleMetadataOpen}
         onOpenResource={(): void => { services.openResource(); }}
         t={t}
@@ -740,7 +741,6 @@ export const ResourceViewer = (): ReactElement => {
           onClearFilters={handleClearFilters}
           onSchemaSelect={handleSchemaSelect}
           onSchemaManage={handleSchemaManage}
-          onNewGame={handleNewGame}
         />
       )}
 

@@ -76,6 +76,7 @@
   "resources.table.source": "Source",
   "resources.table.revision": "Revision",
   "resources.table.unknown": "Untitled",
+  "resources.groupby.none": "none",
   "pgn.comment.editPrompt": "Edit comment text",
   "moves.label": "Moves",
   "moves.none": "No moves loaded."

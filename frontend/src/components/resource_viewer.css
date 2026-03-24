@@ -88,12 +88,21 @@
   background: #f8fbff;
 }
 
+.resource-tabs-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
 .resource-tabs {
   display: flex;
   align-items: center;
   gap: 0.35rem;
   overflow-x: auto;
-  margin-bottom: 0.5rem;
+  min-width: 0;
+  flex: 1 1 auto;
+  margin-bottom: 0;
 }
 
 .resource-tab {
@@ -183,9 +192,13 @@
 
 .resource-games-table thead th {
   position: relative;
+}
+
+.resource-col-header-inner {
   display: flex;
   align-items: center;
   gap: 0;
+  min-width: 0;
 }
 
 .resource-games-table thead th[data-col-drag-active="true"] {
@@ -212,6 +225,7 @@
 /* Sort button replaces plain label span (UV4) */
 .resource-col-sort-btn {
   flex: 1 1 auto;
+  min-width: 0;
   background: none;
   border: none;
   color: inherit;
@@ -263,6 +277,16 @@
   text-align: center;
   vertical-align: middle;
 }
+.resource-filter-cell-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.resource-filter-cell-inner > .resource-filter-input,
+.resource-filter-cell-inner > .resource-filter-select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
 .resource-filter-clear-btn {
   padding: 2px 6px;
   font-size: 0.7rem;
@@ -298,6 +322,15 @@
   align-items: center;
   gap: 0.3rem;
   flex-wrap: wrap;
+}
+
+.resource-groupby-none {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 1px 6px;
+  border: 1px dashed var(--border-subtle);
+  border-radius: 999px;
 }
 
 .resource-groupby-pill {
@@ -366,6 +399,13 @@
 .resource-filter-clear-all:hover {
   border-color: var(--danger);
   color: var(--danger);
+}
+
+.resource-groupby-clear:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  border-color: var(--border-subtle);
+  color: var(--text-muted);
 }
 
 /* Schema chooser (MD4) */
@@ -1147,7 +1187,6 @@
 /* ── ResourceViewer new-game button (NG6) ──────────────────────────── */
 
 .resource-new-game-btn {
-  margin-left: auto;
   border: 1px solid var(--accent, #6366f1);
   border-radius: 6px;
   background: transparent;

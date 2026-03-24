@@ -1,6 +1,6 @@
 # X2Chess User Manual
 
-Last updated: 2026-03-23
+Last updated: 2026-03-24
 
 ## Who this manual is for
 
@@ -44,7 +44,7 @@ X2Chess has three main areas:
 
 ### Creating a new game
 
-- Click **+ New game** in the resource viewer toolbar.
+- Click **+ New game** on the same row as the open resource tabs in the resource viewer.
 - The New Game dialog opens. Choose:
   - **Standard** — starts from the normal starting position.
   - **Custom FEN** — enter any FEN string to start from a specific position.
@@ -111,6 +111,10 @@ Use the **Plain / Text / Tree** buttons in the toolbar to switch layout:
   Uses `[[br]]` and `[[indent]]` markers in comments to control formatting.
 - **Tree** — structured view emphasising variation branching (same rendering as
   Text for now).
+  The first comment in each branch is shown as the branch introduction before
+  branch moves.
+  Tree branches are visualized with black connector lines: vertical trunks per
+  depth and horizontal branches connecting branch pills to deeper levels.
 
 ### Adding and editing comments
 
@@ -121,6 +125,11 @@ Use the **Plain / Text / Tree** buttons in the toolbar to switch layout:
 3. Click into a comment and type to edit it directly.
 4. Leaving a comment empty removes it automatically.
 5. Newly inserted comments are briefly highlighted.
+
+### Move action popup
+
+- Clicking a half-move opens a small popup with **insert comment before**, **Q/A**, and **insert comment after** actions.
+- The popup is rendered above nearby move tokens and comment text in both **Text** and **Tree** layouts.
 
 ### Formatting within comments (Text mode)
 
@@ -317,6 +326,8 @@ collection.
 - Games and collections appear as rows in the table.
 - Click a row to open that game.
 - The viewer supports multiple tabs for different open collections.
+- Drag a column handle (⠿) in the table header to reorder columns.
+- Column headers stay aligned horizontally with the data columns while sorting, filtering, and resizing.
 
 ### Grouping
 
@@ -329,7 +340,9 @@ groups:
 3. Add further levels for nested grouping.
 4. Use the **↑** button on a pill to promote that level. Use **×** to remove
    it.
-5. Click **Clear** to remove all grouping.
+5. When no grouping is active, the toolbar shows **none** next to **Group by:**.
+6. Click **Clear** to remove all grouping. The button is always visible and is
+   disabled when no group is active.
 
 ### Filtering
 

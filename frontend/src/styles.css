@@ -555,7 +555,6 @@ body.dev-dock-open .app {
 .text-editor-main-move {
   font-weight: 700;
   position: relative;
-  z-index: 2;
   margin: 0 0.2rem;
   padding: 0 0.16rem;
   border-radius: 4px;
@@ -569,18 +568,26 @@ body.dev-dock-open .app {
   text-indent: 0;
 }
 
+/* Intro comments are visually emphasized in text/tree mode. */
+.text-editor .text-editor-comment-intro {
+  display: inline-block;
+  margin: 0 0.55rem 0.45rem 0;
+  padding: 0.2rem 0.38rem;
+  border-radius: 4px;
+  background: #f4f8ff;
+  border-left: 3px solid #7c98c8;
+}
+
 .text-editor-variation-move {
   font-weight: 400;
   position: relative;
-  z-index: 2;
   margin: 0 0.2rem;
   padding: 0 0.16rem;
   border-radius: 4px;
 }
 
 .text-editor-move-selected {
-  z-index: 2;
-  isolation: isolate;
+  z-index: 40;
 }
 
 .text-editor-move-selected::before {
@@ -599,7 +606,6 @@ body.dev-dock-open .app {
 
 .text-editor [data-token-type="move"] {
   position: relative;
-  z-index: 2;
   cursor: pointer;
 }
 

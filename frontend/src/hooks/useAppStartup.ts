@@ -166,6 +166,8 @@ export const useAppStartup = (): AppStartupServices => {
           syncStateToReact();
         }
       },
+      handleEditorArrowHotkey: (event: KeyboardEvent): boolean =>
+        bundle.navigation.handleSelectedMoveArrowHotkey(event),
 
       // PGN editing
       loadPgnText: (pgnText: string): void => {

@@ -155,7 +155,11 @@
 /* ── Tree mode ───────────────────────────────────────────────────────────── */
 
 .text-editor[data-layout-mode="tree"] .text-editor-block {
-  border-left: 2px solid transparent;
+  --tree-line-color: #111;
+  --tree-line-width: 1px;
+  --tree-step: 0.9em;
+  --tree-pill-center-y: 0.78em;
+  border-left: 0 solid transparent;
   padding-left: 0.5em;
   margin-bottom: 0.2em;
   position: relative;
@@ -165,49 +169,47 @@
    margin-left shifts the whole block (including its left border guide line)
    so each depth level is visually indented. */
 .text-editor-block.tree-depth-1 {
-  border-left-color: var(--color-mainline, #2a5dca);
   font-weight: 500;
 }
 
 .text-editor-block.tree-depth-2 {
-  border-left-color: var(--color-depth-2, #6b8fc9);
-  margin-left: 0.9em;
+  margin-left: var(--tree-step);
 }
 
 .text-editor-block.tree-depth-3 {
-  border-left-color: var(--color-depth-3, #9ab0d8);
-  margin-left: 1.8em;
+  margin-left: calc(var(--tree-step) * 2);
   font-size: 0.95em;
 }
 
 .text-editor-block.tree-depth-4plus {
-  border-left-color: var(--color-depth-4plus, #c3cedf);
-  margin-left: 2.7em;
+  margin-left: calc(var(--tree-step) * 3);
   font-size: 0.9em;
   opacity: 0.85;
 }
 
-/* Horizontal elbow connector — bridges the parent's guide line to this block.
-   Each depth adds 0.9em, so the connector always spans 0.9em back. */
-.text-editor-block.tree-depth-2::before,
-.text-editor-block.tree-depth-3::before,
-.text-editor-block.tree-depth-4plus::before {
+/* Vertical spine for the current depth; children branch from this line. */
+.text-editor-block.tree-depth-2::after,
+.text-editor-block.tree-depth-3::after,
+.text-editor-block.tree-depth-4plus::after {
   content: "";
   position: absolute;
-  left: calc(-0.9em + 2px);
-  width: calc(0.9em - 4px);
-  top: 0.72em;
-  height: 1px;
-  opacity: 0.7;
+  left: 0;
+  top: var(--tree-pill-center-y);
+  bottom: -0.24em;
+  width: var(--tree-line-width);
+  background: var(--tree-line-color);
+  opacity: 1;
 }
 
-.text-editor-block.tree-depth-2::before { background: var(--color-depth-2, #6b8fc9); }
-.text-editor-block.tree-depth-3::before { background: var(--color-depth-3, #9ab0d8); }
-.text-editor-block.tree-depth-4plus::before { background: var(--color-depth-4plus, #c3cedf); }
+/* Last siblings terminate at their own pill (no downward continuation). */
+.text-editor-block[data-tree-last-sibling="true"]::after {
+  display: none;
+}
 
 /* Branch header toggle button — renders as a badge pill */
 .tree-collapse-toggle {
   display: inline-flex;
+  position: relative;
   align-items: center;
   vertical-align: middle;
   gap: 0.25em;
@@ -225,6 +227,21 @@
   line-height: 1.5;
 }
 
+/* Horizontal connector anchored to the pill center (no free-floating dash). */
+.text-editor-block.tree-depth-2 .tree-collapse-toggle::before,
+.text-editor-block.tree-depth-3 .tree-collapse-toggle::before,
+.text-editor-block.tree-depth-4plus .tree-collapse-toggle::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  left: calc((var(--tree-step) * -1) + var(--tree-line-width));
+  width: calc(var(--tree-step) - 2px);
+  height: var(--tree-line-width);
+  background: var(--tree-line-color);
+  opacity: 1;
+}
+
 .tree-collapse-toggle:hover {
   background: rgba(42, 93, 202, 0.17);
   border-color: rgba(42, 93, 202, 0.55);
@@ -233,36 +250,36 @@
 
 /* Progressively lighter badge per depth */
 .tree-depth-2 .tree-collapse-toggle {
-  border-color: rgba(107, 143, 201, 0.32);
-  background: rgba(107, 143, 201, 0.08);
-  color: #3a5f9a;
+  border-color: rgba(17, 17, 17, 0.45);
+  background: rgba(17, 17, 17, 0.04);
+  color: #111;
 }
 
 .tree-depth-2 .tree-collapse-toggle:hover {
-  background: rgba(107, 143, 201, 0.14);
-  border-color: rgba(107, 143, 201, 0.48);
+  background: rgba(17, 17, 17, 0.1);
+  border-color: rgba(17, 17, 17, 0.65);
 }
 
 .tree-depth-3 .tree-collapse-toggle {
-  border-color: rgba(154, 176, 216, 0.28);
-  background: rgba(154, 176, 216, 0.07);
-  color: #5a7aaa;
+  border-color: rgba(17, 17, 17, 0.38);
+  background: rgba(17, 17, 17, 0.03);
+  color: #111;
 }
 
 .tree-depth-3 .tree-collapse-toggle:hover {
-  background: rgba(154, 176, 216, 0.13);
-  border-color: rgba(154, 176, 216, 0.42);
+  background: rgba(17, 17, 17, 0.08);
+  border-color: rgba(17, 17, 17, 0.58);
 }
 
 .tree-depth-4plus .tree-collapse-toggle {
-  border-color: rgba(195, 206, 223, 0.24);
-  background: rgba(195, 206, 223, 0.06);
-  color: #7a92b4;
+  border-color: rgba(17, 17, 17, 0.32);
+  background: rgba(17, 17, 17, 0.02);
+  color: #111;
 }
 
 .tree-depth-4plus .tree-collapse-toggle:hover {
-  background: rgba(195, 206, 223, 0.12);
-  border-color: rgba(195, 206, 223, 0.38);
+  background: rgba(17, 17, 17, 0.07);
+  border-color: rgba(17, 17, 17, 0.52);
 }
 
 .tree-collapse-glyph {
@@ -285,8 +302,9 @@ span[data-kind="branch_header"] {
   margin-right: 0.4em;
 }
 
-/* Muted markers in tree mode — [[br]] and [[indent]] show as literal greyed text */
-[data-layout-mode="tree"] .text-editor-comment.plain {
+/* Muted markers in tree mode — [[br]] and [[indent]] show as literal greyed text.
+   Intro comments stay emphasized and should not be muted. */
+[data-layout-mode="tree"] .text-editor-comment.plain:not(.text-editor-comment-intro) {
   color: var(--text-muted, #9aa3b0);
 }
 
@@ -317,7 +335,7 @@ span[data-kind="branch_header"] {
   border-radius: 999px;
   box-shadow: 0 1px 5px rgba(0, 0, 0, 0.12);
   white-space: nowrap;
-  z-index: 20;
+  z-index: 120;
   pointer-events: auto;
   user-select: none;
 }

@@ -27,6 +27,7 @@ type ResourceTabBarProps = {
   activeTabId: string | null;
   onTabSelect: (tabId: string) => void;
   onTabClose: (tabId: string) => void;
+  onNewGame: () => void;
   onMetadataOpen: () => void;
   onOpenResource: () => void;
   t: (key: string, fallback?: string) => string;
@@ -40,6 +41,7 @@ export const ResourceTabBar = ({
   activeTabId,
   onTabSelect,
   onTabClose,
+  onNewGame,
   onMetadataOpen,
   onOpenResource,
   t,
@@ -74,41 +76,46 @@ export const ResourceTabBar = ({
 
     {/* Tab strip */}
     {tabs.length > 0 && (
-      <div
-        className="resource-tabs"
-        role="tablist"
-        aria-label={t("resources.title", "Resources")}
-      >
-        {tabs.map((tab: TabState): ReactElement => {
-          const isActive: boolean = tab.tabId === activeTabId;
-          const { label, tooltip } = resolveTabLabel(tab);
-          return (
-            <div
-              key={tab.tabId}
-              role="tab"
-              aria-selected={isActive}
-              className={["resource-tab", isActive ? "active" : ""].filter(Boolean).join(" ")}
-              data-resource-tab-id={tab.tabId}
-            >
-              <button
-                type="button"
-                className="resource-tab-title"
-                title={tooltip || undefined}
-                onClick={(): void => { onTabSelect(tab.tabId); }}
+      <div className="resource-tabs-row">
+        <div
+          className="resource-tabs"
+          role="tablist"
+          aria-label={t("resources.title", "Resources")}
+        >
+          {tabs.map((tab: TabState): ReactElement => {
+            const isActive: boolean = tab.tabId === activeTabId;
+            const { label, tooltip } = resolveTabLabel(tab);
+            return (
+              <div
+                key={tab.tabId}
+                role="tab"
+                aria-selected={isActive}
+                className={["resource-tab", isActive ? "active" : ""].filter(Boolean).join(" ")}
+                data-resource-tab-id={tab.tabId}
               >
-                {label}
-              </button>
-              <button
-                type="button"
-                className="resource-tab-close"
-                aria-label={t("resources.tab.close", "Close resource tab")}
-                onClick={(): void => { onTabClose(tab.tabId); }}
-              >
-                ×
-              </button>
-            </div>
-          );
-        })}
+                <button
+                  type="button"
+                  className="resource-tab-title"
+                  title={tooltip || undefined}
+                  onClick={(): void => { onTabSelect(tab.tabId); }}
+                >
+                  {label}
+                </button>
+                <button
+                  type="button"
+                  className="resource-tab-close"
+                  aria-label={t("resources.tab.close", "Close resource tab")}
+                  onClick={(): void => { onTabClose(tab.tabId); }}
+                >
+                  ×
+                </button>
+              </div>
+            );
+          })}
+        </div>
+        <button type="button" className="resource-new-game-btn" onClick={onNewGame}>
+          {t("resources.newGame", "+ New game")}
+        </button>
       </div>
     )}
   </>

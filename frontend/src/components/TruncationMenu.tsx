@@ -17,9 +17,12 @@
 
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useCallback,
+  useState,
   type ReactElement,
+  type CSSProperties,
 } from "react";
 
 export type TruncationAction =
@@ -61,14 +64,27 @@ export const TruncationMenu = ({
   onClose,
 }: TruncationMenuProps): ReactElement => {
   const menuRef = useRef<HTMLDivElement>(null);
-
-  // Position below the anchor rect, constrained to viewport.
-  const style = {
-    position: "fixed" as const,
+  const [style, setStyle] = useState<CSSProperties>({
+    position: "fixed",
     top: anchorRect.bottom + 4,
     left: anchorRect.left,
     zIndex: 9999,
-  };
+    visibility: "hidden",
+  });
+
+  // After the menu renders, measure its width and clamp so it stays on-screen.
+  useLayoutEffect((): void => {
+    const el = menuRef.current;
+    if (!el) return;
+    const menuWidth = el.offsetWidth;
+    const left = Math.min(anchorRect.left, window.innerWidth - menuWidth - 8);
+    setStyle({
+      position: "fixed",
+      top: anchorRect.bottom + 4,
+      left: Math.max(8, left),
+      zIndex: 9999,
+    });
+  }, [anchorRect]);
 
   useEffect((): (() => void) => {
     const handler = (e: MouseEvent): void => {

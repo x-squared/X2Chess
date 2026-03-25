@@ -722,6 +722,7 @@ export const PgnTextEditor = (): ReactElement => {
 
   const handleMoveContextMenu = useCallback(
     (moveId: string, san: string, isInVariation: boolean, rect: DOMRect): void => {
+      window.getSelection()?.removeAllRanges();
       setContextMenu({ moveId, san, isInVariation, anchorRect: rect });
     },
     [],

@@ -21,6 +21,7 @@ type ToolbarRowProps = {
   canUndo: boolean;
   canRedo: boolean;
   isDirty: boolean;
+  boardFlipped: boolean;
   layoutMode: "plain" | "text" | "tree";
   isSetUpGame: boolean;
   studyItemCount: number;
@@ -33,6 +34,7 @@ type ToolbarRowProps = {
   onGotoPrev: () => void;
   onGotoNext: () => void;
   onGotoLast: () => void;
+  onFlipBoard: () => void;
   onSetLayoutMode: (mode: "plain" | "text" | "tree") => void;
   onApplyDefaultIndent: () => void;
   onSave: () => void;
@@ -48,10 +50,10 @@ type ToolbarRowProps = {
 };
 
 export const ToolbarRow = ({
-  isAtStart, isAtEnd, canUndo, canRedo, isDirty,
+  isAtStart, isAtEnd, canUndo, canRedo, isDirty, boardFlipped,
   layoutMode, isSetUpGame, studyItemCount, studyActive,
   trainingPhase, engineName, vsEngineActive, t,
-  onGotoFirst, onGotoPrev, onGotoNext, onGotoLast,
+  onGotoFirst, onGotoPrev, onGotoNext, onGotoLast, onFlipBoard,
   onSetLayoutMode, onApplyDefaultIndent, onSave, onUndo, onRedo,
   onShowEditStartPos, onShowExtractDialog, onShowHint,
   onStartStudy, onShowTrainingLauncher, onShowAnnotateDialog, onVsEngineClick,
@@ -75,6 +77,14 @@ export const ToolbarRow = ({
         <button id="btn-last" className="icon-button" type="button"
           title={t("controls.last", ">|")} disabled={isAtEnd} onClick={onGotoLast}>
           <img src="/icons/toolbar/nav-last.svg" alt={t("controls.last", ">|")} />
+        </button>
+        <button id="btn-flip-board" className="icon-button" type="button"
+          title={t("toolbar.flipBoard", "Flip board")} onClick={onFlipBoard}
+          aria-label={t("toolbar.flipBoard", "Flip board")}>
+          <span className="flip-board-indicator" aria-hidden="true">
+            <span className={`flip-board-top ${boardFlipped ? "flip-board-white" : "flip-board-black"}`} />
+            <span className={`flip-board-bottom ${boardFlipped ? "flip-board-black" : "flip-board-white"}`} />
+          </span>
         </button>
       </div>
 

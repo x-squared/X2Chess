@@ -126,6 +126,26 @@ export type AppStartupServices = {
    */
   explorePosition: (positionHash: string, resourceRefs: PgnResourceRef[]) => Promise<MoveFrequencyEntry[]>;
 
+  // ── Game links ─────────────────────────────────────────────────────────
+  /**
+   * Load the game identified by `recordId` from the resource that owns the
+   * active session and open it as a new session tab.
+   * @param recordId - Record ID of the game within the active session's resource.
+   */
+  openGameFromRecordId: (recordId: string) => Promise<void>;
+  /**
+   * Fetch display metadata for a game by its record ID from the active
+   * session's resource.  Returns `null` when the game cannot be found or
+   * the active session has no persisted source.
+   * @param recordId - Record ID of the game to look up.
+   */
+  fetchGameMetadataByRecordId: (recordId: string) => Promise<Record<string, string> | null>;
+  /**
+   * Return the resource ref `{ kind, locator }` of the active session's
+   * persisted source, or `null` when the session has no source yet.
+   */
+  getActiveSessionResourceRef: () => { kind: string; locator: string } | null;
+
   // ── Session management ─────────────────────────────────────────────────
   /**
    * Activate a different open session.
@@ -146,6 +166,7 @@ export type AppStartupServices = {
   setLocale: (locale: string) => void;
   setMoveDelayMs: (value: number) => void;
   setSoundEnabled: (enabled: boolean) => void;
+  setPositionPreviewOnHover: (enabled: boolean) => void;
   setDeveloperToolsEnabled: (enabled: boolean) => void;
   setSaveMode: (mode: string) => void;
   saveActiveGameNow: () => void;
@@ -179,6 +200,9 @@ const defaultServices: AppStartupServices = {
   openGameFromRef: noop,
   openResource: noop,
   openPgnText: noop,
+  openGameFromRecordId: async (): Promise<void> => {},
+  fetchGameMetadataByRecordId: async (): Promise<Record<string, string> | null> => null,
+  getActiveSessionResourceRef: (): null => null,
   reorderGameInResource: async () => {},
   searchByPosition: async () => [],
   searchByText: async () => [],
@@ -192,6 +216,7 @@ const defaultServices: AppStartupServices = {
   setLocale: noop,
   setMoveDelayMs: noop,
   setSoundEnabled: noop,
+  setPositionPreviewOnHover: noop,
   setDeveloperToolsEnabled: noop,
   setSaveMode: noop,
   saveActiveGameNow: noop,

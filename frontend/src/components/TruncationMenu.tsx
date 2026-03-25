@@ -23,6 +23,11 @@ import {
 } from "react";
 
 export type TruncationAction =
+  | { type: "insert_comment_before"; moveId: string }
+  | { type: "insert_comment_after"; moveId: string }
+  | { type: "insert_qa"; moveId: string }
+  | { type: "insert_todo"; moveId: string }
+  | { type: "insert_link"; moveId: string }
   | { type: "delete_from_here"; moveId: string }
   | { type: "delete_before_here"; moveId: string }
   | { type: "delete_variation"; moveId: string }
@@ -92,6 +97,47 @@ export const TruncationMenu = ({
 
   return (
     <div ref={menuRef} className="truncation-menu" style={style} role="menu">
+      <button
+        type="button"
+        className="truncation-menu-item"
+        role="menuitem"
+        onClick={(): void => { pick({ type: "insert_comment_before", moveId }); }}
+      >
+        {t("editor.insertBefore", "Insert comment before")}
+      </button>
+      <button
+        type="button"
+        className="truncation-menu-item"
+        role="menuitem"
+        onClick={(): void => { pick({ type: "insert_comment_after", moveId }); }}
+      >
+        {t("editor.insertAfter", "Insert comment after")}
+      </button>
+      <button
+        type="button"
+        className="truncation-menu-item"
+        role="menuitem"
+        onClick={(): void => { pick({ type: "insert_qa", moveId }); }}
+      >
+        {t("editor.insertQa", "Add Q/A annotation")}
+      </button>
+      <button
+        type="button"
+        className="truncation-menu-item"
+        role="menuitem"
+        onClick={(): void => { pick({ type: "insert_todo", moveId }); }}
+      >
+        {t("editor.insertTodo", "Add TODO")}
+      </button>
+      <button
+        type="button"
+        className="truncation-menu-item"
+        role="menuitem"
+        onClick={(): void => { pick({ type: "insert_link", moveId }); }}
+      >
+        {t("editor.insertGameLink", "Insert game link")}
+      </button>
+      <div className="truncation-menu-separator" />
       <button
         type="button"
         className="truncation-menu-item truncation-menu-item--danger"

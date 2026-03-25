@@ -18,6 +18,8 @@
  * - Inbound: re-renders when `pgnModel`, `pgnLayoutMode`, or `selectedMoveId` change.
  * - Comment saves and insert-comment actions are wired to `useServiceContext()`
  *   callbacks (`insertComment`, `saveCommentText`, `gotoMoveById`).
+ * - Game-link chips (`[%link ...]`) rendered via `LinkBadge`; insertion via
+ *   `GamePickerDialog`; navigation via `services.openGameFromRecordId`.
  */
 
 import { useMemo, useRef, useEffect, useCallback, useState } from "react";
@@ -30,7 +32,10 @@ import {
   selectLayoutMode,
   selectSelectedMoveId,
   selectPendingFocusCommentId,
+  selectPositionPreviewOnHover,
 } from "../state/selectors";
+import { useHoverPreview } from "./HoverPreviewContext";
+import { resolveMovePositionById, type PgnModelForMoves } from "../board/move_position";
 import { useServiceContext } from "../state/ServiceContext";
 import { useTranslator } from "../hooks/useTranslator";
 import {
@@ -50,6 +55,22 @@ import {
   stripQaAnnotations,
 } from "../resources_viewer/qa_parser";
 import { useQaDialog } from "../editor/useQaDialog";
+import { TodoBadge, TodoInsertDialog, TodoPanel } from "./TodoBadge";
+import type { TodoPanelItem } from "./TodoBadge";
+import {
+  parseTodoAnnotations,
+  hasTodoAnnotations,
+  stripTodoAnnotations,
+} from "../resources_viewer/todo_parser";
+import { useTodoDialog } from "../editor/useTodoDialog";
+import { LinkBadge } from "./LinkBadge";
+import {
+  parseLinkAnnotations,
+  hasLinkAnnotations,
+  stripLinkAnnotations,
+} from "../resources_viewer/link_parser";
+import { useLinkDialog } from "../editor/useLinkDialog";
+import { GamePickerDialog } from "./GamePickerDialog";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -250,61 +271,6 @@ const CommentBlock = ({ token, isFocused, onEdit, onFocusHandled }: CommentBlock
   );
 };
 
-// ── MoveActionBar ─────────────────────────────────────────────────────────────
-
-type MoveActionBarProps = {
-  moveId: string;
-  onInsertComment: (moveId: string, position: "before" | "after") => void;
-  onInsertQa: (moveId: string) => void;
-  t: (key: string, fallback?: string) => string;
-};
-
-/**
- * Floating pill toolbar that appears below the currently selected move.
- * Provides three actions: insert comment before, insert comment after, add Q/A.
- */
-const MoveActionBar = ({ moveId, onInsertComment, onInsertQa, t }: MoveActionBarProps): ReactElement => (
-  <span className="move-action-bar" role="toolbar" aria-label={t("editor.moveActions", "Move actions")}>
-    <button
-      type="button"
-      className="move-action-btn"
-      tabIndex={-1}
-      onClick={(e: MouseEvent<HTMLButtonElement>): void => { e.stopPropagation(); onInsertComment(moveId, "before"); }}
-      title={t("editor.insertBefore", "Insert comment before")}
-    >
-      {/* Left arrow + plus: insert comment before move */}
-      <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
-        <line x1="6" y1="6.5" x2="12" y2="6.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-        <line x1="9" y1="4" x2="9" y2="9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-        <polyline points="5,4 1.5,6.5 5,9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-      </svg>
-    </button>
-    <button
-      type="button"
-      className="move-action-btn move-action-btn-qa"
-      tabIndex={-1}
-      onClick={(e: MouseEvent<HTMLButtonElement>): void => { e.stopPropagation(); onInsertQa(moveId); }}
-      title={t("editor.insertQa", "Add Q/A annotation")}
-    >
-      ?
-    </button>
-    <button
-      type="button"
-      className="move-action-btn"
-      tabIndex={-1}
-      onClick={(e: MouseEvent<HTMLButtonElement>): void => { e.stopPropagation(); onInsertComment(moveId, "after"); }}
-      title={t("editor.insertAfter", "Insert comment after")}
-    >
-      {/* Plus + right arrow: insert comment after move */}
-      <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
-        <line x1="1" y1="6.5" x2="7" y2="6.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-        <line x1="4" y1="4" x2="4" y2="9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-        <polyline points="8,4 11.5,6.5 8,9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-      </svg>
-    </button>
-  </span>
-);
-
 // ── MoveSpan ──────────────────────────────────────────────────────────────────
 
 type MoveSpanProps = {
@@ -317,40 +283,36 @@ type MoveSpanProps = {
    * @param moveId - PGN move node ID.
    */
   onMoveClick: (moveId: string) => void;
-  /**
-   * Called when the user clicks an insert-comment button in the action bar.
-   * @param moveId - PGN move node ID adjacent to the insert point.
-   * @param position - Whether to insert before or after the move.
-   */
-  onInsertComment: (moveId: string, position: "before" | "after") => void;
-  /** Called when the user requests Q/A insertion on this move (UV10). */
-  onInsertQa: (moveId: string) => void;
-  /** Called when the user right-clicks a move to open the truncation context menu. */
+  /** Called when the user right-clicks a move to open the context menu. */
   onContextMenu: (moveId: string, san: string, isInVariation: boolean, rect: DOMRect) => void;
-  /** Translator function. */
-  t: (key: string, fallback?: string) => string;
+  /** Called when the pointer enters a move span (for position preview). */
+  onMoveHover?: (moveId: string, rect: DOMRect) => void;
+  /** Called when the pointer leaves a move span. */
+  onMoveHoverEnd?: () => void;
 };
 
-/**
- * Renders a clickable SAN move token.
- *
- * When selected, a floating `MoveActionBar` appears below the move with
- * three actions: insert comment before, insert comment after, add Q/A.
- */
+/** Renders a clickable SAN move token. Right-click opens the context menu. */
 const MoveSpan = ({
   token,
   isSelected,
   onMoveClick,
-  onInsertComment,
-  onInsertQa,
   onContextMenu,
-  t,
+  onMoveHover,
+  onMoveHoverEnd,
 }: MoveSpanProps): ReactElement => {
   const moveId: string = String(token.dataset.nodeId ?? "");
 
   const handleClick = useCallback((): void => {
     onMoveClick(moveId);
   }, [moveId, onMoveClick]);
+
+  const handleMouseDown = useCallback(
+    (e: MouseEvent<HTMLSpanElement>): void => {
+      // Prevent browser text-selection on right-click (mousedown fires before contextmenu).
+      if (e.button === 2) e.preventDefault();
+    },
+    [],
+  );
 
   const handleContextMenu = useCallback(
     (e: MouseEvent<HTMLSpanElement>): void => {
@@ -362,10 +324,27 @@ const MoveSpan = ({
     [moveId, token.text, token.dataset.variationDepth, onContextMenu],
   );
 
+  const handleMouseEnter = useCallback(
+    (e: MouseEvent<HTMLSpanElement>): void => {
+      onMoveHover?.(moveId, (e.currentTarget as HTMLSpanElement).getBoundingClientRect());
+    },
+    [moveId, onMoveHover],
+  );
+
+  const handleMouseLeave = useCallback((): void => {
+    onMoveHoverEnd?.();
+  }, [onMoveHoverEnd]);
+
   const handleKeyDown = (e: ReactKeyboardEvent<HTMLSpanElement>): void => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       onMoveClick(moveId);
+      return;
+    }
+    // Prevent browser text-selection (Shift+Arrow) and scroll (Arrow) defaults
+    // while a move span has focus. Navigation is handled at window level.
+    if (e.key.startsWith("Arrow")) {
+      e.preventDefault();
     }
   };
 
@@ -384,18 +363,13 @@ const MoveSpan = ({
       role="button"
       tabIndex={0}
       onClick={handleClick}
+      onMouseDown={handleMouseDown}
       onKeyDown={handleKeyDown}
       onContextMenu={handleContextMenu}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       {token.text}
-      {isSelected && (
-        <MoveActionBar
-          moveId={moveId}
-          onInsertComment={onInsertComment}
-          onInsertQa={onInsertQa}
-          t={t}
-        />
-      )}
     </span>
   );
 };
@@ -409,13 +383,19 @@ type TokenViewProps = {
   consumedFocusCommentId: string | null;
   layoutMode: "plain" | "text" | "tree";
   onMoveClick: (moveId: string) => void;
-  onInsertComment: (moveId: string, position: "before" | "after") => void;
   onCommentEdit: (commentId: string, newText: string) => void;
   onCommentFocusHandled: (commentId: string) => void;
   onEditQa: (commentId: string, index: number, rawText: string) => void;
   onDeleteQa: (commentId: string, index: number, rawText: string) => void;
-  onInsertQa: (moveId: string) => void;
+  onEditTodo: (commentId: string, index: number, rawText: string) => void;
+  onDeleteTodo: (commentId: string, index: number, rawText: string) => void;
+  onEditLink: (commentId: string, index: number, rawText: string) => void;
+  onDeleteLink: (commentId: string, index: number, rawText: string) => void;
+  onOpenLinkedGame: (recordId: string) => void;
+  onFetchLinkMetadata: (recordId: string) => Promise<Record<string, string> | null>;
   onContextMenu: (moveId: string, san: string, isInVariation: boolean, rect: DOMRect) => void;
+  onMoveHover?: (moveId: string, rect: DOMRect) => void;
+  onMoveHoverEnd?: () => void;
   t: (key: string, fallback?: string) => string;
 };
 
@@ -433,24 +413,45 @@ const TokenView = ({
   consumedFocusCommentId,
   layoutMode,
   onMoveClick,
-  onInsertComment,
   onCommentEdit,
   onCommentFocusHandled,
   onEditQa,
   onDeleteQa,
-  onInsertQa,
+  onEditTodo,
+  onDeleteTodo,
+  onEditLink,
+  onDeleteLink,
+  onOpenLinkedGame,
+  onFetchLinkMetadata,
   onContextMenu,
+  onMoveHover,
+  onMoveHoverEnd,
   t,
 }: TokenViewProps): ReactElement => {
   if (token.kind === "comment") {
     const ct: CommentToken = token;
-    // Show QA badge in text/tree mode whenever annotations are present.
-    const showQaBadge: boolean = layoutMode !== "plain" && hasQaAnnotations(ct.rawText);
+    const inBadgeMode: boolean = layoutMode !== "plain";
+    // Show annotation badges in text/tree mode whenever annotations are present.
+    const showQaBadge: boolean = inBadgeMode && hasQaAnnotations(ct.rawText);
+    const showTodoBadge: boolean = inBadgeMode && hasTodoAnnotations(ct.rawText);
+    const showLinkBadge: boolean = inBadgeMode && hasLinkAnnotations(ct.rawText);
     const qaAnnotations = showQaBadge ? parseQaAnnotations(ct.rawText) : [];
-    // Compute stripped display text; omit the comment block if nothing remains.
-    const displayText: string = showQaBadge ? stripQaAnnotations(ct.rawText) : ct.text;
+    const todoAnnotations = showTodoBadge ? parseTodoAnnotations(ct.rawText) : [];
+    const linkAnnotations = showLinkBadge ? parseLinkAnnotations(ct.rawText) : [];
+    // Strip annotation markup from display text; omit the comment block if nothing remains.
+    let displayText: string;
+    if (showQaBadge || showTodoBadge || showLinkBadge) {
+      let stripped: string = ct.rawText;
+      if (showQaBadge) stripped = stripQaAnnotations(stripped);
+      if (showTodoBadge) stripped = stripTodoAnnotations(stripped);
+      if (showLinkBadge) stripped = stripLinkAnnotations(stripped);
+      displayText = stripped;
+    } else {
+      displayText = ct.text;
+    }
     const hasDisplayText: boolean = displayText.trim().length > 0;
-    const displayToken: CommentToken = showQaBadge ? { ...ct, text: displayText } : ct;
+    const displayToken: CommentToken =
+      (showQaBadge || showTodoBadge || showLinkBadge) ? { ...ct, text: displayText } : ct;
     return (
       <>
         {showQaBadge && (
@@ -462,6 +463,32 @@ const TokenView = ({
             }}
             onDelete={(index: number): void => {
               onDeleteQa(ct.commentId, index, ct.rawText);
+            }}
+          />
+        )}
+        {showTodoBadge && (
+          <TodoBadge
+            annotations={todoAnnotations}
+            t={t}
+            onEdit={(index: number): void => {
+              onEditTodo(ct.commentId, index, ct.rawText);
+            }}
+            onDelete={(index: number): void => {
+              onDeleteTodo(ct.commentId, index, ct.rawText);
+            }}
+          />
+        )}
+        {showLinkBadge && (
+          <LinkBadge
+            annotations={linkAnnotations}
+            onOpen={onOpenLinkedGame}
+            onFetchMetadata={onFetchLinkMetadata}
+            t={t}
+            onEdit={(index: number): void => {
+              onEditLink(ct.commentId, index, ct.rawText);
+            }}
+            onDelete={(index: number): void => {
+              onDeleteLink(ct.commentId, index, ct.rawText);
             }}
           />
         )}
@@ -488,10 +515,9 @@ const TokenView = ({
         token={it}
         isSelected={String(it.dataset.nodeId ?? "") === selectedMoveId}
         onMoveClick={onMoveClick}
-        onInsertComment={onInsertComment}
-        onInsertQa={onInsertQa}
         onContextMenu={onContextMenu}
-        t={t}
+        onMoveHover={onMoveHover}
+        onMoveHoverEnd={onMoveHoverEnd}
       />
     );
   }
@@ -513,13 +539,19 @@ type TokenRenderDeps = {
   consumedFocusCommentId: string | null;
   layoutMode: "plain" | "text" | "tree";
   onMoveClick: (moveId: string) => void;
-  onInsertComment: (moveId: string, position: "before" | "after") => void;
   onCommentEdit: (commentId: string, newText: string) => void;
   onCommentFocusHandled: (commentId: string) => void;
   onEditQa: (commentId: string, index: number, rawText: string) => void;
   onDeleteQa: (commentId: string, index: number, rawText: string) => void;
-  onInsertQa: (moveId: string) => void;
+  onEditTodo: (commentId: string, index: number, rawText: string) => void;
+  onDeleteTodo: (commentId: string, index: number, rawText: string) => void;
+  onEditLink: (commentId: string, index: number, rawText: string) => void;
+  onDeleteLink: (commentId: string, index: number, rawText: string) => void;
+  onOpenLinkedGame: (recordId: string) => void;
+  onFetchLinkMetadata: (recordId: string) => Promise<Record<string, string> | null>;
   onContextMenu: (moveId: string, san: string, isInVariation: boolean, rect: DOMRect) => void;
+  onMoveHover?: (moveId: string, rect: DOMRect) => void;
+  onMoveHoverEnd?: () => void;
   t: (key: string, fallback?: string) => string;
 };
 
@@ -538,13 +570,19 @@ const renderToken = (token: PlanToken, deps: TokenRenderDeps): ReactElement => (
     consumedFocusCommentId={deps.consumedFocusCommentId}
     layoutMode={deps.layoutMode}
     onMoveClick={deps.onMoveClick}
-    onInsertComment={deps.onInsertComment}
     onCommentEdit={deps.onCommentEdit}
     onCommentFocusHandled={deps.onCommentFocusHandled}
     onEditQa={deps.onEditQa}
     onDeleteQa={deps.onDeleteQa}
-    onInsertQa={deps.onInsertQa}
+    onEditTodo={deps.onEditTodo}
+    onDeleteTodo={deps.onDeleteTodo}
+    onEditLink={deps.onEditLink}
+    onDeleteLink={deps.onDeleteLink}
+    onOpenLinkedGame={deps.onOpenLinkedGame}
+    onFetchLinkMetadata={deps.onFetchLinkMetadata}
     onContextMenu={deps.onContextMenu}
+    onMoveHover={deps.onMoveHover}
+    onMoveHoverEnd={deps.onMoveHoverEnd}
     t={deps.t}
   />
 );
@@ -664,8 +702,10 @@ export const PgnTextEditor = (): ReactElement => {
   const layoutMode: "plain" | "text" | "tree" = selectLayoutMode(state);
   const selectedMoveId: string | null = selectSelectedMoveId(state);
   const pendingFocusCommentId: string | null = selectPendingFocusCommentId(state);
+  const positionPreviewOnHover: boolean = selectPositionPreviewOnHover(state);
   const [consumedFocusCommentId, setConsumedFocusCommentId] = useState<string | null>(null);
   const t: (key: string, fallback?: string) => string = useTranslator();
+  const { showPreview, hidePreview } = useHoverPreview();
 
   // ── Collapse state (tree mode only; reset when model changes) ───────────────
   const [collapsedPaths, setCollapsedPaths] = useState<ReadonlySet<string>>(new Set());
@@ -687,8 +727,125 @@ export const PgnTextEditor = (): ReactElement => {
     [],
   );
 
+  // ── Q/A dialog state (UV10/UV11) ─────────────────────────────────────────────
+  const { qaDialog, handleEditQa, handleInsertQa, handleQaDialogSave, handleQaDialogClose, handleDeleteQa } = useQaDialog(services);
+
+  // ── TODO dialog state ─────────────────────────────────────────────────────────
+  const { todoDialog, handleEditTodo, handleInsertTodo, handleTodoDialogSave, handleTodoDialogClose, handleDeleteTodo } = useTodoDialog(services);
+
+  // ── Game-link dialog state ────────────────────────────────────────────────────
+  const {
+    linkDialog,
+    handleInsertLink,
+    handleEditLink,
+    handleLinkPickerSelect,
+    handleLinkDialogClose,
+    handleDeleteLink,
+  } = useLinkDialog(services);
+
+  const handleOpenLinkedGame = useCallback(
+    (recordId: string): void => {
+      void services.openGameFromRecordId(recordId);
+    },
+    [services],
+  );
+
+  const handleToggle = useCallback((key: string): void => {
+    setCollapsedPaths((prev: ReadonlySet<string>): ReadonlySet<string> => {
+      const next: Set<string> = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
+  /** Recompute the token plan only when the model or layout mode changes. */
+  const blocks: PlanBlock[] = useMemo(
+    (): PlanBlock[] => buildTextEditorPlan(pgnModel, { layoutMode }),
+    [pgnModel, layoutMode],
+  );
+  const lastSiblingByParent: ReadonlyMap<string, number> = useMemo(
+    (): ReadonlyMap<string, number> => buildLastSiblingByParent(blocks),
+    [blocks],
+  );
+
+  /** Collect all TODO annotations from all comment tokens, with move context label. */
+  const todoPanelItems: TodoPanelItem[] = useMemo((): TodoPanelItem[] => {
+    const items: TodoPanelItem[] = [];
+    let currentMoveLabel: string = t("editor.todo.intro", "Intro");
+    for (const block of blocks) {
+      for (const token of block.tokens) {
+        if (token.kind === "inline" && token.tokenType === "move") {
+          currentMoveLabel = (token as InlineToken).text;
+        } else if (token.kind === "comment" && hasTodoAnnotations((token as CommentToken).rawText)) {
+          const ct = token as CommentToken;
+          parseTodoAnnotations(ct.rawText).forEach((ann, index): void => {
+            items.push({
+              commentId: ct.commentId,
+              index,
+              rawText: ct.rawText,
+              text: ann.text,
+              moveLabel: currentMoveLabel,
+            });
+          });
+        }
+      }
+    }
+    return items;
+  }, [blocks, t]);
+
+  const handleMoveClick = useCallback(
+    (moveId: string): void => {
+      services.gotoMoveById(moveId);
+      // If an after-comment exists for this move, focus it for editing.
+      services.focusCommentAroundMove(moveId, "after");
+    },
+    [services],
+  );
+
+  const handleMoveHover = useCallback(
+    (moveId: string, rect: DOMRect): void => {
+      if (!positionPreviewOnHover || !pgnModel) return;
+      // Cast is safe: PgnModel is structurally compatible at runtime.
+      const resolved = resolveMovePositionById(pgnModel as unknown as PgnModelForMoves, moveId);
+      if (!resolved) return;
+      showPreview(resolved.fen, resolved.lastMove, rect);
+    },
+    [positionPreviewOnHover, pgnModel, showPreview],
+  );
+
+  const handleMoveHoverEnd = useCallback((): void => {
+    hidePreview();
+  }, [hidePreview]);
+
+  const handleInsertComment = useCallback(
+    (moveId: string, position: "before" | "after"): void => {
+      services.insertComment(moveId, position);
+    },
+    [services],
+  );
+
   const handleTruncationAction = useCallback(
     (action: TruncationAction): void => {
+      switch (action.type) {
+        case "insert_comment_before":
+          handleInsertComment(action.moveId, "before");
+          return;
+        case "insert_comment_after":
+          handleInsertComment(action.moveId, "after");
+          return;
+        case "insert_qa":
+          handleInsertQa(action.moveId);
+          return;
+        case "insert_todo":
+          handleInsertTodo(action.moveId);
+          return;
+        case "insert_link":
+          handleInsertLink(action.moveId);
+          return;
+        default:
+          break;
+      }
       if (!pgnModel) return;
       const cursor = findCursorForMoveId(pgnModel, action.moveId);
       if (!cursor) return;
@@ -715,45 +872,7 @@ export const PgnTextEditor = (): ReactElement => {
       }
       services.applyPgnModelEdit(newModel, newCursor?.moveId ?? null);
     },
-    [pgnModel, services],
-  );
-
-  // ── Q/A dialog state (UV10/UV11) ─────────────────────────────────────────────
-  const { qaDialog, handleEditQa, handleInsertQa, handleQaDialogSave, handleQaDialogClose, handleDeleteQa } = useQaDialog(services);
-
-  const handleToggle = useCallback((key: string): void => {
-    setCollapsedPaths((prev: ReadonlySet<string>): ReadonlySet<string> => {
-      const next: Set<string> = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  }, []);
-
-  /** Recompute the token plan only when the model or layout mode changes. */
-  const blocks: PlanBlock[] = useMemo(
-    (): PlanBlock[] => buildTextEditorPlan(pgnModel, { layoutMode }),
-    [pgnModel, layoutMode],
-  );
-  const lastSiblingByParent: ReadonlyMap<string, number> = useMemo(
-    (): ReadonlyMap<string, number> => buildLastSiblingByParent(blocks),
-    [blocks],
-  );
-
-  const handleMoveClick = useCallback(
-    (moveId: string): void => {
-      services.gotoMoveById(moveId);
-      // If an after-comment exists for this move, focus it for editing.
-      services.focusCommentAroundMove(moveId, "after");
-    },
-    [services],
-  );
-
-  const handleInsertComment = useCallback(
-    (moveId: string, position: "before" | "after"): void => {
-      services.insertComment(moveId, position);
-    },
-    [services],
+    [pgnModel, services, handleInsertComment, handleInsertQa, handleInsertTodo, handleInsertLink],
   );
 
   const handleCommentEdit = useCallback(
@@ -817,13 +936,19 @@ export const PgnTextEditor = (): ReactElement => {
             consumedFocusCommentId,
             layoutMode,
             onMoveClick: handleMoveClick,
-            onInsertComment: handleInsertComment,
             onCommentEdit: handleCommentEdit,
             onCommentFocusHandled: handleCommentFocusHandled,
             onEditQa: handleEditQa,
             onDeleteQa: handleDeleteQa,
-            onInsertQa: handleInsertQa,
+            onEditTodo: handleEditTodo,
+            onDeleteTodo: handleDeleteTodo,
+            onEditLink: handleEditLink,
+            onDeleteLink: handleDeleteLink,
+            onOpenLinkedGame: handleOpenLinkedGame,
+            onFetchLinkMetadata: services.fetchGameMetadataByRecordId,
             onContextMenu: handleMoveContextMenu,
+            onMoveHover: handleMoveHover,
+            onMoveHoverEnd: handleMoveHoverEnd,
             t,
           }}
         />
@@ -836,17 +961,29 @@ export const PgnTextEditor = (): ReactElement => {
             consumedFocusCommentId,
             layoutMode,
             onMoveClick: handleMoveClick,
-            onInsertComment: handleInsertComment,
             onCommentEdit: handleCommentEdit,
             onCommentFocusHandled: handleCommentFocusHandled,
             onEditQa: handleEditQa,
             onDeleteQa: handleDeleteQa,
-            onInsertQa: handleInsertQa,
+            onEditTodo: handleEditTodo,
+            onDeleteTodo: handleDeleteTodo,
+            onEditLink: handleEditLink,
+            onDeleteLink: handleDeleteLink,
+            onOpenLinkedGame: handleOpenLinkedGame,
+            onFetchLinkMetadata: services.fetchGameMetadataByRecordId,
             onContextMenu: handleMoveContextMenu,
+            onMoveHover: handleMoveHover,
+            onMoveHoverEnd: handleMoveHoverEnd,
             t,
           }}
         />
       )}
+      <TodoPanel
+        items={todoPanelItems}
+        t={t}
+        onEdit={handleEditTodo}
+        onDelete={handleDeleteTodo}
+      />
       {qaDialog !== null && (
         <QaInsertDialog
           moveId={qaDialog.commentId}
@@ -854,6 +991,23 @@ export const PgnTextEditor = (): ReactElement => {
           t={t}
           onSave={handleQaDialogSave}
           onClose={handleQaDialogClose}
+        />
+      )}
+      {todoDialog !== null && (
+        <TodoInsertDialog
+          moveId={todoDialog.commentId}
+          initial={todoDialog.initial}
+          t={t}
+          onSave={handleTodoDialogSave}
+          onClose={handleTodoDialogClose}
+        />
+      )}
+      {linkDialog !== null && (
+        <GamePickerDialog
+          resourceRef={linkDialog.resourceRef}
+          onSelect={handleLinkPickerSelect}
+          onCancel={handleLinkDialogClose}
+          t={t}
         />
       )}
       {contextMenu !== null && (

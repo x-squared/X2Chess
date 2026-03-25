@@ -1,4 +1,5 @@
 import { extractPgnMetadata, PGN_STANDARD_METADATA_KEYS } from "../../../resource/domain/metadata";
+import { materialKeyFromFen } from "../../../resource/domain/material_key";
 import type {
   SourceAdapter,
   SourceCreateResult,
@@ -96,6 +97,21 @@ const defaultMetadataPayload = (): MetadataPayload => ({
   metadata: {},
   availableMetadataKeys: [...PGN_STANDARD_METADATA_KEYS],
 });
+
+/** Augment a metadata payload with a derived `Material` key for position games. */
+const withMaterial = (pgnText: string, payload: MetadataPayload): MetadataPayload => {
+  const isPosition: boolean = /\[SetUp\s+"1"\]/i.test(pgnText);
+  if (!isPosition) return payload;
+  const { metadata: fenMeta } = extractPgnMetadata(pgnText, ["FEN"]);
+  const fenValue: string = String(fenMeta["FEN"] ?? "").trim();
+  const materialKey: string = fenValue ? materialKeyFromFen(fenValue) : "";
+  if (!materialKey) return payload;
+  const metadata: Record<string, string> = { ...payload.metadata, Material: materialKey };
+  const availableMetadataKeys: string[] = payload.availableMetadataKeys.includes("Material")
+    ? payload.availableMetadataKeys
+    : [...payload.availableMetadataKeys, "Material"];
+  return { metadata, availableMetadataKeys };
+};
 
 // ── Adapter factory ───────────────────────────────────────────────────────────
 
@@ -228,7 +244,8 @@ export const createSourcePickerAdapter = ({ state }: SourcePickerDeps): SourceAd
         try {
           if (typeof (entry as DirectoryEntryLike).getFile !== "function") continue;
           const file: FileLike = await (entry as DirectoryEntryLike).getFile!();
-          metadataPayload = extractPgnMetadata(await file.text());
+          const pgnText: string = await file.text();
+          metadataPayload = withMaterial(pgnText, extractPgnMetadata(pgnText));
         } catch {
           // Keep listing robust; metadata is optional.
         }
@@ -258,7 +275,8 @@ export const createSourcePickerAdapter = ({ state }: SourcePickerDeps): SourceAd
             gamesDirectory: effectiveDirectory,
             fileName: name,
           });
-          metadataPayload = extractPgnMetadata(String(content || ""));
+          const pgnText: string = String(content || "");
+          metadataPayload = withMaterial(pgnText, extractPgnMetadata(pgnText));
         } catch {
           // Continue listing when metadata extraction fails for a single file.
         }

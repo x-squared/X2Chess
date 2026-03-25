@@ -44,6 +44,8 @@ type RightPanelStackProps = {
   sideToMove: "w" | "b";
   onStartAnalysis: () => void;
   onStopAnalysis: () => void;
+  onPvMoveHover?: (pvSans: string[], upToIndex: number, rect: DOMRect) => void;
+  onPvMoveHoverEnd?: () => void;
   // Opening explorer
   openingResult: OpeningResult | null;
   openingIsLoading: boolean;
@@ -78,6 +80,7 @@ const PANEL_TABS: Array<{ id: PanelId; label: string; labelKey: string }> = [
 export const RightPanelStack = ({
   variations, isAnalyzing, engineName, sideToMove,
   onStartAnalysis, onStopAnalysis,
+  onPvMoveHover, onPvMoveHoverEnd,
   openingResult, openingIsLoading, openingSource, openingEnabled,
   onOpeningSourceChange, onOpeningToggle, onOpenSettings,
   tbResult, tbIsLoading, tbEnabled, onTbToggle,
@@ -129,6 +132,8 @@ export const RightPanelStack = ({
             t={t}
             onStartAnalysis={onStartAnalysis}
             onStopAnalysis={onStopAnalysis}
+            onPvMoveHover={onPvMoveHover}
+            onPvMoveHoverEnd={onPvMoveHoverEnd}
           />
         </div>
 

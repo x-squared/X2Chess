@@ -13,6 +13,7 @@ import { Chess, type Move } from "chess.js";
  * - `resolveMovePositionById(pgnModel, moveId)`
  * - `buildMainlinePlyByMoveId(pgnModel)`
  * - `stripAnnotationsForBoardParser(source)`
+ * - `replayPvToPosition(startFen, pvSans, upToIndex)`
  */
 
 /** Parsed variation subtree (matches `parsePgnToModel` output at runtime). */
@@ -263,6 +264,43 @@ export const buildMainlinePlyByMoveId = (pgnModel: PgnModelForMoves): MainlinePl
     byId[entry.id] = ply;
   });
   return byId;
+};
+
+/** Result of replaying engine PV moves to a specific index. */
+export type PvPositionResult = {
+  fen: string;
+  lastMove: [string, string] | null;
+};
+
+/**
+ * Replay engine PV SAN moves from a starting FEN up to and including the move
+ * at `upToIndex` (0-based inclusive). Used for position preview on hover over
+ * individual PV move tokens in the analysis panel.
+ *
+ * If `startFen` is malformed or any SAN fails to apply, the function returns
+ * the position reached so far (partial replay) without throwing.
+ */
+export const replayPvToPosition = (
+  startFen: string,
+  pvSans: string[],
+  upToIndex: number,
+): PvPositionResult => {
+  let game: Chess;
+  try {
+    game = new Chess(startFen);
+  } catch {
+    return { fen: startFen, lastMove: null };
+  }
+
+  let lastMove: [string, string] | null = null;
+  const limit = Math.min(upToIndex, pvSans.length - 1);
+  for (let i = 0; i <= limit; i++) {
+    const moved = applySanWithFallback(game, pvSans[i] ?? "");
+    if (!moved) break;
+    lastMove = [moved.from, moved.to];
+  }
+
+  return { fen: game.fen(), lastMove };
 };
 
 /**

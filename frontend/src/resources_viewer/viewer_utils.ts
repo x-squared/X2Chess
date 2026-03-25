@@ -33,7 +33,7 @@ export const DEFAULT_METADATA_KEYS: readonly string[] = ["White", "Black", "Resu
  * then the system keys (identifier, source, revision) last.
  */
 export const METADATA_CANONICAL_ORDER: readonly string[] = [
-  "White", "WhiteElo", "Black", "BlackElo", "Result", "Opening", "ECO", "Event", "Date",
+  "White", "WhiteElo", "Black", "BlackElo", "Result", "Material", "Opening", "ECO", "Event", "Date",
 ];
 
 /** System keys always placed last in the metadata catalog. */

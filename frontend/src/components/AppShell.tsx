@@ -31,6 +31,7 @@ import { createGameIngressHandlers } from "../game_sessions/ingress_handlers";
 import { isLikelyPgnText } from "../runtime/bootstrap_shared";
 import { useAppContext } from "../state/app_context";
 import {
+  selectBoardFlipped,
   selectCurrentPly,
   selectLayoutMode,
   selectMoveCount,
@@ -60,6 +61,9 @@ import { getHeaderValue } from "../model/pgn_headers";
 import { STANDARD_STARTING_FEN } from "../editor/fen_utils";
 import { ServiceContextProvider } from "../state/ServiceContext";
 import type { AppStartupServices } from "../state/ServiceContext";
+import { useHoverPreview } from "./HoverPreviewContext";
+import { replayPvToPosition } from "../board/move_position";
+import { selectPositionPreviewOnHover } from "../state/selectors";
 import { MenuPanel } from "./MenuPanel";
 import { DevDock } from "./DevDock";
 import { GameInfoEditor } from "./GameInfoEditor";
@@ -109,8 +113,11 @@ export const AppShell = (): ReactElement => {
   const sessions = selectSessions(state);
   const activeSessionId = selectActiveSessionId(state);
   const devToolsEnabled: boolean = selectDevToolsEnabled(state);
+  const boardFlipped: boolean = selectBoardFlipped(state);
+  const positionPreviewOnHover: boolean = selectPositionPreviewOnHover(state);
   const activeSession = sessions.find((s) => s.sessionId === activeSessionId);
   const t: (key: string, fallback?: string) => string = useTranslator();
+  const { showPreview, hidePreview } = useHoverPreview();
 
   const { variations, isAnalyzing, engineName, startAnalysis, stopAnalysis, findBestMove } =
     useEngineAnalysis();
@@ -221,6 +228,19 @@ export const AppShell = (): ReactElement => {
     if (uci.length < 4) return;
     onMovePlayed(uci.slice(0, 2), uci.slice(2, 4));
   }, [onMovePlayed]);
+
+  const handlePvMoveHover = useCallback(
+    (pvSans: string[], upToIndex: number, rect: DOMRect): void => {
+      if (!positionPreviewOnHover) return;
+      const result = replayPvToPosition(currentFen, pvSans, upToIndex);
+      showPreview(result.fen, result.lastMove, rect);
+    },
+    [positionPreviewOnHover, currentFen, showPreview],
+  );
+
+  const handlePvMoveHoverEnd = useCallback((): void => {
+    hidePreview();
+  }, [hidePreview]);
 
   // ── Training session ───────────────────────────────────────────────────────
   const trainingControls = useTrainingSession([REPLAY_PROTOCOL, OPENING_PROTOCOL]);
@@ -599,6 +619,7 @@ export const AppShell = (): ReactElement => {
                 canUndo={canUndo}
                 canRedo={canRedo}
                 isDirty={isDirty}
+                boardFlipped={boardFlipped}
                 layoutMode={layoutMode}
                 isSetUpGame={isSetUpGame}
                 studyItemCount={studyItems.length}
@@ -611,6 +632,7 @@ export const AppShell = (): ReactElement => {
                 onGotoPrev={(): void => { services.gotoPrev(); }}
                 onGotoNext={(): void => { services.gotoNext(); }}
                 onGotoLast={(): void => { services.gotoLast(); }}
+                onFlipBoard={(): void => { dispatch({ type: "toggle_board_flip" }); }}
                 onSetLayoutMode={(mode): void => { services.setLayoutMode(mode); }}
                 onApplyDefaultIndent={(): void => { services.applyDefaultIndent(); }}
                 onSave={(): void => { services.saveActiveGameNow(); }}
@@ -651,6 +673,8 @@ export const AppShell = (): ReactElement => {
             sideToMove={sideToMove}
             onStartAnalysis={handleStartAnalysis}
             onStopAnalysis={stopAnalysis}
+            onPvMoveHover={handlePvMoveHover}
+            onPvMoveHoverEnd={handlePvMoveHoverEnd}
             openingResult={openingExplorer.result}
             openingIsLoading={openingExplorer.isLoading}
             openingSource={openingExplorer.source}

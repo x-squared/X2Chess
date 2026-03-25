@@ -15,14 +15,12 @@ type ApplyPgnModelUpdateDeps = {
   pgnRuntimeCapabilities: PgnRuntimeCapabilitiesLike;
   state: PgnModelUpdateState;
   normalizeX2StyleValue: (value: unknown) => "plain" | "text" | "tree";
-  getX2StyleFromModel: (model: unknown) => "plain" | "text" | "tree";
 };
 
 export const createApplyPgnModelUpdate = ({
   pgnRuntimeCapabilities,
   state,
   normalizeX2StyleValue,
-  getX2StyleFromModel,
 }: ApplyPgnModelUpdateDeps) => {
   return (
     nextModel: unknown,
@@ -31,10 +29,8 @@ export const createApplyPgnModelUpdate = ({
   ): void => {
     pgnRuntimeCapabilities.applyPgnModelUpdate(nextModel, focusCommentId, options);
     const preferredLayoutMode = options.preferredLayoutMode;
-    const normalizedPreferredLayoutMode = normalizeX2StyleValue(preferredLayoutMode);
-    const resolvedLayoutMode = getX2StyleFromModel(state.pgnModel);
-    state.pgnLayoutMode = normalizedPreferredLayoutMode !== "plain" || preferredLayoutMode === "plain"
-      ? normalizedPreferredLayoutMode
-      : resolvedLayoutMode;
+    if (preferredLayoutMode !== undefined) {
+      state.pgnLayoutMode = normalizeX2StyleValue(preferredLayoutMode);
+    }
   };
 };

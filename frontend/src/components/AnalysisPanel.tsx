@@ -32,6 +32,10 @@ type AnalysisPanelProps = {
   sideToMove: "w" | "b";
   t: (key: string, fallback?: string) => string;
   onPvClick?: (pvSans: string[]) => void;
+  /** Called when the pointer enters an individual PV move span. */
+  onPvMoveHover?: (pvSans: string[], upToIndex: number, rect: DOMRect) => void;
+  /** Called when the pointer leaves a PV move span. */
+  onPvMoveHoverEnd?: () => void;
   onStartAnalysis: () => void;
   onStopAnalysis: () => void;
 };
@@ -79,6 +83,8 @@ export const AnalysisPanel = ({
   sideToMove,
   t,
   onPvClick,
+  onPvMoveHover,
+  onPvMoveHoverEnd,
   onStartAnalysis,
   onStopAnalysis,
 }: AnalysisPanelProps): ReactElement => {
@@ -166,8 +172,27 @@ export const AnalysisPanel = ({
               </span>
 
               <span className="analysis-panel-variation-pv">
-                {(v.pvSan ?? v.pv).slice(0, 8).join(" ")}
-                {(v.pvSan ?? v.pv).length > 8 ? " …" : ""}
+                {(v.pvSan ?? v.pv).slice(0, 8).map((san, idx) => (
+                  <span
+                    key={idx}
+                    className="analysis-panel-pv-move"
+                    onMouseEnter={
+                      onPvMoveHover
+                        ? (e): void => {
+                            onPvMoveHover(
+                              v.pvSan ?? v.pv,
+                              idx,
+                              (e.currentTarget as HTMLSpanElement).getBoundingClientRect(),
+                            );
+                          }
+                        : undefined
+                    }
+                    onMouseLeave={onPvMoveHoverEnd}
+                  >
+                    {san}{" "}
+                  </span>
+                ))}
+                {(v.pvSan ?? v.pv).length > 8 ? "…" : ""}
               </span>
 
               {v.nodes !== undefined && (

@@ -73,6 +73,8 @@ export type AppStoreState = {
   isMenuOpen: boolean;
 
   // ── Board / navigation ─────────────────────────────────────────────────
+  /** Whether the board is flipped (black at the bottom). */
+  boardFlipped: boolean;
   /** Current half-move index (0 = start position). */
   currentPly: number;
   /** Total number of half-moves in the main line. */
@@ -148,6 +150,10 @@ export type AppStoreState = {
    * navigates to any mainline position.
    */
   boardPreview: { fen: string; lastMove?: [string, string] | null } | null;
+
+  // ── Hover position preview ──────────────────────────────────────────────
+  /** Whether hovering over a move token shows a floating position preview popup. */
+  positionPreviewOnHover: boolean;
 };
 
 /** Initial state — all fields start empty/false/zero before startup completes. */
@@ -159,6 +165,7 @@ export const initialAppStoreState: AppStoreState = {
   activeDevTab: "ast",
   isMenuOpen: false,
   // Board
+  boardFlipped: false,
   currentPly: 0,
   moveCount: 0,
   selectedMoveId: null,
@@ -193,6 +200,8 @@ export const initialAppStoreState: AppStoreState = {
   resourceViewerTabSnapshots: [],
   // Board preview
   boardPreview: null,
+  // Hover position preview
+  positionPreviewOnHover: true,
 };
 
 /** Pure reducer — never mutates state, always returns a new object. */
@@ -211,6 +220,8 @@ export const appReducer = (state: AppStoreState, action: AppAction): AppStoreSta
       return { ...state, isMenuOpen: action.open };
 
     // ── Board ────────────────────────────────────────────────────────────
+    case "toggle_board_flip":
+      return { ...state, boardFlipped: !state.boardFlipped };
     case "set_current_ply":
       return { ...state, currentPly: action.ply };
     case "set_move_count":
@@ -275,6 +286,9 @@ export const appReducer = (state: AppStoreState, action: AppAction): AppStoreSta
 
     case "set_board_preview":
       return { ...state, boardPreview: action.preview };
+
+    case "set_position_preview_on_hover":
+      return { ...state, positionPreviewOnHover: action.enabled };
 
     default:
       return state;

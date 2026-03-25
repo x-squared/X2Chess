@@ -15,7 +15,6 @@ import {
   nextBlock,
   buildVariationWalker,
   getIndentDirectiveDepth,
-  hasIndentBlockDirective,
   stripIndentDirectives,
 } from "./types";
 
@@ -51,10 +50,6 @@ const emitTextComment = (
     addSpace(state);
   }
 };
-
-// `hasIndentBlockDirective` is intentionally unused here — the shared variation
-// walker in `types.ts` handles the [[indent]]-before-RAV detection.
-void hasIndentBlockDirective;
 
 const { emitVariation, strategyRegistry } = buildVariationWalker(emitTextComment);
 

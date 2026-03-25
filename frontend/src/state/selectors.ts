@@ -25,6 +25,7 @@ export const selectActiveDevTab = (state: AppStoreState): "ast" | "dom" | "pgn" 
 export const selectIsMenuOpen = (state: AppStoreState): boolean => state.isMenuOpen;
 
 // ── Board / navigation ───────────────────────────────────────────────────────
+export const selectBoardFlipped = (state: AppStoreState): boolean => state.boardFlipped;
 export const selectCurrentPly = (state: AppStoreState): number => state.currentPly;
 export const selectMoveCount = (state: AppStoreState): number => state.moveCount;
 export const selectSelectedMoveId = (state: AppStoreState): string | null =>
@@ -38,6 +39,8 @@ export const selectActiveSourceKind = (state: AppStoreState): string =>
 export const selectBoardPreview = (
   state: AppStoreState,
 ): { fen: string; lastMove?: [string, string] | null } | null => state.boardPreview;
+export const selectPositionPreviewOnHover = (state: AppStoreState): boolean =>
+  state.positionPreviewOnHover;
 
 // ── Editor / PGN ─────────────────────────────────────────────────────────────
 export const selectLayoutMode = (

@@ -95,7 +95,7 @@
 }
 
 .text-editor {
-  font-family: "Palatino Linotype", Palatino, Georgia, "Book Antiqua", serif;
+  font-family: inherit;
   font-size: var(--text-editor-font-size);
   line-height: var(--text-editor-line-height);
   color: var(--text-primary);
@@ -106,6 +106,7 @@
   min-height: 340px;
   max-height: var(--text-editor-max-height);
   overflow-y: auto;
+  user-select: none;
 }
 
 .board-editor-pane .text-editor {
@@ -155,58 +156,43 @@
 /* ── Tree mode ───────────────────────────────────────────────────────────── */
 
 .text-editor[data-layout-mode="tree"] .text-editor-block {
-  --tree-line-color: #111;
-  --tree-line-width: 1px;
-  --tree-step: 0.9em;
-  --tree-pill-center-y: 0.78em;
-  border-left: 0 solid transparent;
-  padding-left: 0.5em;
-  margin-bottom: 0.2em;
+  --tree-line-color: rgba(17, 17, 17, 0.20);
+  --tree-line-width: 2px;
+  --tree-step: 1.2em;
+  --tree-margin-bottom: 0.2em;
+  margin-bottom: var(--tree-margin-bottom);
+  padding-left: 0.45em;
   position: relative;
 }
 
-/* Depth classes — applied to .text-editor-block in tree mode.
-   margin-left shifts the whole block (including its left border guide line)
-   so each depth level is visually indented. */
+/* Depth indentation with left-border indent guides */
 .text-editor-block.tree-depth-1 {
   font-weight: 500;
 }
 
 .text-editor-block.tree-depth-2 {
   margin-left: var(--tree-step);
+  padding-left: 0.65em;
+  border-left: var(--tree-line-width) solid var(--tree-line-color);
 }
 
 .text-editor-block.tree-depth-3 {
   margin-left: calc(var(--tree-step) * 2);
+  padding-left: 0.65em;
+  border-left: var(--tree-line-width) solid rgba(17, 17, 17, 0.14);
   font-size: 0.95em;
 }
 
 .text-editor-block.tree-depth-4plus {
   margin-left: calc(var(--tree-step) * 3);
+  padding-left: 0.65em;
+  border-left: var(--tree-line-width) solid rgba(17, 17, 17, 0.10);
   font-size: 0.9em;
   opacity: 0.85;
 }
 
-/* Vertical spine for the current depth; children branch from this line. */
-.text-editor-block.tree-depth-2::after,
-.text-editor-block.tree-depth-3::after,
-.text-editor-block.tree-depth-4plus::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: var(--tree-pill-center-y);
-  bottom: -0.24em;
-  width: var(--tree-line-width);
-  background: var(--tree-line-color);
-  opacity: 1;
-}
+/* Branch-header pill ────────────────────────────────────────────────────── */
 
-/* Last siblings terminate at their own pill (no downward continuation). */
-.text-editor-block[data-tree-last-sibling="true"]::after {
-  display: none;
-}
-
-/* Branch header toggle button — renders as a badge pill */
 .tree-collapse-toggle {
   display: inline-flex;
   position: relative;
@@ -216,70 +202,41 @@
   padding: 0.1em 0.55em 0.1em 0.4em;
   margin-right: 0.4em;
   border-radius: 999px;
-  border: 1px solid rgba(42, 93, 202, 0.38);
-  background: rgba(42, 93, 202, 0.10);
-  font-family: inherit;
+  border: 1px solid rgba(17, 17, 17, 0.40);
+  background: rgba(17, 17, 17, 0.08);
+  font-family: ui-sans-serif, system-ui, sans-serif;
   font-size: 0.82em;
   font-weight: 700;
-  color: #1e4499;
+  color: #111;
   cursor: pointer;
   user-select: none;
   line-height: 1.5;
 }
 
-/* Horizontal connector anchored to the pill center (no free-floating dash). */
-.text-editor-block.tree-depth-2 .tree-collapse-toggle::before,
-.text-editor-block.tree-depth-3 .tree-collapse-toggle::before,
-.text-editor-block.tree-depth-4plus .tree-collapse-toggle::before {
-  content: "";
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  left: calc((var(--tree-step) * -1) + var(--tree-line-width));
-  width: calc(var(--tree-step) - 2px);
-  height: var(--tree-line-width);
-  background: var(--tree-line-color);
-  opacity: 1;
-}
-
 .tree-collapse-toggle:hover {
-  background: rgba(42, 93, 202, 0.17);
-  border-color: rgba(42, 93, 202, 0.55);
-  color: var(--accent-strong, #1f4ca8);
+  background: rgba(17, 17, 17, 0.09);
+  border-color: rgba(17, 17, 17, 0.60);
 }
 
-/* Progressively lighter badge per depth */
-.tree-depth-2 .tree-collapse-toggle {
-  border-color: rgba(17, 17, 17, 0.45);
-  background: rgba(17, 17, 17, 0.04);
-  color: #111;
-}
-
-.tree-depth-2 .tree-collapse-toggle:hover {
-  background: rgba(17, 17, 17, 0.1);
-  border-color: rgba(17, 17, 17, 0.65);
-}
-
+/* Progressively lighter badges at deeper nesting */
 .tree-depth-3 .tree-collapse-toggle {
-  border-color: rgba(17, 17, 17, 0.38);
+  border-color: rgba(17, 17, 17, 0.32);
   background: rgba(17, 17, 17, 0.03);
-  color: #111;
 }
 
 .tree-depth-3 .tree-collapse-toggle:hover {
-  background: rgba(17, 17, 17, 0.08);
-  border-color: rgba(17, 17, 17, 0.58);
+  background: rgba(17, 17, 17, 0.07);
+  border-color: rgba(17, 17, 17, 0.50);
 }
 
 .tree-depth-4plus .tree-collapse-toggle {
-  border-color: rgba(17, 17, 17, 0.32);
+  border-color: rgba(17, 17, 17, 0.26);
   background: rgba(17, 17, 17, 0.02);
-  color: #111;
 }
 
 .tree-depth-4plus .tree-collapse-toggle:hover {
-  background: rgba(17, 17, 17, 0.07);
-  border-color: rgba(17, 17, 17, 0.52);
+  background: rgba(17, 17, 17, 0.06);
+  border-color: rgba(17, 17, 17, 0.44);
 }
 
 .tree-collapse-glyph {
@@ -287,7 +244,7 @@
   line-height: 1;
 }
 
-/* Align the move/comment tokens in tree blocks with the badge */
+/* Align inline tokens vertically with the badge */
 .text-editor-block.tree-depth-1 > span,
 .text-editor-block.tree-depth-2 > span,
 .text-editor-block.tree-depth-3 > span,
@@ -295,20 +252,30 @@
   vertical-align: middle;
 }
 
-/* Branch header label span (non-interactive, emitted as inline token) */
+/* Inline branch_header spans (non-interactive, emitted in token plan) */
 span[data-kind="branch_header"] {
   font-weight: 600;
   color: var(--text-secondary);
   margin-right: 0.4em;
 }
 
-/* Muted markers in tree mode — [[br]] and [[indent]] show as literal greyed text.
-   Intro comments stay emphasized and should not be muted. */
-[data-layout-mode="tree"] .text-editor-comment.plain:not(.text-editor-comment-intro) {
-  color: var(--text-muted, #9aa3b0);
+/* Comments inherit Verdana from the editor; no italic. */
+.text-editor-comment-block {
+  font-family: inherit;
 }
 
-/* Collapsed variation preview — muted move text with ellipsis */
+/* Restore text selection inside comment blocks so users can edit/copy comment text. */
+.text-editor [contenteditable] {
+  user-select: text;
+}
+
+/* Muted markers in tree mode — [[br]] and [[indent]] show as literal greyed text.
+   Intro comments stay emphasised and should not be muted. */
+[data-layout-mode="tree"] .text-editor-comment.plain:not(.text-editor-comment-intro) {
+  color: var(--text-muted, #6b7685);
+}
+
+/* Collapsed variation preview */
 .tree-collapsed-preview {
   display: inline;
   color: var(--text-muted, #9aa3b0);
@@ -364,5 +331,10 @@ span[data-kind="branch_header"] {
 
 .move-action-btn-qa {
   border-color: rgba(42, 93, 202, 0.38);
+  font-size: 10px;
+}
+
+.move-action-btn-todo {
+  border-color: rgba(180, 83, 9, 0.38);
   font-size: 10px;
 }

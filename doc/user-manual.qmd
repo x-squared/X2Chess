@@ -1,6 +1,6 @@
 # X2Chess User Manual
 
-Last updated: 2026-03-24
+Last updated: 2026-03-25
 
 ## Who this manual is for
 
@@ -84,6 +84,8 @@ result for the active game.
 | Arrow Right | Next move |
 | Arrow Down | Enter first variation |
 | Arrow Left (at variation start) | Return to parent move |
+| Shift + Arrow Down (at variation start) | Cycle to next sibling variation |
+| Shift + Arrow Up (at variation start) | Cycle to previous sibling variation |
 | Shift + Arrow Left | Jump to comment before selected move |
 | Shift + Arrow Right | Jump to comment after selected move |
 | Cmd/Ctrl + Z | Undo |
@@ -400,6 +402,7 @@ The dock always reflects the same game and position as the main editor.
 |---|---|
 | Arrow Left / Right | Navigate moves |
 | Arrow Down | Enter variation |
+| Shift + Arrow Down/Up (at variation start) | Cycle sibling variations |
 | Shift + Arrow Left/Right | Jump to comment |
 | Cmd/Ctrl + Z | Undo |
 | Cmd/Ctrl + Shift + Z | Redo |

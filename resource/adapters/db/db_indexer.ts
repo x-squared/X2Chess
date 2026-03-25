@@ -8,6 +8,7 @@
 
 import type { DbGateway } from "../../io/db_gateway";
 import { extractPgnMetadata } from "../../domain/metadata";
+import { materialKeyFromFen } from "../../domain/material_key";
 import type { BuildPositionIndex } from "./position_index";
 import type { BuildMoveEdgeIndex } from "./move_edge_index";
 
@@ -73,5 +74,23 @@ export const writeMetadata = async (
       "INSERT OR IGNORE INTO metadata_keys (key, value_type) VALUES (?, 'string')",
       [key],
     );
+  }
+
+  // Derive Material for position games (SetUp "1" present → FEN header is meaningful).
+  const isPosition: boolean = /\[SetUp\s+"1"\]/i.test(pgnText);
+  if (isPosition) {
+    const { metadata: fenMeta } = extractPgnMetadata(pgnText, ["FEN"]);
+    const fenValue: string = String(fenMeta["FEN"] ?? "").trim();
+    const materialKey: string = fenValue ? materialKeyFromFen(fenValue) : "";
+    if (materialKey) {
+      await db.execute(
+        "INSERT OR REPLACE INTO game_metadata (game_id, meta_key, val_str) VALUES (?, ?, ?)",
+        [gameId, "Material", materialKey],
+      );
+      await db.execute(
+        "INSERT OR IGNORE INTO metadata_keys (key, value_type) VALUES (?, 'string')",
+        ["Material"],
+      );
+    }
   }
 };

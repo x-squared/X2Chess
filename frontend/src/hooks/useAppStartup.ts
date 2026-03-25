@@ -103,11 +103,14 @@ export const useAppStartup = (): AppStartupServices => {
     // 2. Resolve locale.
     s.locale = resolveInitialLocale(resolveLocale, DEFAULT_LOCALE);
 
-    // 3. Load persisted sound/speed prefs.
+    // 3. Load persisted sound/speed/preview prefs.
     const savedSound = window.localStorage?.getItem("x2chess.sound");
     if (savedSound === "false") s.soundEnabled = false;
     const savedSpeed = Number(window.localStorage?.getItem("x2chess.moveDelayMs"));
     if (Number.isFinite(savedSpeed) && savedSpeed >= 0) s.moveDelayMs = savedSpeed;
+    if (window.localStorage?.getItem("x2chess.positionPreviewOnHover") === "false") {
+      dispatch({ type: "set_position_preview_on_hover", enabled: false });
+    }
 
     // 4. Load persisted layout mode.
     const savedLayout = window.localStorage?.getItem("x2chess.pgnLayout");
@@ -187,6 +190,7 @@ export const useAppStartup = (): AppStartupServices => {
         );
         if (existing) {
           bundle.legacyState.pendingFocusCommentId = existing;
+          bundle.legacyState.selectedMoveId = null;
           syncStateToReact();
           const rawText = getCommentRawById(bundle.legacyState.pgnModel, existing) ?? "";
           return { id: existing, rawText };
@@ -196,6 +200,7 @@ export const useAppStartup = (): AppStartupServices => {
           moveId,
           position,
         );
+        bundle.legacyState.selectedMoveId = null;
         bundle.applyModelUpdate(result.model, result.insertedCommentId, {
           recordHistory: true,
           preferredLayoutMode: bundle.legacyState.pgnLayoutMode,
@@ -358,6 +363,60 @@ export const useAppStartup = (): AppStartupServices => {
         })();
       },
 
+      // Game links
+      openGameFromRecordId: async (recordId: string): Promise<void> => {
+        const activeSession = bundle.sessionStore.getActiveSession();
+        const sourceRef = activeSession?.sourceRef;
+        if (!sourceRef?.kind || !sourceRef.locator) return;
+        try {
+          const result = await bundle.resources.loadGameBySourceRef({
+            kind: String(sourceRef.kind),
+            locator: String(sourceRef.locator),
+            recordId,
+          });
+          const snap = bundle.sessionModel.createSessionFromPgnText(result.pgnText);
+          const title: string = bundle.sessionModel.deriveSessionTitle(snap.pgnModel, recordId);
+          bundle.sessionStore.openSession({
+            snapshot: snap,
+            title,
+            sourceRef: { kind: String(sourceRef.kind), locator: String(sourceRef.locator), recordId },
+          });
+          syncStateToReact();
+        } catch (err: unknown) {
+          const message: string = err instanceof Error ? err.message : String(err);
+          dispatch({ type: "set_error_message", message });
+        }
+      },
+      fetchGameMetadataByRecordId: async (recordId: string): Promise<Record<string, string> | null> => {
+        const activeSession = bundle.sessionStore.getActiveSession();
+        const sourceRef = activeSession?.sourceRef;
+        if (!sourceRef?.kind || !sourceRef.locator) return null;
+        try {
+          const resourceRef: { kind: string; locator: string } = {
+            kind: String(sourceRef.kind),
+            locator: String(sourceRef.locator),
+          };
+          const rows: unknown[] = await bundle.resources.listGamesForResource(resourceRef);
+          const row = (rows as Array<Record<string, unknown>>).find((r: Record<string, unknown>): boolean => {
+            const ref = r.sourceRef as Record<string, unknown> | null;
+            return (
+              String(ref?.recordId ?? "") === recordId ||
+              String(r.identifier ?? "") === recordId
+            );
+          });
+          if (!row) return null;
+          return (row.metadata as Record<string, string>) ?? null;
+        } catch {
+          return null;
+        }
+      },
+      getActiveSessionResourceRef: (): { kind: string; locator: string } | null => {
+        const activeSession = bundle.sessionStore.getActiveSession();
+        const sourceRef = activeSession?.sourceRef;
+        if (!sourceRef?.kind || !sourceRef.locator) return null;
+        return { kind: String(sourceRef.kind), locator: String(sourceRef.locator) };
+      },
+
       // Shell state
       setMenuOpen: (open: boolean): void => {
         bundle.legacyState.isMenuOpen = open;
@@ -394,6 +453,10 @@ export const useAppStartup = (): AppStartupServices => {
         bundle.legacyState.soundEnabled = enabled;
         dispatch({ type: "set_sound_enabled", enabled });
         window.localStorage?.setItem("x2chess.sound", String(enabled));
+      },
+      setPositionPreviewOnHover: (enabled: boolean): void => {
+        dispatch({ type: "set_position_preview_on_hover", enabled });
+        window.localStorage?.setItem("x2chess.positionPreviewOnHover", String(enabled));
       },
       setDeveloperToolsEnabled: (enabled: boolean): void => {
         bundle.legacyState.isDeveloperToolsEnabled = enabled;

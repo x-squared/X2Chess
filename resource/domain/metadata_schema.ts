@@ -38,6 +38,8 @@ export type PgnMetadataKnownValues = {
   Termination?: string;
   Annotator?: string;
   X2Style?: X2StyleValue;
+  /** Derived material-balance key for position games, e.g. `"KQPPPvKRP"`. */
+  Material?: string;
 };
 
 export type PgnMetadataScalar = string | number | PgnDateValue | X2StyleValue | PgnResultValue;
@@ -118,6 +120,7 @@ export const METADATA_KEY = {
   Termination: "Termination",
   Annotator: "Annotator",
   X2Style: "X2Style",
+  Material: "Material",
 } as const satisfies Readonly<Record<keyof PgnMetadataKnownValues, string>>;
 
 export const PGN_STANDARD_METADATA_KEYS = Object.freeze([
@@ -150,6 +153,7 @@ export const DEFAULT_RESOURCE_VIEWER_METADATA_KEYS = Object.freeze([
 export const KNOWN_PGN_METADATA_KEYS = Object.freeze([
   ...PGN_STANDARD_METADATA_KEYS,
   "X2Style",
+  "Material",
 ]);
 
 // ── User-defined schema types (MD1) ───────────────────────────────────────────
@@ -226,4 +230,5 @@ export const PGN_METADATA_SCHEMA: Readonly<Record<string, MetadataFieldSchemaEnt
   Termination: { key: "Termination", parse: parseStringValue },
   Annotator: { key: "Annotator", parse: parseStringValue },
   X2Style: { key: "X2Style", parse: parseX2StyleValue },
+  Material: { key: "Material", parse: parseStringValue },
 });

@@ -10,7 +10,8 @@ use std::thread;
 use rusqlite::types::ValueRef;
 use rusqlite::{params_from_iter, Connection};
 use serde_json::{json, Value as JsonValue};
-use tauri::Emitter;
+use std::sync::atomic::{AtomicU64, Ordering};
+use tauri::{Emitter, Listener, Manager};
 
 fn is_simple_file_name(file_name: &str) -> bool {
   let path = Path::new(file_name);
@@ -402,8 +403,7 @@ fn open_browser_window(app: tauri::AppHandle, url: String) -> Result<(), String>
       tauri::WebviewUrl::External(parsed),
     )
     .title("X2Chess — Browser")
-    .width(960)
-    .height(740)
+    .inner_size(960.0, 740.0)
     .build()
     .map(|_| ())
     .map_err(|e| format!("Failed to open browser window: {e}"))
@@ -473,34 +473,57 @@ async fn browser_window_capture(
     .get_webview_window(BROWSER_WINDOW_LABEL)
     .ok_or_else(|| "Browser window is not open".to_string())?;
 
+  // `evaluate_script_with_callback` is not yet exposed by Tauri 2 at the
+  // WebviewWindow level.  Workaround: register a one-shot Rust event listener,
+  // then eval a JS snippet that runs the capture expression and signals the
+  // result back via `window.__TAURI_INTERNALS__.invoke("plugin:event|emit", …)`.
+  // __TAURI_INTERNALS__ is injected into all webviews (including external ones).
+  static CAPTURE_SEQ: AtomicU64 = AtomicU64::new(0);
+  let seq = CAPTURE_SEQ.fetch_add(1, Ordering::Relaxed);
+  let event_name = format!("x2chess://capture/{seq}");
+  let event_name_json = serde_json::to_string(&event_name)
+    .map_err(|e| format!("Event name serialisation failed: {e}"))?;
+
   let (tx, rx) = tokio::sync::oneshot::channel::<String>();
   let tx = Arc::new(Mutex::new(Some(tx)));
-  let tx2 = Arc::clone(&tx);
 
-  // Wrap the user-supplied expression so that async expressions are supported
-  // and errors are caught, always returning a JSON-serialisable value.
-  let wrapped = format!(
-    "(async()=>{{ try {{ const r = await ({script}); \
-     return r != null ? String(r) : null; }} \
-     catch {{ return null; }} }})()"
+  let event_id = window.once(event_name.clone(), move |event| {
+    if let Ok(mut guard) = tx.lock() {
+      if let Some(sender) = guard.take() {
+        let _ = sender.send(event.payload().to_string());
+      }
+    }
+  });
+
+  // Wrap the user-supplied expression so async expressions are supported and
+  // errors are caught, always delivering a JSON-serialised string or null.
+  let js = format!(
+    "(async()=>{{ \
+       try {{ \
+         const r=await({script}); \
+         const v=r!=null?JSON.stringify(String(r)):'null'; \
+         window.__TAURI_INTERNALS__.invoke('plugin:event|emit',{{event:{event_name_json},payload:v}}); \
+       }} catch(e) {{ \
+         window.__TAURI_INTERNALS__.invoke('plugin:event|emit',{{event:{event_name_json},payload:'null'}}); \
+       }} \
+     }})()"
   );
 
-  window
-    .evaluate_script_with_callback(&wrapped, move |result: String| {
-      if let Ok(mut guard) = tx2.lock() {
-        if let Some(sender) = guard.take() {
-          let _ = sender.send(result);
-        }
-      }
-    })
-    .map_err(|e| format!("Failed to evaluate capture script: {e}"))?;
+  if let Err(e) = window.eval(&js) {
+    window.unlisten(event_id);
+    return Err(format!("Failed to evaluate capture script: {e}"));
+  }
 
-  let raw = tokio::time::timeout(std::time::Duration::from_secs(10), rx)
-    .await
-    .map_err(|_| "Capture script timed out after 10 seconds".to_string())?
-    .map_err(|_| "Capture channel closed unexpectedly".to_string())?;
+  let raw = match tokio::time::timeout(std::time::Duration::from_secs(10), rx).await {
+    Ok(Ok(v)) => v,
+    Ok(Err(_)) => return Err("Capture channel closed unexpectedly".to_string()),
+    Err(_) => {
+      window.unlisten(event_id);
+      return Err("Capture script timed out after 10 seconds".to_string());
+    }
+  };
 
-  // The callback delivers the JSON-serialised return value of the expression.
+  // The event payload is a JSON-encoded string (or the literal "null").
   let value: serde_json::Value =
     serde_json::from_str(&raw).unwrap_or(serde_json::Value::Null);
   Ok(value.as_str().map(|s| s.to_string()))

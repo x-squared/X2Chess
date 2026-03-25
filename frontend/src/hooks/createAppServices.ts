@@ -22,7 +22,6 @@ import {
   ensureRequiredPgnHeaders,
   findExistingCommentIdAroundMove,
   getHeaderValue,
-  getX2StyleFromModel,
   normalizeX2StyleValue,
 } from "../editor";
 import {
@@ -309,7 +308,6 @@ export function createAppServicesBundle(
     pgnRuntimeCapabilities: pgnRuntime,
     state: legacyState as Parameters<typeof createApplyPgnModelUpdate>[0]["state"],
     normalizeX2StyleValue,
-    getX2StyleFromModel,
   });
 
   // ── History ───────────────────────────────────────────────────────────

@@ -4,6 +4,7 @@ __pycache__/
 .venv/
 dist/
 build/
+temp/
 .pytest_cache/
 coverage/
 frontend/src-tauri/target/

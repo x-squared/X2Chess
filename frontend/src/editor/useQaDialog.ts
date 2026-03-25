@@ -3,6 +3,10 @@
  *
  * Manages the open/close lifecycle and save/edit handlers for the Q/A
  * annotation insert/edit dialog (UV10/UV11).
+ * 
+ * 
+ * The Q/A dialog alows to add questionss and answres to moves which may be 
+ * used to generate study prompts.
  *
  * Integration API:
  * - `const { qaDialog, handleEditQa, handleInsertQa, handleQaDialogSave, handleQaDialogClose }

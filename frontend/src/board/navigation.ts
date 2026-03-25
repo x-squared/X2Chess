@@ -185,7 +185,8 @@ export const createBoardNavigationCapabilities = ({
     const isLeft = event.key === "ArrowLeft";
     const isRight = event.key === "ArrowRight";
     const isDown = event.key === "ArrowDown";
-    if (!isLeft && !isRight && !isDown) return false;
+    const isUp = event.key === "ArrowUp";
+    if (!isLeft && !isRight && !isDown && !isUp) return false;
     if (event.metaKey || event.ctrlKey || event.altKey) return false;
 
     if (event.shiftKey && (isLeft || isRight)) {
@@ -195,6 +196,22 @@ export const createBoardNavigationCapabilities = ({
       if (commentId) {
         focusCommentById(commentId);
       }
+      return true;
+    }
+
+    if (event.shiftKey && (isDown || isUp) && movePosition.isVariationStart && movePosition.parentMoveId) {
+      const parentPosition = getMovePositionById(movePosition.parentMoveId, { allowResolve: false });
+      const siblings = Array.isArray(parentPosition?.variationFirstMoveIds)
+        ? parentPosition.variationFirstMoveIds
+        : [];
+      const currentIndex = siblings.indexOf(moveId);
+      if (currentIndex === -1) return false;
+      const siblingMoveId = isDown
+        ? (siblings[currentIndex + 1] ?? null)
+        : (siblings[currentIndex - 1] ?? null);
+      if (!siblingMoveId) return false;
+      event.preventDefault();
+      selectMoveById(siblingMoveId);
       return true;
     }
 

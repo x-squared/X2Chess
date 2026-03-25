@@ -13,7 +13,6 @@
  *   exported function signatures and typed callback contracts.
  */
 
-export { text_editor } from "./text_editor";
 export { parsePgnToModel } from "../model/pgn_model";
 export { serializeModelToPgn } from "../model/pgn_serialize";
 export {

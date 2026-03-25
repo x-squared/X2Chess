@@ -61,7 +61,7 @@ export const ResourceTabBar = ({
           title={t("resources.metadata.button", "Choose metadata columns")}
           onClick={onMetadataOpen}
         >
-          <span aria-hidden="true">⚙</span>
+          <img src="/icons/toolbar/metadata-columns.svg" alt="" aria-hidden="true" />
         </button>
         <button
           id="btn-open-resource"

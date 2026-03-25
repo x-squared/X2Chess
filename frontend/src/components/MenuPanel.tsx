@@ -31,6 +31,7 @@ import {
   selectSoundEnabled,
   selectDevToolsEnabled,
   selectSessions,
+  selectPositionPreviewOnHover,
 } from "../state/selectors";
 import { useServiceContext } from "../state/ServiceContext";
 import { useTranslator } from "../hooks/useTranslator";
@@ -58,6 +59,7 @@ export const MenuPanel = (): ReactElement => {
   const locale: string = selectLocale(state);
   const moveDelayMs: number = selectMoveDelayMs(state);
   const soundEnabled: boolean = selectSoundEnabled(state);
+  const positionPreviewOnHover: boolean = selectPositionPreviewOnHover(state);
   const isDeveloperToolsEnabled: boolean = selectDevToolsEnabled(state);
   const sessions: SessionItemState[] = selectSessions(state);
   const t: (key: string, fallback?: string) => string = useTranslator();
@@ -138,6 +140,19 @@ export const MenuPanel = (): ReactElement => {
               }}
             />
             {t("controls.sound", "Sound")}
+          </label>
+
+          {/* Position preview on hover */}
+          <label className="inline-control">
+            <input
+              id="position-preview-input"
+              type="checkbox"
+              checked={positionPreviewOnHover}
+              onChange={(e: ChangeEvent<HTMLInputElement>): void => {
+                services.setPositionPreviewOnHover(e.target.checked);
+              }}
+            />
+            {t("controls.positionPreviewOnHover", "Position preview on hover")}
           </label>
 
           {/* Language */}

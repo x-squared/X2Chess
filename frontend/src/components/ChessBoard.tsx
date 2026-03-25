@@ -26,6 +26,7 @@ import { Chess } from "chess.js";
 import { Chessground } from "chessground";
 import { useAppContext } from "../state/app_context";
 import {
+  selectBoardFlipped,
   selectBoardPreview,
   selectCurrentPly,
   selectMoveDelayMs,
@@ -96,16 +97,19 @@ export const ChessBoard = ({ onMovePlayed, hintMove }: ChessBoardProps = {}): Re
   const currentPly: number = selectCurrentPly(state);
   const moves: string[] = selectMoves(state);
   const moveDelayMs: number = selectMoveDelayMs(state);
+  const boardFlipped: boolean = selectBoardFlipped(state);
   const boardPreview: { fen: string; lastMove?: [string, string] | null } | null =
     selectBoardPreview(state);
 
   const boardElRef = useRef<HTMLDivElement>(null);
   const cgRef = useRef<ChessgroundApi | null>(null);
   const moveDelayMsRef = useRef<number>(moveDelayMs);
+  const boardFlippedRef = useRef<boolean>(boardFlipped);
   /** Keep a stable ref to `onMovePlayed` so the cg event closure stays fresh. */
   const onMovePlayedRef = useRef<((from: string, to: string) => void) | undefined>(onMovePlayed);
 
   moveDelayMsRef.current = moveDelayMs;
+  boardFlippedRef.current = boardFlipped;
   onMovePlayedRef.current = onMovePlayed;
 
   // ── Initialize Chessground once on mount ──────────────────────────────
@@ -115,7 +119,7 @@ export const ChessBoard = ({ onMovePlayed, hintMove }: ChessBoardProps = {}): Re
 
     const api: ChessgroundApi = Chessground(el, {
       fen: "start",
-      orientation: "white",
+      orientation: boardFlipped ? "black" : "white",
       coordinates: true,
       viewOnly: !onMovePlayedRef.current,
       movable: {
@@ -201,6 +205,11 @@ export const ChessBoard = ({ onMovePlayed, hintMove }: ChessBoardProps = {}): Re
       animation: { enabled: true, duration: moveDelayMs },
     });
   }, [boardPreview, currentPly, moves, moveDelayMs]);
+
+  // ── Sync board orientation when flip state changes ─────────────────────
+  useEffect((): void => {
+    cgRef.current?.set({ orientation: boardFlipped ? "black" : "white" });
+  }, [boardFlipped]);
 
   // ── Draw / clear best-move hint arrow ─────────────────────────────────
   useEffect((): void => {

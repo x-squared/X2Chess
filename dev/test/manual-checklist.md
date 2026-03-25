@@ -6,7 +6,7 @@
 - To report a failure, reference the item ID (e.g. "BOARD-3 doesn't work — knight promotion menu doesn't appear").
 - Reset `[x]` back to `[ ]` whenever the item is re-opened by a later change.
 
-**Last updated:** 2026-03-24
+**Last updated:** 2026-03-25 (position preview on hover)
 
 ---
 
@@ -28,6 +28,7 @@
 - [ ] **SESSION-4** — Closing the last tab creates a fresh empty game automatically.
 - [ ] **SESSION-5** — A tab with unsaved changes shows the red "unsaved" styling.
 - [ ] **SESSION-6** — The dirty-dot indicator appears on a tab after editing (move entry, comment, header).
+- [ ] **SESSION-7** — Clicking a game-link chip in the PGN editor opens the linked game in a new tab without closing the current tab.
 
 ---
 
@@ -102,6 +103,32 @@
 - [ ] **PGNEDIT-12** — In Tree mode, the first comment of each variation branch is rendered with intro styling before the branch moves.
 - [ ] **PGNEDIT-13** — In Tree mode, black connector lines render as vertical trunks with horizontal branches linking branch pills to deeper levels.
 - [ ] **PGNEDIT-14** — Clicking a comment focuses it for editing without leaving a persistent highlighted background after focus moves elsewhere.
+- [ ] **PGNEDIT-15** — Clicking the "T" button in the move action bar opens the TODO insert dialog; saving creates a `[%todo text="..."]` tag in the adjacent comment.
+- [ ] **PGNEDIT-16** — An amber "T" badge appears next to a comment that contains a `[%todo ...]` annotation; clicking it opens a popover showing the TODO text.
+- [ ] **PGNEDIT-17** — The TODO popover has Edit and Delete buttons; Edit re-opens the insert dialog pre-filled; Delete removes the annotation and the badge disappears.
+- [ ] **PGNEDIT-18** — When multiple TODO annotations exist on the same comment, the badge shows "TN" and the popover has prev/next navigation arrows.
+- [ ] **PGNEDIT-19** — The TODO panel appears below the editor when at least one TODO exists; it lists each TODO with its nearest preceding move as a label.
+- [ ] **PGNEDIT-20** — The TODO panel's Edit and Delete buttons work; after deleting the last TODO the panel disappears.
+- [ ] **PGNEDIT-21** — Clicking the "▼ TODO (N)" header in the panel collapses/expands the list.
+- [ ] **PGNEDIT-22** — TODO badge and "T" button do not appear in plain mode; they appear in text and tree modes.
+- [ ] **PGNEDIT-23** — Clicking the "⇢" button in the move action bar (text/tree mode) opens the Game Picker dialog with a searchable list of games from the current resource.
+- [ ] **PGNEDIT-24** — Typing in the Game Picker search box filters the list by player name or event; results update live.
+- [ ] **PGNEDIT-25** — Selecting a game in the picker (click or Enter) inserts a `[%link recordId="..."]` annotation into the adjacent comment and closes the dialog.
+- [ ] **PGNEDIT-26** — A `[%link ...]` annotation renders as an "⇢ (link)" chip next to the comment in text/tree mode.
+- [ ] **PGNEDIT-27** — When the annotation has a label (e.g. `label="Nimzo trap"`), the chip displays that label instead of "(link)".
+- [ ] **PGNEDIT-28** — Clicking a link chip opens the linked game in a **new session tab**; the current tab is preserved.
+- [ ] **PGNEDIT-29** — Hovering over a link chip fetches and shows a tooltip: "White vs Black — Result, Date".
+- [ ] **PGNEDIT-30** — Hovering over a chip whose linked game no longer exists shows the chip greyed/disabled with a "(broken link)" tooltip; clicking it does nothing.
+- [ ] **PGNEDIT-31** — The edit (✎) button on a link chip re-opens the Game Picker pre-filled; selecting a different game updates the annotation.
+- [ ] **PGNEDIT-32** — The delete (×) button on a link chip removes the `[%link ...]` annotation; the chip disappears immediately.
+- [ ] **PGNEDIT-33** — Link chips and the "⇢" action bar button do not appear in plain mode.
+- [ ] **PGNEDIT-34** — Hovering over any half-move token in plain/text/tree mode shows a floating mini-board popup with the position after that move, with the last move highlighted.
+- [ ] **PGNEDIT-35** — Hovering over a variation move shows the correct variation position (not the mainline position at that ply).
+- [ ] **PGNEDIT-36** — Moving the pointer off a half-move dismisses the popup immediately.
+- [ ] **PGNEDIT-37** — With "Position preview on hover" toggled off in the menu, hovering over half-moves shows no popup.
+- [ ] **PGNEDIT-38** — With "Position preview on hover" re-enabled, the popup reappears on hover.
+- [ ] **PGNEDIT-39** — The popup does not affect the main board position; board navigation state is unchanged.
+- [ ] **PGNEDIT-40** — Near the bottom or right viewport edge, the popup flips/clamps so it stays fully visible.
 
 ---
 
@@ -131,6 +158,10 @@
 - [ ] **ENGINE-3** — Stop button halts analysis; panel retains the last result.
 - [ ] **ENGINE-4** — Navigating to a different move restarts analysis for the new position.
 - [ ] **ENGINE-5** — "Find best move" mode plays the engine's top suggestion on the board.
+- [ ] **ENGINE-6** — Hovering over an individual move within a PV line shows a floating mini-board with the position after that PV move.
+- [ ] **ENGINE-7** — The PV hover popup reflects the correct position computed by replaying the PV from the current board position.
+- [ ] **ENGINE-8** — Moving the pointer off a PV move token dismisses the popup.
+- [ ] **ENGINE-9** — With "Position preview on hover" toggled off in the menu, hovering over PV moves shows no popup.
 
 ---
 
@@ -183,6 +214,9 @@
 - [ ] **RESOURCE-10** — Resource table headers remain left-to-right aligned with body columns while reordering, resizing, sorting, and filtering.
 - [ ] **RESOURCE-11** — Group-by **Clear** button is always visible; it is disabled with no grouping and enabled once a group level is added.
 - [ ] **RESOURCE-12** — With no active grouping, the toolbar explicitly shows **none** next to **Group by:**.
+- [ ] **RESOURCE-13** — Opening a position-game resource (file or `.x2chess` DB) shows a `Material` column available in the column picker.
+- [ ] **RESOURCE-14** — The `Material` value for a position game displays the correct key (e.g. `KQPPPvKRP`) matching the FEN header's piece count.
+- [ ] **RESOURCE-15** — A standard full-game resource (no `[SetUp "1"]`) has no `Material` column in the column picker.
 
 ---
 
@@ -194,6 +228,7 @@
 - [ ] **DB-4** — Schema editor in the resource viewer allows adding/removing metadata fields.
 - [ ] **DB-5** — Custom metadata fields (text, number, date, select) appear in the game-info strip.
 - [ ] **DB-6** — Conflict on save (stale revision token) shows a clear error rather than silently failing.
+- [ ] **DB-7** — Importing a position game (PGN with `[SetUp "1"]` and `[FEN "..."]`) into a `.x2chess` DB creates a `Material` row in the metadata; the value is visible in the resource viewer.
 
 ---
 

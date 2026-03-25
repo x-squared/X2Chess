@@ -113,6 +113,7 @@ the same area) is a violation.
 - `physical_boards_9a2b3c4d.plan.md` — physical chess board integration (Millennium ChessLink, DGT; USB + BLE)
 - `web_import_5f6a7b8c.plan.md` — import positions/games from chess websites via rule-based URL adapters
 - `ota_updates_8d9e0f1a.plan.md` — OTA update channels: full app updater (Tauri) + rules server (data-only)
+- `game_links_f1a2b3c4.plan.md` — game-link annotations (`[%link recordId="..."]`) with chip rendering, hover preview, and open-in-new-tab navigation
 
 ## Key types / entry points
 

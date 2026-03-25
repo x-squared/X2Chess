@@ -22,6 +22,7 @@ export type AppAction =
   | { type: "set_active_dev_tab"; tab: "ast" | "dom" | "pgn" }
   | { type: "set_is_menu_open"; open: boolean }
   // ── Board / navigation actions ─────────────────────────────────────────
+  | { type: "toggle_board_flip" }
   | { type: "set_current_ply"; ply: number }
   | { type: "set_move_count"; count: number }
   | { type: "set_selected_move_id"; id: string | null }
@@ -67,4 +68,7 @@ export type AppAction =
    * FEN instead of replaying from `currentPly`.  Cleared on any mainline
    * navigation.
    */
-  | { type: "set_board_preview"; preview: { fen: string; lastMove?: [string, string] | null } | null };
+  | { type: "set_board_preview"; preview: { fen: string; lastMove?: [string, string] | null } | null }
+  // ── Hover position preview ─────────────────────────────────────────────
+  /** Enable or disable the floating position popup when hovering over move tokens. */
+  | { type: "set_position_preview_on_hover"; enabled: boolean };

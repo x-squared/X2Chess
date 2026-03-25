@@ -114,3 +114,20 @@
   border-color: var(--accent-border);
 }
 
+.flip-board-indicator {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.flip-board-top,
+.flip-board-bottom {
+  width: 14px;
+  height: 9px;
+  border-radius: 2px;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+}
+
+.flip-board-white { background: #ececd7; }
+.flip-board-black { background: #7389b6; }
+

@@ -1,66 +1,79 @@
 /**
- * Ingress Handlers module.
+ * Ingress Handlers — pure-logic helpers for drop/paste game ingress.
  *
  * Integration API:
- * - Primary exports from this module: `createGameIngressHandlers`.
+ * - `createIngressEventHandlers`: factory that returns individual handler functions;
+ *   consumed by `useGameIngress` which binds them to DOM elements.
+ * - Pure helper exports (`inferDropSourceRefs`, `collectDroppedFiles`, etc.) are
+ *   available for independent use or testing.
  *
  * Configuration API:
- * - Configuration is provided via typed function parameters/options in these exports
- *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
+ * - All factories are stateless; inputs are function arguments only.
  *
  * Communication API:
- * - This module communicates through DOM; interactions are explicit in
- *   exported function signatures and typed callback contracts.
+ * - No DOM binding in this module. All event handler binding lives in
+ *   `hooks/useGameIngress.ts`.
  */
 
-type SourceRefLike = {
+export type SourceRefLike = {
   kind: string;
   locator: string;
   recordId?: string;
 };
 
-type OpenGameOptions = {
+export type OpenGameOptions = {
   preferredTitle?: string;
   sourceRef?: SourceRefLike | null;
   resourceRef?: SourceRefLike | null;
   preferInsertIntoActiveResource?: boolean;
 };
 
-type IngressDeps = {
-  appPanelEl: Element | null;
-  isLikelyPgnText: (value: string) => boolean;
-  openGameFromIncomingText: (pgnText: string, options?: OpenGameOptions) => boolean | Promise<boolean>;
-  setDropOverlayVisible?: (isVisible: boolean) => void;
-  /**
-   * Optional URL resolver. When provided, called instead of `openGameFromIncomingText`
-   * when the pasted or dropped text is detected as an HTTP/HTTPS URL.
-   * The resolver is responsible for fetching the resource and opening it.
-   *
-   * @param url - The full URL string that was pasted or dropped.
-   */
-  resolveUrl?: (url: string) => Promise<void>;
-};
-
-type DropSourceHints = {
+export type DropSourceHints = {
   sourceRef: SourceRefLike;
   resourceRef: SourceRefLike;
 };
 
-type FileWithOptionalPath = File & {
+export type FileWithOptionalPath = File & {
   path?: string;
   webkitRelativePath?: string;
 };
 
-const inferGameTitleFromFileName = (fileName: string): string => String(fileName || "").replace(/\.[^.]+$/, "").trim();
+type IngressDeps = {
+  isLikelyPgnText: (value: string) => boolean;
+  openGameFromIncomingText: (pgnText: string, options?: OpenGameOptions) => void;
+  setDropOverlayVisible?: (isVisible: boolean) => void;
+  resolveUrl?: (url: string) => Promise<void>;
+};
 
-const getParentPath = (pathValue: string): string => {
-  const normalized = String(pathValue || "").trim().replaceAll("\\", "/");
-  const slashIndex = normalized.lastIndexOf("/");
+/**
+ * Derive a display title from a dropped file name by stripping the extension.
+ *
+ * @param fileName File name string.
+ * @returns Display title without extension.
+ */
+export const inferGameTitleFromFileName = (fileName: string): string =>
+  String(fileName || "").replace(/\.[^.]+$/, "").trim();
+
+/**
+ * Return the parent directory path from an absolute or relative file path.
+ *
+ * @param pathValue File path string.
+ * @returns Parent directory portion, or empty string when not determinable.
+ */
+export const getParentPath = (pathValue: string): string => {
+  const normalized: string = String(pathValue || "").trim().replaceAll("\\", "/");
+  const slashIndex: number = normalized.lastIndexOf("/");
   if (slashIndex <= 0) return "";
   return normalized.slice(0, slashIndex);
 };
 
-const inferDropSourceRefs = (file: FileWithOptionalPath): DropSourceHints | null => {
+/**
+ * Attempt to infer source and resource refs from a dropped file's path metadata.
+ *
+ * @param file Dropped file, possibly carrying an absolute `path` or `webkitRelativePath`.
+ * @returns Source/resource ref hints when a folder path can be determined, otherwise null.
+ */
+export const inferDropSourceRefs = (file: FileWithOptionalPath): DropSourceHints | null => {
   const maybeAbsolutePath: string = String(file?.path || "").trim();
   if (maybeAbsolutePath) {
     const folderPath: string = getParentPath(maybeAbsolutePath);
@@ -88,36 +101,65 @@ const inferDropSourceRefs = (file: FileWithOptionalPath): DropSourceHints | null
   return null;
 };
 
-const hasTransferFiles = (transfer: DataTransfer | null): boolean => {
+/**
+ * Returns true when the DataTransfer contains file items or a "Files" type.
+ *
+ * @param transfer DataTransfer from a drag event.
+ */
+export const hasTransferFiles = (transfer: DataTransfer | null): boolean => {
   const types: string[] = Array.from(transfer?.types || []);
   return Boolean(transfer?.files?.length) || types.includes("Files");
 };
 
-const collectDroppedFiles = (transfer: DataTransfer | null): File[] => {
+/**
+ * Collect all dropped File objects from a DataTransfer, using items as fallback.
+ *
+ * @param transfer DataTransfer from a drop event.
+ * @returns Array of File objects.
+ */
+export const collectDroppedFiles = (transfer: DataTransfer | null): File[] => {
   const directFiles: File[] = transfer?.files ? Array.from(transfer.files) : [];
   if (directFiles.length > 0) return directFiles;
   const itemSource: DataTransferItemList | undefined = transfer?.items;
   const rawItems: DataTransferItem[] = itemSource ? Array.from(itemSource) : [];
-  const fromItems: File[] = rawItems
+  return rawItems
     .filter((item: DataTransferItem): boolean => item?.kind === "file" && typeof item.getAsFile === "function")
     .map((item: DataTransferItem): File | null => item.getAsFile())
     .filter((file: File | null): file is File => Boolean(file));
-  return fromItems;
 };
 
-const hasAcceptedTransfer = (transfer: DataTransfer | null): boolean => {
+/**
+ * Returns true when the DataTransfer carries files or plain text.
+ *
+ * @param transfer DataTransfer from a drag event.
+ */
+export const hasAcceptedTransfer = (transfer: DataTransfer | null): boolean => {
   const hasText: boolean = Array.from(transfer?.types || []).includes("text/plain");
   return hasTransferFiles(transfer) || hasText;
 };
 
-/** Returns true if the string looks like an HTTP or HTTPS URL. */
-const isHttpUrl = (value: string): boolean => /^https?:\/\/\S+/i.test(value.trim());
+/**
+ * Returns true when the string looks like an HTTP or HTTPS URL.
+ *
+ * @param value String to test.
+ */
+export const isHttpUrl = (value: string): boolean => /^https?:\/\/\S+/i.test(value.trim());
 
 /**
- * Create ingress handlers for drop/paste game creation.
+ * Create individual drag/drop/paste event handler functions.
+ *
+ * Returns raw handler functions with no DOM binding — callers (e.g. `useGameIngress`)
+ * are responsible for attaching and removing them from DOM elements.
+ *
+ * @param deps Handler dependencies.
+ * @param deps.isLikelyPgnText Predicate used to accept/reject incoming text.
+ * @param deps.openGameFromIncomingText Called with validated PGN text and optional source hints.
+ * @param deps.setDropOverlayVisible Optional callback toggled during drag lifecycle.
+ * @param deps.resolveUrl Optional callback invoked when incoming text is an HTTP/HTTPS URL.
+ * @returns Object of handler functions: handleDragEnter, handleDragOver, handleDragLeave,
+ *          handleDrop, handlePaste.
  */
-export const createGameIngressHandlers = ({
-  appPanelEl,
+export const createIngressEventHandlers = ({
   isLikelyPgnText,
   openGameFromIncomingText,
   setDropOverlayVisible,
@@ -133,94 +175,84 @@ export const createGameIngressHandlers = ({
     if (typeof setDropOverlayVisible === "function") setDropOverlayVisible(next);
   };
 
-  const bindEvents = (): void => {
-    if (appPanelEl) {
-      appPanelEl.addEventListener("dragenter", (event: Event): void => {
-        const dragEvent: DragEvent = event as DragEvent;
-        const transfer: DataTransfer | null = dragEvent.dataTransfer || null;
-        if (!hasAcceptedTransfer(transfer)) return;
-        dragEvent.preventDefault();
-        dragDepth += 1;
-        setOverlayVisible(true);
-      });
+  const handleDragEnter = (event: Event): void => {
+    const dragEvent: DragEvent = event as DragEvent;
+    const transfer: DataTransfer | null = dragEvent.dataTransfer || null;
+    if (!hasAcceptedTransfer(transfer)) return;
+    dragEvent.preventDefault();
+    dragDepth += 1;
+    setOverlayVisible(true);
+  };
 
-      appPanelEl.addEventListener("dragover", (event: Event): void => {
-        const dragEvent: DragEvent = event as DragEvent;
-        const transfer: DataTransfer | null = dragEvent.dataTransfer || null;
-        if (!hasAcceptedTransfer(transfer)) return;
-        dragEvent.preventDefault();
-        setOverlayVisible(true);
-      });
+  const handleDragOver = (event: Event): void => {
+    const dragEvent: DragEvent = event as DragEvent;
+    const transfer: DataTransfer | null = dragEvent.dataTransfer || null;
+    if (!hasAcceptedTransfer(transfer)) return;
+    dragEvent.preventDefault();
+    setOverlayVisible(true);
+  };
 
-      appPanelEl.addEventListener("dragleave", (): void => {
-        dragDepth = Math.max(0, dragDepth - 1);
-        if (dragDepth === 0) setOverlayVisible(false);
-      });
+  const handleDragLeave = (): void => {
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (dragDepth === 0) setOverlayVisible(false);
+  };
 
-      appPanelEl.addEventListener("drop", (event: Event): void => {
-        const dragEvent: DragEvent = event as DragEvent;
-        dragDepth = 0;
-        setOverlayVisible(false);
-        dragEvent.preventDefault();
+  const handleDrop = (event: Event): void => {
+    const dragEvent: DragEvent = event as DragEvent;
+    dragDepth = 0;
+    setOverlayVisible(false);
+    dragEvent.preventDefault();
 
-        const transfer: DataTransfer | null = dragEvent.dataTransfer || null;
-        if (!transfer) return;
+    const transfer: DataTransfer | null = dragEvent.dataTransfer || null;
+    if (!transfer) return;
 
-        const files: File[] = collectDroppedFiles(transfer);
-        if (files.length > 0) {
-          void Promise.all(
-            files.map(async (file: File): Promise<void> => {
-              if (!/\.pgn$/i.test(file.name) && !/^text\//i.test(file.type || "")) return;
-              const text: string = await file.text();
-              if (!isLikelyPgnText(text)) return;
-              const sourceHints: DropSourceHints | null = inferDropSourceRefs(file as FileWithOptionalPath);
-              const hints: OpenGameOptions = sourceHints
-                ? { sourceRef: sourceHints.sourceRef, resourceRef: sourceHints.resourceRef }
-                : {};
-              void openGameFromIncomingText(text, {
-                preferredTitle: inferGameTitleFromFileName(file.name),
-                sourceRef: hints.sourceRef || null,
-                resourceRef: hints.resourceRef || null,
-                preferInsertIntoActiveResource: false,
-              });
-            }),
-          );
-          return;
-        }
-
-        const plainText: string = transfer.getData("text/plain");
-        if (resolveUrl && isHttpUrl(plainText)) {
-          void resolveUrl(plainText.trim());
-          return;
-        }
-        if (!isLikelyPgnText(plainText)) return;
-        void openGameFromIncomingText(plainText, { preferInsertIntoActiveResource: true });
-      });
+    const files: File[] = collectDroppedFiles(transfer);
+    if (files.length > 0) {
+      void Promise.all(
+        files.map(async (file: File): Promise<void> => {
+          if (!/\.pgn$/i.test(file.name) && !/^text\//i.test(file.type || "")) return;
+          const text: string = await file.text();
+          if (!isLikelyPgnText(text)) return;
+          const sourceHints: DropSourceHints | null = inferDropSourceRefs(file as FileWithOptionalPath);
+          openGameFromIncomingText(text, {
+            preferredTitle: inferGameTitleFromFileName(file.name),
+            sourceRef: sourceHints?.sourceRef ?? null,
+            resourceRef: sourceHints?.resourceRef ?? null,
+            preferInsertIntoActiveResource: false,
+          });
+        }),
+      );
+      return;
     }
 
-    window.addEventListener("paste", (event: ClipboardEvent): void => {
-      const target: EventTarget | null = event.target;
-      const targetAny: unknown = target;
-      if (targetAny !== null && typeof (targetAny as Record<string, unknown>).tagName === "string") {
-        const tag: string = (targetAny as { tagName: string }).tagName.toLowerCase();
-        if (
-          tag === "input" ||
-          tag === "textarea" ||
-          Boolean((targetAny as { isContentEditable?: unknown }).isContentEditable)
-        )
-          return;
-      }
-      const plainText: string = event.clipboardData?.getData("text/plain") || "";
-      if (resolveUrl && isHttpUrl(plainText)) {
-        void resolveUrl(plainText.trim());
-        return;
-      }
-      if (!isLikelyPgnText(plainText)) return;
-      void openGameFromIncomingText(plainText, { preferInsertIntoActiveResource: true });
-    });
+    const plainText: string = transfer.getData("text/plain");
+    if (resolveUrl && isHttpUrl(plainText)) {
+      void resolveUrl(plainText.trim());
+      return;
+    }
+    if (!isLikelyPgnText(plainText)) return;
+    openGameFromIncomingText(plainText, { preferInsertIntoActiveResource: true });
   };
 
-  return {
-    bindEvents,
+  const handlePaste = (event: ClipboardEvent): void => {
+    const target: EventTarget | null = event.target;
+    const targetAny: unknown = target;
+    if (targetAny !== null && typeof (targetAny as Record<string, unknown>).tagName === "string") {
+      const tag: string = (targetAny as { tagName: string }).tagName.toLowerCase();
+      if (
+        tag === "input" ||
+        tag === "textarea" ||
+        Boolean((targetAny as { isContentEditable?: unknown }).isContentEditable)
+      ) return;
+    }
+    const plainText: string = event.clipboardData?.getData("text/plain") || "";
+    if (resolveUrl && isHttpUrl(plainText)) {
+      void resolveUrl(plainText.trim());
+      return;
+    }
+    if (!isLikelyPgnText(plainText)) return;
+    openGameFromIncomingText(plainText, { preferInsertIntoActiveResource: true });
   };
+
+  return { handleDragEnter, handleDragOver, handleDragLeave, handleDrop, handlePaste };
 };

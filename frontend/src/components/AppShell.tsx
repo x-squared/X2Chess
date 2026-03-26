@@ -27,7 +27,7 @@
 import { useRef, useEffect, useCallback, useState, useMemo } from "react";
 import type { ReactElement } from "react";
 import { Chess } from "chess.js";
-import { createGameIngressHandlers } from "../game_sessions/ingress_handlers";
+import { useGameIngress } from "../hooks/useGameIngress";
 import { isLikelyPgnText } from "../runtime/bootstrap_shared";
 import { useAppContext } from "../state/app_context";
 import {
@@ -471,22 +471,13 @@ export const AppShell = (): ReactElement => {
   }, []);
 
 
-  useEffect((): void => {
-    const { bindEvents } = createGameIngressHandlers({
-      appPanelEl: appPanelRef.current,
-      isLikelyPgnText,
-      openGameFromIncomingText: (pgnText: string): boolean => {
-        services.openPgnText(pgnText);
-        return true;
-      },
-      setDropOverlayVisible: (visible: boolean): void => {
-        if (overlayRef.current) overlayRef.current.hidden = !visible;
-      },
-      resolveUrl,
-    });
-    bindEvents();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useGameIngress({
+    appPanelRef,
+    overlayRef,
+    isLikelyPgnText,
+    openPgnText: (pgnText: string): void => { services.openPgnText(pgnText); },
+    resolveUrl,
+  });
 
   // Ctrl/Cmd+S — save active game.
   // Ctrl/Cmd+Z — undo.  Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y — redo.  (M5)

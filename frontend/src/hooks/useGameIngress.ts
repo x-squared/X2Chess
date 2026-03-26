@@ -1,0 +1,73 @@
+import { useEffect } from "react";
+import type { RefObject } from "react";
+import { createIngressEventHandlers } from "../game_sessions/ingress_handlers";
+
+/**
+ * useGameIngress — binds drag/drop and paste event handlers for PGN game ingress.
+ *
+ * Attaches dragenter/dragover/dragleave/drop listeners to the given panel element
+ * and a paste listener to `window`. All listeners are cleaned up on unmount.
+ *
+ * Integration API:
+ * - `useGameIngress(deps)` — call once inside `AppShell` with stable refs and callbacks.
+ *
+ * Configuration API:
+ * - `appPanelRef`: ref to the element that receives drag events.
+ * - `overlayRef`: ref to the drop-overlay element whose `hidden` attribute is toggled.
+ * - `isLikelyPgnText`: pure predicate for detecting PGN content.
+ * - `openPgnText`: callback invoked with validated PGN text to open a game.
+ * - `resolveUrl`: optional callback invoked when pasted/dropped text is an HTTP URL.
+ *
+ * Communication API:
+ * - Outbound: calls `openPgnText` and `resolveUrl` on user drop/paste.
+ * - Inbound: reads `appPanelRef.current` and `overlayRef.current` at effect mount.
+ */
+
+type UseGameIngressDeps = {
+  appPanelRef: RefObject<Element | null>;
+  overlayRef: RefObject<HTMLElement | null>;
+  isLikelyPgnText: (value: string) => boolean;
+  openPgnText: (pgnText: string) => void;
+  resolveUrl?: ((url: string) => Promise<void>) | undefined;
+};
+
+export const useGameIngress = ({
+  appPanelRef,
+  overlayRef,
+  isLikelyPgnText,
+  openPgnText,
+  resolveUrl,
+}: UseGameIngressDeps): void => {
+  useEffect((): (() => void) => {
+    const appPanelEl: Element | null = appPanelRef.current;
+
+    const { handleDragEnter, handleDragOver, handleDragLeave, handleDrop, handlePaste } =
+      createIngressEventHandlers({
+        isLikelyPgnText,
+        openGameFromIncomingText: (pgnText: string): void => { openPgnText(pgnText); },
+        setDropOverlayVisible: (visible: boolean): void => {
+          if (overlayRef.current) overlayRef.current.hidden = !visible;
+        },
+        resolveUrl,
+      });
+
+    if (appPanelEl) {
+      appPanelEl.addEventListener("dragenter", handleDragEnter);
+      appPanelEl.addEventListener("dragover", handleDragOver);
+      appPanelEl.addEventListener("dragleave", handleDragLeave);
+      appPanelEl.addEventListener("drop", handleDrop);
+    }
+    window.addEventListener("paste", handlePaste);
+
+    return (): void => {
+      if (appPanelEl) {
+        appPanelEl.removeEventListener("dragenter", handleDragEnter);
+        appPanelEl.removeEventListener("dragover", handleDragOver);
+        appPanelEl.removeEventListener("dragleave", handleDragLeave);
+        appPanelEl.removeEventListener("drop", handleDrop);
+      }
+      window.removeEventListener("paste", handlePaste);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+};

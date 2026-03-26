@@ -1,211 +1,126 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createGameIngressHandlers } from "../../src/game_sessions/ingress_handlers.js";
-
-const withWindowStub = async (run) => {
-  const previousWindow = globalThis.window;
-  globalThis.window = {
-    addEventListener: () => {},
-  };
-  try {
-    await run();
-  } finally {
-    globalThis.window = previousWindow;
-  }
-};
-
-const createMockPanel = () => {
-  const listeners = new Map();
-  return {
-    addEventListener: (name, handler) => {
-      listeners.set(name, handler);
-    },
-    emit: (name, event) => {
-      const handler = listeners.get(name);
-      if (!handler) throw new Error(`missing listener: ${name}`);
-      handler(event);
-    },
-  };
-};
+import { createIngressEventHandlers } from "../../src/game_sessions/ingress_handlers.js";
 
 test("dragover accepts drags exposing Files type without file list", () => {
-  return withWindowStub(async () => {
-    const panel = createMockPanel();
-    const handlers = createGameIngressHandlers({
-      appPanelEl: panel,
-      isLikelyPgnText: () => true,
-      openGameFromIncomingText: () => true,
-    });
-    handlers.bindEvents();
-
-    let prevented = false;
-    panel.emit("dragover", {
-      dataTransfer: {
-        files: [],
-        types: ["Files"],
-      },
-      preventDefault: () => {
-        prevented = true;
-      },
-    });
-
-    assert.equal(prevented, true);
+  const { handleDragOver } = createIngressEventHandlers({
+    isLikelyPgnText: () => true,
+    openGameFromIncomingText: () => {},
   });
+
+  let prevented = false;
+  handleDragOver({
+    dataTransfer: { files: [], types: ["Files"] },
+    preventDefault: () => { prevented = true; },
+  } as unknown as Event);
+
+  assert.equal(prevented, true);
 });
 
 test("drop reads pgn files from DataTransferItem fallback", async () => {
-  await withWindowStub(async () => {
-    const panel = createMockPanel();
-    const opened = [];
-    const handlers = createGameIngressHandlers({
-      appPanelEl: panel,
-      isLikelyPgnText: (value) => value.includes("1. e4"),
-      openGameFromIncomingText: (text, options) => {
-        opened.push({ text, options });
-        return true;
-      },
-    });
-    handlers.bindEvents();
-
-    const file = {
-      name: "test-game.pgn",
-      type: "",
-      text: async () => "[Event \"Test\"]\n\n1. e4 e5 *",
-    };
-    let prevented = false;
-    panel.emit("drop", {
-      dataTransfer: {
-        files: [],
-        items: [{
-          kind: "file",
-          getAsFile: () => file,
-        }],
-        getData: () => "",
-      },
-      preventDefault: () => {
-        prevented = true;
-      },
-    });
-
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    assert.equal(prevented, true);
-    assert.equal(opened.length, 1);
-    assert.equal(opened[0].options.preferredTitle, "test-game");
-    assert.equal(opened[0].options.preferInsertIntoActiveResource, false);
+  const opened: Array<{ text: string; options: unknown }> = [];
+  const { handleDrop } = createIngressEventHandlers({
+    isLikelyPgnText: (value) => value.includes("1. e4"),
+    openGameFromIncomingText: (text, options) => { opened.push({ text, options }); },
   });
+
+  const file = {
+    name: "test-game.pgn",
+    type: "",
+    text: async () => "[Event \"Test\"]\n\n1. e4 e5 *",
+  };
+  let prevented = false;
+  handleDrop({
+    dataTransfer: {
+      files: [],
+      items: [{ kind: "file", getAsFile: () => file }],
+      getData: () => "",
+    },
+    preventDefault: () => { prevented = true; },
+  } as unknown as Event);
+
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(prevented, true);
+  assert.equal(opened.length, 1);
+  assert.equal((opened[0].options as { preferredTitle: string }).preferredTitle, "test-game");
+  assert.equal((opened[0].options as { preferInsertIntoActiveResource: boolean }).preferInsertIntoActiveResource, false);
 });
 
 test("drop derives source and resource refs from dropped file path", async () => {
-  await withWindowStub(async () => {
-    const panel = createMockPanel();
-    const opened = [];
-    const handlers = createGameIngressHandlers({
-      appPanelEl: panel,
-      isLikelyPgnText: () => true,
-      openGameFromIncomingText: (text, options) => {
-        opened.push({ text, options });
-        return true;
-      },
-    });
-    handlers.bindEvents();
-    const file = {
-      name: "from-drop.pgn",
-      path: "/tmp/chess/inbox/from-drop.pgn",
-      type: "",
-      text: async () => "[Event \"Drop\"]\n\n1. d4 d5 *",
-    };
-    panel.emit("drop", {
-      dataTransfer: {
-        files: [file],
-        items: [],
-        getData: () => "",
-      },
-      preventDefault: () => {},
-    });
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    assert.equal(opened.length, 1);
-    assert.deepEqual(opened[0].options.sourceRef, {
-      kind: "file",
-      locator: "/tmp/chess/inbox",
-      recordId: "from-drop.pgn",
-    });
-    assert.deepEqual(opened[0].options.resourceRef, {
-      kind: "file",
-      locator: "/tmp/chess/inbox",
-    });
+  const opened: Array<{ text: string; options: unknown }> = [];
+  const { handleDrop } = createIngressEventHandlers({
+    isLikelyPgnText: () => true,
+    openGameFromIncomingText: (text, options) => { opened.push({ text, options }); },
+  });
+
+  const file = {
+    name: "from-drop.pgn",
+    path: "/tmp/chess/inbox/from-drop.pgn",
+    type: "",
+    text: async () => "[Event \"Drop\"]\n\n1. d4 d5 *",
+  };
+  handleDrop({
+    dataTransfer: {
+      files: [file],
+      items: [],
+      getData: () => "",
+    },
+    preventDefault: () => {},
+  } as unknown as Event);
+
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(opened.length, 1);
+  assert.deepEqual((opened[0].options as { sourceRef: unknown }).sourceRef, {
+    kind: "file",
+    locator: "/tmp/chess/inbox",
+    recordId: "from-drop.pgn",
+  });
+  assert.deepEqual((opened[0].options as { resourceRef: unknown }).resourceRef, {
+    kind: "file",
+    locator: "/tmp/chess/inbox",
   });
 });
 
 test("paste of https URL calls resolveUrl instead of openGameFromIncomingText", async () => {
-  const pasteListeners: Array<(e: ClipboardEvent) => void> = [];
-  const previousWindow = globalThis.window;
-  globalThis.window = {
-    addEventListener: (_name: string, handler: (e: ClipboardEvent) => void) => {
-      pasteListeners.push(handler);
-    },
-  } as unknown as typeof globalThis.window;
+  const opened: string[] = [];
+  const resolved: string[] = [];
 
-  try {
-    const panel = createMockPanel();
-    const opened: string[] = [];
-    const resolved: string[] = [];
+  const { handlePaste } = createIngressEventHandlers({
+    isLikelyPgnText: () => false,
+    openGameFromIncomingText: (text) => { opened.push(text); },
+    resolveUrl: async (url) => { resolved.push(url); },
+  });
 
-    const handlers = createGameIngressHandlers({
-      appPanelEl: panel,
-      isLikelyPgnText: () => false,
-      openGameFromIncomingText: (text) => { opened.push(text); return true; },
-      resolveUrl: async (url) => { resolved.push(url); },
-    });
-    handlers.bindEvents();
+  const pasteEvent = {
+    target: { tagName: "DIV", isContentEditable: false },
+    clipboardData: { getData: () => "https://lichess.org/abcd1234" },
+  } as unknown as ClipboardEvent;
 
-    // Use a plain object for target — document is unavailable in the Node test environment.
-    const pasteEvent = {
-      target: { tagName: "DIV", isContentEditable: false },
-      clipboardData: {
-        getData: () => "https://lichess.org/abcd1234",
-      },
-    } as unknown as ClipboardEvent;
+  handlePaste(pasteEvent);
+  await new Promise((resolve) => setTimeout(resolve, 0));
 
-    for (const listener of pasteListeners) listener(pasteEvent);
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
-    assert.equal(opened.length, 0, "should NOT call openGameFromIncomingText for a URL");
-    assert.equal(resolved.length, 1, "should call resolveUrl once");
-    assert.equal(resolved[0], "https://lichess.org/abcd1234");
-  } finally {
-    globalThis.window = previousWindow;
-  }
+  assert.equal(opened.length, 0, "should NOT call openGameFromIncomingText for a URL");
+  assert.equal(resolved.length, 1, "should call resolveUrl once");
+  assert.equal(resolved[0], "https://lichess.org/abcd1234");
 });
 
-test("drag overlay visibility toggles during drag lifecycle", async () => {
-  await withWindowStub(async () => {
-    const panel = createMockPanel();
-    const visibility = [];
-    const handlers = createGameIngressHandlers({
-      appPanelEl: panel,
-      isLikelyPgnText: () => true,
-      setDropOverlayVisible: (isVisible) => {
-        visibility.push(isVisible);
-      },
-      openGameFromIncomingText: () => true,
-    });
-    handlers.bindEvents();
-
-    panel.emit("dragenter", {
-      dataTransfer: {
-        files: [],
-        types: ["Files"],
-      },
-      preventDefault: () => {},
-    });
-    panel.emit("drop", {
-      dataTransfer: {
-        files: [],
-        items: [],
-        getData: () => "",
-      },
-      preventDefault: () => {},
-    });
-    assert.deepEqual(visibility, [true, false]);
+test("drag overlay visibility toggles during drag lifecycle", () => {
+  const visibility: boolean[] = [];
+  const { handleDragEnter, handleDrop } = createIngressEventHandlers({
+    isLikelyPgnText: () => true,
+    openGameFromIncomingText: () => {},
+    setDropOverlayVisible: (isVisible) => { visibility.push(isVisible); },
   });
+
+  handleDragEnter({
+    dataTransfer: { files: [], types: ["Files"] },
+    preventDefault: () => {},
+  } as unknown as Event);
+
+  handleDrop({
+    dataTransfer: { files: [], items: [], getData: () => "" },
+    preventDefault: () => {},
+  } as unknown as Event);
+
+  assert.deepEqual(visibility, [true, false]);
 });

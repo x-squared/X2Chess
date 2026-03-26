@@ -27,6 +27,7 @@ X2Chess/
 │   └── io/            FsGateway, DbGateway, path_utils
 ├── backend/           Lean 4 game-logic library
 ├── doc/               Architecture ADRs (architecture-adr-manual.qmd)
+├── dev/architecture/  Principles register + health log (continuous arch review)
 └── scripts/           Build/tooling scripts
 ```
 
@@ -89,6 +90,17 @@ the same area) is a violation.
 - No migration-history language in comments (no "Slice N", "legacy bridge",
   "imperative bootstrap removed" etc.).
 - Marker syntax: `[[br]]` and `[[indent]]` only (not `\n`, `\i`, `<br>`).
+
+## Architecture review (`dev/architecture/`)
+
+- `principles.md` — 22 testable principles derived from ADR-001–013 and all rule files;
+  each has a severity, verification method (automated or manual), and current status.
+- `health-log.md` — rolling dated log of review findings against the principles register;
+  append a new entry after each periodic review or major feature milestone.
+
+**Review cadence:** monthly full scan + automated checks on each PR build.
+**Automated subset:** grep-based checks for P01, P02, P08, P09, P15 via `scripts/arch-check.sh`
+(to be created when violations are resolved; currently documents the "clean" target state).
 
 ## Plan files (`dev/plans/`)
 

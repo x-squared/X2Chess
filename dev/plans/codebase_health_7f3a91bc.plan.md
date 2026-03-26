@@ -4,28 +4,28 @@ overview: Fix all findings from the architecture review — architecture rule vi
 todos:
   - id: remove-dom-from-resources-viewer
     content: Remove render() DOM function from resources_viewer/index.ts; move all UI output to ResourceViewer.tsx.
-    status: pending
+    status: done
   - id: split-resource-viewer-component
     content: Split ResourceViewer.tsx (793 lines) into TabBar, ResourceTable, MetadataDialog sub-components.
-    status: pending
+    status: done
   - id: consolidate-resource-viewer-utilities
     content: Consolidate duplicated clampWidth / persistTabPrefs / column-reconciliation helpers between ResourceViewer.tsx and resource_metadata_prefs.ts.
-    status: pending
+    status: done
   - id: wire-open-game-todo
     content: Complete the stubbed open-game-row TODO in ResourceViewer.tsx — wire to services.openSessionFromSourceRef (or equivalent).
-    status: pending
+    status: done
   - id: extract-create-services
     content: Extract the createServices factory block from useAppStartup.ts (713 lines) into src/hooks/createAppServices.ts.
-    status: pending
+    status: done
   - id: inject-io-into-file-adapter
     content: Move Tauri invoke call out of resource/adapters/file/file_adapter.ts; inject an I/O callback at construction via resource/io/fs_gateway.ts.
-    status: pending
+    status: done
   - id: consolidate-kind-mappings
     content: Consolidate the four kind-name mapping sites (kinds.ts, isPgnResourceRef, compatibility.ts, source_types.ts) into one authoritative registry.
-    status: pending
+    status: done
   - id: link-metadata-schema-to-viewer-columns
     content: Add a typed link between metadata_schema.ts key names and the frontend viewer column registry so drift is caught at compile time.
-    status: pending
+    status: done
   - id: split-text-editor-plan
     content: Consider splitting text_editor_plan.ts (653 lines) — extract tree emitter to text_editor_plan_tree.ts if the file grows further.
     status: pending

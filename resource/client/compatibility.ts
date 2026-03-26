@@ -1,7 +1,7 @@
 import type { PgnListGamesResult } from "../domain/actions";
 import type { PgnResourceAdapter, PgnSaveOptions } from "../domain/contracts";
 import type { PgnGameRef } from "../domain/game_ref";
-import type { PgnResourceKind } from "../domain/kinds";
+import { PGN_RESOURCE_KINDS, type PgnResourceKind } from "../domain/kinds";
 import type { PgnResourceRef } from "../domain/resource_ref";
 
 /**
@@ -74,7 +74,7 @@ export type LegacyAdapter = {
 export const mapLegacyKind = (kind: string): PgnResourceKind => {
   if (kind === "pgn-db") return "file";
   if (kind === "sqlite") return "db";
-  if (kind === "file" || kind === "directory" || kind === "db") return kind;
+  if ((PGN_RESOURCE_KINDS as readonly string[]).includes(kind)) return kind as PgnResourceKind;
   throw new Error(`Unknown resource kind: ${kind}`);
 };
 

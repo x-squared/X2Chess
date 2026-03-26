@@ -249,7 +249,10 @@ export const useAppStartup = (): AppStartupServices => {
 
       // Move entry
       applyPgnModelEdit: (newModel: PgnModel, targetMoveId: string | null): void => {
-        bundle.applyModelUpdate(newModel, null, { recordHistory: true });
+        bundle.applyModelUpdate(newModel, null, {
+          recordHistory: true,
+          preferredLayoutMode: bundle.legacyState.pgnLayoutMode,
+        });
         if (targetMoveId) {
           const pos = (bundle.legacyState.movePositionById as Record<string, { mainlinePly?: number | null; fen?: string; lastMove?: [string, string] | null } | undefined> | undefined)?.[targetMoveId];
           if (pos && typeof pos.mainlinePly === "number") {

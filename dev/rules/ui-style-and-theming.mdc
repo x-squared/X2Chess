@@ -24,3 +24,33 @@ CSS must produce a clean, professional visual design as the default experience.
 - Confirm the default look remains clean and professional.
 - Confirm new styles are compatible with planned user adaptation points.
 - Update public style/theming documentation when style APIs or tokens change.
+
+## Icon catalog
+
+All toolbar icons live in `frontend/public/icons/toolbar/`. They share a common
+SVG style: `viewBox="0 0 24 24"`, `fill="none"`, `stroke="#1f2937"`,
+`stroke-width="2"` (or 1.75 for icons with filled sub-elements), `stroke-linecap="round"`,
+`stroke-linejoin="round"`. Inline SVGs (e.g. in game tabs) use `fill="currentColor"`.
+
+**Before adding a new icon, check this catalog.** If a purpose is already mapped,
+reuse the existing file — do not create a second icon for the same semantic action.
+
+| File | Purpose / semantic meaning |
+|---|---|
+| `nav-first.svg` | Navigate to first move |
+| `nav-prev.svg` | Navigate to previous move |
+| `nav-next.svg` | Navigate to next move |
+| `nav-last.svg` | Navigate to last move |
+| `save.svg` | **Save** — floppy disk shape; used in TextEditorSidebar and (inline variant) in game tab pills. Do NOT use an arrow-down for save — that means download. |
+| `download.svg` | **Download** — arrow pointing down to a horizontal line; use only for export/download actions, never for save. |
+| `undo.svg` | Undo last edit |
+| `redo.svg` | Redo last undone edit |
+| `default-indent.svg` | Apply default variation indentation |
+| `indent.svg` | Increase indentation |
+| `linebreak.svg` | Insert line break (`[[br]]` marker) |
+| `comment-left.svg` | Insert comment before move |
+| `comment-right.svg` | Insert comment after move |
+| `metadata-columns.svg` | Toggle metadata column view |
+| `mode-plain.svg` | PGN layout mode: Plain (raw/code — `< >` brackets) |
+| `mode-text.svg` | PGN layout mode: Text (narrative prose — paragraph lines) |
+| `mode-tree.svg` | PGN layout mode: Tree (variation tree — trunk + branches) |

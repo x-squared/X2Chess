@@ -18,6 +18,7 @@ type EditorSnapshot = {
   pgnText: string;
   currentPly: number;
   selectedMoveId: string | null;
+  pgnLayoutMode: string;
 };
 
 type EditorHistoryState = {
@@ -25,6 +26,7 @@ type EditorHistoryState = {
   pgnText: string;
   currentPly: number;
   selectedMoveId: string | null;
+  pgnLayoutMode: string;
   animationRunId: number;
   isAnimating: boolean;
   boardPreview: unknown | null;
@@ -56,6 +58,7 @@ export const createEditorHistoryCapabilities = ({
     pgnText: runtimeState.pgnText,
     currentPly: runtimeState.currentPly,
     selectedMoveId: runtimeState.selectedMoveId,
+    pgnLayoutMode: runtimeState.pgnLayoutMode,
   });
 
   const pushUndoSnapshot = (snapshot: EditorSnapshot): void => {
@@ -72,6 +75,7 @@ export const createEditorHistoryCapabilities = ({
     runtimeState.pgnText = snapshot.pgnText;
     runtimeState.currentPly = snapshot.currentPly;
     runtimeState.selectedMoveId = snapshot.selectedMoveId ?? null;
+    runtimeState.pgnLayoutMode = snapshot.pgnLayoutMode;
     if (pgnInput instanceof HTMLTextAreaElement) pgnInput.value = runtimeState.pgnText;
     onSyncChessParseState(runtimeState.pgnText);
     onRender();

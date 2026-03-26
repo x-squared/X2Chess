@@ -61,5 +61,22 @@
   "resources.groupby.none": "nessuno",
   "toolbar.commentBold": "Testo commento in grassetto",
   "toolbar.commentItalic": "Testo commento in corsivo",
-  "toolbar.commentUnderline": "Sottolinea testo commento"
+  "toolbar.commentUnderline": "Sottolinea testo commento",
+  "editor.insertAnchor": "Aggiungi ancora",
+  "editor.anchor.addTitle": "Aggiungi ancora",
+  "editor.anchor.editTitle": "Modifica ancora",
+  "editor.anchor.id": "ID",
+  "editor.anchor.text": "Etichetta",
+  "editor.anchor.idConflict": "Questo ID \u00e8 gi\u00e0 in uso",
+  "editor.anchor.place": "Posiziona ancora",
+  "editor.anchor.save": "Salva",
+  "editor.anchor.cancel": "Annulla",
+  "editor.anchor.edit": "Modifica",
+  "editor.anchor.delete": "Elimina",
+  "editor.anchor.close": "Chiudi",
+  "editor.anchor.notFound": "Ancora non trovata",
+  "anchorList.noAnchors": "Nessuna ancora in questa partita",
+  "anchorList.noResults": "Nessuna ancora corrisponde alla ricerca",
+  "anchorPicker.title": "Inserisci riferimento ancora",
+  "anchorPicker.search": "Cerca per etichetta o ID\u2026"
 }

@@ -31,6 +31,7 @@ export type TruncationAction =
   | { type: "insert_qa"; moveId: string }
   | { type: "insert_todo"; moveId: string }
   | { type: "insert_link"; moveId: string }
+  | { type: "insert_anchor"; moveId: string; san: string }
   | { type: "delete_from_here"; moveId: string }
   | { type: "delete_before_here"; moveId: string }
   | { type: "delete_variation"; moveId: string }
@@ -152,6 +153,14 @@ export const TruncationMenu = ({
         onClick={(): void => { pick({ type: "insert_link", moveId }); }}
       >
         {t("editor.insertGameLink", "Insert game link")}
+      </button>
+      <button
+        type="button"
+        className="truncation-menu-item"
+        role="menuitem"
+        onClick={(): void => { pick({ type: "insert_anchor", moveId, san }); }}
+      >
+        {t("editor.insertAnchor", "Add anchor")}
       </button>
       <div className="truncation-menu-separator" />
       <button

@@ -61,5 +61,22 @@
   "resources.groupby.none": "aucun",
   "toolbar.commentBold": "Texte du commentaire en gras",
   "toolbar.commentItalic": "Texte du commentaire en italique",
-  "toolbar.commentUnderline": "Souligner le texte du commentaire"
+  "toolbar.commentUnderline": "Souligner le texte du commentaire",
+  "editor.insertAnchor": "Ajouter une ancre",
+  "editor.anchor.addTitle": "Ajouter une ancre",
+  "editor.anchor.editTitle": "Modifier l'ancre",
+  "editor.anchor.id": "ID",
+  "editor.anchor.text": "\u00c9tiquette",
+  "editor.anchor.idConflict": "Cet ID est d\u00e9j\u00e0 utilis\u00e9",
+  "editor.anchor.place": "Placer l'ancre",
+  "editor.anchor.save": "Enregistrer",
+  "editor.anchor.cancel": "Annuler",
+  "editor.anchor.edit": "Modifier",
+  "editor.anchor.delete": "Supprimer",
+  "editor.anchor.close": "Fermer",
+  "editor.anchor.notFound": "Ancre introuvable",
+  "anchorList.noAnchors": "Aucune ancre dans cette partie",
+  "anchorList.noResults": "Aucune ancre ne correspond \u00e0 votre recherche",
+  "anchorPicker.title": "Ins\u00e9rer une r\u00e9f\u00e9rence d'ancre",
+  "anchorPicker.search": "Rechercher par \u00e9tiquette ou ID\u2026"
 }

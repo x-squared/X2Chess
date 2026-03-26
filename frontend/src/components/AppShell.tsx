@@ -71,6 +71,7 @@ import { GameSessionsPanel } from "./GameSessionsPanel";
 import { ChessBoard } from "./ChessBoard";
 import { PgnTextEditor } from "./PgnTextEditor";
 import { ToolbarRow } from "./ToolbarRow";
+import { TextEditorSidebar } from "./TextEditorSidebar";
 import { RightPanelStack } from "./RightPanelStack";
 import { PlayVsEngineDialog } from "./PlayVsEngineDialog";
 import { AnnotateGameDialog } from "./AnnotateGameDialog";
@@ -616,11 +617,7 @@ export const AppShell = (): ReactElement => {
               <ToolbarRow
                 isAtStart={isAtStart}
                 isAtEnd={isAtEnd}
-                canUndo={canUndo}
-                canRedo={canRedo}
-                isDirty={isDirty}
                 boardFlipped={boardFlipped}
-                layoutMode={layoutMode}
                 isSetUpGame={isSetUpGame}
                 studyItemCount={studyItems.length}
                 studyActive={studyActive}
@@ -633,11 +630,6 @@ export const AppShell = (): ReactElement => {
                 onGotoNext={(): void => { services.gotoNext(); }}
                 onGotoLast={(): void => { services.gotoLast(); }}
                 onFlipBoard={(): void => { dispatch({ type: "toggle_board_flip" }); }}
-                onSetLayoutMode={(mode): void => { services.setLayoutMode(mode); }}
-                onApplyDefaultIndent={(): void => { services.applyDefaultIndent(); }}
-                onSave={(): void => { services.saveActiveGameNow(); }}
-                onUndo={(): void => { services.undo(); }}
-                onRedo={(): void => { services.redo(); }}
                 onShowEditStartPos={(): void => { setShowEditStartPos(true); }}
                 onShowExtractDialog={(): void => { setShowExtractDialog(true); }}
                 onShowHint={handleShowHint}
@@ -650,17 +642,31 @@ export const AppShell = (): ReactElement => {
                 }}
               />
 
-              {/* Editor area — React PgnTextEditor */}
-              <div className="editor-box">
-                {trainingControls.phase === "idle" && (
-                  <TrainingHistoryStrip
-                    sourceGameRef={trainingSourceRef}
-                    onTrainAgain={(): void => { setShowTrainingLauncher(true); }}
-                    onViewHistory={(): void => { setShowTrainingHistory(true); }}
-                    t={t}
-                  />
-                )}
-                <PgnTextEditor />
+              {/* Editor area — PGN text editor with vertical text-editor sidebar */}
+              <div className="editor-with-sidebar">
+                <div className="editor-box">
+                  {trainingControls.phase === "idle" && (
+                    <TrainingHistoryStrip
+                      sourceGameRef={trainingSourceRef}
+                      onTrainAgain={(): void => { setShowTrainingLauncher(true); }}
+                      onViewHistory={(): void => { setShowTrainingHistory(true); }}
+                      t={t}
+                    />
+                  )}
+                  <PgnTextEditor />
+                </div>
+                <TextEditorSidebar
+                  layoutMode={layoutMode}
+                  canUndo={canUndo}
+                  canRedo={canRedo}
+                  isDirty={isDirty}
+                  t={t}
+                  onSetLayoutMode={(mode): void => { services.setLayoutMode(mode); }}
+                  onApplyDefaultIndent={(): void => { services.applyDefaultIndent(); }}
+                  onSave={(): void => { services.saveActiveGameNow(); }}
+                  onUndo={(): void => { services.undo(); }}
+                  onRedo={(): void => { services.redo(); }}
+                />
               </div>
             </div>
           </div>

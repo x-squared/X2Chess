@@ -30,6 +30,15 @@
   margin-bottom: 0.55rem;
 }
 
+/* Flex row wrapping the editor and the vertical text-editor sidebar. */
+.editor-with-sidebar {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  min-height: 0;
+  gap: 0.4rem;
+}
+
 .editor-box {
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
@@ -38,6 +47,32 @@
   flex: 1;
   min-height: 0;
   display: flex;
+}
+
+/* Vertical strip of text-editor controls to the right of the PGN editor. */
+.text-editor-sidebar {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.25rem;
+  padding: 0.35rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-2);
+  flex-shrink: 0;
+  width: fit-content;
+}
+
+.text-editor-sidebar-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.text-editor-sidebar-sep {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 0.1rem 0;
 }
 
 .move-toolbar {
@@ -85,6 +120,28 @@
   opacity: 0.45;
   cursor: not-allowed;
   background: #f9fafb;
+}
+
+.icon-button.active {
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
+}
+
+/* Small dot in top-right corner of the save button when there are unsaved changes */
+.icon-button--dirty {
+  position: relative;
+}
+
+.icon-button--dirty::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  pointer-events: none;
 }
 
 .text-editor-title {

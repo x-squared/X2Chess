@@ -61,5 +61,22 @@
   "resources.groupby.none": "ninguno",
   "toolbar.commentBold": "Texto de comentario en negrita",
   "toolbar.commentItalic": "Texto de comentario en cursiva",
-  "toolbar.commentUnderline": "Subrayar texto de comentario"
+  "toolbar.commentUnderline": "Subrayar texto de comentario",
+  "editor.insertAnchor": "A\u00f1adir ancla",
+  "editor.anchor.addTitle": "A\u00f1adir ancla",
+  "editor.anchor.editTitle": "Editar ancla",
+  "editor.anchor.id": "ID",
+  "editor.anchor.text": "Etiqueta",
+  "editor.anchor.idConflict": "Este ID ya est\u00e1 en uso",
+  "editor.anchor.place": "Colocar ancla",
+  "editor.anchor.save": "Guardar",
+  "editor.anchor.cancel": "Cancelar",
+  "editor.anchor.edit": "Editar",
+  "editor.anchor.delete": "Eliminar",
+  "editor.anchor.close": "Cerrar",
+  "editor.anchor.notFound": "Ancla no encontrada",
+  "anchorList.noAnchors": "No hay anclas en esta partida",
+  "anchorList.noResults": "Ninguna ancla coincide con la b\u00fasqueda",
+  "anchorPicker.title": "Insertar referencia de ancla",
+  "anchorPicker.search": "Buscar por etiqueta o ID\u2026"
 }

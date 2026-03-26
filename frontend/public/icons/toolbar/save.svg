@@ -1,4 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#1f2937" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M12 4v11M8 11l4 4 4-4"/>
-  <line x1="5" y1="20" x2="19" y2="20"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#1f2937" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Outer body -->
+  <rect x="3" y="2" width="18" height="20" rx="2"/>
+  <!-- Label slot (filled) -->
+  <rect x="7" y="2" width="9" height="6" rx="0.75" fill="#1f2937" stroke="none"/>
+  <!-- Write-protect notch (knockout) -->
+  <rect x="14" y="3" width="2.5" height="4" rx="0.5" fill="white" stroke="none"/>
+  <!-- Storage area -->
+  <rect x="5.5" y="13" width="13" height="8" rx="1"/>
 </svg>

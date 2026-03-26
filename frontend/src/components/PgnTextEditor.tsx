@@ -71,6 +71,21 @@ import {
 } from "../resources_viewer/link_parser";
 import { useLinkDialog } from "../editor/useLinkDialog";
 import { GamePickerDialog } from "./GamePickerDialog";
+import { AnchorBadge, AnchorRefChip } from "./AnchorBadge";
+import {
+  parseAnchorAnnotations,
+  hasAnchorAnnotations,
+  stripAnchorAnnotations,
+  parseAnchorRefAnnotations,
+  hasAnchorRefAnnotations,
+  stripAnchorRefAnnotations,
+} from "../resources_viewer/anchor_parser";
+import { useAnchorDefDialog } from "../editor/useAnchorDefDialog";
+import { useAnchorRefDialog } from "../editor/useAnchorRefDialog";
+import { resolveAnchors } from "../editor/resolveAnchors";
+import type { ResolvedAnchor } from "../editor/resolveAnchors";
+import { AnchorDefDialog } from "./AnchorDefDialog";
+import { AnchorPickerDialog } from "./AnchorPickerDialog";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -393,6 +408,11 @@ type TokenViewProps = {
   onDeleteLink: (commentId: string, index: number, rawText: string) => void;
   onOpenLinkedGame: (recordId: string) => void;
   onFetchLinkMetadata: (recordId: string) => Promise<Record<string, string> | null>;
+  onEditAnchorDef: (commentId: string, index: number, rawText: string, moveId: string) => void;
+  onDeleteAnchorDef: (commentId: string, index: number, rawText: string) => void;
+  onEditAnchorRef: (commentId: string, index: number, rawText: string, currentId: string) => void;
+  onDeleteAnchorRef: (commentId: string, index: number, rawText: string) => void;
+  resolvedAnchorsMap: ReadonlyMap<string, ResolvedAnchor>;
   onContextMenu: (moveId: string, san: string, isInVariation: boolean, rect: DOMRect) => void;
   onMoveHover?: (moveId: string, rect: DOMRect) => void;
   onMoveHoverEnd?: () => void;
@@ -423,6 +443,11 @@ const TokenView = ({
   onDeleteLink,
   onOpenLinkedGame,
   onFetchLinkMetadata,
+  onEditAnchorDef,
+  onDeleteAnchorDef,
+  onEditAnchorRef,
+  onDeleteAnchorRef,
+  resolvedAnchorsMap,
   onContextMenu,
   onMoveHover,
   onMoveHoverEnd,
@@ -435,25 +460,45 @@ const TokenView = ({
     const showQaBadge: boolean = inBadgeMode && hasQaAnnotations(ct.rawText);
     const showTodoBadge: boolean = inBadgeMode && hasTodoAnnotations(ct.rawText);
     const showLinkBadge: boolean = inBadgeMode && hasLinkAnnotations(ct.rawText);
+    const showAnchorBadge: boolean = inBadgeMode && hasAnchorAnnotations(ct.rawText);
+    const showAnchorRefChips: boolean = inBadgeMode && hasAnchorRefAnnotations(ct.rawText);
     const qaAnnotations = showQaBadge ? parseQaAnnotations(ct.rawText) : [];
     const todoAnnotations = showTodoBadge ? parseTodoAnnotations(ct.rawText) : [];
     const linkAnnotations = showLinkBadge ? parseLinkAnnotations(ct.rawText) : [];
+    const anchorAnnotations = showAnchorBadge ? parseAnchorAnnotations(ct.rawText) : [];
+    const anchorRefAnnotations = showAnchorRefChips ? parseAnchorRefAnnotations(ct.rawText) : [];
     // Strip annotation markup from display text; omit the comment block if nothing remains.
+    const anyBadge: boolean = showQaBadge || showTodoBadge || showLinkBadge || showAnchorBadge || showAnchorRefChips;
     let displayText: string;
-    if (showQaBadge || showTodoBadge || showLinkBadge) {
+    if (anyBadge) {
       let stripped: string = ct.rawText;
       if (showQaBadge) stripped = stripQaAnnotations(stripped);
       if (showTodoBadge) stripped = stripTodoAnnotations(stripped);
       if (showLinkBadge) stripped = stripLinkAnnotations(stripped);
+      if (showAnchorBadge) stripped = stripAnchorAnnotations(stripped);
+      if (showAnchorRefChips) stripped = stripAnchorRefAnnotations(stripped);
       displayText = stripped;
     } else {
       displayText = ct.text;
     }
     const hasDisplayText: boolean = displayText.trim().length > 0;
-    const displayToken: CommentToken =
-      (showQaBadge || showTodoBadge || showLinkBadge) ? { ...ct, text: displayText } : ct;
+    const displayToken: CommentToken = anyBadge ? { ...ct, text: displayText } : ct;
+    // Extract moveId from dataset (set by text_mode when emitting the move token before this comment).
+    const moveIdForAnchor: string = ct.commentId;
     return (
       <>
+        {showAnchorBadge && (
+          <AnchorBadge
+            annotations={anchorAnnotations}
+            t={t}
+            onEdit={(index: number): void => {
+              onEditAnchorDef(ct.commentId, index, ct.rawText, moveIdForAnchor);
+            }}
+            onDelete={(index: number): void => {
+              onDeleteAnchorDef(ct.commentId, index, ct.rawText);
+            }}
+          />
+        )}
         {showQaBadge && (
           <QaBadge
             annotations={qaAnnotations}
@@ -492,6 +537,21 @@ const TokenView = ({
             }}
           />
         )}
+        {showAnchorRefChips && anchorRefAnnotations.map((ref, i) => (
+          <AnchorRefChip
+            key={`${ref.id}_${i}`}
+            refAnnotation={ref}
+            resolved={resolvedAnchorsMap.get(ref.id) ?? null}
+            index={i}
+            t={t}
+            onEdit={(index: number): void => {
+              onEditAnchorRef(ct.commentId, index, ct.rawText, ref.id);
+            }}
+            onDelete={(index: number): void => {
+              onDeleteAnchorRef(ct.commentId, index, ct.rawText);
+            }}
+          />
+        ))}
         {hasDisplayText && (
           <CommentBlock
             token={displayToken}
@@ -549,6 +609,11 @@ type TokenRenderDeps = {
   onDeleteLink: (commentId: string, index: number, rawText: string) => void;
   onOpenLinkedGame: (recordId: string) => void;
   onFetchLinkMetadata: (recordId: string) => Promise<Record<string, string> | null>;
+  onEditAnchorDef: (commentId: string, index: number, rawText: string, moveId: string) => void;
+  onDeleteAnchorDef: (commentId: string, index: number, rawText: string) => void;
+  onEditAnchorRef: (commentId: string, index: number, rawText: string, currentId: string) => void;
+  onDeleteAnchorRef: (commentId: string, index: number, rawText: string) => void;
+  resolvedAnchorsMap: ReadonlyMap<string, ResolvedAnchor>;
   onContextMenu: (moveId: string, san: string, isInVariation: boolean, rect: DOMRect) => void;
   onMoveHover?: (moveId: string, rect: DOMRect) => void;
   onMoveHoverEnd?: () => void;
@@ -580,6 +645,11 @@ const renderToken = (token: PlanToken, deps: TokenRenderDeps): ReactElement => (
     onDeleteLink={deps.onDeleteLink}
     onOpenLinkedGame={deps.onOpenLinkedGame}
     onFetchLinkMetadata={deps.onFetchLinkMetadata}
+    onEditAnchorDef={deps.onEditAnchorDef}
+    onDeleteAnchorDef={deps.onDeleteAnchorDef}
+    onEditAnchorRef={deps.onEditAnchorRef}
+    onDeleteAnchorRef={deps.onDeleteAnchorRef}
+    resolvedAnchorsMap={deps.resolvedAnchorsMap}
     onContextMenu={deps.onContextMenu}
     onMoveHover={deps.onMoveHover}
     onMoveHoverEnd={deps.onMoveHoverEnd}
@@ -744,6 +814,26 @@ export const PgnTextEditor = (): ReactElement => {
     handleDeleteLink,
   } = useLinkDialog(services);
 
+  // ── Anchor definition dialog state ───────────────────────────────────────────
+  const {
+    anchorDefDialog,
+    handleOpenAnchorDefDialog,
+    handleEditAnchorDef,
+    handleConfirmAnchorDef,
+    handleDeleteAnchorDef,
+    handleCloseAnchorDefDialog,
+  } = useAnchorDefDialog(services);
+
+  // ── Anchor reference picker dialog state ─────────────────────────────────────
+  const {
+    anchorRefDialog,
+    handleOpenAnchorRefDialog,
+    handleEditAnchorRef,
+    handleConfirmAnchorRef,
+    handleDeleteAnchorRef,
+    handleCloseAnchorRefDialog,
+  } = useAnchorRefDialog(services);
+
   const handleOpenLinkedGame = useCallback(
     (recordId: string): void => {
       void services.openGameFromRecordId(recordId);
@@ -759,6 +849,17 @@ export const PgnTextEditor = (): ReactElement => {
       return next;
     });
   }, []);
+
+  /** Collect all anchor definitions from the current model for use in dialogs and chips. */
+  const resolvedAnchors: ResolvedAnchor[] = useMemo(
+    (): ResolvedAnchor[] => (pgnModel ? resolveAnchors(pgnModel) : []),
+    [pgnModel],
+  );
+  const resolvedAnchorsMap: ReadonlyMap<string, ResolvedAnchor> = useMemo(
+    (): ReadonlyMap<string, ResolvedAnchor> =>
+      new Map(resolvedAnchors.map((a) => [a.id, a])),
+    [resolvedAnchors],
+  );
 
   /** Recompute the token plan only when the model or layout mode changes. */
   const blocks: PlanBlock[] = useMemo(
@@ -844,6 +945,9 @@ export const PgnTextEditor = (): ReactElement => {
         case "insert_link":
           handleInsertLink(action.moveId);
           return;
+        case "insert_anchor":
+          handleOpenAnchorDefDialog(action.moveId, action.san);
+          return;
         default:
           break;
       }
@@ -873,7 +977,7 @@ export const PgnTextEditor = (): ReactElement => {
       }
       services.applyPgnModelEdit(newModel, newCursor?.moveId ?? null);
     },
-    [pgnModel, services, handleInsertComment, handleInsertQa, handleInsertTodo, handleInsertLink],
+    [pgnModel, services, handleInsertComment, handleInsertQa, handleInsertTodo, handleInsertLink, handleOpenAnchorDefDialog],
   );
 
   const handleCommentEdit = useCallback(
@@ -947,6 +1051,11 @@ export const PgnTextEditor = (): ReactElement => {
             onDeleteLink: handleDeleteLink,
             onOpenLinkedGame: handleOpenLinkedGame,
             onFetchLinkMetadata: services.fetchGameMetadataByRecordId,
+            onEditAnchorDef: handleEditAnchorDef,
+            onDeleteAnchorDef: handleDeleteAnchorDef,
+            onEditAnchorRef: handleEditAnchorRef,
+            onDeleteAnchorRef: handleDeleteAnchorRef,
+            resolvedAnchorsMap,
             onContextMenu: handleMoveContextMenu,
             onMoveHover: handleMoveHover,
             onMoveHoverEnd: handleMoveHoverEnd,
@@ -972,6 +1081,11 @@ export const PgnTextEditor = (): ReactElement => {
             onDeleteLink: handleDeleteLink,
             onOpenLinkedGame: handleOpenLinkedGame,
             onFetchLinkMetadata: services.fetchGameMetadataByRecordId,
+            onEditAnchorDef: handleEditAnchorDef,
+            onDeleteAnchorDef: handleDeleteAnchorDef,
+            onEditAnchorRef: handleEditAnchorRef,
+            onDeleteAnchorRef: handleDeleteAnchorRef,
+            resolvedAnchorsMap,
             onContextMenu: handleMoveContextMenu,
             onMoveHover: handleMoveHover,
             onMoveHoverEnd: handleMoveHoverEnd,
@@ -1008,6 +1122,24 @@ export const PgnTextEditor = (): ReactElement => {
           resourceRef={linkDialog.resourceRef}
           onSelect={handleLinkPickerSelect}
           onCancel={handleLinkDialogClose}
+          t={t}
+        />
+      )}
+      {anchorDefDialog !== null && (
+        <AnchorDefDialog
+          state={anchorDefDialog}
+          allAnchors={resolvedAnchors}
+          onConfirm={handleConfirmAnchorDef}
+          onCancel={handleCloseAnchorDefDialog}
+          t={t}
+        />
+      )}
+      {anchorRefDialog !== null && (
+        <AnchorPickerDialog
+          allAnchors={resolvedAnchors}
+          currentId={anchorRefDialog.currentId}
+          onSelect={handleConfirmAnchorRef}
+          onCancel={handleCloseAnchorRefDialog}
           t={t}
         />
       )}

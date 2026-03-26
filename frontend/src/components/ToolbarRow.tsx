@@ -1,16 +1,34 @@
 /**
- * ToolbarRow — navigation, format, layout, and action toolbar for the PGN editor.
+ * ToolbarRow — board navigation and game-action toolbar.
  *
- * Renders the full toolbar row: navigation buttons, comment-format buttons,
- * PGN layout selector, and action buttons (save, study, train, annotate,
- * vs-engine, undo, redo). All state and callbacks flow in as props from
- * AppShell so this component is a pure presentation layer.
+ * Renders the horizontal toolbar above the editor pane: navigation buttons
+ * (first/prev/next/last/flip) and game-level action buttons (study, train,
+ * annotate, vs-engine, extract, position). Text-editor controls (layout mode,
+ * save, undo/redo) are handled by TextEditorSidebar.
  *
  * Integration API:
- * - `<ToolbarRow {...props} />` — rendered by AppShell inside the editor pane.
+ * - `<ToolbarRow {...props} />` — rendered by AppShell inside the editor pane,
+ *   above the editor-with-sidebar row.
+ *
+ * Configuration API:
+ * - `isAtStart`, `isAtEnd` — disable navigation buttons at game boundaries.
+ * - `boardFlipped` — reflects board orientation in the flip indicator.
+ * - `isSetUpGame` — shows the Position button when a custom starting FEN is set.
+ * - `studyItemCount`, `studyActive` — controls Study button enabled state.
+ * - `trainingPhase` — disables Train while a session is in progress.
+ * - `engineName` — disables Annotate and vs Engine when no engine is loaded.
+ * - `vsEngineActive` — toggles the vs Engine button label/style.
  *
  * Communication API:
- * - All interactions fire the corresponding callback prop.
+ * - `onGotoFirst/Prev/Next/Last()` — navigation callbacks.
+ * - `onFlipBoard()` — fires when the flip-board button is clicked.
+ * - `onShowEditStartPos()` — fires when Position is clicked.
+ * - `onShowExtractDialog()` — fires when Extract is clicked.
+ * - `onShowHint()` — fires when Hint is clicked.
+ * - `onStartStudy()` — fires when Study is clicked.
+ * - `onShowTrainingLauncher()` — fires when Train is clicked.
+ * - `onShowAnnotateDialog()` — fires when Annotate is clicked.
+ * - `onVsEngineClick()` — fires when vs Engine / Stop is clicked.
  */
 
 import type { ReactElement } from "react";
@@ -18,11 +36,7 @@ import type { ReactElement } from "react";
 type ToolbarRowProps = {
   isAtStart: boolean;
   isAtEnd: boolean;
-  canUndo: boolean;
-  canRedo: boolean;
-  isDirty: boolean;
   boardFlipped: boolean;
-  layoutMode: "plain" | "text" | "tree";
   isSetUpGame: boolean;
   studyItemCount: number;
   studyActive: boolean;
@@ -35,11 +49,6 @@ type ToolbarRowProps = {
   onGotoNext: () => void;
   onGotoLast: () => void;
   onFlipBoard: () => void;
-  onSetLayoutMode: (mode: "plain" | "text" | "tree") => void;
-  onApplyDefaultIndent: () => void;
-  onSave: () => void;
-  onUndo: () => void;
-  onRedo: () => void;
   onShowEditStartPos: () => void;
   onShowExtractDialog: () => void;
   onShowHint: () => void;
@@ -50,11 +59,10 @@ type ToolbarRowProps = {
 };
 
 export const ToolbarRow = ({
-  isAtStart, isAtEnd, canUndo, canRedo, isDirty, boardFlipped,
-  layoutMode, isSetUpGame, studyItemCount, studyActive,
+  isAtStart, isAtEnd, boardFlipped,
+  isSetUpGame, studyItemCount, studyActive,
   trainingPhase, engineName, vsEngineActive, t,
   onGotoFirst, onGotoPrev, onGotoNext, onGotoLast, onFlipBoard,
-  onSetLayoutMode, onApplyDefaultIndent, onSave, onUndo, onRedo,
   onShowEditStartPos, onShowExtractDialog, onShowHint,
   onStartStudy, onShowTrainingLauncher, onShowAnnotateDialog, onVsEngineClick,
 }: ToolbarRowProps): ReactElement => (
@@ -88,86 +96,14 @@ export const ToolbarRow = ({
         </button>
       </div>
 
-      {/* Edit / format button group */}
-      <div className="toolbar-group toolbar-group-edit">
-        <button id="btn-comment-bold"
-          className="icon-button icon-button-text icon-button-format" type="button"
-          title={t("toolbar.commentBold", "Bold comment text")}
-          aria-label={t("toolbar.commentBold", "Bold comment text")}>
-          <strong>B</strong>
-        </button>
-        <button id="btn-comment-italic"
-          className="icon-button icon-button-text icon-button-format" type="button"
-          title={t("toolbar.commentItalic", "Italic comment text")}
-          aria-label={t("toolbar.commentItalic", "Italic comment text")}>
-          <em>I</em>
-        </button>
-        <button id="btn-comment-underline"
-          className="icon-button icon-button-text icon-button-format" type="button"
-          title={t("toolbar.commentUnderline", "Underline comment text")}
-          aria-label={t("toolbar.commentUnderline", "Underline comment text")}>
-          <u>U</u>
-        </button>
-
-        {/* PGN layout buttons */}
-        <div className="toolbar-pgn-layout" role="radiogroup"
-          aria-label={t("toolbar.pgnLayout.group", "PGN layout")}>
-          <button id="btn-pgn-layout-plain" type="button" data-pgn-layout="plain"
-            className={`icon-button icon-button-text pgn-layout-btn${layoutMode === "plain" ? " active" : ""}`}
-            title={t("toolbar.pgnLayout.plain", "Plain — literal PGN")}
-            aria-pressed={layoutMode === "plain" ? "true" : "false"}
-            onClick={(): void => { onSetLayoutMode("plain"); }}>
-            {t("toolbar.pgnLayout.plainShort", "Plain")}
-          </button>
-          <button id="btn-pgn-layout-text" type="button" data-pgn-layout="text"
-            className={`icon-button icon-button-text pgn-layout-btn${layoutMode === "text" ? " active" : ""}`}
-            title={t("toolbar.pgnLayout.text", "Text — narrative layout")}
-            aria-pressed={layoutMode === "text" ? "true" : "false"}
-            onClick={(): void => { onSetLayoutMode("text"); }}>
-            {t("toolbar.pgnLayout.textShort", "Text")}
-          </button>
-          <button id="btn-pgn-layout-tree" type="button" data-pgn-layout="tree"
-            className={`icon-button icon-button-text pgn-layout-btn${layoutMode === "tree" ? " active" : ""}`}
-            title={t("toolbar.pgnLayout.tree", "Tree — structure view (same as Text for now)")}
-            aria-pressed={layoutMode === "tree" ? "true" : "false"}
-            onClick={(): void => { onSetLayoutMode("tree"); }}>
-            {t("toolbar.pgnLayout.treeShort", "Tree")}
-          </button>
-        </div>
-
-        <button id="btn-comment-left" className="icon-button" type="button"
-          title={t("toolbar.commentLeft", "Insert comment left")}>
-          <img src="/icons/toolbar/comment-left.svg" alt={t("toolbar.commentLeft", "Insert comment left")} />
-        </button>
-        <button id="btn-comment-right" className="icon-button" type="button"
-          title={t("toolbar.commentRight", "Insert comment right")}>
-          <img src="/icons/toolbar/comment-right.svg" alt={t("toolbar.commentRight", "Insert comment right")} />
-        </button>
-        <button id="btn-linebreak" className="icon-button" type="button"
-          title={t("toolbar.linebreak", "Insert line break")}>
-          <img src="/icons/toolbar/linebreak.svg" alt={t("toolbar.linebreak", "Insert line break")} />
-        </button>
-        <button id="btn-indent" className="icon-button" type="button"
-          title={t("toolbar.indent", "Insert indent")}>
-          <img src="/icons/toolbar/indent.svg" alt={t("toolbar.indent", "Insert indent")} />
-        </button>
-        <button id="btn-default-indent" className="icon-button" type="button"
-          title={t("pgn.defaultIndent", "Default indent")} onClick={onApplyDefaultIndent}>
-          <img src="/icons/toolbar/default-indent.svg" alt={t("pgn.defaultIndent", "Default indent")} />
-        </button>
-
+      {/* Board action button group */}
+      <div className="toolbar-group toolbar-group-actions">
         {isSetUpGame && (
           <button id="btn-edit-start-pos" className="icon-button icon-button-text" type="button"
             title={t("toolbar.editStartPos", "Edit starting position")} onClick={onShowEditStartPos}>
             {t("toolbar.editStartPosShort", "Position")}
           </button>
         )}
-        <button id="btn-save"
-          className={`icon-button icon-button-text${isDirty ? " icon-button--dirty" : ""}`}
-          type="button"
-          title={t("toolbar.save", "Save game (Ctrl+S)")} disabled={!isDirty} onClick={onSave}>
-          {t("toolbar.saveShort", "Save")}
-        </button>
         <button id="btn-study" className="icon-button icon-button-text" type="button"
           title={t("toolbar.study", "Start study mode (Q/A prompts)")}
           disabled={studyItemCount === 0 || studyActive} onClick={onStartStudy}>
@@ -198,14 +134,6 @@ export const ToolbarRow = ({
           title={vsEngineActive ? t("toolbar.vsEngineStop", "Stop engine game") : t("toolbar.vsEngine", "Play vs engine")}
           disabled={!engineName} onClick={onVsEngineClick}>
           {vsEngineActive ? t("toolbar.vsEngineStopShort", "Stop") : t("toolbar.vsEngineShort", "vs Engine")}
-        </button>
-        <button id="btn-undo" className="icon-button" type="button"
-          title={t("toolbar.undo", "Undo")} disabled={!canUndo} onClick={onUndo}>
-          <img src="/icons/toolbar/undo.svg" alt={t("toolbar.undo", "Undo")} />
-        </button>
-        <button id="btn-redo" className="icon-button" type="button"
-          title={t("toolbar.redo", "Redo")} disabled={!canRedo} onClick={onRedo}>
-          <img src="/icons/toolbar/redo.svg" alt={t("toolbar.redo", "Redo")} />
         </button>
       </div>
     </div>

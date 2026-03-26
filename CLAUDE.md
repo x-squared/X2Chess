@@ -114,6 +114,7 @@ the same area) is a violation.
 - `web_import_5f6a7b8c.plan.md` — import positions/games from chess websites via rule-based URL adapters
 - `ota_updates_8d9e0f1a.plan.md` — OTA update channels: full app updater (Tauri) + rules server (data-only)
 - `game_links_f1a2b3c4.plan.md` — game-link annotations (`[%link recordId="..."]`) with chip rendering, hover preview, and open-in-new-tab navigation
+- `game_anchors_b4c5d6e7.plan.md` — named anchors (`[%anchor id="..." text="..."]`) at half-moves with in-game references, rich anchor picker, and position-preview hover
 
 ## Key types / entry points
 

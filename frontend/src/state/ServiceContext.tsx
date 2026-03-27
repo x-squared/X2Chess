@@ -159,6 +159,8 @@ export type AppStartupServices = {
   closeSession: (sessionId: string) => void;
 
   // ── Shell state ────────────────────────────────────────────────────────
+  /** Open the training curriculum panel (.x2plan). */
+  openCurriculumPanel: () => void;
   setMenuOpen: (open: boolean) => void;
   setDevDockOpen: (open: boolean) => void;
   setActiveDevTab: (tab: "ast" | "dom" | "pgn") => void;
@@ -209,6 +211,7 @@ const defaultServices: AppStartupServices = {
   explorePosition: async () => [],
   switchSession: noop,
   closeSession: noop,
+  openCurriculumPanel: noop,
   setMenuOpen: noop,
   setDevDockOpen: noop,
   setActiveDevTab: noop,

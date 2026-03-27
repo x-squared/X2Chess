@@ -35,6 +35,7 @@ keys as plain text columns. A definition system allows:
 | `select` | String | Dropdown (from defined value list) | Value label |
 | `number` | String | Numeric input | Right-aligned |
 | `flag` | String ("true"/"false") | Checkbox | ✓ / – |
+| `game_link` | String (target `recordId`) | Game picker (search by White/Black/Event within the same resource) | Link chip that navigates to the referenced game |
 
 `date` partial format rules:
 - Full: `dd.mm.yyyy` (e.g. `14.03.2024`)
@@ -47,7 +48,7 @@ keys as plain text columns. A definition system allows:
 ## MetadataDefinition type
 
 ```typescript
-type MetadataFieldType = "text" | "date" | "select" | "number" | "flag";
+type MetadataFieldType = "text" | "date" | "select" | "number" | "flag" | "game_link";
 
 type MetadataFieldDefinition = {
   key: string;               // PGN header key (e.g. "Event", "WhiteElo", "Category")
@@ -243,6 +244,7 @@ new import dialog), fields are rendered using their type-appropriate controls:
 | `select` | `<select>` dropdown with defined values + empty option |
 | `number` | Numeric `<input type="number">` |
 | `flag` | `<input type="checkbox">` |
+| `game_link` | Game picker — text search within the same resource; stores selected `recordId` |
 
 Required fields are marked with an asterisk (*). Saving with an empty
 required field shows an inline validation error (no modal interruption).

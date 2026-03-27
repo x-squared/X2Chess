@@ -482,6 +482,8 @@ export const useAppStartup = (): AppStartupServices => {
         }
         void bundle.sessionPersistence.persistActiveSessionNow();
       },
+      // Overridden by AppShell to open the curriculum panel.
+      openCurriculumPanel: (): void => {},
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [bundle, dispatch, syncStateToReact],

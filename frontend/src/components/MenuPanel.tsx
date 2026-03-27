@@ -221,6 +221,16 @@ export const MenuPanel = (): ReactElement => {
             {t("controls.saveNow", "Save now")}
           </button>
 
+          {/* Training plan */}
+          <button
+            id="btn-training-plan"
+            className="source-button"
+            type="button"
+            onClick={(): void => { services.setMenuOpen(false); services.openCurriculumPanel(); }}
+          >
+            {t("controls.trainingPlan", "Training Plan…")}
+          </button>
+
           {/* Web import rules */}
           <button
             id="btn-web-import-rules"

@@ -76,6 +76,7 @@ module splits, or performance work with no visible effect.
 | DB | SQLite .x2chess database |
 | STUDY | Study mode |
 | TRAINING | Training mode |
+| CURRICULUM | Training curriculum plan (.x2plan) |
 | WEBIMPORT | Web import (URL paste/drop) |
 | DEVTOOLS | Developer tools dock |
 | KB | Keyboard shortcuts |

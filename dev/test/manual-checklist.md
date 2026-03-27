@@ -6,7 +6,7 @@
 - To report a failure, reference the item ID (e.g. "BOARD-3 doesn't work — knight promotion menu doesn't appear").
 - Reset `[x]` back to `[ ]` whenever the item is re-opened by a later change.
 
-**Last updated:** 2026-03-25 (position preview on hover)
+**Last updated:** 2026-03-27 (curriculum training plan)
 
 ---
 
@@ -226,9 +226,14 @@
 - [ ] **DB-2** — Menu → Open database opens an existing `.x2chess` file.
 - [ ] **DB-3** — Saving a game into a DB resource creates or updates the record.
 - [ ] **DB-4** — Schema editor in the resource viewer allows adding/removing metadata fields.
-- [ ] **DB-5** — Custom metadata fields (text, number, date, select) appear in the game-info strip.
+- [ ] **DB-5** — Custom metadata fields (text, number, date, select, flag, game_link) appear in the game-info strip.
 - [ ] **DB-6** — Conflict on save (stale revision token) shows a clear error rather than silently failing.
 - [ ] **DB-7** — Importing a position game (PGN with `[SetUp "1"]` and `[FEN "..."]`) into a `.x2chess` DB creates a `Material` row in the metadata; the value is visible in the resource viewer.
+- [ ] **DB-8** — Adding a field in the schema editor with type `game_link` saves successfully and the type is preserved when reopening the editor.
+- [ ] **DB-9** — A `game_link` field in the game-info strip shows "None" and a "Pick…" button when empty; clicking "Pick…" opens the Game Picker dialog populated with games from the same resource.
+- [ ] **DB-10** — Selecting a game in the picker closes the dialog and displays the game's label (White vs Black, or the record ID if headers are absent) as a chip; the dirty flag is set.
+- [ ] **DB-11** — With a value set, the "Pick…" button reads "Change…"; clicking it re-opens the picker and replacing the selection updates the chip.
+- [ ] **DB-12** — Clicking the × button on a `game_link` chip clears the value; the chip disappears and the dirty flag is set.
 
 ---
 
@@ -248,6 +253,25 @@
 - [ ] **TRAINING-3** — Training badge (score chip) appears on the resource row after a session.
 - [ ] **TRAINING-4** — Training history strip in the text editor shows past session scores.
 - [ ] **TRAINING-5** — Aborting training mid-session records a partial result.
+
+---
+
+## CURRICULUM — Training curriculum plan (.x2plan)
+
+- [ ] **CURRICULUM-1** — Menu → "Training Plan…" closes the menu and opens the curriculum panel on the right side.
+- [ ] **CURRICULUM-2** — The plan title is editable inline; the updated title persists after closing and reopening the panel.
+- [ ] **CURRICULUM-3** — "Add Chapter" creates a new chapter at the bottom; clicking its title renames it inline.
+- [ ] **CURRICULUM-4** — "+ Task" under a chapter adds a new task; clicking the task title opens the edit form.
+- [ ] **CURRICULUM-5** — Saving a task with a valid resource path, record id, and method updates the task row and persists the plan.
+- [ ] **CURRICULUM-6** — A task with no linked game shows a "Link game" button instead of "Launch".
+- [ ] **CURRICULUM-7** — Clicking "Launch" on a linked task navigates to that game and opens the training launcher.
+- [ ] **CURRICULUM-8** — A task whose game has training history shows a score badge (e.g. "82%") next to the title.
+- [ ] **CURRICULUM-9** — Deleting a task removes it from the list; deleting a chapter removes the chapter and all its tasks.
+- [ ] **CURRICULUM-10** — "Export" downloads a `.x2plan` JSON file containing the current plan.
+- [ ] **CURRICULUM-11** — "Import" with a valid `.x2plan` file replaces the current plan and persists it.
+- [ ] **CURRICULUM-12** — "Import" with an invalid file shows an error alert and leaves the current plan unchanged.
+- [ ] **CURRICULUM-13** — "New" replaces the current plan with an empty one titled "Training Plan".
+- [ ] **CURRICULUM-14** — Closing and reopening the panel restores the last saved plan from localStorage.
 
 ---
 

@@ -158,7 +158,7 @@ export const KNOWN_PGN_METADATA_KEYS = Object.freeze([
 
 // ── User-defined schema types (MD1) ───────────────────────────────────────────
 
-export type MetadataFieldType = "text" | "date" | "select" | "number" | "flag";
+export type MetadataFieldType = "text" | "date" | "select" | "number" | "flag" | "game_link";
 
 export type MetadataFieldDefinition = {
   key: string;

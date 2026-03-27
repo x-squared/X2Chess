@@ -87,6 +87,8 @@ import { OPENING_PROTOCOL } from "../training/protocols/opening_protocol";
 import { TrainingHistoryStrip } from "../training/components/TrainingHistoryStrip";
 import { TrainingHistoryPanel } from "../training/components/TrainingHistoryPanel";
 import { TrainingLauncher } from "../training/components/TrainingLauncher";
+import { CurriculumPanel } from "../training/components/CurriculumPanel";
+import type { Task } from "../training/curriculum/curriculum_plan";
 import { TrainingOverlay } from "../training/components/TrainingOverlay";
 import { MoveOutcomeHint } from "../training/components/MoveOutcomeHint";
 import { TrainingResult } from "../training/components/TrainingResult";
@@ -247,6 +249,7 @@ export const AppShell = (): ReactElement => {
   const trainingControls = useTrainingSession([REPLAY_PROTOCOL, OPENING_PROTOCOL]);
   const [showTrainingLauncher, setShowTrainingLauncher] = useState(false);
   const [showTrainingHistory, setShowTrainingHistory] = useState(false);
+  const [showCurriculumPanel, setShowCurriculumPanel] = useState(false);
   const [showExtDbSettings, setShowExtDbSettings] = useState(false);
   const [pendingTrainingPromotion, setPendingTrainingPromotion] = useState<{
     from: string;
@@ -359,6 +362,7 @@ export const AppShell = (): ReactElement => {
   /** Services wired into the context — switchSession/closeSession guarded for dirty state. */
   const services: AppStartupServices = {
     ...rawServices,
+    openCurriculumPanel: (): void => { setShowCurriculumPanel(true); },
     switchSession: (sessionId: string): void => {
       if (isDirty && sessionId !== activeSession?.sessionId) {
         setPendingNavigate({ kind: "switch", sessionId });
@@ -375,6 +379,15 @@ export const AppShell = (): ReactElement => {
       }
     },
   };
+
+  // Curriculum: open game from a task ref and launch the training launcher.
+  const handleLaunchTaskFromCurriculum = useCallback((task: Task): void => {
+    if (task.ref) {
+      rawServices.openGameFromRef(task.ref);
+    }
+    setShowCurriculumPanel(false);
+    setShowTrainingLauncher(true);
+  }, [rawServices]);
 
   // T10: merge training transcript annotations back into the source game.
   const handleMergeResult = useCallback((selection: MergeSelection): void => {
@@ -905,6 +918,14 @@ export const AppShell = (): ReactElement => {
               </button>
             </div>
           </dialog>
+        )}
+        {/* ── Training curriculum panel ── */}
+        {showCurriculumPanel && (
+          <CurriculumPanel
+            onClose={(): void => { setShowCurriculumPanel(false); }}
+            onLaunchTask={handleLaunchTaskFromCurriculum}
+            t={t}
+          />
         )}
         {/* ── Web import browser panel (W4 — Tier 3) ── */}
         {browserPanelState !== null && (

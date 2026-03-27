@@ -2,25 +2,31 @@
  * MetadataFieldInput — type-appropriate input control for a metadata field.
  *
  * Renders the correct input widget based on `MetadataFieldDefinition.type`:
- * - `text`  → single-line `<input>`
- * - `date`  → three optional numeric fields (dd · mm · yyyy)
- * - `select` → `<select>` dropdown with defined values
- * - `number` → `<input type="number">`
- * - `flag`  → `<input type="checkbox">`
+ * - `text`      → single-line `<input>`
+ * - `date`      → three optional numeric fields (dd · mm · yyyy)
+ * - `select`    → `<select>` dropdown with defined values
+ * - `number`    → `<input type="number">`
+ * - `flag`      → `<input type="checkbox">`
+ * - `game_link` → game picker button + selected label; requires `resourceRef` and `t` props
  *
  * Integration API:
  * - `<MetadataFieldInput field={...} value={...} onChange={...} />`
+ * - For `game_link` fields also pass `resourceRef` and `t`.
  *
  * Configuration API:
- * - No global configuration.
+ * - `resourceRef` — required for `game_link`; identifies the resource to pick from.
+ * - `t`           — translator; required for `game_link`.
+ * - `gameLabel`   — optional cached display label for the current `game_link` value.
  *
  * Communication API:
  * - `onChange(value)` fires with the new string value on every change.
  *   Flag fields use "true"/"false". Date fields use partial dd.mm.yyyy notation.
+ *   Game-link fields emit the selected `recordId`, or `""` when cleared.
  */
 
-import { useCallback, type ReactElement, type ChangeEvent } from "react";
+import { useState, useCallback, type ReactElement, type ChangeEvent } from "react";
 import type { MetadataFieldDefinition } from "../../../resource/domain/metadata_schema";
+import { GamePickerDialog, type PickerRow } from "./GamePickerDialog";
 
 type MetadataFieldInputProps = {
   field: MetadataFieldDefinition;
@@ -28,6 +34,15 @@ type MetadataFieldInputProps = {
   onChange: (value: string) => void;
   /** Additional className applied to the root element. */
   className?: string;
+  /**
+   * Required for `game_link` fields: the resource the picker will load games from.
+   * Must be the same resource the game being edited belongs to.
+   */
+  resourceRef?: { kind: string; locator: string };
+  /** Translator function — required for `game_link` fields. */
+  t?: (key: string, fallback?: string) => string;
+  /** Cached human-readable label for the current `game_link` value (e.g. "White vs Black"). */
+  gameLabel?: string;
 };
 
 // ── Date input ────────────────────────────────────────────────────────────────
@@ -118,6 +133,77 @@ const DateInput = ({
   );
 };
 
+// ── Game-link input ───────────────────────────────────────────────────────────
+
+const GameLinkInput = ({
+  value,
+  onChange,
+  gameLabel,
+  resourceRef,
+  t: tFn,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  gameLabel?: string;
+  resourceRef?: { kind: string; locator: string };
+  t?: (key: string, fallback?: string) => string;
+}): ReactElement => {
+  const [pickerOpen, setPickerOpen] = useState<boolean>(false);
+  const t = tFn ?? ((_key: string, fallback = ""): string => fallback);
+
+  const handlePick = useCallback((): void => { setPickerOpen(true); }, []);
+  const handleClear = useCallback((): void => { onChange(""); }, [onChange]);
+
+  const handleSelect = useCallback(
+    (row: PickerRow): void => {
+      onChange(row.recordId);
+      setPickerOpen(false);
+    },
+    [onChange],
+  );
+
+  const handleCancel = useCallback((): void => { setPickerOpen(false); }, []);
+
+  const displayLabel: string = gameLabel || value;
+
+  return (
+    <span className="metadata-field-game-link">
+      <span className="metadata-field-game-link-label">
+        {displayLabel
+          ? <span className="metadata-field-game-link-chip">{displayLabel}</span>
+          : <span className="metadata-field-game-link-empty">{t("gamePicker.none", "None")}</span>}
+      </span>
+      {resourceRef && (
+        <button
+          type="button"
+          className="metadata-field-game-link-btn"
+          onClick={handlePick}
+        >
+          {value ? t("gamePicker.change", "Change…") : t("gamePicker.pick", "Pick…")}
+        </button>
+      )}
+      {value && (
+        <button
+          type="button"
+          className="metadata-field-game-link-clear"
+          aria-label={t("gamePicker.clear", "Clear")}
+          onClick={handleClear}
+        >
+          ×
+        </button>
+      )}
+      {pickerOpen && resourceRef && (
+        <GamePickerDialog
+          resourceRef={resourceRef}
+          onSelect={handleSelect}
+          onCancel={handleCancel}
+          t={t}
+        />
+      )}
+    </span>
+  );
+};
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 /**
@@ -129,6 +215,9 @@ export const MetadataFieldInput = ({
   value,
   onChange,
   className = "",
+  resourceRef,
+  t,
+  gameLabel,
 }: MetadataFieldInputProps): ReactElement => {
   const baseClass = `metadata-field-input${className ? ` ${className}` : ""}`;
 
@@ -178,6 +267,17 @@ export const MetadataFieldInput = ({
           onChange={(e: ChangeEvent<HTMLInputElement>): void => {
             onChange(e.target.checked ? "true" : "false");
           }}
+        />
+      );
+
+    case "game_link":
+      return (
+        <GameLinkInput
+          value={value}
+          onChange={onChange}
+          gameLabel={gameLabel}
+          resourceRef={resourceRef}
+          t={t}
         />
       );
 

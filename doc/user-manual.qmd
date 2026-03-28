@@ -1,6 +1,6 @@
 # X2Chess User Manual
 
-Last updated: 2026-03-25
+Last updated: 2026-03-28
 
 ## Who this manual is for
 
@@ -51,6 +51,38 @@ X2Chess has three main areas:
   - **Chess960** — tick the Chess960 checkbox to generate a random starting
     position following Chess960 rules.
 - Click **Create** to open the new game in the editor.
+
+### Importing games from other formats
+
+X2Chess can import game files in formats other than PGN. The importer converts
+the source file into games stored in your local collection.
+
+#### EPD (Extended Position Description)
+
+EPD files (`.epd`) contain one chess position per line. Each position is
+imported as a separate game starting from that position:
+
+- The `id` field in the EPD record becomes the **Event** header.
+- The `bm` (best move) field is recorded in the **Annotator** header.
+- Comment fields (`c0`–`c9`) and centipawn evaluations (`ce`) appear as a
+  comment after the position.
+- Blank lines and `#` comment lines are skipped.
+
+EPD import is available in all builds (browser and desktop).
+
+#### ChessBase databases (CBH, CBV)
+
+ChessBase `.cbh` and `.cbv` files can be imported on **desktop** (Tauri)
+builds. The app passes the file to the backend parser and converts all games
+to PGN for storage in your local `.x2chess` database.
+
+- `.cbh` — the main ChessBase database file (entry point for a CBH set).
+- `.cbv` — a compressed ChessBase archive containing a complete database.
+
+::: {.callout-note}
+ChessBase import requires the Tauri desktop build. It is not available in the
+browser version.
+:::
 
 ---
 
@@ -133,6 +165,33 @@ Use the **Plain / Text / Tree** buttons in the toolbar to switch layout:
 - Clicking a half-move opens a small popup with **insert comment before**, **Q/A**, and **insert comment after** actions.
 - The popup is rendered above nearby move tokens and comment text in both **Text** and **Tree** layouts.
 
+### Move symbols and evaluation symbols (NAG picker)
+
+Selecting a move in the editor shows a **symbol toolbar** above the editor
+content with three rows of annotation buttons:
+
+| Row | Symbols | Meaning |
+|---|---|---|
+| Move quality | ! &nbsp; ? &nbsp; !! &nbsp; ?? &nbsp; !? &nbsp; ?! | Good, mistake, brilliant, blunder, interesting, dubious |
+| Evaluation | = &nbsp; ∞ &nbsp; ⩲ &nbsp; ⩱ &nbsp; ± &nbsp; ∓ &nbsp; +- &nbsp; -+ | Equal, unclear, slight/clear/winning advantage for each side |
+| Positional | → &nbsp; ↑ &nbsp; ⇆ &nbsp; ⊠ &nbsp; □ &nbsp; △ &nbsp; ⊞ &nbsp; N &nbsp; =/∞ | Initiative, attack, counterplay, zugzwang, weak point, with the idea, better was, novelty, compensation |
+
+**How to use:**
+
+- Click any button to attach that symbol to the selected move. The symbol
+  appears immediately after the move in the editor.
+- Click an active (highlighted) symbol again to remove it.
+- Within each row, only one symbol can be active at a time — selecting a
+  different symbol in the same row replaces the previous one.
+- Symbols from different rows are independent and can all be set simultaneously.
+- The **→**, **↑**, and **⇆** positional symbols automatically use the
+  correct colour-specific code based on whose move it is — no manual selection
+  needed.
+- Symbol changes are part of the undo/redo history.
+
+Symbols are stored as standard NAG codes in the PGN (`$1`, `$2`, etc.) and
+are fully compatible with other chess software.
+
 ### Formatting within comments (Text mode)
 
 In Text layout mode, comments support two directives:
@@ -173,11 +232,39 @@ When no engine game is active, you can enter moves directly on the board:
 Use the **Flip board** button (below the board) to swap which side plays from
 the bottom.
 
+### Move destination hints
+
+Hover the mouse over any piece to see small dots appear on every square it can
+legally move to.  Squares that contain a capturable enemy piece show a ring
+instead of a dot.  The dots disappear as soon as you move the mouse away.
+
+### Board annotations — highlights and arrows
+
+You can draw coloured highlights and arrows on the board using the right mouse
+button.  Annotations are saved into the game's PGN and restored whenever you
+navigate back to the same position.
+
+| Gesture | Effect |
+|---------|--------|
+| Right-click a square | Toggle a **green** highlight on that square |
+| Shift + right-click a square | Toggle a **red** highlight on that square |
+| Right-click drag to another square | Toggle a **green** arrow |
+| Shift + right-click drag | Toggle a **red** arrow |
+| Right-click an existing highlight or arrow origin | **Remove** that shape |
+| Right-click an empty area of the board | **Clear all** shapes for the current move |
+
+Clicking or dragging again on an existing shape of the same colour removes it
+(toggle behaviour).
+
+Annotations are stored in the PGN using the standard `[%csl]` (squares) and
+`[%cal]` (arrows) comment extensions, so they are compatible with other chess
+software.
+
 ### Best-move hint
 
-Click the **Hint** button in the toolbar to highlight the engine's recommended
-move on the board. The hint clears automatically when you advance to the next
-move.
+Click the **Hint** button in the toolbar to show an arrow on the board
+indicating the engine's recommended move. The hint clears automatically when
+you advance to the next move.
 
 ### Editing the starting position
 

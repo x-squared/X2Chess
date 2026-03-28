@@ -25,6 +25,8 @@ import { GameSearchPanel } from "./GameSearchPanel";
 import { PositionSearchPanel } from "./PositionSearchPanel";
 import { TextSearchPanel } from "./TextSearchPanel";
 import { ResourceViewer } from "./ResourceViewer";
+import { SettingsPanel } from "./SettingsPanel";
+import type { ShapePrefs } from "../runtime/shape_prefs";
 
 type PanelId =
   | "resources"
@@ -34,7 +36,8 @@ type PanelId =
   | "collection"
   | "game-search"
   | "position-search"
-  | "text-search";
+  | "text-search"
+  | "settings";
 
 type RightPanelStackProps = {
   // Engine analysis
@@ -59,6 +62,9 @@ type RightPanelStackProps = {
   tbIsLoading: boolean;
   tbEnabled: boolean;
   onTbToggle: (enabled: boolean) => void;
+  // Settings
+  shapePrefs: ShapePrefs;
+  onShapePrefsChange: (prefs: ShapePrefs) => void;
   // Common
   t: (key: string, fallback?: string) => string;
   onMoveClick: (uci: string) => void;
@@ -75,6 +81,7 @@ const PANEL_TABS: Array<{ id: PanelId; label: string; labelKey: string }> = [
   { id: "game-search",     label: "Games",        labelKey: "panel.gameSearch" },
   { id: "position-search", label: "Position",     labelKey: "panel.positionSearch" },
   { id: "text-search",     label: "Text",         labelKey: "panel.textSearch" },
+  { id: "settings",        label: "Settings",     labelKey: "panel.settings" },
 ];
 
 export const RightPanelStack = ({
@@ -84,6 +91,7 @@ export const RightPanelStack = ({
   openingResult, openingIsLoading, openingSource, openingEnabled,
   onOpeningSourceChange, onOpeningToggle, onOpenSettings,
   tbResult, tbIsLoading, tbEnabled, onTbToggle,
+  shapePrefs, onShapePrefsChange,
   t, onMoveClick, onImportPgn, onOpenGame,
 }: RightPanelStackProps): ReactElement => {
   const [activePanel, setActivePanel] = useState<PanelId>("resources");
@@ -205,6 +213,15 @@ export const RightPanelStack = ({
           className="right-panel-content"
         >
           <TextSearchPanel t={t} onOpenGame={onOpenGame} />
+        </div>
+
+        <div
+          id="right-panel-settings"
+          role="tabpanel"
+          hidden={activePanel !== "settings"}
+          className="right-panel-content"
+        >
+          <SettingsPanel prefs={shapePrefs} onPrefsChange={onShapePrefsChange} t={t} />
         </div>
       </div>
     </div>

@@ -66,3 +66,46 @@
 .board cg-board square.move-dest {
   background: radial-gradient(rgba(52, 70, 163, 0.45) 24%, rgba(0, 0, 0, 0) 26%);
 }
+
+/* ── Move hints (hover destination dots) ────────────────────────────────────── */
+
+/* Neutral dot — empty destination square */
+.board cg-board square.move-hint-dot {
+  background: radial-gradient(rgba(52, 70, 163, 0.38) 24%, rgba(0, 0, 0, 0) 26%);
+}
+
+/* Neutral ring — destination with a capturable piece */
+.board cg-board square.move-hint-ring {
+  background: radial-gradient(
+    transparent 0%,
+    transparent 74%,
+    rgba(52, 70, 163, 0.38) 76%,
+    rgba(52, 70, 163, 0.38) 100%
+  );
+}
+
+/* Engine-coloured dot variants (populated when moveHintColors prop is set) */
+.board cg-board square.move-hint-dot-green  { background: radial-gradient(rgba(80, 180, 80, 0.65) 24%, rgba(0,0,0,0) 26%); }
+.board cg-board square.move-hint-dot-yellow { background: radial-gradient(rgba(210, 185, 30, 0.65) 24%, rgba(0,0,0,0) 26%); }
+.board cg-board square.move-hint-dot-red    { background: radial-gradient(rgba(210, 60, 60, 0.65) 24%, rgba(0,0,0,0) 26%); }
+.board cg-board square.move-hint-dot-blue   { background: radial-gradient(rgba(60, 130, 210, 0.65) 24%, rgba(0,0,0,0) 26%); }
+
+.board cg-board square.move-hint-ring-green  { background: radial-gradient(transparent 0%, transparent 74%, rgba(80, 180, 80, 0.65) 76%, rgba(80, 180, 80, 0.65) 100%); }
+.board cg-board square.move-hint-ring-yellow { background: radial-gradient(transparent 0%, transparent 74%, rgba(210, 185, 30, 0.65) 76%, rgba(210, 185, 30, 0.65) 100%); }
+.board cg-board square.move-hint-ring-red    { background: radial-gradient(transparent 0%, transparent 74%, rgba(210, 60, 60, 0.65) 76%, rgba(210, 60, 60, 0.65) 100%); }
+.board cg-board square.move-hint-ring-blue   { background: radial-gradient(transparent 0%, transparent 74%, rgba(60, 130, 210, 0.65) 76%, rgba(60, 130, 210, 0.65) 100%); }
+
+/* ── User-drawn square highlights ────────────────────────────────────────────
+   Default style: semi-transparent fill (shapes-fill mode).
+   Alternate style: coloured border only (shapes-frame mode).
+   Toggle by adding/removing .shapes-fill or .shapes-frame on .board.        */
+
+.board.shapes-fill cg-board square.user-shape-green  { background: rgba(103, 200, 103, 0.55); }
+.board.shapes-fill cg-board square.user-shape-red    { background: rgba(220,  80,  80, 0.55); }
+.board.shapes-fill cg-board square.user-shape-yellow { background: rgba(230, 205,  60, 0.55); }
+.board.shapes-fill cg-board square.user-shape-blue   { background: rgba( 70, 140, 220, 0.55); }
+
+.board.shapes-frame cg-board square.user-shape-green  { outline: 3px solid rgba(103, 200, 103, 0.85); outline-offset: -3px; }
+.board.shapes-frame cg-board square.user-shape-red    { outline: 3px solid rgba(220,  80,  80, 0.85); outline-offset: -3px; }
+.board.shapes-frame cg-board square.user-shape-yellow { outline: 3px solid rgba(230, 205,  60, 0.85); outline-offset: -3px; }
+.board.shapes-frame cg-board square.user-shape-blue   { outline: 3px solid rgba( 70, 140, 220, 0.85); outline-offset: -3px; }

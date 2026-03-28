@@ -17,7 +17,7 @@
 import { useState, useCallback, useRef } from "react";
 import { Chess } from "chess.js";
 import type { PgnModel, PgnMoveNode, PgnEntryNode } from "../model/pgn_model";
-import { insertCommentAroundMove } from "../model/pgn_commands";
+import { insertCommentAroundMove, toggleMoveNag } from "../model/pgn_commands";
 import type { EngineBestMove, MoveSearchOptions, EnginePosition } from "../../../engines/domain/analysis_types";
 
 type FindBestMoveFn = (position: EnginePosition, opts: MoveSearchOptions) => Promise<EngineBestMove | null>;
@@ -140,16 +140,9 @@ export const useGameAnnotation = (findBestMove: FindBestMoveFn): GameAnnotationS
           }
 
           if (nag) {
-            // Insert the NAG + optional comment.
-            const text = comment ? `${nag} {${comment}}` : nag;
-            const { model: updated } = insertCommentAroundMove(
-              workingModel,
-              moveNode.id,
-              "after",
-              text,
-            );
-            workingModel = updated;
-          } else if (comment) {
+            workingModel = toggleMoveNag(workingModel, moveNode.id, nag);
+          }
+          if (comment) {
             const { model: updated } = insertCommentAroundMove(
               workingModel,
               moveNode.id,

@@ -36,7 +36,9 @@ import {
   setCommentTextById,
   applyDefaultIndentDirectives,
 } from "../editor";
-import { setHeaderValue } from "../model";
+import { setHeaderValue, findMoveNode, toggleMoveNag } from "../model";
+import { serializeShapes, stripShapeAnnotations } from "../board/shape_serializer";
+import type { BoardShape } from "../board/board_shapes";
 import {
   DEFAULT_LOCALE,
   DEFAULT_APP_MODE,
@@ -50,6 +52,8 @@ import {
   resolveInitialLocale,
   MODE_STORAGE_KEY,
 } from "../runtime/bootstrap_prefs";
+import { readShapePrefs, writeShapePrefs } from "../runtime/shape_prefs";
+import type { ShapePrefs } from "../runtime/shape_prefs";
 import { useAppContext } from "../state/app_context";
 import type { AppStartupServices } from "../state/ServiceContext";
 import type { AppAction } from "../state/actions";
@@ -111,6 +115,8 @@ export const useAppStartup = (): AppStartupServices => {
     if (window.localStorage?.getItem("x2chess.positionPreviewOnHover") === "false") {
       dispatch({ type: "set_position_preview_on_hover", enabled: false });
     }
+    const savedShapePrefs: ShapePrefs = readShapePrefs();
+    dispatch({ type: "set_shape_prefs", prefs: savedShapePrefs });
 
     // 4. Load persisted layout mode.
     const savedLayout = window.localStorage?.getItem("x2chess.pgnLayout");
@@ -236,6 +242,47 @@ export const useAppStartup = (): AppStartupServices => {
         if (newModel) {
           bundle.applyModelUpdate(newModel, null, { recordHistory: true });
         }
+      },
+      saveBoardShapes: (moveId: string, shapes: BoardShape[]): void => {
+        // Validate the move exists in the current model.
+        if (!findMoveNode(bundle.legacyState.pgnModel as PgnModel, moveId)) return;
+
+        // Find or create the "after" comment for this move.
+        let commentId: string | null = findExistingCommentIdAroundMove(
+          bundle.legacyState.pgnModel,
+          moveId,
+          "after",
+        );
+        let workingModel: unknown = bundle.legacyState.pgnModel;
+
+        if (!commentId) {
+          if (shapes.length === 0) return; // Nothing to do — no comment, no shapes.
+          const result = insertCommentAroundMove(workingModel, moveId, "after", "");
+          if (!result.insertedCommentId) return;
+          commentId = result.insertedCommentId;
+          workingModel = result.model;
+        }
+
+        // Read existing raw text, strip old shape annotations, append new ones.
+        const existingRaw: string | null = getCommentRawById(workingModel, commentId);
+        const stripped: string = stripShapeAnnotations(existingRaw ?? "");
+        const shapePart: string = serializeShapes(shapes);
+        const newRaw: string = [stripped, shapePart].filter(Boolean).join(" ");
+
+        const updatedModel = setCommentTextById(workingModel, commentId, newRaw);
+        if (updatedModel) {
+          bundle.applyModelUpdate(updatedModel, null, {
+            recordHistory: true,
+            preferredLayoutMode: bundle.legacyState.pgnLayoutMode,
+          });
+        }
+      },
+      toggleMoveNag: (moveId: string, nag: string): void => {
+        const newModel = toggleMoveNag(bundle.legacyState.pgnModel, moveId, nag);
+        bundle.applyModelUpdate(newModel, null, {
+          recordHistory: true,
+          preferredLayoutMode: bundle.legacyState.pgnLayoutMode,
+        });
       },
       updateGameInfoHeader: (key: string, rawValue: string): void => {
         const normalizedValue: string = normalizeGameInfoHeaderValue(key, rawValue);
@@ -465,6 +512,10 @@ export const useAppStartup = (): AppStartupServices => {
         bundle.legacyState.isDeveloperToolsEnabled = enabled;
         dispatch({ type: "set_dev_tools_enabled", enabled });
         window.localStorage?.setItem(MODE_STORAGE_KEY, String(enabled));
+      },
+      setShapePrefs: (prefs: ShapePrefs): void => {
+        writeShapePrefs(prefs);
+        dispatch({ type: "set_shape_prefs", prefs });
       },
       setSaveMode: (mode: string): void => {
         const saveMode: "auto" | "manual" = mode === "manual" ? "manual" : "auto";

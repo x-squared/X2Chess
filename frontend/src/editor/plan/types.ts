@@ -9,6 +9,8 @@
 
 // ── Patterns ──────────────────────────────────────────────────────────────────
 
+import { nagGlyph } from "../../model/nag_defs";
+
 /** Matches any break marker variant (canonical + legacy aliases). */
 const NEWLINE_PATTERN: RegExp = /(?:\[\[br\]\]|<br\s*\/?>|\\n|\n)/gi;
 
@@ -372,7 +374,7 @@ export const buildVariationWalker = (
     state.firstMoveEmitted = true;
     addSpace(state);
     entry.nags.forEach((nag: string): void => {
-      addTextWithBreaks(state, nag, "text-editor-nag", "nag", { moveId: entry.id });
+      addTextWithBreaks(state, nagGlyph(nag), "text-editor-nag", "nag", { moveId: entry.id });
       addSpace(state);
     });
 
@@ -475,7 +477,7 @@ export const buildVariationWalker = (
     },
     nag: (entry: PgnEntry, _variation: PgnVariation, state: PlanState): void => {
       if (entry.type !== "nag") return;
-      addTextWithBreaks(state, entry.text, "text-editor-nag", "nag", { nodeId: entry.id || "" });
+      addTextWithBreaks(state, nagGlyph(entry.text), "text-editor-nag", "nag", { nodeId: entry.id || "" });
       addSpace(state);
     },
     move: emitMove,

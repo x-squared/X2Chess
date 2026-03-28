@@ -1,14 +1,12 @@
 import { Chess } from "chess.js";
 import { Chessground } from "chessground";
+import { isBoardKey } from "./board_shapes";
+import type { BoardKey } from "./board_shapes";
 type ChessgroundApi = ReturnType<typeof Chessground>;
-type File = "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h";
-type Rank = "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8";
-type Key = `${File}${Rank}`;
-type KeyPair = [Key, Key];
+type KeyPair = [BoardKey, BoardKey];
 
 type VerboseMoveLike = { from?: string; to?: string };
 
-const isBoardKey = (value: string): value is Key => /^[a-h][1-8]$/.test(value);
 export type BoardPreviewLike = { fen: string; lastMove?: KeyPair | null };
 
 type BoardRuntimeState = {

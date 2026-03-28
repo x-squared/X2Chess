@@ -4,7 +4,8 @@
  * Integration API:
  * - Exports: `PgnCursor`, `appendMove`, `insertVariation`, `replaceMove`,
  *   `truncateAfter`, `truncateBefore`, `deleteVariation`,
- *   `deleteVariationsAfter`, `promoteToMainline`, `findCursorForMoveId`.
+ *   `deleteVariationsAfter`, `promoteToMainline`, `findCursorForMoveId`,
+ *   `findMoveSideById`.
  *
  * Configuration API:
  * - None.
@@ -132,6 +133,23 @@ export const findCursorForMoveId = (
   const loc = locateMove(model, moveId);
   if (!loc) return null;
   return { moveId, variationId: loc.variation.id };
+};
+
+/**
+ * Find the `PgnMoveNode` with `moveId` in `model`.
+ * Returns `null` if no such move exists (e.g. the model has been replaced).
+ *
+ * @param model  - The PGN model to search.
+ * @param moveId - The move node's `id` field.
+ */
+export const findMoveNode = (
+  model: PgnModel,
+  moveId: string,
+): PgnMoveNode | null => {
+  const loc = locateMove(model, moveId);
+  if (!loc) return null;
+  const entry = loc.variation.entries[loc.index];
+  return entry?.type === "move" ? (entry as PgnMoveNode) : null;
 };
 
 /**
@@ -392,6 +410,57 @@ export const promoteToMainline = (
     cloned,
     { moveId: cursor.moveId, variationId: parentLoc.variation.id },
   ];
+};
+
+/**
+ * Determine which side ("white" | "black") plays the move with `moveId`.
+ *
+ * The starting side is read from the `[FEN]` header field 2 (default "w" = white).
+ * Ply index is computed by walking the tree from the root:
+ * - Each move in a variation increments the ply counter.
+ * - RAVs attached to move M start at the same ply as M (they replay from the
+ *   position before M, so their first move is at M's ply).
+ *
+ * Returns `null` if `moveId` is not found in the model.
+ *
+ * @param model  - PGN model to search.
+ * @param moveId - Target move node ID.
+ */
+export const findMoveSideById = (
+  model: PgnModel,
+  moveId: string,
+): "white" | "black" | null => {
+  const fenHeader = model.headers.find((h) => h.key === "FEN")?.value;
+  let startSide: "white" | "black" = "white";
+  if (fenHeader) {
+    const parts = fenHeader.trim().split(/\s+/);
+    if (parts[1] === "b") startSide = "black";
+  }
+
+  // Returns the 0-based ply index of moveId, or null.
+  const findPly = (
+    variation: PgnVariationNode,
+    startPly: number,
+  ): number | null => {
+    let ply = startPly;
+    for (const entry of variation.entries) {
+      if (entry.type !== "move") continue;
+      const move = entry as PgnMoveNode;
+      if (move.id === moveId) return ply;
+      // RAVs start from the same ply as the current move (before increment).
+      for (const rav of move.ravs) {
+        const found = findPly(rav, ply);
+        if (found !== null) return found;
+      }
+      ply++;
+    }
+    return null;
+  };
+
+  const ply = findPly(model.root, 0);
+  if (ply === null) return null;
+  const isWhiteStart = startSide === "white";
+  return (ply % 2 === 0) === isWhiteStart ? "white" : "black";
 };
 
 /**

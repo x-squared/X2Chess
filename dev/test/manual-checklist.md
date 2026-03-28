@@ -6,7 +6,7 @@
 - To report a failure, reference the item ID (e.g. "BOARD-3 doesn't work — knight promotion menu doesn't appear").
 - Reset `[x]` back to `[ ]` whenever the item is re-opened by a later change.
 
-**Last updated:** 2026-03-27 (curriculum training plan)
+**Last updated:** 2026-03-28 (NAG picker, format importers)
 
 ---
 
@@ -129,6 +129,17 @@
 - [ ] **PGNEDIT-38** — With "Position preview on hover" re-enabled, the popup reappears on hover.
 - [ ] **PGNEDIT-39** — The popup does not affect the main board position; board navigation state is unchanged.
 - [ ] **PGNEDIT-40** — Near the bottom or right viewport edge, the popup flips/clamps so it stays fully visible.
+- [ ] **PGNEDIT-41** — Clicking a half-move shows the NAG picker toolbar above the editor content; clicking elsewhere deselects the move and hides the picker.
+- [ ] **PGNEDIT-42** — NAG picker shows three rows: move quality (!  ?  !!  ??  !?  ?!), evaluation (= ∞ ⩲ ⩱ ± ∓ +- -+), and positional symbols.
+- [ ] **PGNEDIT-43** — Clicking a move-quality button (e.g. ?) attaches the NAG to the move; the symbol appears immediately after the SAN in the editor.
+- [ ] **PGNEDIT-44** — NAG codes render as Unicode glyphs in all editor modes (plain/text/tree), not as raw `$1` / `$2` codes.
+- [ ] **PGNEDIT-45** — Clicking the same active symbol again removes it (toggle off); the symbol disappears from the editor.
+- [ ] **PGNEDIT-46** — Selecting a different symbol in the same group replaces the previous one (e.g. clicking `?` when `!` is active: `!` disappears, `?` appears).
+- [ ] **PGNEDIT-47** — Evaluation symbols (±, ∓, +-, etc.) follow the same toggle/replace behaviour within their group independently of move-quality symbols.
+- [ ] **PGNEDIT-48** — Positional symbols (→ initiative, ↑ attack, ⇆ counterplay, ⊠ zugzwang, □ weak point, △ with the idea, ⊞ better was, N novelty, =/∞ compensation) can be toggled independently.
+- [ ] **PGNEDIT-49** — The → (initiative), ↑ (attack), and ⇆ (counterplay) buttons apply the colour-correct NAG code: White's move → `$32`/`$36`/`$40`; Black's move → `$33`/`$37`/`$41`.
+- [ ] **PGNEDIT-50** — NAG changes are undoable via Cmd/Ctrl+Z.
+- [ ] **PGNEDIT-51** — After saving, the PGN file contains the correct `$N` codes for the applied symbols.
 
 ---
 
@@ -176,7 +187,7 @@
 ## ANNOTATE — Auto-annotation
 
 - [ ] **ANNOTATE-1** — Menu → Annotate game runs the engine over all moves.
-- [ ] **ANNOTATE-2** — Blunders/mistakes/inaccuracies are marked with `?!` / `?` / `??` comments in the PGN.
+- [ ] **ANNOTATE-2** — Blunders/mistakes/inaccuracies receive NAG symbols (?! / ? / ??) attached directly to the move node; they render as Unicode glyphs in the editor.
 - [ ] **ANNOTATE-3** — Annotation completes and the dirty flag is set (changes need saving).
 
 ---
@@ -310,6 +321,17 @@
 - [ ] **OTA-5** — Clicking "Later" dismisses the banner for the current session; it does not reappear until the next startup.
 - [ ] **OTA-6** — If the update download fails, the banner shows an error message (not a crash).
 - [ ] **OTA-7** — The update check is skipped entirely in the browser (non-Tauri) build.
+
+---
+
+## IMPORT — Format importers (EPD, ChessBase)
+
+- [ ] **IMPORT-1** — Importing an `.epd` file produces one PGN game per non-blank line; each game has `[SetUp "1"]` and a valid 6-field `[FEN]` header.
+- [ ] **IMPORT-2** — An EPD `id` opcode sets the `[Event]` header of the resulting PGN game.
+- [ ] **IMPORT-3** — An EPD `bm` opcode sets the `[Annotator]` header (e.g. `bm: Nf6`).
+- [ ] **IMPORT-4** — EPD `c0`–`c9` comments and `ce` evaluations appear as a comment block in the PGN body.
+- [ ] **IMPORT-5** — Blank lines and `#`-prefixed comment lines in an `.epd` file are silently skipped.
+- [ ] **IMPORT-6** — A `.cbh` or `.cbv` file triggers the `import_chessbase_file` Tauri command; on success games are imported into the active `.x2chess` database. (Requires Rust backend implementation — stub only until then.)
 
 ---
 

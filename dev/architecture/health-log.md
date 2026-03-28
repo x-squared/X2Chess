@@ -78,6 +78,40 @@ All violations and the P10 risk are tracked in `dev/plans/codebase_health_7f3a91
 
 ---
 
+## 2026-03-28 — Post-feature review: board shapes + move hints
+
+**Reviewer:** Claude + Stephan
+**Scope:** Focused review of the board_shapes and move_hints_hover features against architectural principles.
+**Reference:** `dev/plans/board_shapes_3f4a5b6c.plan.md`, `dev/plans/move_hints_hover_d4e5f6a7.plan.md`
+
+| Principle | Status | Evidence / Notes |
+|-----------|--------|-----------------|
+| P01 | Clean | All new `board/` modules are DOM-event-only (no `document.querySelector`); `ChessBoard.tsx` owns all Chessground rendering. |
+| P02 | Clean | No new Tauri `invoke` calls introduced. |
+| P03 | Clean | Single rendering owner maintained: ChessBoard is the only component writing to Chessground. |
+| P05 | Clean | `selectAnnotationShapes` is a pure derived selector; no reducer mutation. |
+| P07 | Clean | `selectAnnotationShapes` and `selectSelectedMoveId` added to `selectors.ts` and used via selector pattern. |
+| P08 | Clean | `board/` modules do not import from `resource/`; boundary preserved. |
+| P16 | Clean | `tsc --noEmit` passes with 0 errors. |
+| P22 | Clean | 22 new tests added (shape_parser + move_hints); 472/472 pass. |
+
+**New modules added:**
+- `board/board_shapes.ts` — shared `BoardKey`, `BoardShape`, `ShapePresets` types.
+- `board/shape_parser.ts` — `parseShapes()` for `[%csl]`/`[%cal]`.
+- `board/shape_serializer.ts` — `serializeShapes()` + `stripShapeAnnotations()`.
+- `board/drawable_gestures.ts` — right-click gesture handler (highlight/arrow draw/erase).
+- `board/move_hints.ts` — `computeMoveHints()`.
+- `board/hover_listener.ts` — piece-hover event delegation.
+
+**Service added:** `saveBoardShapes(moveId, shapes)` in `ServiceContext` + `useAppStartup`.
+
+**Trend notes:**
+- `hintMove` prop removed from `ChessBoard`; replaced by general-purpose `overlayShapes: BoardShape[]`.
+- Engine-coloured hover dots ready to be wired once engine integration supplies `moveHintColors`.
+- `shapes-fill` style applied by default; `shapes-frame` toggle deferred to Settings UI.
+
+---
+
 <!-- Template for next entry:
 
 ## YYYY-MM-DD — [scope]

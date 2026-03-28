@@ -24,6 +24,8 @@ import type { PgnModel } from "../model/pgn_model";
 import type { PositionSearchHit, TextSearchHit } from "../../../resource/client/search_coordinator";
 import type { MoveFrequencyEntry } from "../../../resource/domain/move_frequency";
 import type { PgnResourceRef } from "../../../resource/domain/resource_ref";
+import type { BoardShape } from "../board/board_shapes";
+import type { ShapePrefs } from "../runtime/shape_prefs";
 
 /** All service operations available to the component tree. */
 export type AppStartupServices = {
@@ -72,11 +74,31 @@ export type AppStartupServices = {
   /** Apply default indentation directives to the current model. */
   applyDefaultIndent: () => void;
   /**
+   * Persist board shape annotations (`[%csl]`/`[%cal]`) for the given move
+   * into the move's "after" comment.  Creates the comment if absent; strips
+   * and replaces any existing shape blocks.  Passing an empty array removes
+   * all shape annotations for the move.
+   *
+   * @param moveId - PGN model node ID of the move to annotate.
+   * @param shapes - New full set of shapes for this move.
+   */
+  saveBoardShapes: (moveId: string, shapes: BoardShape[]) => void;
+  /**
    * Update a single PGN header tag value.
    * @param key - Header key, e.g. "White", "Date".
    * @param value - Raw value from the UI (will be normalized before applying).
    */
   updateGameInfoHeader: (key: string, value: string) => void;
+  /**
+   * Toggle a NAG symbol on the given move with within-group exclusivity.
+   * Selecting an already-active NAG removes it; selecting a different NAG in
+   * the same group replaces the previous one.
+   * @param moveId - PGN model node ID of the target move.
+   * @param nag    - NAG code to toggle, e.g. "$1". Color-specific codes
+   *                 ($32/$33, $36/$37, $40/$41) should be pre-resolved to the
+   *                 correct side by the caller using `colorPairCode`.
+   */
+  toggleMoveNag: (moveId: string, nag: string) => void;
 
   // ── Move entry ─────────────────────────────────────────────────────────
   /**
@@ -170,6 +192,12 @@ export type AppStartupServices = {
   setSoundEnabled: (enabled: boolean) => void;
   setPositionPreviewOnHover: (enabled: boolean) => void;
   setDeveloperToolsEnabled: (enabled: boolean) => void;
+  /**
+   * Persist updated board decoration preferences (shape colors, highlight style,
+   * move hints toggle) to localStorage and propagate into app state.
+   * @param prefs - Complete new preferences object.
+   */
+  setShapePrefs: (prefs: ShapePrefs) => void;
   setSaveMode: (mode: string) => void;
   saveActiveGameNow: () => void;
   /**
@@ -195,7 +223,9 @@ const defaultServices: AppStartupServices = {
   focusCommentAroundMove: noop,
   saveCommentText: noop,
   applyDefaultIndent: noop,
+  saveBoardShapes: noop,
   updateGameInfoHeader: noop,
+  toggleMoveNag: noop,
   applyPgnModelEdit: noop,
   undo: noop,
   redo: noop,
@@ -221,6 +251,7 @@ const defaultServices: AppStartupServices = {
   setSoundEnabled: noop,
   setPositionPreviewOnHover: noop,
   setDeveloperToolsEnabled: noop,
+  setShapePrefs: noop,
   setSaveMode: noop,
   saveActiveGameNow: noop,
   saveSessionById: noop,

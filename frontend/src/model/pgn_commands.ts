@@ -2,7 +2,11 @@
  * PGN Commands module.
  *
  * Integration API:
- * - Primary exports from this module: `setCommentTextById`, `removeCommentById`, `getFirstCommentMetadata`, `setFirstCommentIntroRole`, `toggleFirstCommentIntroRole`, `resolveOwningMoveIdForCommentId`, `findExistingCommentIdAroundMove`, `applyDefaultIndentDirectives`, `insertCommentAroundMove`.
+ * - Primary exports from this module: `setCommentTextById`, `removeCommentById`,
+ *   `getFirstCommentMetadata`, `setFirstCommentIntroRole`, `toggleFirstCommentIntroRole`,
+ *   `resolveOwningMoveIdForCommentId`, `findExistingCommentIdAroundMove`,
+ *   `applyDefaultIndentDirectives`, `insertCommentAroundMove`,
+ *   `toggleMoveNag`.
  *
  * Configuration API:
  * - All behavior is configured through typed function arguments (`model`, `moveId`, `commentId`, `position`, `rawText`) and internal traversal callbacks.
@@ -12,6 +16,7 @@
  */
 
 import { parseCommentRuns } from "./pgn_model";
+import { siblingCodesInGroup } from "./nag_defs";
 
 type PgnComment = {
   id: string;
@@ -33,6 +38,7 @@ type PgnPostItem =
 type PgnMove = {
   type: "move";
   id: string;
+  nags: string[];
   commentsBefore: PgnComment[];
   commentsAfter: PgnComment[];
   ravs: PgnVariation[];
@@ -561,4 +567,60 @@ export const insertCommentAroundMove = (model: unknown, moveId: string, position
     insertedCommentId: inserted ? comment.id : null,
     created: Boolean(inserted),
   };
+};
+
+// ── NAG mutation ──────────────────────────────────────────────────────────────
+
+/**
+ * Toggle a NAG on the target move with within-group exclusivity.
+ *
+ * - If `nag` is already present on the move → removes it (toggle off).
+ * - Otherwise → adds `nag`, removing all other NAGs in the same NAG group first.
+ *
+ * Group membership is resolved via `siblingCodesInGroup` from `nag_defs`.
+ * If the NAG code is unknown (not in the registry), the toggle operates
+ * without group exclusivity (unknown NAGs are freely addable/removable).
+ *
+ * Returns a new `PgnModel`, or the original model unchanged if `moveId` is
+ * not found.
+ *
+ * @param model  - Source PGN model.
+ * @param moveId - Target move node ID.
+ * @param nag    - NAG code to toggle, e.g. "$1".
+ */
+export const toggleMoveNag = (
+  model: unknown,
+  moveId: string,
+  nag: string,
+): PgnModel => {
+  const typedModel = model as PgnModel;
+  if (!typedModel?.root) return typedModel;
+
+  const next = cloneModel(typedModel);
+  if (!next.root) return typedModel;
+
+  let found = false;
+  visitVariation(
+    next.root,
+    (move: PgnMove): void => {
+      if (move.id !== moveId) return;
+      found = true;
+      const nags: string[] = move.nags;
+      const alreadyPresent = nags.includes(nag);
+      if (alreadyPresent) {
+        // Toggle off: remove the NAG.
+        nags.splice(nags.indexOf(nag), 1);
+      } else {
+        // Toggle on: remove siblings in the same group, then add.
+        for (const sibling of siblingCodesInGroup(nag)) {
+          const si = nags.indexOf(sibling);
+          if (si !== -1) nags.splice(si, 1);
+        }
+        nags.push(nag);
+      }
+    },
+    (): void => {},
+  );
+
+  return found ? next : typedModel;
 };

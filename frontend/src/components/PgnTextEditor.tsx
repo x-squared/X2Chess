@@ -45,6 +45,8 @@ import {
   deleteVariationsAfter,
   promoteToMainline,
   findCursorForMoveId,
+  findMoveNode,
+  findMoveSideById,
 } from "../model/pgn_move_ops";
 import { TruncationMenu } from "./TruncationMenu";
 import type { TruncationAction } from "./TruncationMenu";
@@ -86,6 +88,8 @@ import { resolveAnchors } from "../editor/resolveAnchors";
 import type { ResolvedAnchor } from "../editor/resolveAnchors";
 import { AnchorDefDialog } from "./AnchorDefDialog";
 import { AnchorPickerDialog } from "./AnchorPickerDialog";
+import { NagPicker } from "./NagPicker";
+import type { PgnModel } from "../model/pgn_model";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -1017,6 +1021,25 @@ export const PgnTextEditor = (): ReactElement => {
     };
   }, [services]);
 
+  // ── NAG picker data (derived from selected move) ───────────────────────────
+  const selectedMoveNags: readonly string[] = useMemo((): readonly string[] => {
+    if (!selectedMoveId || !pgnModel) return [];
+    return findMoveNode(pgnModel as PgnModel, selectedMoveId)?.nags ?? [];
+  }, [selectedMoveId, pgnModel]);
+
+  const selectedMoveSide: "white" | "black" = useMemo((): "white" | "black" => {
+    if (!selectedMoveId || !pgnModel) return "white";
+    return findMoveSideById(pgnModel as PgnModel, selectedMoveId) ?? "white";
+  }, [selectedMoveId, pgnModel]);
+
+  const handleToggleNag = useCallback(
+    (nag: string): void => {
+      if (!selectedMoveId) return;
+      services.toggleMoveNag(selectedMoveId, nag);
+    },
+    [selectedMoveId, services],
+  );
+
   if (!pgnModel) {
     return (
       <div className="text-editor text-editor-empty">
@@ -1029,6 +1052,14 @@ export const PgnTextEditor = (): ReactElement => {
 
   return (
     <div className="text-editor" data-layout-mode={layoutMode}>
+      {selectedMoveId !== null && (
+        <NagPicker
+          moveId={selectedMoveId}
+          currentNags={selectedMoveNags}
+          moveSide={selectedMoveSide}
+          onToggle={handleToggleNag}
+        />
+      )}
       {layoutMode === "tree" ? (
         <TreeModeView
           blocks={blocks}

@@ -78,6 +78,7 @@ module splits, or performance work with no visible effect.
 | TRAINING | Training mode |
 | CURRICULUM | Training curriculum plan (.x2plan) |
 | WEBIMPORT | Web import (URL paste/drop) |
+| IMPORT | Format importers (EPD, ChessBase, etc.) |
 | DEVTOOLS | Developer tools dock |
 | KB | Keyboard shortcuts |
 

@@ -33,6 +33,7 @@ import { useAppContext } from "../state/app_context";
 import {
   selectBoardFlipped,
   selectCurrentPly,
+  selectSelectedMoveId,
   selectLayoutMode,
   selectMoveCount,
   selectUndoDepth,
@@ -43,6 +44,7 @@ import {
   selectSessions,
   selectActiveSessionId,
   selectDevToolsEnabled,
+  selectShapePrefs,
 } from "../state/selectors";
 import { useTranslator } from "../hooks/useTranslator";
 import { useAppStartup } from "../hooks/useAppStartup";
@@ -69,6 +71,8 @@ import { DevDock } from "./DevDock";
 import { GameInfoEditor } from "./GameInfoEditor";
 import { GameSessionsPanel } from "./GameSessionsPanel";
 import { ChessBoard } from "./ChessBoard";
+import type { BoardShape, BoardKey } from "../board/board_shapes";
+import { isBoardKey } from "../board/board_shapes";
 import { PgnTextEditor } from "./PgnTextEditor";
 import { ToolbarRow } from "./ToolbarRow";
 import { TextEditorSidebar } from "./TextEditorSidebar";
@@ -107,6 +111,7 @@ const fenAtPly = (sanMoves: string[], ply: number): string => {
 export const AppShell = (): ReactElement => {
   const { state, dispatch } = useAppContext();
   const currentPly: number = selectCurrentPly(state);
+  const selectedMoveId: string | null = selectSelectedMoveId(state);
   const moveCount: number = selectMoveCount(state);
   const layoutMode: "plain" | "text" | "tree" = selectLayoutMode(state);
   const undoDepth: number = selectUndoDepth(state);
@@ -118,6 +123,7 @@ export const AppShell = (): ReactElement => {
   const devToolsEnabled: boolean = selectDevToolsEnabled(state);
   const boardFlipped: boolean = selectBoardFlipped(state);
   const positionPreviewOnHover: boolean = selectPositionPreviewOnHover(state);
+  const shapePrefs = selectShapePrefs(state);
   const activeSession = sessions.find((s) => s.sessionId === activeSessionId);
   const t: (key: string, fallback?: string) => string = useTranslator();
   const { showPreview, hidePreview } = useHoverPreview();
@@ -203,17 +209,21 @@ export const AppShell = (): ReactElement => {
   const [studyAnnotIndex, setStudyAnnotIndex] = useState(0);
 
   // G7: best-move hint — extract first move of top variation, clear when ply changes.
-  const [hintMove, setHintMove] = useState<{ from: string; to: string } | null>(null);
-  useEffect((): void => { setHintMove(null); }, [currentPly]);
+  const [hintShapes, setHintShapes] = useState<BoardShape[]>([]);
+  useEffect((): void => { setHintShapes([]); }, [currentPly]);
   const handleShowHint = useCallback((): void => {
     const bestPv = variations[0]?.pv;
     if (!bestPv?.length) {
       startAnalysis({ fen: currentFen, moves: [] });
       return;
     }
-    const uciMove = bestPv[0];
+    const uciMove: string | undefined = bestPv[0];
     if (uciMove && uciMove.length >= 4) {
-      setHintMove({ from: uciMove.slice(0, 2), to: uciMove.slice(2, 4) });
+      const from: string = uciMove.slice(0, 2);
+      const to: string = uciMove.slice(2, 4);
+      if (isBoardKey(from) && isBoardKey(to)) {
+        setHintShapes([{ kind: "arrow", from, to, color: "green" }]);
+      }
     }
   }, [variations, currentFen, startAnalysis]);
 
@@ -333,12 +343,16 @@ export const AppShell = (): ReactElement => {
     if (!fen) return;
     void findBestMove({ fen, moves: [] }, { movetime: 1500 }).then((best) => {
       if (!best) return;
-      const uci = best.uci;
+      const uci: string = best.uci;
       if (uci.length >= 4) {
-        setHintMove({ from: uci.slice(0, 2), to: uci.slice(2, 4) });
+        const from: string = uci.slice(0, 2);
+        const to: string = uci.slice(2, 4);
+        if (isBoardKey(from) && isBoardKey(to)) {
+          setHintShapes([{ kind: "arrow", from, to, color: "green" }]);
+        }
       }
     });
-  }, [trainingControls, findBestMove, setHintMove]);
+  }, [trainingControls, findBestMove]);
 
   const isDirty: boolean =
     activeSession?.dirtyState === "dirty" || activeSession?.dirtyState === "error";
@@ -569,7 +583,17 @@ export const AppShell = (): ReactElement => {
           {/* ── Board / editor split pane ── */}
           <div ref={boardEditorBoxRef} id="board-editor-box" className="board-editor-box">
             {/* Chessboard */}
-            <ChessBoard onMovePlayed={effectiveOnMovePlayed} hintMove={hintMove} />
+            <ChessBoard
+                onMovePlayed={effectiveOnMovePlayed}
+                overlayShapes={hintShapes}
+                onShapesChanged={(shapes: BoardShape[]): void => {
+                  if (!selectedMoveId) return;
+                  services.saveBoardShapes(selectedMoveId, shapes);
+                }}
+                presets={{ primary: shapePrefs.primaryColor, secondary: shapePrefs.secondaryColor }}
+                squareStyle={shapePrefs.squareStyle}
+                showMoveHints={shapePrefs.showMoveHints}
+              />
 
             {/* Study mode overlay (UV12) */}
             {currentStudyItem && (
@@ -696,6 +720,8 @@ export const AppShell = (): ReactElement => {
             tbIsLoading={tablebase.isLoading}
             tbEnabled={tablebase.enabled}
             onTbToggle={tablebase.setEnabled}
+            shapePrefs={shapePrefs}
+            onShapePrefsChange={services.setShapePrefs}
             t={t}
             onMoveClick={handlePanelMoveClick}
             onImportPgn={services.openPgnText}

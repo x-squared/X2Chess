@@ -10,6 +10,7 @@
  */
 
 import type { PlanState, PgnComment, PgnEntry, PgnModel, PgnMove, PgnVariation } from "./types";
+import { nagGlyph } from "../../model/nag_defs";
 import {
   addCommentToken,
   addInlineToken,
@@ -162,7 +163,7 @@ const emitTreeVariation = (
     }
 
     if (entry.type === "nag") {
-      addTextWithBreaks(state, entry.text, "text-editor-nag", "nag", { nodeId: entry.id || "" });
+      addTextWithBreaks(state, nagGlyph(entry.text), "text-editor-nag", "nag", { nodeId: entry.id || "" });
       addSpace(state);
       continue;
     }
@@ -184,7 +185,7 @@ const emitTreeVariation = (
       state.firstMoveEmitted = true;
       addSpace(state);
       entry.nags.forEach((nag: string): void => {
-        addTextWithBreaks(state, nag, "text-editor-nag", "nag", { moveId: entry.id });
+        addTextWithBreaks(state, nagGlyph(nag), "text-editor-nag", "nag", { moveId: entry.id });
         addSpace(state);
       });
 

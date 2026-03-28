@@ -7851,6 +7851,54 @@ Guide definitions are stored in the guide registry — a content store managed b
 
 Guide content is authored in the same multilingual framework as the rest of the application — German, French, and Italian for Switzerland.
 
+#### Semantic Identity — Surviving Component Reorganisation
+
+The most important architectural constraint is that UI components move over time.  A button migrates from one toolbar to another.  A panel is split in two.  A feature is reorganised into a different dialog.  A help system coupled to component identity (React component names, file paths, DOM position) breaks silently every time this happens.
+
+The solution is to decouple help content from component identity.  Guide IDs identify **semantic concepts** — things the user cares about — not the components that happen to render them today:
+
+```
+  Semantic concept
+  ("Activate the NEWS2 score input")
+         │
+         │  data-guide-id="vitals.news2_score"
+         ▼
+  Whatever DOM element currently renders that concept
+```
+
+If a component moves from one area of the screen to another, the developer carries the `data-guide-id` attribute with it.  The guide system finds the concept wherever it lives because it queries the live DOM **spatially** (where is the cursor right now?) — not historically (where was the component before?).
+
+This also means multiple elements can share the same guide ID legitimately — a concept present in both a desktop toolbar and a mobile action sheet is the same concept and should show the same help.
+
+#### Typed ID Registry — Compile-Time Drift Prevention
+
+The worst silent failure: a developer moves a component and forgets to carry the `data-guide-id`.  Coverage drops with no visible error.
+
+The defence is a **typed constant registry**:
+
+```typescript
+// guide_ids.ts — authoritative list of every guide concept
+export const GUIDE_IDS = {
+  VITALS_NEWS2:       "vitals.news2_score",
+  ORDERS_ORDER_SET:   "orders.order_set_picker",
+  EPISODE_HEADER:     "episode.context_header",
+  // …
+} as const;
+
+export type GuideId = typeof GUIDE_IDS[keyof typeof GUIDE_IDS];
+```
+
+Every `data-guide-id` usage in component code imports from this registry — raw strings are disallowed by convention and flagged in code review:
+
+```tsx
+import { GUIDE_IDS } from "../guide/guide_ids";
+<NewsScoreDisplay score={news2} data-guide-id={GUIDE_IDS.VITALS_NEWS2} />
+```
+
+If a concept is removed from `guide_ids.ts`, TypeScript immediately flags every component that referenced it.  Drift becomes a **compile-time error**, not a silent coverage gap.
+
+The CI pipeline cross-checks the typed registry against the guide content store: unknown IDs (in code but not in the content store) are build errors; orphaned IDs (in the content store but absent from all compiled output) are warnings surfaced in the pull request review.
+
 #### Visual Behaviour When Active
 
 When the guide layer is active:
@@ -7860,6 +7908,35 @@ When the guide layer is active:
 - Components without a `data-guide-id` are visually dimmed — signalling to the guide authors that coverage is incomplete
 
 The application remains fully functional while the guide layer is active. A clinician can use the guide to understand a score and then immediately act on it — they do not need to deactivate the guide to continue working.
+
+#### Guide Dialog Placement
+
+The detail panel is anchored to the **target element**, not to the cursor.  When the user clicks a component, the panel's position is computed from the component's bounding rectangle:
+
+1. **Right** — preferred: if `targetRect.right + panelWidth ≤ viewportWidth`
+2. **Left** — if `targetRect.left − panelWidth ≥ 0`
+3. **Below** — if `targetRect.bottom + panelHeight ≤ viewportHeight`
+4. **Above** — fallback
+
+The panel is clamped to viewport edges in all cases.  It positions once at open time; it does not reposition on scroll.  The highlight ring remains visible while the panel is open so the user always knows which component they are reading about.  This placement logic is particularly important for components at the edges of the screen (e.g. a right-side panel or a bottom toolbar).
+
+#### Two Access Paths
+
+Users reach help through two complementary paths:
+
+| Path | How |
+|---|---|
+| **Spatial** | Point at something visible — the guide system resolves the concept from the DOM |
+| **Conceptual** | Type what you are looking for — the system searches all guide entries by keyword |
+
+Both paths lead to the same guide entries and the same detail panel.  A user who cannot find what they are looking for by pointing can always switch to typing, and vice versa.  Before the AI companion is available, the conceptual path is served by a **narrowing full-text search** over the guide registry:
+
+- Query is tokenised into lowercase words
+- Each entry is scored by how many query tokens appear in (label ∪ short ∪ detail ∪ keywords)
+- Results are sorted by score and displayed as a narrowing list
+- Clicking a result navigates to that entry — the same view as if the user had pointed at the component
+
+This client-side scan over ~100–300 entries is instantaneous and requires no backend.
 
 #### Question Mode
 
@@ -7890,6 +7967,19 @@ Guide coverage is tracked as a quality metric:
 - Falling below the target is a build warning; new components without a `data-guide-id` are flagged in the pull request review
 
 This ensures that as the application grows, the guide layer stays complete.
+
+#### Conditional Components
+
+Some components are only present in the DOM in certain contexts — a panel that appears only when an episode is open, a score display only visible in a specific workflow step.  When the user points at a region with no `data-guide-id` ancestor, no highlight ring appears and no panel opens.  This is intentional: guide-unannotated regions signal a coverage gap to guide authors.
+
+For guide entries whose component is currently absent, the **conceptual (search) path** still works.  A result clicked from search shows the entry content with a note describing when and how to reach the feature.  This prevents the guide from misleading users into looking for something that is not on screen.
+
+#### Open Questions
+
+- **Keyboard-only targeting**: should `Tab` focus traversal highlight `data-guide-id` elements while guide mode is active so that keyboard users can navigate the guide without a pointer device?
+- **Touch / mobile**: the hover-then-confirm model does not map directly to touch; a first tap could substitute for hover, a second tap for Enter, keeping the gesture count the same.
+- **Dynamic content rows**: tables and list rows (e.g. individual orders, results) need a template-style guide ID (e.g. `"orders.row"`) rather than per-row IDs; the guide entry should describe the row type, not an individual row.
+- **Deeply nested or occluded elements**: if a large component covers a smaller one, the user cannot hover the inner element.  A right-click or long-press context menu as an alternative entry point would resolve this without a blocking overlay.
 
 #### Guide Authoring Interface
 

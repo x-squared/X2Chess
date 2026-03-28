@@ -13,6 +13,7 @@
 
 import type { PgnModel } from "../model/pgn_model";
 import type { SessionItemState, ResourceTabSnapshot } from "./app_reducer";
+import type { ShapePrefs } from "../runtime/shape_prefs";
 
 export type AppAction =
   // ── Shell actions ──────────────────────────────────────────────────────
@@ -71,4 +72,6 @@ export type AppAction =
   | { type: "set_board_preview"; preview: { fen: string; lastMove?: [string, string] | null } | null }
   // ── Hover position preview ─────────────────────────────────────────────
   /** Enable or disable the floating position popup when hovering over move tokens. */
-  | { type: "set_position_preview_on_hover"; enabled: boolean };
+  | { type: "set_position_preview_on_hover"; enabled: boolean }
+  /** Update board shape / decoration preferences (persisted separately to localStorage). */
+  | { type: "set_shape_prefs"; prefs: ShapePrefs };

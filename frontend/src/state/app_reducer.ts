@@ -17,6 +17,8 @@
 
 import type { PgnModel } from "../model/pgn_model";
 import type { AppAction } from "./actions";
+import { DEFAULT_SHAPE_PREFS } from "../runtime/shape_prefs";
+import type { ShapePrefs } from "../runtime/shape_prefs";
 
 /**
  * Per-tab identity snapshot held in React state.
@@ -154,6 +156,10 @@ export type AppStoreState = {
   // ── Hover position preview ──────────────────────────────────────────────
   /** Whether hovering over a move token shows a floating position preview popup. */
   positionPreviewOnHover: boolean;
+
+  // ── Board decoration preferences ────────────────────────────────────────
+  /** Persisted preferences for board shapes, move hints, and square style. */
+  shapePrefs: ShapePrefs;
 };
 
 /** Initial state — all fields start empty/false/zero before startup completes. */
@@ -202,6 +208,8 @@ export const initialAppStoreState: AppStoreState = {
   boardPreview: null,
   // Hover position preview
   positionPreviewOnHover: true,
+  // Board decoration preferences
+  shapePrefs: DEFAULT_SHAPE_PREFS,
 };
 
 /** Pure reducer — never mutates state, always returns a new object. */
@@ -289,6 +297,9 @@ export const appReducer = (state: AppStoreState, action: AppAction): AppStoreSta
 
     case "set_position_preview_on_hover":
       return { ...state, positionPreviewOnHover: action.enabled };
+
+    case "set_shape_prefs":
+      return { ...state, shapePrefs: action.prefs };
 
     default:
       return state;

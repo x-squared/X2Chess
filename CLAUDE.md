@@ -115,6 +115,7 @@ the same area) is a violation.
 - `developer_tools_toggle_7c98bd50.plan.md` — developer-tools toggle
 - `database_resource_2e8f4c91.plan.md` — SQLite `.x2chess` resource (Phase 1+5 in progress)
 - `resource_ext_databases_a1b2c3d4.plan.md` — external game/opening/endgame database integration
+- `format_importers_a2b3c4d5.plan.md` — import-time converters for EPD, CBH/CBV, and other formats
 - `engines_integration_e5f6a7b8.plan.md` — chess engine (UCI) integration; Maia-2 for training
 - `training_mode_c9d0e1f2.plan.md` — training mode (Replay protocol + transcript/merge infrastructure)
 - `move_entry_game_editing_b3c4d5e6.plan.md` — board-only move entry, variation forks, truncation, dirty flag
@@ -127,6 +128,9 @@ the same area) is a violation.
 - `ota_updates_8d9e0f1a.plan.md` — OTA update channels: full app updater (Tauri) + rules server (data-only)
 - `game_links_f1a2b3c4.plan.md` — game-link annotations (`[%link recordId="..."]`) with chip rendering, hover preview, and open-in-new-tab navigation
 - `game_anchors_b4c5d6e7.plan.md` — named anchors (`[%anchor id="..." text="..."]`) at half-moves with in-game references, rich anchor picker, and position-preview hover
+- `board_shapes_3f4a5b6c.plan.md` — square highlights and arrows via `[%csl]`/`[%cal]` PGN annotations + programmatic overlay (training hints, engine arrows)
+- `move_hints_hover_d4e5f6a7.plan.md` — hover-over-piece shows legal destination dots; engine-coloured dot variants (green/yellow/red) via `moveHintColors` prop
+- `user_guide_c5d6e7f8.plan.md` — on-demand user-guiding framework: Guide-me button, spatial component targeting via `data-guide-id`, positioned help dialog, narrowing full-text search (Phase 3: AI chat companion)
 
 ## Key types / entry points
 

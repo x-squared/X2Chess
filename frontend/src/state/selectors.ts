@@ -14,6 +14,10 @@
 
 import type { PgnModel } from "../model/pgn_model";
 import type { AppStoreState, ResourceTabSnapshot, SessionItemState } from "./app_reducer";
+import { findMoveNode } from "../model/pgn_move_ops";
+import { parseShapes } from "../board/shape_parser";
+import type { BoardShape } from "../board/board_shapes";
+import type { ShapePrefs } from "../runtime/shape_prefs";
 
 // ── Shell ────────────────────────────────────────────────────────────────────
 export const selectLocale = (state: AppStoreState): string => state.locale;
@@ -41,6 +45,7 @@ export const selectBoardPreview = (
 ): { fen: string; lastMove?: [string, string] | null } | null => state.boardPreview;
 export const selectPositionPreviewOnHover = (state: AppStoreState): boolean =>
   state.positionPreviewOnHover;
+export const selectShapePrefs = (state: AppStoreState): ShapePrefs => state.shapePrefs;
 
 // ── Editor / PGN ─────────────────────────────────────────────────────────────
 export const selectLayoutMode = (
@@ -56,6 +61,27 @@ export const selectIsGameInfoEditorOpen = (state: AppStoreState): boolean =>
   state.isGameInfoEditorOpen;
 export const selectUndoDepth = (state: AppStoreState): number => state.undoDepth;
 export const selectRedoDepth = (state: AppStoreState): number => state.redoDepth;
+
+// ── Board shapes (annotation-derived) ────────────────────────────────────────
+/**
+ * Derive the `BoardShape[]` for the currently selected move from `[%csl]` /
+ * `[%cal]` annotations in its `commentsAfter` text.  Returns `[]` when there
+ * is no selected move, no model, or no shape annotations present.
+ */
+export const selectAnnotationShapes = (state: AppStoreState): BoardShape[] => {
+  const model: PgnModel | null = state.pgnModel;
+  const moveId: string | null = state.selectedMoveId;
+  if (!model || !moveId) return [];
+
+  const moveNode = findMoveNode(model, moveId);
+  if (!moveNode) return [];
+
+  const shapes: BoardShape[] = [];
+  for (const comment of moveNode.commentsAfter) {
+    shapes.push(...parseShapes(comment.raw));
+  }
+  return shapes;
+};
 
 // ── Sessions ─────────────────────────────────────────────────────────────────
 export const selectActiveSessionId = (state: AppStoreState): string | null =>

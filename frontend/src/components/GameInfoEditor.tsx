@@ -21,7 +21,7 @@
  *   `defaultValue` props reflect the newly loaded game.
  */
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { ReactElement, ChangeEvent } from "react";
 import { GAME_INFO_HEADER_FIELDS, PLAYER_NAME_HEADER_KEYS, normalizeGameInfoHeaderValue } from "../app_shell/game_info";
 import { getHeaderValue, REQUIRED_PGN_TAG_DEFAULTS, resolveEcoOpeningName, normalizeX2StyleValue } from "../model";
@@ -31,6 +31,7 @@ import { useServiceContext } from "../state/ServiceContext";
 import { useTranslator } from "../hooks/useTranslator";
 import { PlayerAutocomplete } from "./PlayerAutocomplete";
 import type { PgnModel } from "../model/pgn_model";
+import { GUIDE_IDS } from "../guide/guide_ids";
 
 // ── Summary helpers ────────────────────────────────────────────────────────────
 
@@ -90,13 +91,29 @@ type FieldInputProps = {
   onCommit: (key: string, value: string) => void;
 };
 
-/** Renders a single form control (text input, number input, or select). */
+/**
+ * Renders a single form control (select or text/number input) for non-player fields.
+ * Text and number inputs are controlled: value is committed and normalized on blur.
+ * Select inputs commit immediately on change (discrete values are always valid).
+ */
 const FieldInput = ({ field, defaultVal, onCommit }: FieldInputProps): ReactElement => {
   const id: string = `game-info-${field.key.toLowerCase()}`;
-  const isPlayer: boolean = (PLAYER_NAME_HEADER_KEYS as readonly string[]).includes(field.key);
+  const [value, setValue] = useState<string>(defaultVal);
 
-  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>): void => {
-    onCommit(field.key, e.target.value);
+  const handleSelectChange = (e: ChangeEvent<HTMLSelectElement>): void => {
+    const raw: string = e.target.value;
+    setValue(raw);
+    onCommit(field.key, raw);
+  };
+
+  const handleInputChange = (e: ChangeEvent<HTMLInputElement>): void => {
+    setValue(e.target.value);
+  };
+
+  const handleInputBlur = (): void => {
+    const normalized: string = normalizeGameInfoHeaderValue(field.key, value);
+    setValue(normalized);
+    onCommit(field.key, normalized);
   };
 
   if (field.control === "select") {
@@ -104,8 +121,8 @@ const FieldInput = ({ field, defaultVal, onCommit }: FieldInputProps): ReactElem
       <select
         id={id}
         data-header-key={field.key}
-        defaultValue={defaultVal}
-        onChange={handleChange}
+        value={value}
+        onChange={handleSelectChange}
       >
         {(field.options ?? []).map((opt: string): ReactElement => (
           <option key={opt} value={opt}>
@@ -121,10 +138,10 @@ const FieldInput = ({ field, defaultVal, onCommit }: FieldInputProps): ReactElem
       id={id}
       type={field.control === "number" ? "number" : "text"}
       data-header-key={field.key}
-      data-player-name-input={isPlayer ? "true" : undefined}
       placeholder={field.placeholder ?? field.label}
-      defaultValue={defaultVal}
-      onChange={handleChange}
+      value={value}
+      onChange={handleInputChange}
+      onBlur={handleInputBlur}
       {...(field.control === "number"
         ? { inputMode: "numeric", step: "1", min: "0" }
         : {})}
@@ -174,7 +191,7 @@ export const GameInfoEditor = (): ReactElement => {
   return (
     <section className={["game-info-card", isOpen ? "editor-open" : ""].filter(Boolean).join(" ")}>
       {/* ── Compact summary row ── */}
-      <div className="game-info-summary-row">
+      <div className="game-info-summary-row" data-guide-id={GUIDE_IDS.GAME_INFO_SUMMARY}>
         <div className="game-info-summary-grid">
           <p className="game-info-item">
             <span className="game-info-label">{t("gameInfo.players", "Players")}</span>
@@ -224,6 +241,7 @@ export const GameInfoEditor = (): ReactElement => {
       <div
         id="game-info-editor"
         className={["game-info-editor", isOpen ? "open" : ""].filter(Boolean).join(" ")}
+        data-guide-id={GUIDE_IDS.GAME_INFO_EDITOR}
         hidden={!isOpen}
       >
         {/*
@@ -240,12 +258,21 @@ export const GameInfoEditor = (): ReactElement => {
             return (
               <label key={field.key} className="game-info-editor-field" htmlFor={id}>
                 <span>{field.label}</span>
-                <FieldInput
-                  field={field}
-                  defaultVal={defaultVal}
-                  onCommit={services.updateGameInfoHeader}
-                />
-                {isPlayer && <PlayerAutocomplete fieldKey={field.key} />}
+                {isPlayer ? (
+                  <PlayerAutocomplete
+                    fieldKey={field.key}
+                    id={id}
+                    defaultVal={defaultVal}
+                    placeholder={field.placeholder}
+                    onCommit={services.updateGameInfoHeader}
+                  />
+                ) : (
+                  <FieldInput
+                    field={field}
+                    defaultVal={defaultVal}
+                    onCommit={services.updateGameInfoHeader}
+                  />
+                )}
               </label>
             );
           })}

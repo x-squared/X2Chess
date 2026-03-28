@@ -32,6 +32,7 @@
  */
 
 import type { ReactElement } from "react";
+import { GUIDE_IDS } from "../guide/guide_ids";
 
 type ToolbarRowProps = {
   isAtStart: boolean;
@@ -66,27 +67,32 @@ export const ToolbarRow = ({
   onShowEditStartPos, onShowExtractDialog, onShowHint,
   onStartStudy, onShowTrainingLauncher, onShowAnnotateDialog, onVsEngineClick,
 }: ToolbarRowProps): ReactElement => (
-  <div className="toolbar-box">
+  <div className="toolbar-box" data-guide-id={GUIDE_IDS.TOOLBAR}>
     <div className="move-toolbar">
       {/* Navigation button group */}
-      <div className="toolbar-group toolbar-group-nav">
+      <div className="toolbar-group toolbar-group-nav" data-guide-id={GUIDE_IDS.TOOLBAR_NAV_GROUP}>
         <button id="btn-first" className="icon-button" type="button"
+          data-guide-id={GUIDE_IDS.TOOLBAR_NAV_FIRST}
           title={t("controls.first", "|<")} disabled={isAtStart} onClick={onGotoFirst}>
           <img src="/icons/toolbar/nav-first.svg" alt={t("controls.first", "|<")} />
         </button>
         <button id="btn-prev" className="icon-button" type="button"
+          data-guide-id={GUIDE_IDS.TOOLBAR_NAV_PREV}
           title={t("controls.prev", "<")} disabled={isAtStart} onClick={onGotoPrev}>
           <img src="/icons/toolbar/nav-prev.svg" alt={t("controls.prev", "<")} />
         </button>
         <button id="btn-next" className="icon-button" type="button"
+          data-guide-id={GUIDE_IDS.TOOLBAR_NAV_NEXT}
           title={t("controls.next", ">")} disabled={isAtEnd} onClick={onGotoNext}>
           <img src="/icons/toolbar/nav-next.svg" alt={t("controls.next", ">")} />
         </button>
         <button id="btn-last" className="icon-button" type="button"
+          data-guide-id={GUIDE_IDS.TOOLBAR_NAV_LAST}
           title={t("controls.last", ">|")} disabled={isAtEnd} onClick={onGotoLast}>
           <img src="/icons/toolbar/nav-last.svg" alt={t("controls.last", ">|")} />
         </button>
         <button id="btn-flip-board" className="icon-button" type="button"
+          data-guide-id={GUIDE_IDS.TOOLBAR_FLIP_BOARD}
           title={t("toolbar.flipBoard", "Flip board")} onClick={onFlipBoard}
           aria-label={t("toolbar.flipBoard", "Flip board")}>
           <span className="flip-board-indicator" aria-hidden="true">
@@ -97,7 +103,7 @@ export const ToolbarRow = ({
       </div>
 
       {/* Board action button group */}
-      <div className="toolbar-group toolbar-group-actions">
+      <div className="toolbar-group toolbar-group-actions" data-guide-id={GUIDE_IDS.TOOLBAR_ACTIONS_GROUP}>
         {isSetUpGame && (
           <button id="btn-edit-start-pos" className="icon-button icon-button-text" type="button"
             title={t("toolbar.editStartPos", "Edit starting position")} onClick={onShowEditStartPos}>

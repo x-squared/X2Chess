@@ -67,25 +67,29 @@ const isPieceElement = (el: Element): boolean => el.tagName.toUpperCase() === "P
  * Attach hover detection listeners to `boardEl`.
  * Returns a disposer; call it to clean up (e.g. in a React `useEffect` return).
  *
+ * Note: Chessground applies `pointer-events: none` to piece elements, so
+ * `mouseover` events on the board always fire with a non-piece target.
+ * We use `mousemove` and `document.elementsFromPoint()` instead, which
+ * enumerates all elements at the cursor position regardless of
+ * `pointer-events`, allowing us to detect piece elements underneath.
+ *
  * @param opts - Listener configuration (boardEl, onPieceEnter, onPieceLeave).
  */
 export const attachHoverListener = (opts: HoverListenerOptions): (() => void) => {
   const { boardEl, onPieceEnter, onPieceLeave } = opts;
 
-  const onMouseOver = (e: MouseEvent): void => {
-    const target: EventTarget | null = e.target;
-    if (!(target instanceof Element)) return;
-
-    // Fire onPieceEnter only when the immediate target is a piece element.
-    if (isPieceElement(target)) {
-      const key: string | null = getCgKey(target);
-      if (key && isBoardKey(key)) {
-        onPieceEnter(key);
-        return;
+  const onMouseMove = (e: MouseEvent): void => {
+    // Walk all elements at the cursor position (including pointer-events: none).
+    const elements: Element[] = document.elementsFromPoint(e.clientX, e.clientY);
+    for (const el of elements) {
+      if (isPieceElement(el)) {
+        const key: string | null = getCgKey(el);
+        if (key && isBoardKey(key)) {
+          onPieceEnter(key);
+          return;
+        }
       }
     }
-
-    // Moved to a square without a piece (or somewhere else) → clear hints.
     onPieceLeave();
   };
 
@@ -93,11 +97,11 @@ export const attachHoverListener = (opts: HoverListenerOptions): (() => void) =>
     onPieceLeave();
   };
 
-  boardEl.addEventListener("mouseover", onMouseOver);
+  boardEl.addEventListener("mousemove", onMouseMove);
   boardEl.addEventListener("mouseleave", onMouseLeave);
 
   return (): void => {
-    boardEl.removeEventListener("mouseover", onMouseOver);
+    boardEl.removeEventListener("mousemove", onMouseMove);
     boardEl.removeEventListener("mouseleave", onMouseLeave);
   };
 };

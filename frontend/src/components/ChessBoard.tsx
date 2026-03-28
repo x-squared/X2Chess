@@ -92,6 +92,11 @@ export type ChessBoardProps = {
    * inset border (`"frame"`).  Defaults to `"fill"`.
    */
   squareStyle?: SquareStyleMode;
+  /**
+   * Increment this key to force an immediate board position re-sync without
+   * changing `currentPly` or `moves`.  Used to revert a cancelled move entry.
+   */
+  resetBoardKey?: number;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -172,6 +177,7 @@ export const ChessBoard = ({
   showMoveHints = true,
   presets = DEFAULT_PRESETS,
   squareStyle = "fill",
+  resetBoardKey = 0,
 }: ChessBoardProps = {}): ReactElement => {
   const { state } = useAppContext();
   const currentPly: number = selectCurrentPly(state);
@@ -231,6 +237,9 @@ export const ChessBoard = ({
       },
       highlight: { lastMove: true, check: true },
       animation: { enabled: true, duration: moveDelayMsRef.current },
+      // Disable Chessground's native right-click SVG drawing; we manage
+      // board shapes ourselves via CSS highlight classes.
+      drawable: { enabled: false },
     });
     cgRef.current = api;
 
@@ -264,6 +273,7 @@ export const ChessBoard = ({
       {
         boardEl: el,
         presets: presetsRef.current,
+        isFlipped: (): boolean => boardFlippedRef.current,
         onChange: (shapes: BoardShape[]): void => {
           setDrawnShapes(shapes);
           onShapesChangedRef.current?.(shapes);
@@ -278,6 +288,9 @@ export const ChessBoard = ({
   useEffect((): void => {
     const api: ChessgroundApi | null = cgRef.current;
     if (!api) return;
+
+    // Clear any in-progress drag or selection state before applying new position.
+    api.cancelMove();
 
     if (boardPreview) {
       const previewLastMove: KeyPair | undefined =
@@ -294,6 +307,7 @@ export const ChessBoard = ({
         api.set({
           fen: boardPreview.fen,
           lastMove: previewLastMove,
+          turnColor: cgColor,
           viewOnly: false,
           movable: { color: cgColor, free: false, dests: computeDests(previewGame) },
           animation: { enabled: true, duration: moveDelayMs },
@@ -327,11 +341,14 @@ export const ChessBoard = ({
     api.set({
       fen,
       lastMove,
+      turnColor: isInteractive
+        ? (game.turn() === "w" ? "white" : "black")
+        : undefined,
       viewOnly: !isInteractive,
       movable: movableConfig,
       animation: { enabled: true, duration: moveDelayMs },
     });
-  }, [boardPreview, currentPly, moves, moveDelayMs]);
+  }, [boardPreview, currentPly, moves, moveDelayMs, resetBoardKey]);
 
   // ── Sync board orientation when flip state changes ─────────────────────────
   useEffect((): void => {

@@ -72,10 +72,7 @@ type ResourceViewer = ReturnType<typeof createResourceViewerCapabilities>;
 // ── State-to-React sync helpers ────────────────────────────────────────────────
 
 /** Normalise a raw devTab string into the accepted union. */
-export const toDevTab = (raw: unknown): "ast" | "dom" | "pgn" => {
-  if (raw === "dom" || raw === "pgn") return raw;
-  return "ast";
-};
+export const toDevTab = (_raw: unknown): "ast" => "ast";
 
 /** Map a raw session object (from session_store.listSessions) to `SessionItemState`. */
 type RawSession = {

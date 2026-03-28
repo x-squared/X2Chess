@@ -13,7 +13,7 @@
  * - All interactions fire the corresponding callback prop.
  */
 
-import { useState, type ReactElement } from "react";
+import type { ReactElement } from "react";
 import type { EngineVariation } from "../../../engines/domain/analysis_types";
 import type { OpeningResult } from "../resources/ext_databases/opening_types";
 import type { TbProbeResult } from "../resources/ext_databases/endgame_types";
@@ -27,8 +27,9 @@ import { TextSearchPanel } from "./TextSearchPanel";
 import { ResourceViewer } from "./ResourceViewer";
 import { SettingsPanel } from "./SettingsPanel";
 import type { ShapePrefs } from "../runtime/shape_prefs";
+import { GUIDE_IDS } from "../guide/guide_ids";
 
-type PanelId =
+export type PanelId =
   | "resources"
   | "analysis"
   | "opening"
@@ -65,6 +66,9 @@ type RightPanelStackProps = {
   // Settings
   shapePrefs: ShapePrefs;
   onShapePrefsChange: (prefs: ShapePrefs) => void;
+  // Panel navigation — controlled from outside
+  activePanel: PanelId;
+  onActivePanelChange: (panel: PanelId) => void;
   // Common
   t: (key: string, fallback?: string) => string;
   onMoveClick: (uci: string) => void;
@@ -72,16 +76,16 @@ type RightPanelStackProps = {
   onOpenGame: (sourceRef: unknown) => void;
 };
 
-const PANEL_TABS: Array<{ id: PanelId; label: string; labelKey: string }> = [
-  { id: "resources",       label: "Resources",    labelKey: "panel.resources" },
-  { id: "analysis",        label: "Analysis",     labelKey: "panel.analysis" },
-  { id: "opening",         label: "Opening",      labelKey: "panel.opening" },
-  { id: "tablebase",       label: "Endgame",      labelKey: "panel.tablebase" },
-  { id: "collection",      label: "Collection",   labelKey: "panel.collection" },
-  { id: "game-search",     label: "Games",        labelKey: "panel.gameSearch" },
-  { id: "position-search", label: "Position",     labelKey: "panel.positionSearch" },
-  { id: "text-search",     label: "Text",         labelKey: "panel.textSearch" },
-  { id: "settings",        label: "Settings",     labelKey: "panel.settings" },
+const PANEL_TABS: Array<{ id: PanelId; label: string; labelKey: string; tabGuideId: string }> = [
+  { id: "resources",       label: "Resources",    labelKey: "panel.resources",      tabGuideId: GUIDE_IDS.RIGHT_PANEL_TAB_RESOURCES },
+  { id: "analysis",        label: "Analysis",     labelKey: "panel.analysis",       tabGuideId: GUIDE_IDS.RIGHT_PANEL_TAB_ANALYSIS },
+  { id: "opening",         label: "Opening",      labelKey: "panel.opening",        tabGuideId: GUIDE_IDS.RIGHT_PANEL_TAB_OPENING },
+  { id: "tablebase",       label: "Endgame",      labelKey: "panel.tablebase",      tabGuideId: GUIDE_IDS.RIGHT_PANEL_TAB_TABLEBASE },
+  { id: "collection",      label: "Collection",   labelKey: "panel.collection",     tabGuideId: GUIDE_IDS.RIGHT_PANEL_TAB_COLLECTION },
+  { id: "game-search",     label: "Games",        labelKey: "panel.gameSearch",     tabGuideId: GUIDE_IDS.RIGHT_PANEL_TAB_GAME_SEARCH },
+  { id: "position-search", label: "Position",     labelKey: "panel.positionSearch", tabGuideId: GUIDE_IDS.RIGHT_PANEL_TAB_POSITION_SEARCH },
+  { id: "text-search",     label: "Text",         labelKey: "panel.textSearch",     tabGuideId: GUIDE_IDS.RIGHT_PANEL_TAB_TEXT_SEARCH },
+  { id: "settings",        label: "Settings",     labelKey: "panel.settings",       tabGuideId: GUIDE_IDS.RIGHT_PANEL_TAB_SETTINGS },
 ];
 
 export const RightPanelStack = ({
@@ -92,14 +96,15 @@ export const RightPanelStack = ({
   onOpeningSourceChange, onOpeningToggle, onOpenSettings,
   tbResult, tbIsLoading, tbEnabled, onTbToggle,
   shapePrefs, onShapePrefsChange,
+  activePanel, onActivePanelChange,
   t, onMoveClick, onImportPgn, onOpenGame,
 }: RightPanelStackProps): ReactElement => {
-  const [activePanel, setActivePanel] = useState<PanelId>("resources");
+  const setActivePanel = onActivePanelChange;
 
   return (
-    <div className="right-panel-stack">
+    <div className="right-panel-stack" data-guide-id={GUIDE_IDS.RIGHT_PANEL_STACK}>
       {/* Tab bar */}
-      <div className="right-panel-tabs" role="tablist">
+      <div className="right-panel-tabs" role="tablist" data-guide-id={GUIDE_IDS.RIGHT_PANEL_TABS}>
         {PANEL_TABS.map((tab) => (
           <button
             key={tab.id}
@@ -108,6 +113,7 @@ export const RightPanelStack = ({
             aria-selected={activePanel === tab.id}
             aria-controls={`right-panel-${tab.id}`}
             className={`right-panel-tab${activePanel === tab.id ? " active" : ""}`}
+            data-guide-id={tab.tabGuideId}
             onClick={(): void => { setActivePanel(tab.id); }}
           >
             {t(tab.labelKey, tab.label)}
@@ -116,12 +122,13 @@ export const RightPanelStack = ({
       </div>
 
       {/* Panel contents — only the active one is visible */}
-      <div className="right-panel-body">
+      <div className="right-panel-body" data-guide-id={GUIDE_IDS.RIGHT_PANEL_BODY}>
         <div
           id="right-panel-resources"
           role="tabpanel"
           hidden={activePanel !== "resources"}
           className="right-panel-content right-panel-content-resources"
+          data-guide-id={GUIDE_IDS.RIGHT_PANEL_RESOURCES}
         >
           <ResourceViewer />
         </div>
@@ -131,6 +138,7 @@ export const RightPanelStack = ({
           role="tabpanel"
           hidden={activePanel !== "analysis"}
           className="right-panel-content"
+          data-guide-id={GUIDE_IDS.RIGHT_PANEL_ANALYSIS}
         >
           <AnalysisPanel
             variations={variations}
@@ -150,6 +158,7 @@ export const RightPanelStack = ({
           role="tabpanel"
           hidden={activePanel !== "opening"}
           className="right-panel-content"
+          data-guide-id={GUIDE_IDS.RIGHT_PANEL_OPENING}
         >
           <OpeningExplorerPanel
             result={openingResult}
@@ -168,6 +177,7 @@ export const RightPanelStack = ({
           role="tabpanel"
           hidden={activePanel !== "tablebase"}
           className="right-panel-content"
+          data-guide-id={GUIDE_IDS.RIGHT_PANEL_TABLEBASE}
         >
           <TablebasePanel
             result={tbResult}
@@ -184,6 +194,7 @@ export const RightPanelStack = ({
           role="tabpanel"
           hidden={activePanel !== "collection"}
           className="right-panel-content"
+          data-guide-id={GUIDE_IDS.RIGHT_PANEL_COLLECTION}
         >
           <CollectionExplorerPanel t={t} onMoveClick={onMoveClick} />
         </div>
@@ -193,6 +204,7 @@ export const RightPanelStack = ({
           role="tabpanel"
           hidden={activePanel !== "game-search"}
           className="right-panel-content"
+          data-guide-id={GUIDE_IDS.RIGHT_PANEL_GAME_SEARCH}
         >
           <GameSearchPanel onImport={onImportPgn} t={t} />
         </div>
@@ -202,6 +214,7 @@ export const RightPanelStack = ({
           role="tabpanel"
           hidden={activePanel !== "position-search"}
           className="right-panel-content"
+          data-guide-id={GUIDE_IDS.RIGHT_PANEL_POSITION_SEARCH}
         >
           <PositionSearchPanel t={t} onOpenGame={onOpenGame} />
         </div>
@@ -211,6 +224,7 @@ export const RightPanelStack = ({
           role="tabpanel"
           hidden={activePanel !== "text-search"}
           className="right-panel-content"
+          data-guide-id={GUIDE_IDS.RIGHT_PANEL_TEXT_SEARCH}
         >
           <TextSearchPanel t={t} onOpenGame={onOpenGame} />
         </div>
@@ -220,6 +234,7 @@ export const RightPanelStack = ({
           role="tabpanel"
           hidden={activePanel !== "settings"}
           className="right-panel-content"
+          data-guide-id={GUIDE_IDS.RIGHT_PANEL_SETTINGS}
         >
           <SettingsPanel prefs={shapePrefs} onPrefsChange={onShapePrefsChange} t={t} />
         </div>

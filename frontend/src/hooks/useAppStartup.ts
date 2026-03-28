@@ -43,9 +43,10 @@ import {
   DEFAULT_LOCALE,
   DEFAULT_APP_MODE,
   type AppState,
+  type PlayerRecord,
 } from "../app_shell/app_state";
 import { resolveLocale } from "../app_shell/i18n";
-import { normalizeGameInfoHeaderValue } from "../app_shell/game_info";
+import { normalizeGameInfoHeaderValue, parsePlayerRecord, buildPlayerNameSuggestions } from "../app_shell/game_info";
 import {
   resolveBuildAppMode,
   readBootstrapUiPrefs,
@@ -291,6 +292,24 @@ export const useAppStartup = (): AppStartupServices => {
           key,
           normalizedValue,
         );
+        if (key === "X2Style") {
+          const mode: "plain" | "text" | "tree" = normalizeX2StyleValue(normalizedValue);
+          bundle.legacyState.pgnLayoutMode = mode;
+          window.localStorage?.setItem("x2chess.pgnLayout", mode);
+        }
+        if (key === "White" || key === "Black") {
+          const record: PlayerRecord | null = parsePlayerRecord(normalizedValue);
+          if (record) {
+            const storeKey: string = `${record.lastName.toLowerCase()}|${record.firstName.toLowerCase()}`;
+            const exists: boolean = (bundle.legacyState.playerStore as PlayerRecord[]).some(
+              (p: PlayerRecord): boolean =>
+                `${p.lastName.toLowerCase()}|${p.firstName.toLowerCase()}` === storeKey,
+            );
+            if (!exists) {
+              (bundle.legacyState.playerStore as PlayerRecord[]).push(record);
+            }
+          }
+        }
         bundle.applyModelUpdate(newModel, null, { recordHistory: true });
       },
 
@@ -474,13 +493,17 @@ export const useAppStartup = (): AppStartupServices => {
       },
       setDevDockOpen: (open: boolean): void => {
         bundle.legacyState.isDevDockOpen = open;
+        if (open && !bundle.legacyState.isDeveloperToolsEnabled) {
+          bundle.legacyState.isDeveloperToolsEnabled = true;
+          dispatch({ type: "set_dev_tools_enabled", enabled: true });
+        }
         dispatch({ type: "set_dev_dock_open", open });
         window.localStorage?.setItem(MODE_STORAGE_KEY, String(open));
       },
-      setActiveDevTab: (tab: "ast" | "dom" | "pgn"): void => {
-        bundle.legacyState.activeDevTab = tab;
+      setActiveDevTab: (_tab: "ast"): void => {
+        bundle.legacyState.activeDevTab = "ast";
         bundle.legacyState.isDevDockOpen = true;
-        dispatch({ type: "set_active_dev_tab", tab });
+        dispatch({ type: "set_active_dev_tab", tab: "ast" });
         dispatch({ type: "set_dev_dock_open", open: true });
       },
       setLayoutMode: (mode: "plain" | "text" | "tree"): void => {
@@ -533,6 +556,9 @@ export const useAppStartup = (): AppStartupServices => {
         }
         void bundle.sessionPersistence.persistActiveSessionNow();
       },
+      getPlayerNameSuggestions: (query: string): string[] =>
+        buildPlayerNameSuggestions(bundle.legacyState.playerStore, query),
+
       // Overridden by AppShell to open the curriculum panel.
       openCurriculumPanel: (): void => {},
     }),

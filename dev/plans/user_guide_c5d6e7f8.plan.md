@@ -165,6 +165,35 @@ With ~30–100 entries the scan is instantaneous.
 
 ---
 
+## Global Search
+
+The guide layer also provides a **global search entry point** that works
+independently of the spatial flow.  Without pointing at any component first,
+the user can open guide search directly — via a dedicated keyboard shortcut or
+a search icon in the floating guide control — and search the help-text of all
+components in one step.
+
+The search algorithm is identical to the per-component search above: query
+tokens are matched against label, short, detail, and keywords for every guide
+entry; results are ranked by score; the top matches (≤ 8) are displayed as a
+list.
+
+When the user selects a result the application **navigates to the component**
+concerned:
+
+- If the component is currently in the DOM the highlight ring is placed on it
+  and the guide dialog opens anchored to it — identical to the result of the
+  spatial flow.
+- If the component is absent (conditional panel, context-dependent control) the
+  dialog opens in a neutral position with a note explaining when and how to
+  reach the feature.
+
+Global search and the per-component search field share the same underlying
+registry query; they differ only in entry point and in whether a target element
+is available to anchor the dialog.
+
+---
+
 ## Architectural Layers
 
 ```

@@ -21,6 +21,7 @@ import {
   type ReactElement,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
+import { GUIDE_IDS } from "../guide/guide_ids";
 
 export type PromotionPiece = "q" | "r" | "b" | "n";
 
@@ -80,6 +81,7 @@ export const PromotionPicker = ({
       role="dialog"
       aria-label={t("board.promotion.title", "Choose promotion piece")}
       aria-modal="true"
+      data-guide-id={GUIDE_IDS.PROMOTION_PICKER}
       onKeyDown={handleKeyDown}
     >
       <div className="promotion-picker-backdrop" onClick={onCancel} />

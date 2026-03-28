@@ -167,6 +167,13 @@ export type AppStartupServices = {
    * persisted source, or `null` when the session has no source yet.
    */
   getActiveSessionResourceRef: () => { kind: string; locator: string } | null;
+  /**
+   * Return ranked player-name suggestions matching the query string.
+   * Reads from the in-memory player store (bundled + session-accumulated names).
+   * @param query - Current user input to match against.
+   * @returns Up to 8 matching `"Last-name, First-name"` strings, ranked by relevance.
+   */
+  getPlayerNameSuggestions: (query: string) => string[];
 
   // ── Session management ─────────────────────────────────────────────────
   /**
@@ -185,7 +192,7 @@ export type AppStartupServices = {
   openCurriculumPanel: () => void;
   setMenuOpen: (open: boolean) => void;
   setDevDockOpen: (open: boolean) => void;
-  setActiveDevTab: (tab: "ast" | "dom" | "pgn") => void;
+  setActiveDevTab: (tab: "ast") => void;
   setLayoutMode: (mode: "plain" | "text" | "tree") => void;
   setLocale: (locale: string) => void;
   setMoveDelayMs: (value: number) => void;
@@ -255,6 +262,7 @@ const defaultServices: AppStartupServices = {
   setSaveMode: noop,
   saveActiveGameNow: noop,
   saveSessionById: noop,
+  getPlayerNameSuggestions: (): string[] => [],
 };
 
 /** React context carrying the startup-initialised service callbacks. */

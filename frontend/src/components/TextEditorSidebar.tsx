@@ -19,9 +19,11 @@
  * - `onApplyDefaultIndent()` — fires when the default-indent button is clicked.
  * - `onSave()` — fires when the save button is clicked.
  * - `onUndo()` / `onRedo()` — fire when the undo/redo buttons are clicked.
+ * - `onOpenBoardSettings()` — fires when the board settings (⚙) button is clicked.
  */
 
 import type { ReactElement } from "react";
+import { GUIDE_IDS } from "../guide/guide_ids";
 
 type TextEditorSidebarProps = {
   layoutMode: "plain" | "text" | "tree";
@@ -34,6 +36,7 @@ type TextEditorSidebarProps = {
   onSave: () => void;
   onUndo: () => void;
   onRedo: () => void;
+  onOpenBoardSettings: () => void;
 };
 
 export const TextEditorSidebar = ({
@@ -47,16 +50,19 @@ export const TextEditorSidebar = ({
   onSave,
   onUndo,
   onRedo,
+  onOpenBoardSettings,
 }: TextEditorSidebarProps): ReactElement => (
-  <div className="text-editor-sidebar">
+  <div className="text-editor-sidebar" data-guide-id={GUIDE_IDS.EDITOR_SIDEBAR}>
     {/* Layout mode group */}
     <div
       className="text-editor-sidebar-group"
       role="radiogroup"
       aria-label={t("toolbar.pgnLayout.group", "PGN layout")}
+      data-guide-id={GUIDE_IDS.EDITOR_SIDEBAR_LAYOUT_GROUP}
     >
       <button
         id="btn-pgn-layout-plain"
+        data-guide-id={GUIDE_IDS.EDITOR_SIDEBAR_LAYOUT_PLAIN}
         type="button"
         data-pgn-layout="plain"
         className={`icon-button${layoutMode === "plain" ? " active" : ""}`}
@@ -70,6 +76,7 @@ export const TextEditorSidebar = ({
         id="btn-pgn-layout-text"
         type="button"
         data-pgn-layout="text"
+        data-guide-id={GUIDE_IDS.EDITOR_SIDEBAR_LAYOUT_TEXT}
         className={`icon-button${layoutMode === "text" ? " active" : ""}`}
         title={t("toolbar.pgnLayout.text", "Text — narrative layout")}
         aria-pressed={layoutMode === "text" ? "true" : "false"}
@@ -81,6 +88,7 @@ export const TextEditorSidebar = ({
         id="btn-pgn-layout-tree"
         type="button"
         data-pgn-layout="tree"
+        data-guide-id={GUIDE_IDS.EDITOR_SIDEBAR_LAYOUT_TREE}
         className={`icon-button${layoutMode === "tree" ? " active" : ""}`}
         title={t("toolbar.pgnLayout.tree", "Tree — structured view")}
         aria-pressed={layoutMode === "tree" ? "true" : "false"}
@@ -136,6 +144,20 @@ export const TextEditorSidebar = ({
       onClick={onRedo}
     >
       <img src="/icons/toolbar/redo.svg" alt={t("toolbar.redo", "Redo")} />
+    </button>
+
+    <div className="text-editor-sidebar-sep" />
+
+    {/* Board settings */}
+    <button
+      id="btn-board-settings"
+      className="icon-button"
+      type="button"
+      title={t("toolbar.boardSettings", "Board settings")}
+      data-guide-id={GUIDE_IDS.EDITOR_SIDEBAR_BOARD_SETTINGS}
+      onClick={onOpenBoardSettings}
+    >
+      ⚙
     </button>
   </div>
 );

@@ -68,6 +68,8 @@ import { replayPvToPosition } from "../board/move_position";
 import { selectPositionPreviewOnHover } from "../state/selectors";
 import { MenuPanel } from "./MenuPanel";
 import { DevDock } from "./DevDock";
+import { GuideInspector } from "./GuideInspector";
+import { GUIDE_IDS } from "../guide/guide_ids";
 import { GameInfoEditor } from "./GameInfoEditor";
 import { GameSessionsPanel } from "./GameSessionsPanel";
 import { ChessBoard } from "./ChessBoard";
@@ -77,6 +79,7 @@ import { PgnTextEditor } from "./PgnTextEditor";
 import { ToolbarRow } from "./ToolbarRow";
 import { TextEditorSidebar } from "./TextEditorSidebar";
 import { RightPanelStack } from "./RightPanelStack";
+import type { PanelId } from "./RightPanelStack";
 import { PlayVsEngineDialog } from "./PlayVsEngineDialog";
 import { AnnotateGameDialog } from "./AnnotateGameDialog";
 import { DisambiguationDialog } from "./DisambiguationDialog";
@@ -187,6 +190,10 @@ export const AppShell = (): ReactElement => {
     startAnalysis({ fen: currentFen, moves: [] });
   }, [startAnalysis, currentFen]);
 
+  // Right panel — active tab controlled here so other UI can navigate to it.
+  const [activeRightPanel, setActiveRightPanel] = useState<PanelId>("resources");
+  const [boardResetKey, setBoardResetKey] = useState<number>(0);
+
   // NG7: edit starting position dialog
   const pgnModel = selectPgnModel(state);
   const isSetUpGame = getHeaderValue(pgnModel, "SetUp") === "1";
@@ -233,8 +240,14 @@ export const AppShell = (): ReactElement => {
     onMovePlayed,
     handleForkDecide,
     handlePromotionPick,
-    handleCancel,
+    handleCancel: handleCancelMove,
   } = useMoveEntry();
+
+  /** Cancel a pending fork / promotion and revert the board to the current position. */
+  const handleCancel = useCallback((): void => {
+    handleCancelMove();
+    setBoardResetKey((k) => k + 1);
+  }, [handleCancelMove]);
 
   /** Convert a UCI string (e.g. "e2e4", "e7e8q") from a panel into a board move. */
   const handlePanelMoveClick = useCallback((uci: string): void => {
@@ -564,7 +577,7 @@ export const AppShell = (): ReactElement => {
           </button>
 
           {/* ── Game tabs card ── */}
-          <section className="game-tabs-card">
+          <section className="game-tabs-card" data-guide-id={GUIDE_IDS.SESSIONS_PANEL}>
             <div className="game-tabs-header">
               <p className="game-tabs-title">{t("games.open", "Open games")}</p>
               <p className="game-tabs-hint">
@@ -581,19 +594,22 @@ export const AppShell = (): ReactElement => {
           <GameInfoEditor />
 
           {/* ── Board / editor split pane ── */}
-          <div ref={boardEditorBoxRef} id="board-editor-box" className="board-editor-box">
+          <div ref={boardEditorBoxRef} id="board-editor-box" className="board-editor-box" data-guide-id={GUIDE_IDS.BOARD_ROOT}>
             {/* Chessboard */}
-            <ChessBoard
-                onMovePlayed={effectiveOnMovePlayed}
-                overlayShapes={hintShapes}
-                onShapesChanged={(shapes: BoardShape[]): void => {
-                  if (!selectedMoveId) return;
-                  services.saveBoardShapes(selectedMoveId, shapes);
-                }}
-                presets={{ primary: shapePrefs.primaryColor, secondary: shapePrefs.secondaryColor }}
-                squareStyle={shapePrefs.squareStyle}
-                showMoveHints={shapePrefs.showMoveHints}
-              />
+            <div data-guide-id={GUIDE_IDS.CHESS_BOARD}>
+              <ChessBoard
+                  onMovePlayed={effectiveOnMovePlayed}
+                  overlayShapes={hintShapes}
+                  onShapesChanged={(shapes: BoardShape[]): void => {
+                    if (!selectedMoveId) return;
+                    services.saveBoardShapes(selectedMoveId, shapes);
+                  }}
+                  presets={{ primary: shapePrefs.primaryColor, secondary: shapePrefs.secondaryColor }}
+                  squareStyle={shapePrefs.squareStyle}
+                  showMoveHints={shapePrefs.showMoveHints}
+                  resetBoardKey={boardResetKey}
+                />
+            </div>
 
             {/* Study mode overlay (UV12) */}
             {currentStudyItem && (
@@ -641,7 +657,7 @@ export const AppShell = (): ReactElement => {
             />
 
             {/* ── Editor pane (toolbar + PGN text editor) ── */}
-            <div className="text-editor-wrap board-editor-pane">
+            <div className="text-editor-wrap board-editor-pane" data-guide-id={GUIDE_IDS.EDITOR_PANE}>
               <ToolbarRow
                 isAtStart={isAtStart}
                 isAtEnd={isAtEnd}
@@ -694,12 +710,14 @@ export const AppShell = (): ReactElement => {
                   onSave={(): void => { services.saveActiveGameNow(); }}
                   onUndo={(): void => { services.undo(); }}
                   onRedo={(): void => { services.redo(); }}
+                  onOpenBoardSettings={(): void => { setActiveRightPanel("settings"); }}
                 />
               </div>
             </div>
           </div>
 
           {/* ── Right panel stack (analysis, explorer, search, resources) ── */}
+          {/* data-guide-id is set on the inner .right-panel-stack div via RightPanelStack */}
           <RightPanelStack
             variations={variations}
             isAnalyzing={isAnalyzing}
@@ -722,6 +740,8 @@ export const AppShell = (): ReactElement => {
             onTbToggle={tablebase.setEnabled}
             shapePrefs={shapePrefs}
             onShapePrefsChange={services.setShapePrefs}
+            activePanel={activeRightPanel}
+            onActivePanelChange={setActiveRightPanel}
             t={t}
             onMoveClick={handlePanelMoveClick}
             onImportPgn={services.openPgnText}
@@ -731,6 +751,9 @@ export const AppShell = (): ReactElement => {
 
         {/* ── Developer dock ── */}
         {devToolsEnabled && <DevDock />}
+
+        {/* ── Guide inspector (developer tool — Alt+Shift+G) ── */}
+        <GuideInspector />
 
         {/* ── Move entry dialogs ── */}
         {pendingFork && (

@@ -3,8 +3,25 @@
 **How to use:**
 - Work through sections relevant to the change just made.
 - Mark items `[x]` as you verify them.
-- To report a failure, reference the item ID (e.g. "BOARD-3 doesn't work — knight promotion menu doesn't appear").
 - Reset `[x]` back to `[ ]` whenever the item is re-opened by a later change.
+
+**Reporting a bug:**
+- Change `[ ]` to `[!]` and add an indented `> ` line describing what you observed:
+  ```
+  - [!] **BOARD-3** — Pawn promotion: a picker appears; selecting a piece completes the promotion.
+    > The picker never appears — pawn auto-promotes to queen.
+  ```
+- Say "fix checklist issues" to have Claude investigate and fix all `[!]` items.
+- After fixing, Claude changes `[!]` to `[~]` (fixed, awaiting your recheck).
+- Once you have verified the fix, change `[~]` to `[x]`.
+
+**Status symbols:**
+| Symbol | Meaning |
+|--------|---------|
+| `[ ]` | Not yet tested |
+| `[x]` | Verified passing |
+| `[!]` | Bug found — needs fixing |
+| `[~]` | Fix applied — awaiting recheck |
 
 **Last updated:** 2026-03-29 (eval pills — EvalBadge, show/hide toggle, delete-all)
 

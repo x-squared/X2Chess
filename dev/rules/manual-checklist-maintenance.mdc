@@ -47,6 +47,28 @@ module splits, or performance work with no visible effect.
   *"Paste `https://lichess.org/<id>` opens the full game PGN."*
   Not: *"Test Lichess import."*
 
+## Status symbols
+
+| Symbol | Meaning |
+|--------|---------|
+| `[ ]` | Not yet tested |
+| `[x]` | Verified passing |
+| `[!]` | Bug found by user — needs fixing |
+| `[~]` | Fix applied by Claude — awaiting user recheck |
+
+When the user marks an item `[!]`, they add an indented `> ` observation line:
+
+```
+- [!] **BOARD-3** — Pawn promotion: a picker appears; selecting a piece completes the promotion.
+  > The picker never appears — pawn auto-promotes to queen.
+```
+
+When fixing `[!]` items:
+1. Read all `[!]` items and their `> ` notes.
+2. Investigate and fix each one.
+3. Change `[!]` to `[~]` and remove the `> ` note.
+4. Do **not** change to `[x]` — the user must recheck before marking verified.
+
 ## Numbering
 
 - Within each section, number items sequentially: `SECTION-1`, `SECTION-2`, etc.

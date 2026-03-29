@@ -7,6 +7,7 @@
 - [P0_01 Implementation Plan](P0_01_implementation_plan.md)
 
 **P1 — Introduction and Context**
+- [P1_00 Introduction](P1_00_introduction.md)
 - [P1_01 Terminology](P1_01_terminology.md)
 - [P1_02 Functional Domains](P1_02_functional_domains.md)
 - [P1_03 User Types](P1_03_user_types.md)
@@ -79,3 +80,5 @@
 - [P6_17 Element Identity and Resource Registry](P6_17_element_identity_and_resource_registry.md)
 - [P6_18 Dev Forum — In-App Feedback Loop](P6_18_dev_forum_feedback_loop.md)
 - [P6_19 User-Guiding Framework](P6_19_user_guiding_framework.md)
+- [P6_20 Deployment Targets — Browser and Fat Client](P6_20_deployment_targets_browser_and_fat_client.md)
+- [P6_21 Device Integration Framework](P6_21_device_integration_framework.md)

@@ -97,6 +97,8 @@ export type AppStoreState = {
   // ── Editor / PGN ──────────────────────────────────────────────────────
   /** Visual layout mode for the PGN text editor. */
   pgnLayoutMode: "plain" | "text" | "tree";
+  /** Whether engine evaluation pills are visible in text/tree mode. Defaults to true. */
+  showEvalPills: boolean;
   /** Full raw PGN text of the active game. */
   pgnText: string;
   /**
@@ -182,6 +184,7 @@ export const initialAppStoreState: AppStoreState = {
   activeSourceKind: "directory",
   // Editor
   pgnLayoutMode: "plain",
+  showEvalPills: true,
   pgnText: "",
   pgnModel: null,
   moves: [],
@@ -250,6 +253,8 @@ export const appReducer = (state: AppStoreState, action: AppAction): AppStoreSta
     // ── Editor ───────────────────────────────────────────────────────────
     case "set_layout_mode":
       return { ...state, pgnLayoutMode: action.mode };
+    case "set_show_eval_pills":
+      return { ...state, showEvalPills: action.show };
     case "set_pgn":
       return {
         ...state,

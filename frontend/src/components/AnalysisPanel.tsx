@@ -20,6 +20,7 @@
 import { useCallback, type ReactElement } from "react";
 import type { EngineVariation } from "../../../engines/domain/analysis_types";
 import type { EngineScore } from "../../../engines/domain/uci_types";
+import { GUIDE_IDS } from "../guide/guide_ids";
 
 type AnalysisPanelProps = {
   /** Current top variations from the engine. */
@@ -104,9 +105,9 @@ export const AnalysisPanel = ({
     : "#6b7280";
 
   return (
-    <div className="analysis-panel">
+    <div className="analysis-panel" data-guide-id={GUIDE_IDS.ANALYSIS_PANEL}>
       {/* Header */}
-      <div className="analysis-panel-header">
+      <div className="analysis-panel-header" data-guide-id={GUIDE_IDS.ANALYSIS_PANEL_HEADER}>
         <span className="analysis-panel-title">
           {t("analysis.panel.title", "Engine Analysis")}
           {engineName && (
@@ -142,7 +143,7 @@ export const AnalysisPanel = ({
 
       {/* Variations */}
       {variations.length > 0 ? (
-        <ol className="analysis-panel-variations">
+        <ol className="analysis-panel-variations" data-guide-id={GUIDE_IDS.ANALYSIS_PANEL_VARIATIONS}>
           {variations.map((v) => (
             <li
               key={v.multipvIndex}

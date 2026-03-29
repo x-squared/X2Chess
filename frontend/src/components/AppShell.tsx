@@ -35,6 +35,7 @@ import {
   selectCurrentPly,
   selectSelectedMoveId,
   selectLayoutMode,
+  selectShowEvalPills,
   selectMoveCount,
   selectUndoDepth,
   selectRedoDepth,
@@ -117,6 +118,7 @@ export const AppShell = (): ReactElement => {
   const selectedMoveId: string | null = selectSelectedMoveId(state);
   const moveCount: number = selectMoveCount(state);
   const layoutMode: "plain" | "text" | "tree" = selectLayoutMode(state);
+  const showEvalPills: boolean = selectShowEvalPills(state);
   const undoDepth: number = selectUndoDepth(state);
   const redoDepth: number = selectRedoDepth(state);
   const moves: string[] = selectMoves(state);
@@ -704,6 +706,7 @@ export const AppShell = (): ReactElement => {
                   canUndo={canUndo}
                   canRedo={canRedo}
                   isDirty={isDirty}
+                  showEvalPills={showEvalPills}
                   t={t}
                   onSetLayoutMode={(mode): void => { services.setLayoutMode(mode); }}
                   onApplyDefaultIndent={(): void => { services.applyDefaultIndent(); }}
@@ -711,6 +714,7 @@ export const AppShell = (): ReactElement => {
                   onUndo={(): void => { services.undo(); }}
                   onRedo={(): void => { services.redo(); }}
                   onOpenBoardSettings={(): void => { setActiveRightPanel("settings"); }}
+                  onToggleEvalPills={(): void => { services.setShowEvalPills(!showEvalPills); }}
                 />
               </div>
             </div>

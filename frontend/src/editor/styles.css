@@ -398,16 +398,76 @@ span[data-kind="branch_header"] {
 
 /* ── NAG Picker ──────────────────────────────────────────────────────────── */
 
+/* Three compact dropdown-buttons shown when a move is selected. */
 .nag-picker {
   display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 4px 6px;
-  background: var(--surface-2);
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
+  flex-direction: row;
+  gap: 4px;
+  align-items: center;
+  padding: 3px 6px;
 }
 
+/* Wrapper for one group button + its dropdown. */
+.nag-group-wrap {
+  position: relative;
+}
+
+/* The trigger button for one NAG group. */
+.nag-group-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 5px;
+  background: var(--surface-1);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.nag-group-btn:hover {
+  background: var(--accent-soft, rgba(42, 93, 202, 0.10));
+  border-color: var(--accent-border, rgba(42, 93, 202, 0.38));
+  color: var(--accent);
+}
+
+.nag-group-btn--active {
+  background: var(--accent-soft, rgba(42, 93, 202, 0.12));
+  border-color: var(--accent-border, rgba(42, 93, 202, 0.50));
+  color: var(--accent);
+}
+
+.nag-group-symbol {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.nag-group-arrow {
+  font-size: 8px;
+  opacity: 0.6;
+}
+
+/* Floating dropdown panel. */
+.nag-dropdown {
+  position: absolute;
+  top: calc(100% + 3px);
+  left: 0;
+  z-index: 1200;
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 5px 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Shared row of symbol buttons (used in dropdown and in context menu). */
 .nag-picker-row {
   display: flex;
   flex-direction: row;

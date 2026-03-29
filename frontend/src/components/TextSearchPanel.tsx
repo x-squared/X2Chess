@@ -21,6 +21,7 @@ import { selectResourceViewerTabs } from "../state/selectors";
 import { isPgnResourceRef } from "../../../resource/domain/resource_ref";
 import type { TextSearchHit } from "../../../resource/client/search_coordinator";
 import type { PgnResourceRef } from "../../../resource/domain/resource_ref";
+import { GUIDE_IDS } from "../guide/guide_ids";
 
 type TextSearchPanelProps = {
   t: (key: string, fallback?: string) => string;
@@ -67,8 +68,8 @@ export const TextSearchPanel = ({ t, onOpenGame }: TextSearchPanelProps): ReactE
   }, [search]);
 
   return (
-    <div className="text-search-panel">
-      <div className="text-search-panel-header">
+    <div className="text-search-panel" data-guide-id={GUIDE_IDS.TEXT_SEARCH_PANEL}>
+      <div className="text-search-panel-header" data-guide-id={GUIDE_IDS.TEXT_SEARCH_HEADER}>
         <span className="text-search-panel-title">
           {t("textSearch.title", "Game Search")}
         </span>

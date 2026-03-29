@@ -22,10 +22,13 @@ import type { TrainingConfig } from "./training_protocol";
 
 export type PlyOutcome =
   | "correct"
+  | "correct_better"
+  | "correct_dubious"
+  | "legal_variant"
+  | "inferior"
   | "wrong"
   | "skip"
-  | "engine_filled"
-  | "legal_variant";
+  | "engine_filled";
 
 export type PlyRecord = {
   /** 0-based ply index in the source game. */

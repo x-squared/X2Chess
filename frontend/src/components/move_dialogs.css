@@ -172,6 +172,19 @@
   background: var(--border);
   margin: 0.25rem 0;
 }
+.truncation-menu-nag-section {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 5px 8px 4px;
+}
+.truncation-menu-nag-label {
+  font-size: 0.6875rem;
+  color: var(--text-secondary, #94a3b8);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  user-select: none;
+}
 
 /* ── Confirm dialog (M8 navigate-away guard) ─────────────────────────────── */
 .confirm-dialog {

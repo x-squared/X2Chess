@@ -194,6 +194,8 @@ export type AppStartupServices = {
   setDevDockOpen: (open: boolean) => void;
   setActiveDevTab: (tab: "ast") => void;
   setLayoutMode: (mode: "plain" | "text" | "tree") => void;
+  /** Toggle whether engine evaluation pills are visible in text/tree mode. */
+  setShowEvalPills: (show: boolean) => void;
   setLocale: (locale: string) => void;
   setMoveDelayMs: (value: number) => void;
   setSoundEnabled: (enabled: boolean) => void;
@@ -253,6 +255,7 @@ const defaultServices: AppStartupServices = {
   setDevDockOpen: noop,
   setActiveDevTab: noop,
   setLayoutMode: noop,
+  setShowEvalPills: noop,
   setLocale: noop,
   setMoveDelayMs: noop,
   setSoundEnabled: noop,

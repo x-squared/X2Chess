@@ -2,9 +2,9 @@
  * replay_protocol — "Play one side" training protocol.
  *
  * The user reproduces one (or both) sides of a source game from a chosen
- * starting ply. For each user-side ply the played move is compared to the
- * source game mainline. Annotated variations in the source game are accepted
- * as `legal_variant`.
+ * starting ply. For each user-side ply the played move is evaluated against
+ * the source game mainline, RAV annotations, NAGs, and optional [%train] tags
+ * via the `move_acceptance` module.
  *
  * Integration API:
  * - `REPLAY_PROTOCOL` — TrainingProtocol singleton; pass to `useTrainingSession`.
@@ -28,7 +28,13 @@ import type {
   ResultHighlight,
 } from "../domain/training_protocol";
 import type { TrainingTranscript } from "../domain/training_transcript";
+import type { PgnMoveNode } from "../../model/pgn_model";
 import { parsePgnToModel } from "../../model/pgn_model";
+import {
+  acceptMove,
+  EVAL_ACCEPT_THRESHOLD_CP,
+  EVAL_INFERIOR_THRESHOLD_CP,
+} from "../domain/move_acceptance";
 
 // ── Options ───────────────────────────────────────────────────────────────────
 
@@ -40,6 +46,21 @@ export type ReplayProtocolOptions = {
   opponentMoveDelayMs: number;
   allowHints: boolean;
   maxHintsPerGame: number;
+  /**
+   * Whether to accept moves in the inferior (?!) set or require the user
+   * to find a better move. Default: "reject".
+   */
+  inferiorMovePolicy: "accept" | "reject";
+  /**
+   * Centipawn threshold below which a non-annotated legal move is accepted
+   * as equivalent (requires [%eval] in PGN). Default: 30.
+   */
+  evalAcceptThresholdCp: number;
+  /**
+   * Centipawn threshold below which a non-annotated legal move is treated
+   * as ?! (inferior). Default: 80.
+   */
+  evalInferiorThresholdCp: number;
 };
 
 const DEFAULT_OPTIONS: ReplayProtocolOptions = {
@@ -50,43 +71,49 @@ const DEFAULT_OPTIONS: ReplayProtocolOptions = {
   opponentMoveDelayMs: 800,
   allowHints: true,
   maxHintsPerGame: 3,
+  inferiorMovePolicy: "reject",
+  evalAcceptThresholdCp: EVAL_ACCEPT_THRESHOLD_CP,
+  evalInferiorThresholdCp: EVAL_INFERIOR_THRESHOLD_CP,
 };
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
 type ReplayState = {
-  /** All mainline UCI moves from the source game. */
   mainlineMoves: string[];
-  /** SAN list matching mainlineMoves. */
   mainlineSans: string[];
-  /** Set of ply indices where it is the configured side's turn. */
+  mainlineNodes: PgnMoveNode[];
+  /** FEN at each ply (index i = FEN before ply i's move). */
+  plyFens: string[];
   userPlies: Set<number>;
   options: ReplayProtocolOptions;
 };
 
-const extractMainlineMoves = (
+const extractMainline = (
   pgnText: string,
-): { ucis: string[]; sans: string[] } => {
+): { ucis: string[]; sans: string[]; nodes: PgnMoveNode[]; plyFens: string[] } => {
   const model = parsePgnToModel(pgnText);
   const ucis: string[] = [];
   const sans: string[] = [];
+  const nodes: PgnMoveNode[] = [];
+  const plyFens: string[] = [];
   const chess = new Chess();
 
-  // Replay starting FEN if provided.
   const fenHeader = model.headers.find((h) => h.key === "FEN");
   if (fenHeader) {
     try { chess.load(fenHeader.value); } catch { /* ignore invalid FEN */ }
   }
 
   for (const entry of model.root.entries) {
-    if (entry.type === "move") {
-      const result = chess.move(entry.san, { strict: false });
-      if (!result) break;
-      ucis.push(result.from + result.to + (result.promotion ?? ""));
-      sans.push(result.san);
-    }
+    if (entry.type !== "move") continue;
+    plyFens.push(chess.fen());
+    const result = chess.move(entry.san, { strict: false });
+    if (!result) break;
+    ucis.push(result.from + result.to + (result.promotion ?? ""));
+    sans.push(result.san);
+    nodes.push(entry);
   }
-  return { ucis, sans };
+
+  return { ucis, sans, nodes, plyFens };
 };
 
 const buildUserPlies = (
@@ -122,25 +149,26 @@ const initialize = (config: TrainingConfig): TrainingSessionState => {
     ...(config.protocolOptions as Partial<ReplayProtocolOptions>),
   };
 
-  const { ucis, sans } = extractMainlineMoves(config.pgnText);
+  const { ucis, sans, nodes, plyFens } = extractMainline(config.pgnText);
   const userPlies = buildUserPlies(ucis.length, opts.side, opts.startPly);
+
   const replayState: ReplayState = {
     mainlineMoves: ucis,
     mainlineSans: sans,
+    mainlineNodes: nodes,
+    plyFens,
     userPlies,
     options: opts,
   };
 
-  // Build the initial FEN (from the starting position, replaying up to startPly).
   const chess = new Chess();
   const model = parsePgnToModel(config.pgnText);
   const fenHeader = model.headers.find((h) => h.key === "FEN");
   if (fenHeader) {
     try { chess.load(fenHeader.value); } catch { /* ignore */ }
   }
-  for (let i = 0; i < opts.startPly && i < ucis.length; i++) {
-    const m = sans[i];
-    if (m) chess.move(m, { strict: false });
+  for (let i = 0; i < opts.startPly && i < sans.length; i++) {
+    chess.move(sans[i], { strict: false });
   }
 
   return {
@@ -169,38 +197,28 @@ const evaluateMove = (
 ): MoveEvalResult => {
   const rs = state.protocolState as unknown as ReplayState;
   const ply = state.currentSourcePly;
-  const expected = rs.mainlineMoves[ply];
+  const node = rs.mainlineNodes[ply];
+  const mainlineUci = rs.mainlineMoves[ply];
 
-  if (!expected) {
+  if (!node || !mainlineUci) {
     return { accepted: false, feedback: "skip" };
   }
 
-  // Normalize promotion suffix for comparison.
-  const normalizeUci = (u: string): string =>
-    u.length === 5 ? u.slice(0, 4) + u[4].toLowerCase() : u;
-
-  if (normalizeUci(move.uci) === normalizeUci(expected)) {
-    return { accepted: true, feedback: "correct" };
-  }
-
-  // Check annotated variations in the source model (future: parse model RAVs).
-  // For now, any legal move is treated as "wrong".
-  return {
-    accepted: false,
-    feedback: "wrong",
-    correctMove: {
-      uci: expected,
-      san: rs.mainlineSans[ply] ?? expected,
-    },
-    annotation: `${move.san} (expected: ${rs.mainlineSans[ply] ?? expected})`,
-  };
+  return acceptMove({
+    userMove: move,
+    node,
+    positionFen: rs.plyFens[ply] ?? state.position.fen,
+    mainlineUci,
+    inferiorMovePolicy: rs.options.inferiorMovePolicy,
+    evalAcceptThresholdCp: rs.options.evalAcceptThresholdCp,
+    evalInferiorThresholdCp: rs.options.evalInferiorThresholdCp,
+  });
 };
 
 const advance = (state: TrainingSessionState): TrainingSessionState => {
   const rs = state.protocolState as unknown as ReplayState;
   const newPly = state.currentSourcePly + 1;
 
-  // Rebuild FEN at the new ply.
   const chess = new Chess();
   const model = parsePgnToModel(state.config.pgnText);
   const fenHeader = model.headers.find((h) => h.key === "FEN");
@@ -231,9 +249,31 @@ const summarize = (
   state: TrainingSessionState,
   transcript: TrainingTranscript,
 ): ResultSummary => {
-  const scored = state.correctCount + state.wrongCount;
+  // Weighted scoring:
+  //   correct / correct_better / correct_dubious / legal_variant → 1.0
+  //   inferior (accepted) → 0.5
+  //   wrong → 0.0
+  //   skip / engine_filled → excluded from denominator
+  let weightedCorrect = 0;
+  let denominator = 0;
+
+  for (const rec of transcript.plyRecords) {
+    if (rec.outcome === "skip" || rec.outcome === "engine_filled") continue;
+    denominator++;
+    if (
+      rec.outcome === "correct" ||
+      rec.outcome === "correct_better" ||
+      rec.outcome === "correct_dubious" ||
+      rec.outcome === "legal_variant"
+    ) {
+      weightedCorrect += 1.0;
+    } else if (rec.outcome === "inferior") {
+      weightedCorrect += 0.5;
+    }
+  }
+
   const scorePercent =
-    scored > 0 ? Math.round((state.correctCount / scored) * 100) : 0;
+    denominator > 0 ? Math.round((weightedCorrect / denominator) * 100) : 0;
 
   const totalMs = Date.now() - state.startedAt;
   const totalMoves = transcript.plyRecords.length;
@@ -241,11 +281,12 @@ const summarize = (
     totalMoves > 0 ? Math.round(totalMs / totalMoves) : undefined;
 
   const highlights: ResultHighlight[] = [];
-  // Detect flawless streaks ≥ 5 consecutive correct moves.
+
+  // Flawless streaks ≥ 5 consecutive fully-correct moves
   let streak = 0;
   let streakStart = 0;
   for (const rec of transcript.plyRecords) {
-    if (rec.outcome === "correct") {
+    if (rec.outcome === "correct" || rec.outcome === "correct_better") {
       if (streak === 0) streakStart = rec.ply;
       streak++;
       if (streak === 5) {
@@ -257,6 +298,17 @@ const summarize = (
       }
     } else {
       streak = 0;
+    }
+  }
+
+  // correct_better highlights
+  for (const rec of transcript.plyRecords) {
+    if (rec.outcome === "correct_better") {
+      highlights.push({
+        ply: rec.ply,
+        kind: "best_move",
+        description: `Found improvement over the game move at ply ${rec.ply + 1}`,
+      });
     }
   }
 

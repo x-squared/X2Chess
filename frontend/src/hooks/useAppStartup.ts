@@ -511,6 +511,9 @@ export const useAppStartup = (): AppStartupServices => {
         dispatch({ type: "set_layout_mode", mode });
         window.localStorage?.setItem("x2chess.pgnLayout", mode);
       },
+      setShowEvalPills: (show: boolean): void => {
+        dispatch({ type: "set_show_eval_pills", show });
+      },
       setLocale: (locale: string): void => {
         const resolved: string = resolveLocale(locale);
         bundle.legacyState.locale = resolved;

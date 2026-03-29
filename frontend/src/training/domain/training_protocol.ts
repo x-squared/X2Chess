@@ -25,12 +25,26 @@ export type UserMoveInput = {
 
 // ── Move evaluation ───────────────────────────────────────────────────────────
 
+export type MoveEvalFeedback =
+  | "correct"          // user played the canonical best move
+  | "correct_better"   // user played a move better than the (flawed) game move
+  | "correct_dubious"  // user played the game move but a better option exists
+  | "legal_variant"    // accepted equivalent alternative
+  | "inferior"         // dubious but real — matched a ?! RAV
+  | "wrong"            // not accepted; canonical move is shown
+  | "skip";
+
 export type MoveEvalResult = {
   accepted: boolean;
-  feedback: "correct" | "wrong" | "skip" | "legal_variant";
-  /** The correct move — provided when `accepted === false`. */
+  feedback: MoveEvalFeedback;
+  /** The canonical best move — provided whenever the user did not play it. */
   correctMove?: { uci: string; san: string };
-  /** Text to record in the transcript annotation. */
+  /**
+   * A strictly better move exists even though the user's move was accepted.
+   * Set when the user plays the game move but it is annotated ?! or worse.
+   */
+  betterMoveExists?: { uci: string; san: string; annotation?: string };
+  /** Explanatory text for the feedback overlay. */
   annotation?: string;
 };
 

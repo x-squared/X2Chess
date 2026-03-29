@@ -33,6 +33,7 @@ export type AppAction =
   | { type: "set_error_message"; message: string }
   // ── Editor / PGN actions ───────────────────────────────────────────────
   | { type: "set_layout_mode"; mode: "plain" | "text" | "tree" }
+  | { type: "set_show_eval_pills"; show: boolean }
   /**
    * Full PGN load or edit commit.
    * Replaces `pgnText`, `pgnModel`, `moves`, and `pgnTextLength` atomically.

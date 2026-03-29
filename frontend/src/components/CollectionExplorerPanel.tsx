@@ -20,6 +20,7 @@
 import type { ReactElement } from "react";
 import { useCollectionExplorer } from "../hooks/useCollectionExplorer";
 import type { MoveFrequencyEntry } from "../../../resource/domain/move_frequency";
+import { GUIDE_IDS } from "../guide/guide_ids";
 
 type CollectionExplorerPanelProps = {
   t: (key: string, fallback?: string) => string;
@@ -50,8 +51,8 @@ export const CollectionExplorerPanel = ({ t, onMoveClick }: CollectionExplorerPa
   const { entries, loading } = useCollectionExplorer();
 
   return (
-    <div className="ce-panel">
-      <div className="ce-panel-header">
+    <div className="ce-panel" data-guide-id={GUIDE_IDS.COLLECTION_EXPLORER_PANEL}>
+      <div className="ce-panel-header" data-guide-id={GUIDE_IDS.COLLECTION_EXPLORER_HEADER}>
         <span className="ce-panel-title">
           {t("collectionExplorer.title", "Collection Explorer")}
         </span>

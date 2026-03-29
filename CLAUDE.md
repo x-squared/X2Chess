@@ -118,6 +118,7 @@ the same area) is a violation.
 - `format_importers_a2b3c4d5.plan.md` — import-time converters for EPD, CBH/CBV, and other formats
 - `engines_integration_e5f6a7b8.plan.md` — chess engine (UCI) integration; Maia-2 for training
 - `training_mode_c9d0e1f2.plan.md` — training mode (Replay protocol + transcript/merge infrastructure)
+- `training_move_acceptance_3e4f5a6b.plan.md` — move acceptance algorithm (NAG/RAV/eval/[%train] signals, extended MoveEvalResult, user manual)
 - `move_entry_game_editing_b3c4d5e6.plan.md` — board-only move entry, variation forks, truncation, dirty flag
 - `text_mode_layout_example_f7a8b9c0.plan.md` — text-mode layout example with `[[br]]`/`[[indent]]` markers
 - `metadata_definition_system_d1e2f3a4.plan.md` — metadata schemas (types, dialog, export/import)

@@ -18,6 +18,7 @@
 
 import { useCallback, type ReactElement } from "react";
 import type { OpeningResult, OpeningMove } from "../resources/ext_databases/opening_types";
+import { GUIDE_IDS } from "../guide/guide_ids";
 
 type OpeningExplorerPanelProps = {
   result: OpeningResult | null;
@@ -123,9 +124,9 @@ export const OpeningExplorerPanel = ({
   }, [enabled, onToggle]);
 
   return (
-    <div className="opening-explorer-panel">
+    <div className="opening-explorer-panel" data-guide-id={GUIDE_IDS.OPENING_EXPLORER_PANEL}>
       {/* Header */}
-      <div className="opening-explorer-header">
+      <div className="opening-explorer-header" data-guide-id={GUIDE_IDS.OPENING_EXPLORER_HEADER}>
         <span className="opening-explorer-title">
           {t("opening.panel.title", "Opening Explorer")}
         </span>
@@ -200,7 +201,7 @@ export const OpeningExplorerPanel = ({
 
               {/* Move table */}
               {result.moves.length > 0 && (
-                <table className="opening-moves-table">
+                <table className="opening-moves-table" data-guide-id={GUIDE_IDS.OPENING_MOVES_TABLE}>
                   <thead>
                     <tr>
                       <th>{t("opening.col.move", "Move")}</th>

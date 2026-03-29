@@ -18,6 +18,7 @@
 import type { ReactElement } from "react";
 import { usePositionSearch } from "../hooks/usePositionSearch";
 import type { PositionSearchHit } from "../../../resource/client/search_coordinator";
+import { GUIDE_IDS } from "../guide/guide_ids";
 
 type PositionSearchPanelProps = {
   t: (key: string, fallback?: string) => string;
@@ -34,8 +35,8 @@ export const PositionSearchPanel = ({ t, onOpenGame }: PositionSearchPanelProps)
   const { results, loading, search } = usePositionSearch();
 
   return (
-    <div className="pos-search-panel">
-      <div className="pos-search-panel-header">
+    <div className="pos-search-panel" data-guide-id={GUIDE_IDS.POSITION_SEARCH_PANEL}>
+      <div className="pos-search-panel-header" data-guide-id={GUIDE_IDS.POSITION_SEARCH_HEADER}>
         <span className="pos-search-panel-title">
           {t("posSearch.title", "Position Search")}
         </span>

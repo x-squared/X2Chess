@@ -80,6 +80,9 @@ export const TrainingLauncher = ({
             opponentMoveDelayMs: opponentDelayMs,
             allowHints,
             maxHintsPerGame: maxHints,
+            inferiorMovePolicy: "reject",
+            evalAcceptThresholdCp: 30,
+            evalInferiorThresholdCp: 80,
           } satisfies ReplayProtocolOptions);
     const config: TrainingConfig = {
       sourceGameRef: sourceRef,

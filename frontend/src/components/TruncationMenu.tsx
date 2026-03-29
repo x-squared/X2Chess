@@ -24,14 +24,19 @@ import {
   type ReactElement,
   type CSSProperties,
 } from "react";
+import { NagRow } from "./NagPicker";
+import { GUIDE_IDS } from "../guide/guide_ids";
+import { NAG_MOVE_QUALITY, NAG_EVALUATION, NAG_POSITIONAL } from "../model/nag_defs";
 
 export type TruncationAction =
   | { type: "insert_comment_before"; moveId: string }
   | { type: "insert_comment_after"; moveId: string }
   | { type: "insert_qa"; moveId: string }
+  | { type: "insert_train"; moveId: string }
   | { type: "insert_todo"; moveId: string }
   | { type: "insert_link"; moveId: string }
   | { type: "insert_anchor"; moveId: string; san: string }
+  | { type: "toggle_nag"; moveId: string; nag: string }
   | { type: "delete_from_here"; moveId: string }
   | { type: "delete_before_here"; moveId: string }
   | { type: "delete_variation"; moveId: string }
@@ -46,6 +51,10 @@ type TruncationMenuProps = {
   isInVariation: boolean;
   /** Bounding rect of the move token that was right-clicked. */
   anchorRect: DOMRect;
+  /** NAG codes currently on this move, for rendering active state. */
+  currentNags: readonly string[];
+  /** Side to move, for resolving color-specific NAGs. */
+  moveSide: "white" | "black";
   t: (key: string, fallback?: string) => string;
   onAction: (action: TruncationAction) => void;
   onClose: () => void;
@@ -60,6 +69,8 @@ export const TruncationMenu = ({
   san,
   isInVariation,
   anchorRect,
+  currentNags,
+  moveSide,
   t,
   onAction,
   onClose,
@@ -112,8 +123,35 @@ export const TruncationMenu = ({
     [onAction, onClose],
   );
 
+  const handleNagToggle = useCallback(
+    (nag: string): void => { onAction({ type: "toggle_nag", moveId, nag }); },
+    [onAction, moveId],
+  );
+
   return (
-    <div ref={menuRef} className="truncation-menu" style={style} role="menu">
+    <div
+      ref={menuRef}
+      className="truncation-menu"
+      style={style}
+      role="menu"
+      data-guide-id={GUIDE_IDS.TRUNCATION_MENU}
+    >
+      {/* ── NAG annotation ─── */}
+      <div className="truncation-menu-nag-section">
+        <span className="truncation-menu-nag-label">
+          {t("editor.nag.moveSymbol", "Move")}
+        </span>
+        <NagRow defs={NAG_MOVE_QUALITY} currentNags={currentNags} moveSide={moveSide} onToggle={handleNagToggle} />
+        <span className="truncation-menu-nag-label">
+          {t("editor.nag.evaluation", "Eval")}
+        </span>
+        <NagRow defs={NAG_EVALUATION} currentNags={currentNags} moveSide={moveSide} onToggle={handleNagToggle} />
+        <span className="truncation-menu-nag-label">
+          {t("editor.nag.position", "Position")}
+        </span>
+        <NagRow defs={NAG_POSITIONAL} currentNags={currentNags} moveSide={moveSide} onToggle={handleNagToggle} />
+      </div>
+      <div className="truncation-menu-separator" />
       <button
         type="button"
         className="truncation-menu-item"
@@ -137,6 +175,14 @@ export const TruncationMenu = ({
         onClick={(): void => { pick({ type: "insert_qa", moveId }); }}
       >
         {t("editor.insertQa", "Add Q/A annotation")}
+      </button>
+      <button
+        type="button"
+        className="truncation-menu-item"
+        role="menuitem"
+        onClick={(): void => { pick({ type: "insert_train", moveId }); }}
+      >
+        {t("editor.insertTrain", "Add training tag")}
       </button>
       <button
         type="button"

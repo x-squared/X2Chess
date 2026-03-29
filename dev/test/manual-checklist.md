@@ -6,7 +6,7 @@
 - To report a failure, reference the item ID (e.g. "BOARD-3 doesn't work — knight promotion menu doesn't appear").
 - Reset `[x]` back to `[ ]` whenever the item is re-opened by a later change.
 
-**Last updated:** 2026-03-28 (NAG picker, format importers)
+**Last updated:** 2026-03-29 (eval pills — EvalBadge, show/hide toggle, delete-all)
 
 ---
 
@@ -140,6 +140,15 @@
 - [ ] **PGNEDIT-49** — The → (initiative), ↑ (attack), and ⇆ (counterplay) buttons apply the colour-correct NAG code: White's move → `$32`/`$36`/`$40`; Black's move → `$33`/`$37`/`$41`.
 - [ ] **PGNEDIT-50** — NAG changes are undoable via Cmd/Ctrl+Z.
 - [ ] **PGNEDIT-51** — After saving, the PGN file contains the correct `$N` codes for the applied symbols.
+- [ ] **PGNEDIT-52** — A `[%eval N.NN]` annotation in a PGN comment renders as a score pill (e.g. `+0.17`) in text and tree modes; the pill does not appear in plain mode.
+- [ ] **PGNEDIT-53** — Positive scores (e.g. `+0.17`) show in green; negative scores (e.g. `-1.23`) in red; zero (`0.00`) in neutral; mate-for-mover (`#5`) in solid green; being-mated (`#-3`) in solid red.
+- [ ] **PGNEDIT-54** — Clicking an eval pill opens a small popover showing the formatted evaluation value.
+- [ ] **PGNEDIT-55** — The popover has a **Delete** button; clicking it removes only that `[%eval]` annotation from the comment and closes the popover.
+- [ ] **PGNEDIT-56** — The popover has a **Delete all** button; clicking it removes every `[%eval]` annotation from every comment in the game.
+- [ ] **PGNEDIT-57** — When a comment contains multiple `[%eval]` annotations, the pill label shows `eval N`; the popover has prev/next navigation to browse them individually.
+- [ ] **PGNEDIT-58** — The `±` toggle button in the text-editor sidebar shows/hides all eval pills in text and tree modes; the button appears active (highlighted) when pills are visible.
+- [ ] **PGNEDIT-59** — The `±` toggle button is disabled in plain mode.
+- [ ] **PGNEDIT-60** — When eval pills are hidden via the toggle, `[%eval]` markup is still stripped from the comment display text (raw marker text is never shown to the user).
 
 ---
 
@@ -264,6 +273,15 @@
 - [ ] **TRAINING-3** — Training badge (score chip) appears on the resource row after a session.
 - [ ] **TRAINING-4** — Training history strip in the text editor shows past session scores.
 - [ ] **TRAINING-5** — Aborting training mid-session records a partial result.
+- [ ] **TRAINING-6** — Right-clicking a move in the PGN editor shows "Add training tag" in the context menu.
+- [ ] **TRAINING-7** — Clicking "Add training tag" opens the training tag dialog; entering accept moves and saving inserts a `[%train accept="..."]` comment before the move and shows a "T" badge in the editor.
+- [ ] **TRAINING-8** — Clicking the "T" badge opens a popover showing accept, reject, and hint values; clicking Edit reopens the dialog with pre-filled values.
+- [ ] **TRAINING-9** — Editing a `[%train]` tag via the badge popover updates the existing tag in the PGN comment (not a duplicate).
+- [ ] **TRAINING-10** — Clicking Delete in the "T" badge popover removes the `[%train]` tag from the comment; the badge disappears.
+- [ ] **TRAINING-11** — A `[%train]` tag with only a hint and no accept/reject shows the hint in the popover and "No overrides set." is not shown.
+- [ ] **TRAINING-12** — During a Replay training session, a move matching a `[%train accept]` list is accepted as correct even if it is not the game move.
+- [ ] **TRAINING-13** — During a Replay training session, a move listed in `[%train reject]` is rejected even if it is the mainline game move.
+- [ ] **TRAINING-14** — A `[%train hint]` value is shown when the user requests a hint during training at that position.
 
 ---
 

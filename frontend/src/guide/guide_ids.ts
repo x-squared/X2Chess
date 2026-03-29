@@ -81,6 +81,32 @@ export const GUIDE_IDS = {
   RIGHT_PANEL_TEXT_SEARCH: "panel.text-search",
   RIGHT_PANEL_SETTINGS: "panel.settings",
 
+  // ── Editor annotations ──────────────────────────────────────────────────
+  /** Compact three-button NAG annotation row shown when a move is selected. */
+  NAG_ANNOTATION_BUTTONS: "editor.nag-buttons",
+  /** Right-click context menu on a move token. */
+  TRUNCATION_MENU: "editor.context-menu",
+
+  // ── Panel components ────────────────────────────────────────────────────
+  ANALYSIS_PANEL: "analysis.panel",
+  ANALYSIS_PANEL_HEADER: "analysis.panel.header",
+  ANALYSIS_PANEL_VARIATIONS: "analysis.panel.variations",
+  OPENING_EXPLORER_PANEL: "opening.panel",
+  OPENING_EXPLORER_HEADER: "opening.panel.header",
+  OPENING_MOVES_TABLE: "opening.panel.moves-table",
+  TABLEBASE_PANEL: "tablebase.panel",
+  TABLEBASE_PANEL_HEADER: "tablebase.panel.header",
+  TABLEBASE_MOVES: "tablebase.panel.moves",
+  COLLECTION_EXPLORER_PANEL: "collection.panel",
+  COLLECTION_EXPLORER_HEADER: "collection.panel.header",
+  GAME_SEARCH_PANEL: "game-search.panel",
+  POSITION_SEARCH_PANEL: "position-search.panel",
+  POSITION_SEARCH_HEADER: "position-search.panel.header",
+  TEXT_SEARCH_PANEL: "text-search.panel",
+  TEXT_SEARCH_HEADER: "text-search.panel.header",
+  SETTINGS_PANEL: "settings.panel",
+  RESOURCE_VIEWER_PANEL: "resources.panel",
+
   // ── Dialogs ─────────────────────────────────────────────────────────────
   DISAMBIGUATION_DIALOG: "dialog.disambiguation",
   PROMOTION_PICKER: "dialog.promotion",

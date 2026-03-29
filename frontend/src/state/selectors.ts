@@ -51,6 +51,7 @@ export const selectShapePrefs = (state: AppStoreState): ShapePrefs => state.shap
 export const selectLayoutMode = (
   state: AppStoreState,
 ): "plain" | "text" | "tree" => state.pgnLayoutMode;
+export const selectShowEvalPills = (state: AppStoreState): boolean => state.showEvalPills;
 export const selectPgnText = (state: AppStoreState): string => state.pgnText;
 export const selectPgnModel = (state: AppStoreState): PgnModel | null => state.pgnModel;
 export const selectMoves = (state: AppStoreState): string[] => state.moves;

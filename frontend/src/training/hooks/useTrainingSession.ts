@@ -37,7 +37,7 @@ type HookState = {
   sessionState: TrainingSessionState | null;
   transcript: TrainingTranscript | null;
   summary: ResultSummary | null;
-  lastFeedback: "correct" | "wrong" | "skip" | "legal_variant" | null;
+  lastFeedback: import("../domain/training_protocol").MoveEvalFeedback | null;
   /** SAN of the correct move when last attempt was wrong. */
   correctMoveSan: string | null;
 };
@@ -173,7 +173,9 @@ export const useTrainingSession = (
             ?.mainlineSans?.[state.sessionState.currentSourcePly] as string ?? "",
         userMoveUci: move.uci,
         userMoveSan: move.san,
-        outcome: result.feedback === "correct" || result.feedback === "legal_variant"
+        outcome: (result.feedback === "correct" || result.feedback === "correct_better" ||
+          result.feedback === "correct_dubious" || result.feedback === "legal_variant" ||
+          result.feedback === "inferior")
           ? result.feedback
           : result.accepted ? "correct" : "wrong",
         attemptsCount: 1,
@@ -202,7 +204,9 @@ export const useTrainingSession = (
       let newSession: TrainingSessionState = {
         ...state.sessionState,
         correctCount:
-          result.feedback === "correct" || result.feedback === "legal_variant"
+          result.feedback === "correct" || result.feedback === "correct_better" ||
+          result.feedback === "correct_dubious" || result.feedback === "legal_variant" ||
+          result.feedback === "inferior"
             ? state.sessionState.correctCount + 1
             : state.sessionState.correctCount,
         wrongCount:

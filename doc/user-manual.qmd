@@ -397,11 +397,106 @@ Training mode replays moves from the game to test your recall.
 
 ### During training
 
-- The board shows the position. You are expected to play the correct move.
-- A **history strip** above the board records your move attempts.
-- Correct moves advance the position. Incorrect moves are flagged.
-- At the end, a **result summary** shows your score and lets you merge correct
-  moves back into the game or start again.
+The board shows the current position. You are expected to play the move that
+was played in the game — or any move the game's annotator has judged as equally
+good.
+
+#### Move outcomes
+
+| Indicator | Meaning |
+|---|---|
+| **Correct** | You played the game move or a recognised strong alternative. |
+| **Better!** | You found an improvement over a flawed game move. |
+| **Correct** *(note)* | You played the game move, but a better option existed. Training continues. |
+| **Dubious** | Your move is in the game's analysis but considered questionable. Depending on settings, training may continue or ask you to find a better move. |
+| **Wrong** | Your move was not accepted. The best move is revealed. |
+
+#### Hints
+
+Click **Hint** in the training overlay to reveal the canonical best move for
+the current position. Using a hint reduces your final score for that move.
+The number of hints available is shown in the overlay.
+
+#### Skipping a move
+
+Click **Skip** to advance without playing. Skipped moves are excluded from
+your score but are listed in the result summary.
+
+#### Session end
+
+When all moves have been attempted, the result summary shows your score,
+a per-move breakdown, and merge options (see "Merging training results").
+
+---
+
+### Annotating games for training
+
+X2Chess reads standard PGN annotation conventions when evaluating your moves.
+Richer annotation produces better training feedback.
+
+#### Move symbols
+
+Attach move symbols to individual moves using the NAG buttons in the editor
+(**!** **!!** **?** **??** **!?** **?!**). The training engine uses them as
+follows:
+
+| Symbol | Meaning for training |
+|---|---|
+| !! — Brilliant | This move is the canonical answer. |
+| ! — Good | This move is the canonical answer. |
+| !? — Interesting | This move is the canonical answer; training notes its speculative nature. |
+| ?! — Dubious | This is the game move; training notes that a better option may exist. |
+| ? — Mistake | This move is **not** the canonical answer. Add a variation to show the correct move. |
+| ?? — Blunder | As above. The variation's first move, if annotated !, becomes the expected answer. |
+
+#### Variations as alternatives
+
+Any variation (RAV) added immediately after a move is read by the training
+engine:
+
+- A variation starting with **!** or **!!** is accepted as a strong alternative
+  (full credit).
+- A variation starting with **!?** is accepted as a speculative alternative
+  (full credit).
+- A variation with **no symbol** is accepted as a neutral alternative
+  (full credit).
+- A variation starting with **?!** marks a dubious option (partial credit, or
+  a prompted retry, depending on settings).
+- A variation starting with **?** or **??** is treated as a trap line: if the
+  user plays that move, they receive the variation's comment as feedback
+  explaining why it fails.
+
+**Example:** The game continued 24. Nf3? — a mistake. Add a variation
+`(24. Nd5! with the comment "Centralises the knight and controls e7")`.
+The training engine expects Nd5, rewards players who find it with "Better!"
+feedback, and shows the comment as explanation.
+
+#### Engine evaluations
+
+If you annotate a game using the engine, the resulting `[%eval]` values are
+used as a quantitative fallback when a move has no symbol or variation. Moves
+within 0.3 pawns of the position evaluation are accepted; moves 0.3–0.8 pawns
+worse are treated as dubious; moves more than 0.8 pawns worse are rejected.
+These thresholds can be adjusted in **Training Settings**.
+
+#### The `[%train]` tag (advanced)
+
+For precise control over a specific position, embed a `[%train]` tag in the
+comment *before* the move. This overrides all other rules for that ply.
+
+```
+{[%train accept="g1f3,d1h5" reject="g1h3" hint="Activate the knight"]}
+24. Nf3
+```
+
+| Field | Meaning |
+|---|---|
+| `accept` | Comma-separated UCI moves that count as correct. The game move is included unless listed in `reject`. |
+| `reject` | UCI moves that trigger a specific trap warning (taken from the matching variation's comment). |
+| `hint` | Text shown when the user requests a hint at this position. |
+
+Use `[%train]` when NAG/variation inference is insufficient, or when you need
+to accept a set of moves that cannot be expressed as variations.
 
 ---
 

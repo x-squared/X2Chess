@@ -15,9 +15,10 @@
  */
 
 import { useEffect, type ReactElement } from "react";
+import type { MoveEvalFeedback } from "../domain/training_protocol";
 
 type MoveOutcomeHintProps = {
-  feedback: "correct" | "wrong" | "skip" | "legal_variant" | null;
+  feedback: MoveEvalFeedback | null;
   /** SAN of the correct move (shown when feedback = "wrong"). */
   correctMoveSan: string | null;
   allowRetry: boolean;

@@ -60,6 +60,7 @@ import {
   type GroupByState,
   type SortConfig,
 } from "../resources_viewer/viewer_utils";
+import { GUIDE_IDS } from "../guide/guide_ids";
 import { ResourceTabBar } from "./ResourceTabBar";
 import { ResourceTable } from "./ResourceTable";
 import { ResourceMetadataDialog } from "./ResourceMetadataDialog";
@@ -713,7 +714,7 @@ export const ResourceViewer = (): ReactElement => {
   // ── Render ────────────────────────────────────────────────────────────
 
   return (
-    <section className="resource-viewer-card">
+    <section className="resource-viewer-card" data-guide-id={GUIDE_IDS.RESOURCE_VIEWER_PANEL}>
       <ResourceTabBar
         tabs={tabs}
         activeTabId={activeTabId}

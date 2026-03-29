@@ -33,6 +33,7 @@ import {
   selectSelectedMoveId,
   selectPendingFocusCommentId,
   selectPositionPreviewOnHover,
+  selectShowEvalPills,
 } from "../state/selectors";
 import { useHoverPreview } from "./HoverPreviewContext";
 import { resolveMovePositionById, type PgnModelForMoves } from "../board/move_position";
@@ -57,6 +58,13 @@ import {
   stripQaAnnotations,
 } from "../resources_viewer/qa_parser";
 import { useQaDialog } from "../editor/useQaDialog";
+import { TrainBadge, TrainInsertDialog } from "./TrainBadge";
+import {
+  parseTrainTag,
+  hasTrainAnnotation,
+  stripTrainAnnotation,
+} from "../resources_viewer/train_tag_parser";
+import { useTrainDialog } from "../editor/useTrainDialog";
 import { TodoBadge, TodoInsertDialog, TodoPanel } from "./TodoBadge";
 import type { TodoPanelItem } from "./TodoBadge";
 import {
@@ -85,6 +93,13 @@ import {
 import { useAnchorDefDialog } from "../editor/useAnchorDefDialog";
 import { useAnchorRefDialog } from "../editor/useAnchorRefDialog";
 import { resolveAnchors } from "../editor/resolveAnchors";
+import { EvalBadge } from "./EvalBadge";
+import {
+  parseEvalAnnotations,
+  hasEvalAnnotations,
+  stripEvalAnnotations,
+  replaceEvalAnnotation,
+} from "../resources_viewer/eval_parser";
 import type { ResolvedAnchor } from "../editor/resolveAnchors";
 import { AnchorDefDialog } from "./AnchorDefDialog";
 import { AnchorPickerDialog } from "./AnchorPickerDialog";
@@ -406,6 +421,8 @@ type TokenViewProps = {
   onCommentFocusHandled: (commentId: string) => void;
   onEditQa: (commentId: string, index: number, rawText: string) => void;
   onDeleteQa: (commentId: string, index: number, rawText: string) => void;
+  onEditTrain: (commentId: string, rawText: string) => void;
+  onDeleteTrain: (commentId: string, rawText: string) => void;
   onEditTodo: (commentId: string, index: number, rawText: string) => void;
   onDeleteTodo: (commentId: string, index: number, rawText: string) => void;
   onEditLink: (commentId: string, index: number, rawText: string) => void;
@@ -417,6 +434,10 @@ type TokenViewProps = {
   onEditAnchorRef: (commentId: string, index: number, rawText: string, currentId: string) => void;
   onDeleteAnchorRef: (commentId: string, index: number, rawText: string) => void;
   resolvedAnchorsMap: ReadonlyMap<string, ResolvedAnchor>;
+  /** Whether engine evaluation pills are currently shown. */
+  showEvalPills: boolean;
+  onDeleteEval: (commentId: string, index: number, rawText: string) => void;
+  onDeleteAllEvals: () => void;
   onContextMenu: (moveId: string, san: string, isInVariation: boolean, rect: DOMRect) => void;
   onMoveHover?: (moveId: string, rect: DOMRect) => void;
   onMoveHoverEnd?: () => void;
@@ -441,6 +462,8 @@ const TokenView = ({
   onCommentFocusHandled,
   onEditQa,
   onDeleteQa,
+  onEditTrain,
+  onDeleteTrain,
   onEditTodo,
   onDeleteTodo,
   onEditLink,
@@ -452,6 +475,9 @@ const TokenView = ({
   onEditAnchorRef,
   onDeleteAnchorRef,
   resolvedAnchorsMap,
+  showEvalPills,
+  onDeleteEval,
+  onDeleteAllEvals,
   onContextMenu,
   onMoveHover,
   onMoveHoverEnd,
@@ -462,25 +488,34 @@ const TokenView = ({
     const inBadgeMode: boolean = layoutMode !== "plain";
     // Show annotation badges in text/tree mode whenever annotations are present.
     const showQaBadge: boolean = inBadgeMode && hasQaAnnotations(ct.rawText);
+    const showTrainBadge: boolean = inBadgeMode && hasTrainAnnotation(ct.rawText);
     const showTodoBadge: boolean = inBadgeMode && hasTodoAnnotations(ct.rawText);
     const showLinkBadge: boolean = inBadgeMode && hasLinkAnnotations(ct.rawText);
     const showAnchorBadge: boolean = inBadgeMode && hasAnchorAnnotations(ct.rawText);
     const showAnchorRefChips: boolean = inBadgeMode && hasAnchorRefAnnotations(ct.rawText);
+    // Eval pills are gated by both badge mode and the show/hide toggle.
+    const showEvalBadge: boolean = inBadgeMode && showEvalPills && hasEvalAnnotations(ct.rawText);
     const qaAnnotations = showQaBadge ? parseQaAnnotations(ct.rawText) : [];
+    const trainTag = showTrainBadge ? parseTrainTag(ct.rawText) : null;
     const todoAnnotations = showTodoBadge ? parseTodoAnnotations(ct.rawText) : [];
     const linkAnnotations = showLinkBadge ? parseLinkAnnotations(ct.rawText) : [];
     const anchorAnnotations = showAnchorBadge ? parseAnchorAnnotations(ct.rawText) : [];
     const anchorRefAnnotations = showAnchorRefChips ? parseAnchorRefAnnotations(ct.rawText) : [];
+    const evalAnnotations = showEvalBadge ? parseEvalAnnotations(ct.rawText) : [];
     // Strip annotation markup from display text; omit the comment block if nothing remains.
-    const anyBadge: boolean = showQaBadge || showTodoBadge || showLinkBadge || showAnchorBadge || showAnchorRefChips;
+    // Eval is always stripped from display even when pills are hidden (it's machine data).
+    const hasAnyEval: boolean = inBadgeMode && hasEvalAnnotations(ct.rawText);
+    const anyBadge: boolean = showQaBadge || showTrainBadge || showTodoBadge || showLinkBadge || showAnchorBadge || showAnchorRefChips || hasAnyEval;
     let displayText: string;
     if (anyBadge) {
       let stripped: string = ct.rawText;
       if (showQaBadge) stripped = stripQaAnnotations(stripped);
+      if (showTrainBadge) stripped = stripTrainAnnotation(stripped);
       if (showTodoBadge) stripped = stripTodoAnnotations(stripped);
       if (showLinkBadge) stripped = stripLinkAnnotations(stripped);
       if (showAnchorBadge) stripped = stripAnchorAnnotations(stripped);
       if (showAnchorRefChips) stripped = stripAnchorRefAnnotations(stripped);
+      if (hasAnyEval) stripped = stripEvalAnnotations(stripped);
       displayText = stripped;
     } else {
       displayText = ct.text;
@@ -513,6 +548,14 @@ const TokenView = ({
             onDelete={(index: number): void => {
               onDeleteQa(ct.commentId, index, ct.rawText);
             }}
+          />
+        )}
+        {showTrainBadge && trainTag !== null && (
+          <TrainBadge
+            tag={trainTag}
+            t={t}
+            onEdit={(): void => { onEditTrain(ct.commentId, ct.rawText); }}
+            onDelete={(): void => { onDeleteTrain(ct.commentId, ct.rawText); }}
           />
         )}
         {showTodoBadge && (
@@ -556,6 +599,16 @@ const TokenView = ({
             }}
           />
         ))}
+        {showEvalBadge && (
+          <EvalBadge
+            annotations={evalAnnotations}
+            t={t}
+            onDelete={(index: number): void => {
+              onDeleteEval(ct.commentId, index, ct.rawText);
+            }}
+            onDeleteAll={onDeleteAllEvals}
+          />
+        )}
         {hasDisplayText && (
           <CommentBlock
             token={displayToken}
@@ -607,6 +660,8 @@ type TokenRenderDeps = {
   onCommentFocusHandled: (commentId: string) => void;
   onEditQa: (commentId: string, index: number, rawText: string) => void;
   onDeleteQa: (commentId: string, index: number, rawText: string) => void;
+  onEditTrain: (commentId: string, rawText: string) => void;
+  onDeleteTrain: (commentId: string, rawText: string) => void;
   onEditTodo: (commentId: string, index: number, rawText: string) => void;
   onDeleteTodo: (commentId: string, index: number, rawText: string) => void;
   onEditLink: (commentId: string, index: number, rawText: string) => void;
@@ -618,6 +673,9 @@ type TokenRenderDeps = {
   onEditAnchorRef: (commentId: string, index: number, rawText: string, currentId: string) => void;
   onDeleteAnchorRef: (commentId: string, index: number, rawText: string) => void;
   resolvedAnchorsMap: ReadonlyMap<string, ResolvedAnchor>;
+  showEvalPills: boolean;
+  onDeleteEval: (commentId: string, index: number, rawText: string) => void;
+  onDeleteAllEvals: () => void;
   onContextMenu: (moveId: string, san: string, isInVariation: boolean, rect: DOMRect) => void;
   onMoveHover?: (moveId: string, rect: DOMRect) => void;
   onMoveHoverEnd?: () => void;
@@ -643,6 +701,8 @@ const renderToken = (token: PlanToken, deps: TokenRenderDeps): ReactElement => (
     onCommentFocusHandled={deps.onCommentFocusHandled}
     onEditQa={deps.onEditQa}
     onDeleteQa={deps.onDeleteQa}
+    onEditTrain={deps.onEditTrain}
+    onDeleteTrain={deps.onDeleteTrain}
     onEditTodo={deps.onEditTodo}
     onDeleteTodo={deps.onDeleteTodo}
     onEditLink={deps.onEditLink}
@@ -654,6 +714,9 @@ const renderToken = (token: PlanToken, deps: TokenRenderDeps): ReactElement => (
     onEditAnchorRef={deps.onEditAnchorRef}
     onDeleteAnchorRef={deps.onDeleteAnchorRef}
     resolvedAnchorsMap={deps.resolvedAnchorsMap}
+    showEvalPills={deps.showEvalPills}
+    onDeleteEval={deps.onDeleteEval}
+    onDeleteAllEvals={deps.onDeleteAllEvals}
     onContextMenu={deps.onContextMenu}
     onMoveHover={deps.onMoveHover}
     onMoveHoverEnd={deps.onMoveHoverEnd}
@@ -777,6 +840,7 @@ export const PgnTextEditor = (): ReactElement => {
   const selectedMoveId: string | null = selectSelectedMoveId(state);
   const pendingFocusCommentId: string | null = selectPendingFocusCommentId(state);
   const positionPreviewOnHover: boolean = selectPositionPreviewOnHover(state);
+  const showEvalPills: boolean = selectShowEvalPills(state);
   const [consumedFocusCommentId, setConsumedFocusCommentId] = useState<string | null>(null);
   const t: (key: string, fallback?: string) => string = useTranslator();
   const { showPreview, hidePreview } = useHoverPreview();
@@ -791,19 +855,26 @@ export const PgnTextEditor = (): ReactElement => {
     san: string;
     isInVariation: boolean;
     anchorRect: DOMRect;
+    currentNags: readonly string[];
+    moveSide: "white" | "black";
   };
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
   const handleMoveContextMenu = useCallback(
     (moveId: string, san: string, isInVariation: boolean, rect: DOMRect): void => {
       window.getSelection()?.removeAllRanges();
-      setContextMenu({ moveId, san, isInVariation, anchorRect: rect });
+      const nags = pgnModel ? (findMoveNode(pgnModel as PgnModel, moveId)?.nags ?? []) : [];
+      const side = pgnModel ? (findMoveSideById(pgnModel as PgnModel, moveId) ?? "white") : "white";
+      setContextMenu({ moveId, san, isInVariation, anchorRect: rect, currentNags: nags, moveSide: side });
     },
-    [],
+    [pgnModel],
   );
 
   // ── Q/A dialog state (UV10/UV11) ─────────────────────────────────────────────
   const { qaDialog, handleEditQa, handleInsertQa, handleQaDialogSave, handleQaDialogClose, handleDeleteQa } = useQaDialog(services);
+
+  // ── Train tag dialog state ────────────────────────────────────────────────────
+  const { trainDialog, handleEditTrain, handleInsertTrain, handleTrainDialogSave, handleTrainDialogClose, handleDeleteTrain } = useTrainDialog(services);
 
   // ── TODO dialog state ─────────────────────────────────────────────────────────
   const { todoDialog, handleEditTodo, handleInsertTodo, handleTodoDialogSave, handleTodoDialogClose, handleDeleteTodo } = useTodoDialog(services);
@@ -845,6 +916,35 @@ export const PgnTextEditor = (): ReactElement => {
     [services],
   );
 
+  /** Recompute the token plan only when the model or layout mode changes. */
+  const blocks: PlanBlock[] = useMemo(
+    (): PlanBlock[] => buildTextEditorPlan(pgnModel, { layoutMode }),
+    [pgnModel, layoutMode],
+  );
+
+  // ── Eval annotation handlers ──────────────────────────────────────────────────
+
+  const handleDeleteEval = useCallback(
+    (commentId: string, index: number, rawText: string): void => {
+      const updated: string = replaceEvalAnnotation(rawText, index, null);
+      services.saveCommentText(commentId, updated);
+    },
+    [services],
+  );
+
+  const handleDeleteAllEvals = useCallback((): void => {
+    if (!blocks) return;
+    for (const block of blocks) {
+      for (const token of block.tokens) {
+        if (token.kind !== "comment") continue;
+        const ct: CommentToken = token as CommentToken;
+        if (!hasEvalAnnotations(ct.rawText)) continue;
+        const stripped: string = stripEvalAnnotations(ct.rawText);
+        services.saveCommentText(ct.commentId, stripped);
+      }
+    }
+  }, [blocks, services]);
+
   const handleToggle = useCallback((key: string): void => {
     setCollapsedPaths((prev: ReadonlySet<string>): ReadonlySet<string> => {
       const next: Set<string> = new Set(prev);
@@ -863,12 +963,6 @@ export const PgnTextEditor = (): ReactElement => {
     (): ReadonlyMap<string, ResolvedAnchor> =>
       new Map(resolvedAnchors.map((a) => [a.id, a])),
     [resolvedAnchors],
-  );
-
-  /** Recompute the token plan only when the model or layout mode changes. */
-  const blocks: PlanBlock[] = useMemo(
-    (): PlanBlock[] => buildTextEditorPlan(pgnModel, { layoutMode }),
-    [pgnModel, layoutMode],
   );
   const lastSiblingByParent: ReadonlyMap<string, number> = useMemo(
     (): ReadonlyMap<string, number> => buildLastSiblingByParent(blocks),
@@ -943,6 +1037,9 @@ export const PgnTextEditor = (): ReactElement => {
         case "insert_qa":
           handleInsertQa(action.moveId);
           return;
+        case "insert_train":
+          handleInsertTrain(action.moveId);
+          return;
         case "insert_todo":
           handleInsertTodo(action.moveId);
           return;
@@ -951,6 +1048,9 @@ export const PgnTextEditor = (): ReactElement => {
           return;
         case "insert_anchor":
           handleOpenAnchorDefDialog(action.moveId, action.san);
+          return;
+        case "toggle_nag":
+          services.toggleMoveNag(action.moveId, action.nag);
           return;
         default:
           break;
@@ -1076,6 +1176,8 @@ export const PgnTextEditor = (): ReactElement => {
             onCommentFocusHandled: handleCommentFocusHandled,
             onEditQa: handleEditQa,
             onDeleteQa: handleDeleteQa,
+            onEditTrain: handleEditTrain,
+            onDeleteTrain: handleDeleteTrain,
             onEditTodo: handleEditTodo,
             onDeleteTodo: handleDeleteTodo,
             onEditLink: handleEditLink,
@@ -1087,6 +1189,9 @@ export const PgnTextEditor = (): ReactElement => {
             onEditAnchorRef: handleEditAnchorRef,
             onDeleteAnchorRef: handleDeleteAnchorRef,
             resolvedAnchorsMap,
+            showEvalPills,
+            onDeleteEval: handleDeleteEval,
+            onDeleteAllEvals: handleDeleteAllEvals,
             onContextMenu: handleMoveContextMenu,
             onMoveHover: handleMoveHover,
             onMoveHoverEnd: handleMoveHoverEnd,
@@ -1106,6 +1211,8 @@ export const PgnTextEditor = (): ReactElement => {
             onCommentFocusHandled: handleCommentFocusHandled,
             onEditQa: handleEditQa,
             onDeleteQa: handleDeleteQa,
+            onEditTrain: handleEditTrain,
+            onDeleteTrain: handleDeleteTrain,
             onEditTodo: handleEditTodo,
             onDeleteTodo: handleDeleteTodo,
             onEditLink: handleEditLink,
@@ -1117,6 +1224,9 @@ export const PgnTextEditor = (): ReactElement => {
             onEditAnchorRef: handleEditAnchorRef,
             onDeleteAnchorRef: handleDeleteAnchorRef,
             resolvedAnchorsMap,
+            showEvalPills,
+            onDeleteEval: handleDeleteEval,
+            onDeleteAllEvals: handleDeleteAllEvals,
             onContextMenu: handleMoveContextMenu,
             onMoveHover: handleMoveHover,
             onMoveHoverEnd: handleMoveHoverEnd,
@@ -1137,6 +1247,14 @@ export const PgnTextEditor = (): ReactElement => {
           t={t}
           onSave={handleQaDialogSave}
           onClose={handleQaDialogClose}
+        />
+      )}
+      {trainDialog !== null && (
+        <TrainInsertDialog
+          initial={trainDialog.initial}
+          t={t}
+          onSave={handleTrainDialogSave}
+          onClose={handleTrainDialogClose}
         />
       )}
       {todoDialog !== null && (
@@ -1180,6 +1298,8 @@ export const PgnTextEditor = (): ReactElement => {
           san={contextMenu.san}
           isInVariation={contextMenu.isInVariation}
           anchorRect={contextMenu.anchorRect}
+          currentNags={contextMenu.currentNags}
+          moveSide={contextMenu.moveSide}
           t={t}
           onAction={handleTruncationAction}
           onClose={(): void => { setContextMenu(null); }}

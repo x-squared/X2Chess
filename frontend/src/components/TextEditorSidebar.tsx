@@ -30,6 +30,8 @@ type TextEditorSidebarProps = {
   canUndo: boolean;
   canRedo: boolean;
   isDirty: boolean;
+  /** Whether engine evaluation pills are currently shown (text/tree mode only). */
+  showEvalPills: boolean;
   t: (key: string, fallback?: string) => string;
   onSetLayoutMode: (mode: "plain" | "text" | "tree") => void;
   onApplyDefaultIndent: () => void;
@@ -37,6 +39,8 @@ type TextEditorSidebarProps = {
   onUndo: () => void;
   onRedo: () => void;
   onOpenBoardSettings: () => void;
+  /** Called when the user toggles evaluation pill visibility. */
+  onToggleEvalPills: () => void;
 };
 
 export const TextEditorSidebar = ({
@@ -44,6 +48,7 @@ export const TextEditorSidebar = ({
   canUndo,
   canRedo,
   isDirty,
+  showEvalPills,
   t,
   onSetLayoutMode,
   onApplyDefaultIndent,
@@ -51,6 +56,7 @@ export const TextEditorSidebar = ({
   onUndo,
   onRedo,
   onOpenBoardSettings,
+  onToggleEvalPills,
 }: TextEditorSidebarProps): ReactElement => (
   <div className="text-editor-sidebar" data-guide-id={GUIDE_IDS.EDITOR_SIDEBAR}>
     {/* Layout mode group */}
@@ -108,6 +114,27 @@ export const TextEditorSidebar = ({
       onClick={onApplyDefaultIndent}
     >
       <img src="/icons/toolbar/default-indent.svg" alt={t("pgn.defaultIndent", "Default indent")} />
+    </button>
+
+    <div className="text-editor-sidebar-sep" />
+
+    {/* Eval pill visibility toggle — only meaningful in text/tree mode */}
+    <button
+      id="btn-toggle-eval-pills"
+      type="button"
+      className={`icon-button${layoutMode !== "plain" && showEvalPills ? " active" : ""}`}
+      title={
+        layoutMode === "plain"
+          ? t("toolbar.evalPills.unavailable", "Eval pills (unavailable in plain mode)")
+          : showEvalPills
+            ? t("toolbar.evalPills.hide", "Hide engine evaluations")
+            : t("toolbar.evalPills.show", "Show engine evaluations")
+      }
+      disabled={layoutMode === "plain"}
+      aria-pressed={layoutMode !== "plain" && showEvalPills ? "true" : "false"}
+      onClick={onToggleEvalPills}
+    >
+      <span className="eval-toggle-label" aria-hidden="true">±</span>
     </button>
 
     <div className="text-editor-sidebar-sep" />

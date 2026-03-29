@@ -1,0 +1,90 @@
+---
+section: PGNEDIT
+area: PGN text editor (plain / text / tree modes, comments, NAGs, eval pills, TODO, game links, position preview)
+---
+
+## Key source files
+- `frontend/src/components/PgnTextEditor.tsx` — editor root component
+- `frontend/src/components/TextEditorSidebar.tsx` — sidebar (mode toggle, ± eval toggle)
+- `frontend/src/components/MovesPanel.tsx` — move token rendering in all modes
+- `frontend/src/components/NagPicker.tsx` — NAG picker toolbar
+- `frontend/src/components/EvalBadge.tsx` — `[%eval]` score pill
+- `frontend/src/components/TodoBadge.tsx` — `[%todo]` badge and popover
+- `frontend/src/components/LinkBadge.tsx` — `[%link]` chip
+- `frontend/src/components/AnchorBadge.tsx` — `[%anchor]` badge
+- `frontend/src/components/HoverPositionPopup.tsx` — hover mini-board popup
+- `frontend/src/components/GamePickerDialog.tsx` — game picker dialog for link insertion
+- `frontend/src/components/TruncationMenu.tsx` — truncate-here menu
+- `frontend/src/editor/text_editor_plan.ts` — plain/text/tree rendering plan
+- `frontend/src/editor/tree_numbering.ts` — tree-mode branch labelling (A / B / A.1)
+- `frontend/src/editor/useTodoDialog.ts` — TODO annotation dialog logic
+- `frontend/src/editor/useLinkDialog.ts` — game-link annotation dialog logic
+- `frontend/src/editor/useQaDialog.ts` — Q/A annotation dialog logic
+- `dev/plans/tree_text_editor_convergence_5ac46f02.plan.md` — plain/text/tree convergence
+- `dev/plans/text_mode_layout_example_f7a8b9c0.plan.md` — `[[br]]`/`[[indent]]` layout markers
+- `dev/plans/game_links_f1a2b3c4.plan.md` — `[%link]` chip rendering and navigation
+- `dev/plans/game_anchors_b4c5d6e7.plan.md` — `[%anchor]` named anchors
+- `dev/plans/hover_position_preview_a3b2c1d0.plan.md` — hover mini-board popup design
+
+## Checklist
+
+- [ ] **PGNEDIT-1** — Plain mode shows the raw PGN as a single text block.
+- [ ] **PGNEDIT-2** — Text mode shows `[[br]]`-formatted paragraphs with indented variations.
+- [ ] **PGNEDIT-3** — Tree mode shows one block per variation branch, labelled A / B / A.1 etc.
+- [ ] **PGNEDIT-4** — Layout mode toggle (Plain / Text / Tree) switches without data loss.
+- [ ] **PGNEDIT-5** — Clicking "Add comment before/after" inserts a comment node; the field is focused.
+- [ ] **PGNEDIT-6** — Editing a comment and clicking away saves the text into the PGN model.
+- [ ] **PGNEDIT-7** — Q/A badge (? or ! annotation) can be set on a move; it appears in the PGN.
+- [ ] **PGNEDIT-8** — `[[br]]` directive in a comment text creates a new paragraph in text/tree mode.
+- [ ] **PGNEDIT-9** — `[[indent]]` directive indents a comment block in text/tree mode.
+- [ ] **PGNEDIT-10** — Truncation menu (⋯) on a move offers "Truncate here"; removes subsequent moves.
+- [ ] **PGNEDIT-11** — Clicking a half-move shows the move-action popup (left/?/right) above nearby move tokens and comment text in both Text and Tree modes.
+- [ ] **PGNEDIT-12** — In Tree mode, the first comment of each variation branch is rendered with intro styling before the branch moves.
+- [ ] **PGNEDIT-13** — In Tree mode, black connector lines render as vertical trunks with horizontal branches linking branch pills to deeper levels.
+- [ ] **PGNEDIT-14** — Clicking a comment focuses it for editing without leaving a persistent highlighted background after focus moves elsewhere.
+- [ ] **PGNEDIT-15** — Clicking the "T" button in the move action bar opens the TODO insert dialog; saving creates a `[%todo text="..."]` tag in the adjacent comment.
+- [ ] **PGNEDIT-16** — An amber "T" badge appears next to a comment that contains a `[%todo ...]` annotation; clicking it opens a popover showing the TODO text.
+- [ ] **PGNEDIT-17** — The TODO popover has Edit and Delete buttons; Edit re-opens the insert dialog pre-filled; Delete removes the annotation and the badge disappears.
+- [ ] **PGNEDIT-18** — When multiple TODO annotations exist on the same comment, the badge shows "TN" and the popover has prev/next navigation arrows.
+- [ ] **PGNEDIT-19** — The TODO panel appears below the editor when at least one TODO exists; it lists each TODO with its nearest preceding move as a label.
+- [ ] **PGNEDIT-20** — The TODO panel's Edit and Delete buttons work; after deleting the last TODO the panel disappears.
+- [ ] **PGNEDIT-21** — Clicking the "▼ TODO (N)" header in the panel collapses/expands the list.
+- [ ] **PGNEDIT-22** — TODO badge and "T" button do not appear in plain mode; they appear in text and tree modes.
+- [ ] **PGNEDIT-23** — Clicking the "⇢" button in the move action bar (text/tree mode) opens the Game Picker dialog with a searchable list of games from the current resource.
+- [ ] **PGNEDIT-24** — Typing in the Game Picker search box filters the list by player name or event; results update live.
+- [ ] **PGNEDIT-25** — Selecting a game in the picker (click or Enter) inserts a `[%link recordId="..."]` annotation into the adjacent comment and closes the dialog.
+- [ ] **PGNEDIT-26** — A `[%link ...]` annotation renders as an "⇢ (link)" chip next to the comment in text/tree mode.
+- [ ] **PGNEDIT-27** — When the annotation has a label (e.g. `label="Nimzo trap"`), the chip displays that label instead of "(link)".
+- [ ] **PGNEDIT-28** — Clicking a link chip opens the linked game in a **new session tab**; the current tab is preserved.
+- [ ] **PGNEDIT-29** — Hovering over a link chip fetches and shows a tooltip: "White vs Black — Result, Date".
+- [ ] **PGNEDIT-30** — Hovering over a chip whose linked game no longer exists shows the chip greyed/disabled with a "(broken link)" tooltip; clicking it does nothing.
+- [ ] **PGNEDIT-31** — The edit (✎) button on a link chip re-opens the Game Picker pre-filled; selecting a different game updates the annotation.
+- [ ] **PGNEDIT-32** — The delete (×) button on a link chip removes the `[%link ...]` annotation; the chip disappears immediately.
+- [ ] **PGNEDIT-33** — Link chips and the "⇢" action bar button do not appear in plain mode.
+- [ ] **PGNEDIT-34** — Hovering over any half-move token in plain/text/tree mode shows a floating mini-board popup with the position after that move, with the last move highlighted.
+- [ ] **PGNEDIT-35** — Hovering over a variation move shows the correct variation position (not the mainline position at that ply).
+- [ ] **PGNEDIT-36** — Moving the pointer off a half-move dismisses the popup immediately.
+- [ ] **PGNEDIT-37** — With "Position preview on hover" toggled off in the menu, hovering over half-moves shows no popup.
+- [ ] **PGNEDIT-38** — With "Position preview on hover" re-enabled, the popup reappears on hover.
+- [ ] **PGNEDIT-39** — The popup does not affect the main board position; board navigation state is unchanged.
+- [ ] **PGNEDIT-40** — Near the bottom or right viewport edge, the popup flips/clamps so it stays fully visible.
+- [ ] **PGNEDIT-41** — Clicking a half-move shows the NAG picker toolbar above the editor content; clicking elsewhere deselects the move and hides the picker.
+- [ ] **PGNEDIT-42** — NAG picker shows three rows: move quality (!  ?  !!  ??  !?  ?!), evaluation (= ∞ ⩲ ⩱ ± ∓ +- -+), and positional symbols.
+- [ ] **PGNEDIT-43** — Clicking a move-quality button (e.g. ?) attaches the NAG to the move; the symbol appears immediately after the SAN in the editor.
+- [ ] **PGNEDIT-44** — NAG codes render as Unicode glyphs in all editor modes (plain/text/tree), not as raw `$1` / `$2` codes.
+- [ ] **PGNEDIT-45** — Clicking the same active symbol again removes it (toggle off); the symbol disappears from the editor.
+- [ ] **PGNEDIT-46** — Selecting a different symbol in the same group replaces the previous one (e.g. clicking `?` when `!` is active: `!` disappears, `?` appears).
+- [ ] **PGNEDIT-47** — Evaluation symbols (±, ∓, +-, etc.) follow the same toggle/replace behaviour within their group independently of move-quality symbols.
+- [ ] **PGNEDIT-48** — Positional symbols (→ initiative, ↑ attack, ⇆ counterplay, ⊠ zugzwang, □ weak point, △ with the idea, ⊞ better was, N novelty, =/∞ compensation) can be toggled independently.
+- [ ] **PGNEDIT-49** — The → (initiative), ↑ (attack), and ⇆ (counterplay) buttons apply the colour-correct NAG code: White's move → `$32`/`$36`/`$40`; Black's move → `$33`/`$37`/`$41`.
+- [ ] **PGNEDIT-50** — NAG changes are undoable via Cmd/Ctrl+Z.
+- [ ] **PGNEDIT-51** — After saving, the PGN file contains the correct `$N` codes for the applied symbols.
+- [ ] **PGNEDIT-52** — A `[%eval N.NN]` annotation in a PGN comment renders as a score pill (e.g. `+0.17`) in text and tree modes; the pill does not appear in plain mode.
+- [ ] **PGNEDIT-53** — Positive scores (e.g. `+0.17`) show in green; negative scores (e.g. `-1.23`) in red; zero (`0.00`) in neutral; mate-for-mover (`#5`) in solid green; being-mated (`#-3`) in solid red.
+- [ ] **PGNEDIT-54** — Clicking an eval pill opens a small popover showing the formatted evaluation value.
+- [ ] **PGNEDIT-55** — The popover has a **Delete** button; clicking it removes only that `[%eval]` annotation from the comment and closes the popover.
+- [ ] **PGNEDIT-56** — The popover has a **Delete all** button; clicking it removes every `[%eval]` annotation from every comment in the game.
+- [ ] **PGNEDIT-57** — When a comment contains multiple `[%eval]` annotations, the pill label shows `eval N`; the popover has prev/next navigation to browse them individually.
+- [ ] **PGNEDIT-58** — The `±` toggle button in the text-editor sidebar shows/hides all eval pills in text and tree modes; the button appears active (highlighted) when pills are visible.
+- [ ] **PGNEDIT-59** — The `±` toggle button is disabled in plain mode.
+- [ ] **PGNEDIT-60** — When eval pills are hidden via the toggle, `[%eval]` markup is still stripped from the comment display text (raw marker text is never shown to the user).

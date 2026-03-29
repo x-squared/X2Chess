@@ -1,0 +1,17 @@
+---
+section: KB
+area: Keyboard shortcuts
+---
+
+## Key source files
+- `frontend/src/hooks/useAppStartup.ts` — global keyboard listener wiring
+- `frontend/src/state/actions.ts` — actions triggered by shortcuts
+
+## Checklist
+
+- [ ] **KB-1** — `←` / `→` navigate moves (when not in an input field).
+- [ ] **KB-2** — `Cmd/Ctrl+Z` / `Cmd/Ctrl+Shift+Z` undo/redo.
+- [ ] **KB-3** — `Cmd/Ctrl+S` saves the active game.
+- [ ] **KB-4** — `F` flips the board.
+- [ ] **KB-5** — `Escape` closes modal dialogs (new game, disambiguation, promotion).
+- [ ] **KB-6** — With a move selected, `↓` enters the first variation and `←` at variation start returns to the parent move.

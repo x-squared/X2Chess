@@ -1,0 +1,19 @@
+---
+section: NAV
+area: Board navigation
+---
+
+## Key source files
+- `frontend/src/board/navigation.ts` — step/jump navigation logic
+- `frontend/src/board/index.ts` — board module public API
+- `frontend/src/components/ToolbarRow.tsx` — nav toolbar buttons (←, →, |←, →|)
+- `frontend/src/state/app_reducer.ts` — `NAVIGATE` actions
+- `dev/plans/move_entry_game_editing_b3c4d5e6.plan.md` — navigation and variation fork design
+
+## Checklist
+
+- [ ] **NAV-1** — ← / → toolbar buttons step one move backward/forward.
+- [ ] **NAV-2** — |← / →| toolbar buttons jump to start/end.
+- [ ] **NAV-3** — Left/Right arrow keys navigate when the board or editor is focused.
+- [ ] **NAV-4** — Clicking a move token in the text editor navigates to that move.
+- [ ] **NAV-5** — Clicking a move in a variation navigates into the variation (board preview if off-mainline).

@@ -27,30 +27,30 @@
 
 ## Section index
 
-| File | Section | Area |
-|---|---|---|
-| [LAYOUT.md](LAYOUT.md) | LAYOUT | Application shell and layout |
-| [SESSION.md](SESSION.md) | SESSION | Game tabs / session lifecycle |
-| [OPEN.md](OPEN.md) | OPEN | Opening games (file drop, paste, resource viewer) |
-| [NEWGAME.md](NEWGAME.md) | NEWGAME | New Game dialog |
-| [GAMEINFO.md](GAMEINFO.md) | GAMEINFO | Game info and metadata headers |
-| [NAV.md](NAV.md) | NAV | Board navigation |
-| [BOARD.md](BOARD.md) | BOARD | Chess board and move entry |
-| [PGNEDIT.md](PGNEDIT.md) | PGNEDIT | PGN text editor (plain/text/tree, NAGs, eval pills, TODO, links) |
-| [SAVE.md](SAVE.md) | SAVE | Saving games |
-| [UNDOREDO.md](UNDOREDO.md) | UNDOREDO | Undo / Redo |
-| [ENGINE.md](ENGINE.md) | ENGINE | Engine analysis panel |
-| [VSENGINE.md](VSENGINE.md) | VSENGINE | Play vs engine |
-| [ANNOTATE.md](ANNOTATE.md) | ANNOTATE | Auto-annotation |
-| [OPENING.md](OPENING.md) | OPENING | Opening explorer |
-| [TB.md](TB.md) | TB | Endgame tablebase |
-| [RESOURCE.md](RESOURCE.md) | RESOURCE | Resource viewer |
-| [DB.md](DB.md) | DB | SQLite .x2chess database |
-| [STUDY.md](STUDY.md) | STUDY | Study mode |
-| [TRAINING.md](TRAINING.md) | TRAINING | Training mode |
-| [CURRICULUM.md](CURRICULUM.md) | CURRICULUM | Training curriculum plan (.x2plan) |
-| [WEBIMPORT.md](WEBIMPORT.md) | WEBIMPORT | Web import (URL paste/drop) |
-| [OTA.md](OTA.md) | OTA | In-app update notifications (Tauri desktop only) |
-| [IMPORT.md](IMPORT.md) | IMPORT | Format importers (EPD, ChessBase) |
-| [DEVTOOLS.md](DEVTOOLS.md) | DEVTOOLS | Developer tools dock |
-| [KB.md](KB.md) | KB | Keyboard shortcuts |
+| # | File | Section | Area |
+|---|---|---|---|
+| 01 | [01_LAYOUT.md](01_LAYOUT.md) | LAYOUT | Application shell and layout |
+| 02 | [02_SESSION.md](02_SESSION.md) | SESSION | Game tabs / session lifecycle |
+| 03 | [03_OPEN.md](03_OPEN.md) | OPEN | Opening games (file drop, paste, resource viewer) |
+| 04 | [04_NEWGAME.md](04_NEWGAME.md) | NEWGAME | New Game dialog |
+| 05 | [05_GAMEINFO.md](05_GAMEINFO.md) | GAMEINFO | Game info and metadata headers |
+| 06 | [06_NAV.md](06_NAV.md) | NAV | Board navigation |
+| 07 | [07_BOARD.md](07_BOARD.md) | BOARD | Chess board and move entry |
+| 08 | [08_PGNEDIT.md](08_PGNEDIT.md) | PGNEDIT | PGN text editor (plain/text/tree, NAGs, eval pills, TODO, links) |
+| 09 | [09_SAVE.md](09_SAVE.md) | SAVE | Saving games |
+| 10 | [10_UNDOREDO.md](10_UNDOREDO.md) | UNDOREDO | Undo / Redo |
+| 11 | [11_ENGINE.md](11_ENGINE.md) | ENGINE | Engine analysis panel |
+| 12 | [12_VSENGINE.md](12_VSENGINE.md) | VSENGINE | Play vs engine |
+| 13 | [13_ANNOTATE.md](13_ANNOTATE.md) | ANNOTATE | Auto-annotation |
+| 14 | [14_OPENING.md](14_OPENING.md) | OPENING | Opening explorer |
+| 15 | [15_TB.md](15_TB.md) | TB | Endgame tablebase |
+| 16 | [16_RESOURCE.md](16_RESOURCE.md) | RESOURCE | Resource viewer |
+| 17 | [17_DB.md](17_DB.md) | DB | SQLite .x2chess database |
+| 18 | [18_STUDY.md](18_STUDY.md) | STUDY | Study mode |
+| 19 | [19_TRAINING.md](19_TRAINING.md) | TRAINING | Training mode |
+| 20 | [20_CURRICULUM.md](20_CURRICULUM.md) | CURRICULUM | Training curriculum plan (.x2plan) |
+| 21 | [21_WEBIMPORT.md](21_WEBIMPORT.md) | WEBIMPORT | Web import (URL paste/drop) |
+| 22 | [22_OTA.md](22_OTA.md) | OTA | In-app update notifications (Tauri desktop only) |
+| 23 | [23_IMPORT.md](23_IMPORT.md) | IMPORT | Format importers (EPD, ChessBase) |
+| 24 | [24_DEVTOOLS.md](24_DEVTOOLS.md) | DEVTOOLS | Developer tools dock |
+| 25 | [25_KB.md](25_KB.md) | KB | Keyboard shortcuts |

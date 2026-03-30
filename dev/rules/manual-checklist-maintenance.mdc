@@ -6,7 +6,7 @@ alwaysApply: true
 # Manual Checklist Maintenance Rule
 
 The manual test checklist lives in `dev/check/` as **one Markdown file per section**
-(e.g. `dev/check/BOARD.md`, `dev/check/PGNEDIT.md`).
+(e.g. `dev/check/07_BOARD.md`, `dev/check/08_PGNEDIT.md`).
 `dev/check/00_README.md` is the index with a table pointing to every section file.
 
 Each section file has three parts:
@@ -34,7 +34,7 @@ module splits, or performance work with no visible effect.
 ## Required actions when updating
 
 1. **Identify the right section file(s)** — use the index in `dev/check/00_README.md`.
-   If no section fits, create a new `dev/check/NEWSECTION.md` and add a row to the index.
+   If no section fits, create a new numbered `dev/check/NN_NEWSECTION.md` and add a row to the index.
 2. **Add new items** for every new testable behaviour (append at end of `## Checklist`).
 3. **Update existing items** if a behaviour changed (do not leave stale descriptions).
 4. **Remove items** for features that were deleted entirely.
@@ -101,30 +101,30 @@ When fixing `[!]` items:
 
 | Section prefix | File | Area |
 |---|---|---|
-| LAYOUT | `dev/check/LAYOUT.md` | App shell and layout |
-| SESSION | `dev/check/SESSION.md` | Game tabs |
-| OPEN | `dev/check/OPEN.md` | Opening games |
-| NEWGAME | `dev/check/NEWGAME.md` | New Game dialog |
-| GAMEINFO | `dev/check/GAMEINFO.md` | Game info / metadata headers |
-| NAV | `dev/check/NAV.md` | Board navigation |
-| BOARD | `dev/check/BOARD.md` | Chess board and move entry |
-| PGNEDIT | `dev/check/PGNEDIT.md` | PGN text editor |
-| SAVE | `dev/check/SAVE.md` | Saving games |
-| UNDOREDO | `dev/check/UNDOREDO.md` | Undo / Redo |
-| ENGINE | `dev/check/ENGINE.md` | Engine analysis |
-| VSENGINE | `dev/check/VSENGINE.md` | Play vs engine |
-| ANNOTATE | `dev/check/ANNOTATE.md` | Auto-annotation |
-| OPENING | `dev/check/OPENING.md` | Opening explorer |
-| TB | `dev/check/TB.md` | Endgame tablebase |
-| RESOURCE | `dev/check/RESOURCE.md` | Resource viewer |
-| DB | `dev/check/DB.md` | SQLite .x2chess database |
-| STUDY | `dev/check/STUDY.md` | Study mode |
-| TRAINING | `dev/check/TRAINING.md` | Training mode |
-| CURRICULUM | `dev/check/CURRICULUM.md` | Training curriculum plan (.x2plan) |
-| WEBIMPORT | `dev/check/WEBIMPORT.md` | Web import (URL paste/drop) |
-| OTA | `dev/check/OTA.md` | In-app update notifications (Tauri desktop only) |
-| IMPORT | `dev/check/IMPORT.md` | Format importers (EPD, ChessBase, etc.) |
-| DEVTOOLS | `dev/check/DEVTOOLS.md` | Developer tools dock |
-| KB | `dev/check/KB.md` | Keyboard shortcuts |
+| LAYOUT | `dev/check/01_LAYOUT.md` | App shell and layout |
+| SESSION | `dev/check/02_SESSION.md` | Game tabs |
+| OPEN | `dev/check/03_OPEN.md` | Opening games |
+| NEWGAME | `dev/check/04_NEWGAME.md` | New Game dialog |
+| GAMEINFO | `dev/check/05_GAMEINFO.md` | Game info / metadata headers |
+| NAV | `dev/check/06_NAV.md` | Board navigation |
+| BOARD | `dev/check/07_BOARD.md` | Chess board and move entry |
+| PGNEDIT | `dev/check/08_PGNEDIT.md` | PGN text editor |
+| SAVE | `dev/check/09_SAVE.md` | Saving games |
+| UNDOREDO | `dev/check/10_UNDOREDO.md` | Undo / Redo |
+| ENGINE | `dev/check/11_ENGINE.md` | Engine analysis |
+| VSENGINE | `dev/check/12_VSENGINE.md` | Play vs engine |
+| ANNOTATE | `dev/check/13_ANNOTATE.md` | Auto-annotation |
+| OPENING | `dev/check/14_OPENING.md` | Opening explorer |
+| TB | `dev/check/15_TB.md` | Endgame tablebase |
+| RESOURCE | `dev/check/16_RESOURCE.md` | Resource viewer |
+| DB | `dev/check/17_DB.md` | SQLite .x2chess database |
+| STUDY | `dev/check/18_STUDY.md` | Study mode |
+| TRAINING | `dev/check/19_TRAINING.md` | Training mode |
+| CURRICULUM | `dev/check/20_CURRICULUM.md` | Training curriculum plan (.x2plan) |
+| WEBIMPORT | `dev/check/21_WEBIMPORT.md` | Web import (URL paste/drop) |
+| OTA | `dev/check/22_OTA.md` | In-app update notifications (Tauri desktop only) |
+| IMPORT | `dev/check/23_IMPORT.md` | Format importers (EPD, ChessBase, etc.) |
+| DEVTOOLS | `dev/check/24_DEVTOOLS.md` | Developer tools dock |
+| KB | `dev/check/25_KB.md` | Keyboard shortcuts |
 
 Add a new row and create a new file when a genuinely new feature area is introduced.

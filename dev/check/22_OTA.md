@@ -7,6 +7,9 @@ area: In-app update notifications (Tauri desktop only)
 - `frontend/src/components/UpdateBanner.tsx` — update banner in the menu panel
 - `dev/plans/ota_updates_8d9e0f1a.plan.md` — OTA update channels: full app updater (Tauri) + rules server (data-only)
 
+## Edit rules
+See dev/check/00_README.md. These rules must be strictly adhered to when this file is being edited.
+
 ## Checklist
 
 - [ ] **OTA-1** — On startup the app silently checks for a new version; no visible UI appears if already up to date.

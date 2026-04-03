@@ -8,6 +8,9 @@ area: Engine analysis panel
 - `frontend/src/components/HoverPositionPopup.tsx` — PV-move hover mini-board popup
 - `dev/plans/engines_integration_e5f6a7b8.plan.md` — UCI engine integration design
 
+## Edit rules
+See dev/check/00_README.md. These rules must be strictly adhered to when this file is being edited.
+
 ## Checklist
 
 - [ ] **ENGINE-1** — Menu → Engine: selecting an engine executable starts analysis.

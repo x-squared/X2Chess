@@ -9,11 +9,12 @@ The manual test checklist lives in `dev/check/` as **one Markdown file per secti
 (e.g. `dev/check/07_BOARD.md`, `dev/check/08_PGNEDIT.md`).
 `dev/check/00_README.md` is the index with a table pointing to every section file.
 
-Each section file has three parts:
+Each section file has four parts:
 1. A YAML-like frontmatter block (`section:`, `area:`).
-2. A `## Key source files` block listing the implementation files most relevant to
+2. An `## Edit rules` block with a fixed link: `See dev/check/00_README.md. These rules must be strictly adhered to when this file is being edited.`
+3. A `## Key source files` block listing the implementation files most relevant to
    that section (relative paths from repo root, one bullet per file with a short note).
-3. A `## Checklist` block containing the test items.
+4. A `## Checklist` block containing the test items.
 
 ## When to update
 
@@ -34,7 +35,9 @@ module splits, or performance work with no visible effect.
 ## Required actions when updating
 
 1. **Identify the right section file(s)** — use the index in `dev/check/00_README.md`.
-   If no section fits, create a new numbered `dev/check/NN_NEWSECTION.md` and add a row to the index.
+   If no section fits, create a new numbered `dev/check/NN_NEWSECTION.md`, add a row to the
+   index table in `dev/check/00_README.md`, and add a row to the Section list table at the
+   bottom of this rule file.
 2. **Add new items** for every new testable behaviour (append at end of `## Checklist`).
 3. **Update existing items** if a behaviour changed (do not leave stale descriptions).
 4. **Remove items** for features that were deleted entirely.
@@ -76,7 +79,7 @@ Write all updates back to the section files before reporting done.
 | `[ ]` | Not yet tested |
 | `[x]` | Verified passing |
 | `[!]` | Bug found by user — needs fixing |
-| `[~]` | Fix applied by Claude — awaiting user recheck |
+| `[?]` | Fix applied by Claude — awaiting user recheck |
 
 When the user marks an item `[!]`, they add an indented `> ` observation line:
 
@@ -88,8 +91,31 @@ When the user marks an item `[!]`, they add an indented `> ` observation line:
 When fixing `[!]` items:
 1. Read all `[!]` items and their `> ` notes across all section files.
 2. Investigate and fix each one.
-3. Change `[!]` to `[~]` and remove the `> ` note.
-4. Do **not** change to `[x]` — the user must recheck before marking verified.
+3. Change `[!]` to `[?]` — do **not** remove the `> ` note.
+4. Add a `>> ` line (double angle-bracket) explaining why the fix addresses the reported issue.
+5. Do **not** change to `[x]` — the user must recheck before marking verified.
+6. Leave all `[ ]` items exactly as they are — untested items are never touched during the rework phase.
+7. Update the `## Key source files` block if the fix added, removed, or renamed any implementation files relevant to the section.
+
+Example after fixing:
+```
+- [?] **BOARD-3** — Pawn promotion: a picker appears; selecting a piece completes the promotion.
+  > The picker never appears — pawn auto-promotes to queen.
+  >> Fixed: promotion picker is now rendered before the move is committed; queen is no longer the automatic default.
+```
+
+## Completed section
+
+Each section file has a completed section at the bottom, separated by a heading:
+
+```
+## ---------- Completed -----------------------------------------
+```
+
+When the user marks items `[x]` (verified passing), move them to the completed section
+(below the separator) during the next rework phase. Keep all `> ` and `>> ` comment
+lines — never delete them. Items in the completed section are never re-processed by the
+agent unless the user explicitly copies them back above the line.
 
 ## Numbering
 

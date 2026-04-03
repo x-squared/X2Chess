@@ -8,6 +8,9 @@ area: Developer tools dock
 - `frontend/src/components/AstPanel.tsx` — AST tab (PGN model tree)
 - `dev/plans/developer_tools_toggle_7c98bd50.plan.md` — developer-tools toggle design
 
+## Edit rules
+See dev/check/00_README.md. These rules must be strictly adhered to when this file is being edited.
+
 ## Checklist
 
 - [ ] **DEVTOOLS-1** — Dev tools dock is hidden by default in production mode.

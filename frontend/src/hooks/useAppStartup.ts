@@ -350,9 +350,8 @@ export const useAppStartup = (): AppStartupServices => {
         const result = bundle.sessionStore.closeSession(sessionId);
         if (result.closed) {
           if (result.emptyAfterClose) {
-            bundle.pgnRuntime.initializeWithDefaultPgn();
-            const snap = bundle.sessionModel.captureActiveSessionSnapshot();
-            bundle.sessionStore.openSession({ snapshot: snap, title: "Game 1" });
+            const snap = bundle.sessionModel.createSessionFromPgnText("");
+            bundle.sessionStore.openSession({ snapshot: snap, title: "New Game" });
           }
           syncStateToReact();
         }
@@ -377,13 +376,11 @@ export const useAppStartup = (): AppStartupServices => {
           }
         })();
       },
-      openPgnText: (pgnText: string): void => {
-        const s: AppState = bundle.legacyState;
-        s.pgnText = pgnText;
-        s.pgnModel = ensureRequiredPgnHeaders(parsePgnToModel(pgnText)) as typeof s.pgnModel;
-        s.currentPly = 0;
-        s.selectedMoveId = null;
-        bundle.pgnRuntime.syncChessParseState(pgnText);
+      openPgnText: (pgnText: string, options?: { preferredTitle?: string; sourceRef?: { kind: string; locator: string; recordId?: string } | null }): void => {
+        const snap = bundle.sessionModel.createSessionFromPgnText(pgnText);
+        const derivedTitle: string = bundle.sessionModel.deriveSessionTitle(snap.pgnModel, "New Game");
+        const title: string = options?.preferredTitle || derivedTitle;
+        bundle.sessionStore.openSession({ snapshot: snap, title, sourceRef: options?.sourceRef ?? null });
         syncStateToReact();
       },
       reorderGameInResource: async (sourceRef: unknown, neighborSourceRef: unknown): Promise<void> => {

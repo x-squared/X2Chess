@@ -232,12 +232,17 @@ export const createGameSessionModel = ({
    * @param {string} fallbackTitle - Fallback title.
    * @returns {string} Human-friendly title.
    */
+  const isRealName = (name: string): boolean =>
+    name !== "" && name !== "?" && name !== "White" && name !== "Black";
+
   const deriveSessionTitle = (pgnModel: unknown, fallbackTitle: string): string => {
     const white: string = getHeaderValueFn(pgnModel, "White", "").trim();
     const black: string = getHeaderValueFn(pgnModel, "Black", "").trim();
-    if (white && black) return `${white} - ${black}`;
+    if (isRealName(white) && isRealName(black)) return `${white} - ${black}`;
+    if (isRealName(white)) return white;
+    if (isRealName(black)) return black;
     const eventName: string = getHeaderValueFn(pgnModel, "Event", "").trim();
-    if (eventName) return eventName;
+    if (eventName && eventName !== "?" && eventName !== "Sample") return eventName;
     return fallbackTitle;
   };
 

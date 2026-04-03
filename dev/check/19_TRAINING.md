@@ -9,6 +9,9 @@ area: Training mode (Replay protocol, session scoring, [%train] tags)
 - `dev/plans/training_mode_c9d0e1f2.plan.md` — Replay protocol, transcript/merge infrastructure
 - `dev/plans/training_move_acceptance_3e4f5a6b.plan.md` — move acceptance algorithm (NAG/RAV/eval/[%train] signals, MoveEvalResult)
 
+## Edit rules
+See dev/check/00_README.md. These rules must be strictly adhered to when this file is being edited.
+
 ## Checklist
 
 - [ ] **TRAINING-1** — Launching training from a resource row opens the training launcher.

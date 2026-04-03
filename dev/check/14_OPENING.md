@@ -7,6 +7,9 @@ area: Opening explorer
 - `frontend/src/components/OpeningExplorerPanel.tsx` — opening explorer panel
 - `dev/plans/resource_ext_databases_a1b2c3d4.plan.md` — external game/opening/endgame database integration
 
+## Edit rules
+See dev/check/00_README.md. These rules must be strictly adhered to when this file is being edited.
+
 ## Checklist
 
 - [ ] **OPENING-1** — Toggle in the board panel shows/hides the opening explorer.

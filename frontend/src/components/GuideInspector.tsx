@@ -146,7 +146,7 @@ export const GuideInspector = (): ReactElement | null => {
         return;
       }
       if (e.key === "Enter" && hoveredRef.current) {
-        void navigator.clipboard.writeText(hoveredRef.current.guideId);
+        void navigator.clipboard.writeText(`{ui-id: ${hoveredRef.current.guideId}}`);
       }
     };
 

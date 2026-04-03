@@ -9,6 +9,9 @@ area: New Game dialog
 - `frontend/src/components/MiniBoard.tsx` — position preview inside dialog
 - `dev/plans/new_game_setup_e5f6a7b8.plan.md` — New Game dialog design (standard / custom FEN, castling, Chess960)
 
+## Edit rules
+See dev/check/00_README.md. These rules must be strictly adhered to when this file is being edited.
+
 ## Checklist
 
 - [ ] **NEWGAME-1** — Menu → New Game opens the dialog.

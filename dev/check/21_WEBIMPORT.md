@@ -10,6 +10,9 @@ area: Web import (paste or drop a URL to fetch a game/position)
 - `dev/plans/web_import_5f6a7b8c.plan.md` — rule-based URL adapter design
 - `dev/plans/ota_updates_8d9e0f1a.plan.md` — OTA rules server (data-only update channel)
 
+## Edit rules
+See dev/check/00_README.md. These rules must be strictly adhered to when this file is being edited.
+
 ## Checklist
 
 - [ ] **WEBIMPORT-1** — Paste `https://lichess.org/<8-char-id>` opens the full game PGN.

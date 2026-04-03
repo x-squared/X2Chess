@@ -1,8 +1,8 @@
 /**
  * GameTabs component — renders the session tab bar.
  *
- * Displays one tab per open game session with title, dirty marker (*),
- * unsaved badge, manual-save marker (M), and a close button.
+ * Displays one tab per open game session with title, dirty marker (dot),
+ * unsaved badge, and a close button.
  * Tabs are keyboard-accessible (role="tab", aria-selected).
  *
  * Integration API:
@@ -39,18 +39,18 @@ type GameTabsProps = {
    * @param sessionId - ID of the session to close.
    */
   onClose: (sessionId: string) => void;
-  /**
-   * Called when the user clicks the save icon on a tab.
-   * @param sessionId - ID of the session to save.
-   */
-  onSave: (sessionId: string) => void;
 };
+
+/** Return true when a PGN player-name value is a genuine name (not a placeholder). */
+const isRealPlayerName = (name: string): boolean =>
+  name !== "" && name !== "?" && name !== "White" && name !== "Black";
 
 /** Build a human-readable primary label from PGN headers, falling back to the session title. */
 const buildPrimaryLabel = (session: SessionItemState): string => {
   const { white, black } = session;
-  if (white && black && white !== "?" && black !== "?") return `${white} — ${black}`;
-  if (white && white !== "?") return white;
+  if (isRealPlayerName(white) && isRealPlayerName(black)) return `${white} — ${black}`;
+  if (isRealPlayerName(white)) return white;
+  if (isRealPlayerName(black)) return black;
   return session.title;
 };
 
@@ -78,7 +78,7 @@ const buildTooltip = (session: SessionItemState): string => {
 };
 
 /** Renders the game session tab bar. */
-export const GameTabs = ({ sessions, onSelect, onClose, onSave }: GameTabsProps): ReactElement => {
+export const GameTabs = ({ sessions, onSelect, onClose }: GameTabsProps): ReactElement => {
   const t: (key: string, fallback?: string) => string = useTranslator();
 
   return (
@@ -122,24 +122,6 @@ export const GameTabs = ({ sessions, onSelect, onClose, onSave }: GameTabsProps)
                 {secondary && (
                   <span className="game-tab-secondary">{secondary}</span>
                 )}
-              </button>
-              <button
-                type="button"
-                className={[
-                  "game-tab-save",
-                  (dirtyDot || session.saveMode === "manual") ? "always-visible" : "",
-                ].filter(Boolean).join(" ")}
-                onClick={(): void => { onSave(session.sessionId); }}
-                aria-label={t("games.save", "Save game")}
-                title={t("games.save", "Save game")}
-              >
-                {/* Floppy disk save icon */}
-                <svg aria-hidden="true" width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-                  <rect x="2" y="2" width="12" height="12" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.5"/>
-                  <rect x="4.5" y="2" width="7" height="4.5" rx="0.5"/>
-                  <rect x="4.5" y="8.5" width="7" height="5" rx="0.5" fill="none" stroke="currentColor" strokeWidth="1.2"/>
-                  <rect x="6" y="3" width="2.5" height="1.5" rx="0.25" fill="white"/>
-                </svg>
               </button>
               <button
                 type="button"

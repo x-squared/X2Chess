@@ -1,27 +1,97 @@
 # X2Chess Manual Test Checklist
 
-**How to use:**
-- Open the section file for the area you changed and work through its items.
-- Mark items `[x]` as you verify them.
-- Reset `[x]` back to `[ ]` whenever the item is re-opened by a later change.
+## What it is
+- The manual checklist is a file where the AI lists items of works it has completed.
+- The user will verify these items and comment on the items.
+- The user may then ask the AI to revisit the items and effect any improvement suggested by the user.
+- The AI will uopdate the items as it processes the user's instructions.
 
-**Reporting a bug:**
+## Structure of check-file
+- Header. This has the form
+  ```
+  ---
+  section: SESSION
+  area: Game tabs / session lifecycle
+  ---
+  ```
+- Link to the rules. This has the fixed form:
+  ```
+  ## Edit rules
+  See dev/check/00_README.md. These rules must be strictly adhered to when this file is being edited.
+  ```
+- List of key source files. This has the form:
+  ```
+  ## Key source files
+  - Relative path to a source file
+  - Relative path to another source file
+  ```
+- Checklist of items, using the header "## Checklist". The format of items is described below.
+- Completed section. The heading is "## ---------- Completed -----------------------------------------". The completed section contains items are no longer read by the agent. The user may refer back to them and bring them up again by copying them to the area above the line.
+
+## Format if items
+- An item has the general form
+  ```
+  - [ ] **SESSION-1** — Dropping or pasting a PGN opens it in a new tab; the previously active game is preserved.
+  ```
+- The box will be either of `[ ]`, `[!]`, `[?]`, or `[x]`
+
+## Phases
+The following phases are distinguished:
+- Report-Phase: This is where the AI first reports on items, or extends the list of items.
+- Check-Phase: This is where the user verifies tha items and reports on findings.
+- Rework-Phase: This is where the AI reads the checked items and handles any findings.
+- After the rework-phase, we return to the check-phase.
+- The process is complete once all items are moved to the completed-section.
+
+## Report-Phase
+- The agent creates the file, or updates the file. This happens when at the end of work changes need to be communicated to the user for the user to check.
+- The agent also updates the section indesx below.
+
+## Check-Phase
+The check-phase is done by the user.
+
+### Reporting on accepted items
+- Change `[ ]` to `[x]`.
+
+### Reporting on findings
 - Change `[ ]` to `[!]` and add an indented `> ` line describing what you observed:
   ```
   - [!] **BOARD-3** — Pawn promotion: a picker appears; selecting a piece completes the promotion.
     > The picker never appears — pawn auto-promotes to queen.
   ```
-- Say "fix checklist issues" to have Claude investigate and fix all `[!]` items.
-- After fixing, Claude changes `[!]` to `[~]` (fixed, awaiting your recheck).
-- Once you have verified the fix, change `[~]` to `[x]`.
+- The user may add new items if he wishes to report aspects that are not listed as items but should have been listed.
 
-**Status symbols:**
+### Starting the Rework-Phase
+- Start a prompt pointing at the check-file, and write something like  "fix checklist issues" to have the AI investigate and fix all `[!]` items.
+
+## Rework-Phase
+The rework-phase is done by the agent.
+
+### Ignoring completed items
+- Items that are in the completed section are never read by the agent.
+
+### Ignoring unhandled items
+- Items that are still marked `[ ]` are not handled while fixing.
+
+### Removing completed items
+- Items that are marked as done by `[x]` are moved to the completed section, including all comments. Comments are never deleted.
+
+### Fixing an issue
+- The agent will handle all items marked with `[!]`. It will use the instructions given to execute fixes.
+- After fixing, the AI changes `[!]` to `[?]` (fixed, awaiting your recheck).
+- The agent will not remove the comments made to report the bug.
+- The agent will add information on its own explaining why the bug should be considered fixed. Comment lines are indented `>> ` lines. 
+- 
+### Updating the resource list
+- The agent will update the key source list to reflect the relevant resources.
+
+## Status symbols
 | Symbol | Meaning |
 |--------|---------|
 | `[ ]` | Not yet tested |
 | `[x]` | Verified passing |
 | `[!]` | Bug found — needs fixing |
-| `[~]` | Fix applied — awaiting recheck |
+| `[?]` | Fix applied — awaiting recheck |
 
 ---
 

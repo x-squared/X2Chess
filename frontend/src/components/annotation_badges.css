@@ -1,0 +1,857 @@
+/* ── Q/A badge (UV9) ──────────────────────────────────────────────────────── */
+
+.qa-badge-wrap {
+  position: relative;
+  display: inline-block;
+  vertical-align: 0.1em;
+  margin-right: 0.25em;
+}
+
+.qa-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.3em;
+  height: 1.3em;
+  padding: 0 0.25em;
+  font-size: 0.72em;
+  font-weight: 700;
+  color: #fff;
+  background: var(--accent, #2563eb);
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+/* Q/A read popover (UV9) */
+.qa-popover {
+  position: absolute;
+  z-index: 200;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 220px;
+  max-width: 320px;
+  padding: 0.75rem;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  font-size: 0.87em;
+}
+
+.qa-popover-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.qa-popover-nav-btn {
+  background: none;
+  border: none;
+  font-size: 1.2em;
+  cursor: pointer;
+  color: var(--text-muted, #64748b);
+  padding: 0 0.3em;
+}
+
+.qa-popover-nav-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.qa-popover-nav-count {
+  font-size: 0.85em;
+  color: var(--text-muted, #64748b);
+}
+
+.qa-popover-question {
+  margin: 0 0 0.5rem;
+  font-weight: 600;
+  color: var(--text, #0f172a);
+}
+
+.qa-popover-hint {
+  margin: 0 0 0.5rem;
+  font-style: italic;
+  color: var(--text-muted, #64748b);
+}
+
+.qa-popover-answer {
+  margin: 0 0 0.5rem;
+  color: var(--success, #16a34a);
+  font-weight: 500;
+}
+
+.qa-popover-reveal-btn {
+  display: block;
+  margin: 0 0 0.4rem;
+  padding: 0.2em 0.6em;
+  font-size: 0.85em;
+  background: var(--surface-2, #f1f5f9);
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-muted, #64748b);
+}
+
+.qa-popover-reveal-btn--answer {
+  color: var(--accent, #2563eb);
+  border-color: var(--accent, #2563eb);
+}
+
+.qa-popover-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  border-top: 1px solid var(--border, #e2e8f0);
+  padding-top: 0.4rem;
+}
+
+.qa-popover-edit-btn,
+.qa-popover-delete-btn,
+.qa-popover-close-btn {
+  padding: 0.2em 0.7em;
+  font-size: 0.82em;
+  border-radius: 4px;
+  border: 1px solid var(--border, #cbd5e1);
+  cursor: pointer;
+  background: var(--surface, #fff);
+  color: var(--text, #0f172a);
+}
+
+.qa-popover-edit-btn:hover {
+  background: var(--accent-soft, #eff6ff);
+  border-color: var(--accent, #2563eb);
+  color: var(--accent, #2563eb);
+}
+
+.qa-popover-delete-btn {
+  color: var(--danger, #b4233a);
+  border-color: rgba(180, 35, 58, 0.35);
+}
+
+.qa-popover-delete-btn:hover {
+  background: var(--danger-soft, #fde9ee);
+  border-color: var(--danger, #b4233a);
+}
+
+/* Q/A insert dialog (UV10) */
+.qa-insert-dialog {
+  border: none;
+  border-radius: 8px;
+  padding: 0;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  max-width: 420px;
+  width: 95vw;
+}
+
+.qa-insert-dialog::backdrop {
+  background: rgba(0,0,0,0.3);
+}
+
+.qa-insert-form {
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.qa-insert-title {
+  margin: 0;
+  font-weight: 700;
+  font-size: 1em;
+  color: var(--text, #0f172a);
+}
+
+.qa-insert-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.87em;
+  color: var(--text-muted, #475569);
+}
+
+.qa-insert-textarea {
+  width: 100%;
+  padding: 0.4em 0.6em;
+  font-size: 0.93em;
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 4px;
+  resize: vertical;
+  background: var(--surface, #fff);
+  color: var(--text, #0f172a);
+  box-sizing: border-box;
+}
+
+.qa-insert-textarea--hint {
+  font-style: italic;
+}
+
+.qa-insert-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.qa-insert-btn-cancel {
+  padding: 0.35em 0.9em;
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 4px;
+  background: var(--surface, #fff);
+  color: var(--text-muted, #475569);
+  cursor: pointer;
+  font-size: 0.9em;
+}
+
+.qa-insert-btn-save {
+  padding: 0.35em 0.9em;
+  border: none;
+  border-radius: 4px;
+  background: var(--accent, #2563eb);
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.9em;
+  font-weight: 600;
+}
+
+.qa-insert-btn-save:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* ── Train badge ──────────────────────────────────────────────────────────── */
+
+.train-badge-wrap {
+  position: relative;
+  display: inline-block;
+  vertical-align: 0.1em;
+  margin-right: 0.25em;
+}
+
+.train-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.3em;
+  height: 1.3em;
+  padding: 0 0.25em;
+  font-size: 0.72em;
+  font-weight: 700;
+  color: #fff;
+  background: var(--warning, #d97706);
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.train-popover {
+  position: absolute;
+  z-index: 200;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 220px;
+  max-width: 340px;
+  padding: 0.75rem;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  font-size: 0.87em;
+}
+
+.train-popover-row {
+  display: flex;
+  gap: 0.4em;
+  margin-bottom: 0.35rem;
+  align-items: baseline;
+}
+
+.train-popover-label {
+  font-weight: 600;
+  color: var(--text-muted, #64748b);
+  white-space: nowrap;
+  font-size: 0.85em;
+}
+
+.train-popover-value {
+  color: var(--text, #0f172a);
+  font-family: monospace;
+  font-size: 0.88em;
+  word-break: break-all;
+}
+
+.train-popover-value--reject {
+  color: var(--danger, #b4233a);
+}
+
+.train-popover-value--hint {
+  font-family: inherit;
+  font-style: italic;
+  color: var(--text-muted, #64748b);
+}
+
+.train-popover-empty {
+  margin: 0 0 0.5rem;
+  color: var(--text-muted, #64748b);
+  font-style: italic;
+  font-size: 0.87em;
+}
+
+.train-popover-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  border-top: 1px solid var(--border, #e2e8f0);
+  padding-top: 0.4rem;
+}
+
+.train-popover-edit-btn,
+.train-popover-delete-btn,
+.train-popover-close-btn {
+  padding: 0.2em 0.7em;
+  font-size: 0.82em;
+  border-radius: 4px;
+  border: 1px solid var(--border, #cbd5e1);
+  cursor: pointer;
+  background: var(--surface, #fff);
+  color: var(--text, #0f172a);
+}
+
+.train-popover-edit-btn:hover {
+  background: var(--warning-soft, #fffbeb);
+  border-color: var(--warning, #d97706);
+  color: var(--warning, #d97706);
+}
+
+.train-popover-delete-btn {
+  color: var(--danger, #b4233a);
+  border-color: rgba(180, 35, 58, 0.35);
+}
+
+.train-popover-delete-btn:hover {
+  background: var(--danger-soft, #fde9ee);
+  border-color: var(--danger, #b4233a);
+}
+
+/* Train insert dialog */
+.train-insert-dialog {
+  border: none;
+  border-radius: 8px;
+  padding: 0;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  max-width: 440px;
+  width: 95vw;
+}
+
+.train-insert-dialog::backdrop {
+  background: rgba(0,0,0,0.3);
+}
+
+.train-insert-form {
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.train-insert-title {
+  margin: 0;
+  font-weight: 700;
+  font-size: 1em;
+  color: var(--text, #0f172a);
+}
+
+.train-insert-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.87em;
+  color: var(--text-muted, #475569);
+}
+
+.train-insert-input {
+  width: 100%;
+  padding: 0.4em 0.6em;
+  font-size: 0.93em;
+  font-family: monospace;
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 4px;
+  background: var(--surface, #fff);
+  color: var(--text, #0f172a);
+  box-sizing: border-box;
+}
+
+.train-insert-textarea {
+  width: 100%;
+  padding: 0.4em 0.6em;
+  font-size: 0.93em;
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 4px;
+  resize: vertical;
+  background: var(--surface, #fff);
+  color: var(--text, #0f172a);
+  box-sizing: border-box;
+}
+
+.train-insert-hint-text {
+  font-size: 0.82em;
+  color: var(--text-muted, #94a3b8);
+  font-style: italic;
+}
+
+.train-insert-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.train-insert-btn-cancel {
+  padding: 0.35em 0.9em;
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 4px;
+  background: var(--surface, #fff);
+  color: var(--text-muted, #475569);
+  cursor: pointer;
+  font-size: 0.9em;
+}
+
+.train-insert-btn-save {
+  padding: 0.35em 0.9em;
+  border: none;
+  border-radius: 4px;
+  background: var(--warning, #d97706);
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.9em;
+  font-weight: 600;
+}
+
+/* ── TODO badge ───────────────────────────────────────────────────────────── */
+
+.todo-badge-wrap {
+  position: relative;
+  display: inline-block;
+  vertical-align: 0.1em;
+  margin-right: 0.25em;
+}
+
+.todo-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.3em;
+  height: 1.3em;
+  padding: 0 0.25em;
+  font-size: 0.72em;
+  font-weight: 700;
+  color: #fff;
+  background: var(--todo, #b45309);
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+/* TODO read popover */
+.todo-popover {
+  position: absolute;
+  z-index: 200;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 200px;
+  max-width: 300px;
+  padding: 0.75rem;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  font-size: 0.87em;
+}
+
+.todo-popover-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.todo-popover-nav-btn {
+  background: none;
+  border: none;
+  font-size: 1.2em;
+  cursor: pointer;
+  color: var(--text-muted, #64748b);
+  padding: 0 0.3em;
+}
+
+.todo-popover-nav-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.todo-popover-nav-count {
+  font-size: 0.85em;
+  color: var(--text-muted, #64748b);
+}
+
+.todo-popover-text {
+  margin: 0 0 0.5rem;
+  color: var(--text, #0f172a);
+}
+
+.todo-popover-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  border-top: 1px solid var(--border, #e2e8f0);
+  padding-top: 0.4rem;
+}
+
+.todo-popover-edit-btn,
+.todo-popover-delete-btn,
+.todo-popover-close-btn {
+  padding: 0.2em 0.7em;
+  font-size: 0.82em;
+  border-radius: 4px;
+  border: 1px solid var(--border, #cbd5e1);
+  cursor: pointer;
+  background: var(--surface, #fff);
+  color: var(--text, #0f172a);
+}
+
+.todo-popover-edit-btn:hover {
+  background: rgba(180, 83, 9, 0.07);
+  border-color: var(--todo, #b45309);
+  color: var(--todo, #b45309);
+}
+
+.todo-popover-delete-btn {
+  color: var(--danger, #b4233a);
+  border-color: rgba(180, 35, 58, 0.35);
+}
+
+.todo-popover-delete-btn:hover {
+  background: var(--danger-soft, #fde9ee);
+  border-color: var(--danger, #b4233a);
+}
+
+/* TODO insert dialog */
+.todo-insert-dialog {
+  border: none;
+  border-radius: 8px;
+  padding: 0;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  max-width: 380px;
+  width: 95vw;
+}
+
+.todo-insert-dialog::backdrop {
+  background: rgba(0,0,0,0.3);
+}
+
+.todo-insert-form {
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.todo-insert-title {
+  margin: 0;
+  font-weight: 700;
+  font-size: 1em;
+  color: var(--text, #0f172a);
+}
+
+.todo-insert-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.87em;
+  color: var(--text-muted, #475569);
+}
+
+.todo-insert-textarea {
+  width: 100%;
+  padding: 0.4em 0.6em;
+  font-size: 0.93em;
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 4px;
+  resize: vertical;
+  background: var(--surface, #fff);
+  color: var(--text, #0f172a);
+  box-sizing: border-box;
+}
+
+.todo-insert-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.todo-insert-btn-cancel {
+  padding: 0.35em 0.9em;
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 4px;
+  background: var(--surface, #fff);
+  color: var(--text-muted, #475569);
+  cursor: pointer;
+  font-size: 0.9em;
+}
+
+.todo-insert-btn-save {
+  padding: 0.35em 0.9em;
+  border: none;
+  border-radius: 4px;
+  background: var(--todo, #b45309);
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.9em;
+  font-weight: 600;
+}
+
+.todo-insert-btn-save:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* TODO panel */
+.todo-panel {
+  margin-top: 0.75rem;
+  border-top: 1px solid var(--border, #e2e8f0);
+  font-size: 0.85em;
+}
+
+.todo-panel-header {
+  padding: 0.35rem 0.5rem 0.2rem;
+}
+
+.todo-panel-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.85em;
+  font-weight: 600;
+  color: var(--todo, #b45309);
+  padding: 0;
+}
+
+.todo-panel-toggle:hover {
+  text-decoration: underline;
+}
+
+.todo-panel-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0.25rem 0.5rem;
+}
+
+.todo-panel-item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.3rem 0.25rem;
+  border-bottom: 1px solid var(--border, #f1f5f9);
+  flex-wrap: wrap;
+}
+
+.todo-panel-item:last-child {
+  border-bottom: none;
+}
+
+.todo-panel-item-label {
+  font-weight: 600;
+  color: var(--text-muted, #64748b);
+  flex-shrink: 0;
+  font-size: 0.82em;
+  font-family: monospace;
+}
+
+.todo-panel-item-text {
+  flex: 1;
+  color: var(--text, #0f172a);
+  min-width: 0;
+}
+
+.todo-panel-item-actions {
+  display: flex;
+  gap: 0.3rem;
+  flex-shrink: 0;
+}
+
+.todo-panel-item-btn {
+  padding: 0.1em 0.5em;
+  font-size: 0.8em;
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 3px;
+  background: var(--surface, #fff);
+  color: var(--text-muted, #475569);
+  cursor: pointer;
+}
+
+.todo-panel-item-btn:hover {
+  background: rgba(180, 83, 9, 0.07);
+  border-color: var(--todo, #b45309);
+  color: var(--todo, #b45309);
+}
+
+.todo-panel-item-btn--delete {
+  color: var(--danger, #b4233a);
+  border-color: rgba(180, 35, 58, 0.35);
+}
+
+.todo-panel-item-btn--delete:hover {
+  background: var(--danger-soft, #fde9ee);
+  border-color: var(--danger, #b4233a);
+  color: var(--danger, #b4233a);
+}
+
+/* ── Eval badge ───────────────────────────────────────────────────────────── */
+
+.eval-badge-wrap {
+  position: relative;
+  display: inline-block;
+  vertical-align: 0.1em;
+  margin-right: 0.25em;
+}
+
+.eval-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.3em;
+  height: 1.3em;
+  padding: 0 0.3em;
+  font-size: 0.72em;
+  font-weight: 700;
+  font-family: monospace;
+  color: var(--text-muted, #64748b);
+  background: var(--surface-2, #f1f5f9);
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 999px;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.eval-badge--pos {
+  color: var(--success, #16a34a);
+  background: var(--success-soft, #f0fdf4);
+  border-color: rgba(22, 163, 74, 0.35);
+}
+
+.eval-badge--neg {
+  color: var(--danger, #b4233a);
+  background: var(--danger-soft, #fde9ee);
+  border-color: rgba(180, 35, 58, 0.35);
+}
+
+.eval-badge--mate-pos {
+  color: #fff;
+  background: var(--success, #16a34a);
+  border-color: var(--success, #16a34a);
+}
+
+.eval-badge--mate-neg {
+  color: #fff;
+  background: var(--danger, #b4233a);
+  border-color: var(--danger, #b4233a);
+}
+
+.eval-popover {
+  position: absolute;
+  z-index: 200;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 160px;
+  max-width: 240px;
+  padding: 0.65rem;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  font-size: 0.87em;
+}
+
+.eval-popover-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.4rem;
+}
+
+.eval-popover-nav-btn {
+  background: none;
+  border: none;
+  font-size: 1.2em;
+  cursor: pointer;
+  color: var(--text-muted, #64748b);
+  padding: 0 0.3em;
+}
+
+.eval-popover-nav-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.eval-popover-nav-count {
+  font-size: 0.85em;
+  color: var(--text-muted, #64748b);
+}
+
+.eval-popover-value {
+  margin: 0 0 0.4rem;
+  font-weight: 700;
+  font-family: monospace;
+  font-size: 1.05em;
+  color: var(--text, #0f172a);
+}
+
+.eval-popover-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+  border-top: 1px solid var(--border, #e2e8f0);
+  padding-top: 0.4rem;
+}
+
+.eval-popover-delete-btn,
+.eval-popover-delete-all-btn,
+.eval-popover-close-btn {
+  padding: 0.2em 0.7em;
+  font-size: 0.82em;
+  border-radius: 4px;
+  border: 1px solid var(--border, #cbd5e1);
+  cursor: pointer;
+  background: var(--surface, #fff);
+  color: var(--text, #0f172a);
+}
+
+.eval-popover-delete-btn,
+.eval-popover-delete-all-btn {
+  color: var(--danger, #b4233a);
+  border-color: rgba(180, 35, 58, 0.35);
+}
+
+.eval-popover-delete-btn:hover,
+.eval-popover-delete-all-btn:hover {
+  background: var(--danger-soft, #fde9ee);
+  border-color: var(--danger, #b4233a);
+}
+
+/* Eval toggle button label in the text-editor sidebar */
+.eval-toggle-label {
+  font-size: 1em;
+  font-weight: 700;
+  line-height: 1;
+  display: inline-block;
+}

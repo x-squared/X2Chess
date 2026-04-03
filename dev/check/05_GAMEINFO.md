@@ -10,6 +10,9 @@ area: Game info and metadata headers
 - `resource/domain/metadata_schema.ts` — canonical metadata field schema
 - `dev/plans/metadata_definition_system_d1e2f3a4.plan.md` — metadata types, dialog, export/import design
 
+## Edit rules
+See dev/check/00_README.md. These rules must be strictly adhered to when this file is being edited.
+
 ## Checklist
 
 - [ ] **GAMEINFO-1** — Clicking a header field in the game-info strip makes it editable.

@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import type { RefObject } from "react";
 import { createIngressEventHandlers } from "../game_sessions/ingress_handlers";
+import type { OpenGameOptions } from "../game_sessions/ingress_handlers";
 
 /**
  * useGameIngress — binds drag/drop and paste event handlers for PGN game ingress.
@@ -23,11 +24,16 @@ import { createIngressEventHandlers } from "../game_sessions/ingress_handlers";
  * - Inbound: reads `appPanelRef.current` and `overlayRef.current` at effect mount.
  */
 
+type OpenPgnOptions = {
+  preferredTitle?: string;
+  sourceRef?: { kind: string; locator: string; recordId?: string } | null;
+};
+
 type UseGameIngressDeps = {
   appPanelRef: RefObject<Element | null>;
   overlayRef: RefObject<HTMLElement | null>;
   isLikelyPgnText: (value: string) => boolean;
-  openPgnText: (pgnText: string) => void;
+  openPgnText: (pgnText: string, options?: OpenPgnOptions) => void;
   resolveUrl?: ((url: string) => Promise<void>) | undefined;
 };
 
@@ -41,10 +47,15 @@ export const useGameIngress = ({
   useEffect((): (() => void) => {
     const appPanelEl: Element | null = appPanelRef.current;
 
-    const { handleDragEnter, handleDragOver, handleDragLeave, handleDrop, handlePaste } =
+    const { handleDragEnter, handleDragOver, handleDragLeave, handleDrop, handlePaste, handleDocumentDragLeave } =
       createIngressEventHandlers({
         isLikelyPgnText,
-        openGameFromIncomingText: (pgnText: string): void => { openPgnText(pgnText); },
+        openGameFromIncomingText: (pgnText: string, options?: OpenGameOptions): void => {
+          openPgnText(pgnText, {
+            preferredTitle: options?.preferredTitle,
+            sourceRef: options?.sourceRef ?? null,
+          });
+        },
         setDropOverlayVisible: (visible: boolean): void => {
           if (overlayRef.current) overlayRef.current.hidden = !visible;
         },
@@ -57,7 +68,8 @@ export const useGameIngress = ({
       appPanelEl.addEventListener("dragleave", handleDragLeave);
       appPanelEl.addEventListener("drop", handleDrop);
     }
-    window.addEventListener("paste", handlePaste);
+    document.addEventListener("dragleave", handleDocumentDragLeave);
+    globalThis.addEventListener("paste", handlePaste);
 
     return (): void => {
       if (appPanelEl) {
@@ -66,7 +78,8 @@ export const useGameIngress = ({
         appPanelEl.removeEventListener("dragleave", handleDragLeave);
         appPanelEl.removeEventListener("drop", handleDrop);
       }
-      window.removeEventListener("paste", handlePaste);
+      document.removeEventListener("dragleave", handleDocumentDragLeave);
+      globalThis.removeEventListener("paste", handlePaste);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

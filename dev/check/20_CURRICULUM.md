@@ -6,6 +6,9 @@ area: Training curriculum plan (.x2plan file)
 ## Key source files
 - `dev/plans/training_mode_c9d0e1f2.plan.md` — curriculum plan design (chapters, tasks, .x2plan format)
 
+## Edit rules
+See dev/check/00_README.md. These rules must be strictly adhered to when this file is being edited.
+
 ## Checklist
 
 - [ ] **CURRICULUM-1** — Menu → "Training Plan…" closes the menu and opens the curriculum panel on the right side.

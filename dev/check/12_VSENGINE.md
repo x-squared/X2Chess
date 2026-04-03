@@ -7,6 +7,9 @@ area: Play vs engine
 - `frontend/src/components/PlayVsEngineDialog.tsx` — setup dialog (colour, depth)
 - `dev/plans/engines_integration_e5f6a7b8.plan.md` — UCI engine integration design
 
+## Edit rules
+See dev/check/00_README.md. These rules must be strictly adhered to when this file is being edited.
+
 ## Checklist
 
 - [ ] **VSENGINE-1** — Menu → Play vs engine opens the setup dialog (colour, depth).

@@ -7,6 +7,9 @@ area: Auto-annotation (engine-driven NAG insertion)
 - `frontend/src/components/AnnotateGameDialog.tsx` — annotation dialog
 - `dev/plans/engines_integration_e5f6a7b8.plan.md` — engine integration (annotation pass design)
 
+## Edit rules
+See dev/check/00_README.md. These rules must be strictly adhered to when this file is being edited.
+
 ## Checklist
 
 - [ ] **ANNOTATE-1** — Menu → Annotate game runs the engine over all moves.

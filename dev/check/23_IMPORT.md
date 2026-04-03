@@ -6,6 +6,9 @@ area: Format importers (EPD, ChessBase CBH/CBV)
 ## Key source files
 - `dev/plans/format_importers_a2b3c4d5.plan.md` — EPD importer, CBH/CBV Tauri command design
 
+## Edit rules
+See dev/check/00_README.md. These rules must be strictly adhered to when this file is being edited.
+
 ## Checklist
 
 - [ ] **IMPORT-1** — Importing an `.epd` file produces one PGN game per non-blank line; each game has `[SetUp "1"]` and a valid 6-field `[FEN]` header.

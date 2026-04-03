@@ -9,6 +9,9 @@ area: Undo / Redo
 - `frontend/src/editor/history.ts` — editor history helpers
 - `frontend/src/components/ToolbarRow.tsx` — undo/redo toolbar buttons
 
+## Edit rules
+See dev/check/00_README.md. These rules must be strictly adhered to when this file is being edited.
+
 ## Checklist
 
 - [ ] **UNDOREDO-1** — Cmd/Ctrl+Z undoes the last model change (move, comment, header edit).

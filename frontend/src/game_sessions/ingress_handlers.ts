@@ -197,6 +197,14 @@ export const createIngressEventHandlers = ({
     if (dragDepth === 0) setOverlayVisible(false);
   };
 
+  const handleDocumentDragLeave = (event: Event): void => {
+    const dragEvent: DragEvent = event as DragEvent;
+    if (dragEvent.relatedTarget === null) {
+      dragDepth = 0;
+      setOverlayVisible(false);
+    }
+  };
+
   const handleDrop = (event: Event): void => {
     const dragEvent: DragEvent = event as DragEvent;
     dragDepth = 0;
@@ -254,5 +262,5 @@ export const createIngressEventHandlers = ({
     openGameFromIncomingText(plainText, { preferInsertIntoActiveResource: true });
   };
 
-  return { handleDragEnter, handleDragOver, handleDragLeave, handleDrop, handlePaste };
+  return { handleDragEnter, handleDragOver, handleDragLeave, handleDrop, handlePaste, handleDocumentDragLeave };
 };

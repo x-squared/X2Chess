@@ -17,6 +17,9 @@ area: Resource viewer (game list, grouping, filtering, search)
 - `dev/plans/pgn-resource-library-refactor_c8b17631.plan.md` — resource library extraction
 - `dev/plans/material_key_b5c6d7e8.plan.md` — Material column for position games
 
+## Edit rules
+See dev/check/00_README.md. These rules must be strictly adhered to when this file is being edited.
+
 ## Checklist
 
 - [ ] **RESOURCE-1** — Resource viewer tab/panel opens and lists games from a PGN file or `.x2chess` DB.

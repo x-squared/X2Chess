@@ -74,7 +74,7 @@ import { GUIDE_IDS } from "../guide/guide_ids";
 import { GameInfoEditor } from "./GameInfoEditor";
 import { GameSessionsPanel } from "./GameSessionsPanel";
 import { ChessBoard } from "./ChessBoard";
-import type { BoardShape, BoardKey } from "../board/board_shapes";
+import type { BoardShape } from "../board/board_shapes";
 import { isBoardKey } from "../board/board_shapes";
 import { PgnTextEditor } from "./PgnTextEditor";
 import { ToolbarRow } from "./ToolbarRow";
@@ -88,7 +88,6 @@ import { PromotionPicker } from "./PromotionPicker";
 import { ExtractPositionDialog } from "./ExtractPositionDialog";
 import { EditStartPositionDialog } from "./EditStartPositionDialog";
 import { StudyOverlay } from "./StudyOverlay";
-import type { PromotionPiece } from "./PromotionPicker";
 import { useTrainingSession } from "../training/hooks/useTrainingSession";
 import { REPLAY_PROTOCOL } from "../training/protocols/replay_protocol";
 import { OPENING_PROTOCOL } from "../training/protocols/opening_protocol";
@@ -96,12 +95,12 @@ import { TrainingHistoryStrip } from "../training/components/TrainingHistoryStri
 import { TrainingHistoryPanel } from "../training/components/TrainingHistoryPanel";
 import { TrainingLauncher } from "../training/components/TrainingLauncher";
 import { CurriculumPanel } from "../training/components/CurriculumPanel";
-import type { Task } from "../training/curriculum/curriculum_plan";
 import { TrainingOverlay } from "../training/components/TrainingOverlay";
 import { MoveOutcomeHint } from "../training/components/MoveOutcomeHint";
 import { TrainingResult } from "../training/components/TrainingResult";
-import type { MergeSelection } from "../training/domain/training_transcript";
-import { applyMergeToModel, mergeToNewPgn } from "../training/merge_transcript";
+import { useBoardColumnResize } from "../hooks/useBoardColumnResize";
+import { useNavigateGuard } from "../hooks/useNavigateGuard";
+import { useTrainingDialogState } from "../hooks/useTrainingDialogState";
 
 /** Compute the FEN at the given ply by replaying SAN moves. */
 const fenAtPly = (sanMoves: string[], ply: number): string => {
@@ -272,14 +271,7 @@ export const AppShell = (): ReactElement => {
 
   // ── Training session ───────────────────────────────────────────────────────
   const trainingControls = useTrainingSession([REPLAY_PROTOCOL, OPENING_PROTOCOL]);
-  const [showTrainingLauncher, setShowTrainingLauncher] = useState(false);
-  const [showTrainingHistory, setShowTrainingHistory] = useState(false);
-  const [showCurriculumPanel, setShowCurriculumPanel] = useState(false);
   const [showExtDbSettings, setShowExtDbSettings] = useState(false);
-  const [pendingTrainingPromotion, setPendingTrainingPromotion] = useState<{
-    from: string;
-    to: string;
-  } | null>(null);
 
   const trainingOpts = trainingControls.sessionState?.config.protocolOptions as {
     allowRetry?: boolean;
@@ -305,52 +297,6 @@ export const AppShell = (): ReactElement => {
     }
   }, [trainingControls.phase, dispatch]);
 
-  const handleTrainingMovePlayed = useCallback(
-    (from: string, to: string): void => {
-      const fen = trainingControls.sessionState?.position.fen;
-      if (!fen) return;
-      const chess = new Chess();
-      try { chess.load(fen); } catch { return; }
-      const piece = chess.get(from as Parameters<typeof chess.get>[0]);
-      const toRank = to[1];
-      const isPromotion =
-        piece?.type === "p" &&
-        ((piece.color === "w" && toRank === "8") ||
-          (piece.color === "b" && toRank === "1"));
-      if (isPromotion) {
-        setPendingTrainingPromotion({ from, to });
-        return;
-      }
-      const result = chess.move({ from, to });
-      if (!result) return;
-      trainingControls.submitMove({ uci: from + to, san: result.san, timestamp: Date.now() });
-    },
-    [trainingControls],
-  );
-
-  const handleTrainingPromotionPick = useCallback(
-    (piece: PromotionPiece): void => {
-      const promo = pendingTrainingPromotion;
-      if (!promo) { setPendingTrainingPromotion(null); return; }
-      const fen = trainingControls.sessionState?.position.fen;
-      if (!fen) { setPendingTrainingPromotion(null); return; }
-      setPendingTrainingPromotion(null);
-      const chess = new Chess();
-      try { chess.load(fen); } catch { return; }
-      const result = chess.move({ from: promo.from, to: promo.to, promotion: piece });
-      if (!result) return;
-      trainingControls.submitMove({
-        uci: promo.from + promo.to + piece,
-        san: result.san,
-        timestamp: Date.now(),
-      });
-    },
-    [pendingTrainingPromotion, trainingControls],
-  );
-
-  const trainingGameTitle = activeSession?.title ?? t("training.launcher.untitled", "Untitled game");
-  const trainingSourceRef = activeSession?.sourceGameRef || activeSession?.sessionId || "";
-
   // T11: engine hint during training — call findBestMove on the training FEN.
   const handleTrainingHint = useCallback((): void => {
     trainingControls.requestHint();
@@ -372,64 +318,31 @@ export const AppShell = (): ReactElement => {
   const isDirty: boolean =
     activeSession?.dirtyState === "dirty" || activeSession?.dirtyState === "error";
 
+  // ── M8: navigate-away guard ───────────────────────────────────────────────
+  const rawServices: AppStartupServices = useAppStartup();
+
+  const navigateGuard = useNavigateGuard(rawServices, sessions, activeSession);
+
+  const training = useTrainingDialogState(
+    trainingControls,
+    rawServices,
+    () => state,
+  );
+
   const effectiveOnMovePlayed =
     trainingControls.phase === "in_progress"
-      ? handleTrainingMovePlayed
+      ? training.handleTrainingMovePlayed
       : vsEngine.active
         ? handleVsEngineMovePlayed
         : onMovePlayed;
 
-  // ── M8: navigate-away guard ───────────────────────────────────────────────
-  type PendingNavigate =
-    | { kind: "switch"; sessionId: string }
-    | { kind: "close"; sessionId: string };
-  const [pendingNavigate, setPendingNavigate] = useState<PendingNavigate | null>(null);
-
-  /** Initialise all services; returns stable callbacks for the service context. */
-  const rawServices: AppStartupServices = useAppStartup();
-
   /** Services wired into the context — switchSession/closeSession guarded for dirty state. */
   const services: AppStartupServices = {
     ...rawServices,
-    openCurriculumPanel: (): void => { setShowCurriculumPanel(true); },
-    switchSession: (sessionId: string): void => {
-      if (isDirty && sessionId !== activeSession?.sessionId) {
-        setPendingNavigate({ kind: "switch", sessionId });
-      } else {
-        rawServices.switchSession(sessionId);
-      }
-    },
-    closeSession: (sessionId: string): void => {
-      const target = sessions.find((s) => s.sessionId === sessionId);
-      if (target?.dirtyState === "dirty" || target?.dirtyState === "error") {
-        setPendingNavigate({ kind: "close", sessionId });
-      } else {
-        rawServices.closeSession(sessionId);
-      }
-    },
+    openCurriculumPanel: (): void => { training.setShowCurriculumPanel(true); },
+    switchSession: navigateGuard.switchSession,
+    closeSession: navigateGuard.closeSession,
   };
-
-  // Curriculum: open game from a task ref and launch the training launcher.
-  const handleLaunchTaskFromCurriculum = useCallback((task: Task): void => {
-    if (task.ref) {
-      rawServices.openGameFromRef(task.ref);
-    }
-    setShowCurriculumPanel(false);
-    setShowTrainingLauncher(true);
-  }, [rawServices]);
-
-  // T10: merge training transcript annotations back into the source game.
-  const handleMergeResult = useCallback((selection: MergeSelection): void => {
-    const model = selectPgnModel(state);
-    if (selection.mergeTarget === "source_game" && model) {
-      const updated = applyMergeToModel(model, selection);
-      rawServices.applyPgnModelEdit(updated, null);
-    } else if (selection.mergeTarget === "new_variation" && model) {
-      const pgn = mergeToNewPgn(model, selection);
-      rawServices.openPgnText(pgn);
-    }
-    trainingControls.confirmResult();
-  }, [trainingControls, state, rawServices]);
 
   // UV12: study callbacks (after rawServices so navigation is available)
   const currentStudyItem = studyActive ? studyItems[studyItemIndex] : null;
@@ -466,58 +379,14 @@ export const AppShell = (): ReactElement => {
 
   const appPanelRef = useRef<HTMLElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
-  const boardEditorBoxRef = useRef<HTMLDivElement>(null);
-  const boardResizeHandleRef = useRef<HTMLDivElement>(null);
-  /** Tracks the board width the user set via horizontal drag, so it can be restored when the resource viewer shrinks. */
-  const intendedBoardWidthRef = useRef<number>(520);
 
-  // Wire up board / editor column resize handle.
-  useEffect((): (() => void) => {
-    const handleEl = boardResizeHandleRef.current;
-    const boxEl = boardEditorBoxRef.current;
-    if (!handleEl || !boxEl) return (): void => {};
-
-    const clamp = (px: number): number => Math.max(260, Math.min(680, Math.round(px)));
-    const setWidth = (px: number): void => {
-      const clamped = clamp(px);
-      document.documentElement.style.setProperty("--board-column-width", `${clamped}px`);
-      intendedBoardWidthRef.current = clamped;
-    };
-
-    let state: { leftPx: number; handleHalfPx: number } | null = null;
-
-    const onMove = (e: PointerEvent): void => {
-      if (!state) return;
-      setWidth(e.clientX - state.leftPx - state.handleHalfPx);
-    };
-    const onUp = (): void => { state = null; };
-
-    const onDown = (e: PointerEvent): void => {
-      const boxRect = boxEl.getBoundingClientRect();
-      const hRect = handleEl.getBoundingClientRect();
-      state = { leftPx: boxRect.left, handleHalfPx: Math.max(2, Math.round(hRect.width / 2)) };
-      handleEl.setPointerCapture(e.pointerId);
-      e.preventDefault();
-    };
-
-    handleEl.addEventListener("pointerdown", onDown);
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-    window.addEventListener("pointercancel", onUp);
-    return (): void => {
-      handleEl.removeEventListener("pointerdown", onDown);
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-      window.removeEventListener("pointercancel", onUp);
-    };
-  }, []);
-
+  const { boardEditorBoxRef, boardResizeHandleRef } = useBoardColumnResize();
 
   useGameIngress({
     appPanelRef,
     overlayRef,
     isLikelyPgnText,
-    openPgnText: (pgnText: string): void => { services.openPgnText(pgnText); },
+    openPgnText: (pgnText: string, options?: Parameters<typeof services.openPgnText>[1]): void => { services.openPgnText(pgnText, options); },
     resolveUrl,
   });
 
@@ -544,6 +413,9 @@ export const AppShell = (): ReactElement => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const trainingGameTitle = activeSession?.title ?? t("training.launcher.untitled", "Untitled game");
+  const trainingSourceRef = activeSession?.sourceGameRef || activeSession?.sessionId || "";
+
   return (
     <ServiceContextProvider value={services}>
       <main className="app">
@@ -565,29 +437,23 @@ export const AppShell = (): ReactElement => {
             </p>
           </div>
 
-          {/* Menu open trigger */}
-          <button
-            id="btn-menu"
-            className="menu-trigger"
-            type="button"
-            aria-label={t("menu.open", "Open menu")}
-            aria-expanded="false"
-            aria-controls="app-menu-panel"
-            onClick={(): void => { services.setMenuOpen(true); }}
-          >
-            <span className="menu-trigger-icon" aria-hidden="true" />
-          </button>
-
           {/* ── Game tabs card ── */}
           <section className="game-tabs-card" data-guide-id={GUIDE_IDS.SESSIONS_PANEL}>
+            {/* Menu open trigger — centred on top border of this card */}
+            <button
+              id="btn-menu"
+              className="menu-trigger"
+              type="button"
+              aria-label={t("menu.open", "Open menu")}
+              aria-expanded="false"
+              aria-controls="app-menu-panel"
+              onClick={(): void => { services.setMenuOpen(true); }}
+            >
+              <span className="menu-trigger-icon" aria-hidden="true" />
+            </button>
+
             <div className="game-tabs-header">
               <p className="game-tabs-title">{t("games.open", "Open games")}</p>
-              <p className="game-tabs-hint">
-                {t(
-                  "games.hint",
-                  "Drop .pgn files or paste PGN text onto the app to open games.",
-                )}
-              </p>
             </div>
             <GameSessionsPanel />
           </section>
@@ -680,7 +546,7 @@ export const AppShell = (): ReactElement => {
                 onShowExtractDialog={(): void => { setShowExtractDialog(true); }}
                 onShowHint={handleShowHint}
                 onStartStudy={handleStartStudy}
-                onShowTrainingLauncher={(): void => { setShowTrainingLauncher(true); }}
+                onShowTrainingLauncher={(): void => { training.setShowTrainingLauncher(true); }}
                 onShowAnnotateDialog={(): void => { setShowAnnotateDialog(true); }}
                 onVsEngineClick={(): void => {
                   if (vsEngine.active) vsEngine.stop();
@@ -694,8 +560,8 @@ export const AppShell = (): ReactElement => {
                   {trainingControls.phase === "idle" && (
                     <TrainingHistoryStrip
                       sourceGameRef={trainingSourceRef}
-                      onTrainAgain={(): void => { setShowTrainingLauncher(true); }}
-                      onViewHistory={(): void => { setShowTrainingHistory(true); }}
+                      onTrainAgain={(): void => { training.setShowTrainingLauncher(true); }}
+                      onViewHistory={(): void => { training.setShowTrainingHistory(true); }}
                       t={t}
                     />
                   )}
@@ -814,11 +680,11 @@ export const AppShell = (): ReactElement => {
         )}
 
         {/* ── Navigate-away guard (M8) ── */}
-        {pendingNavigate && (
+        {navigateGuard.pendingNavigate && (
           <dialog
             open
             className="confirm-dialog"
-            onClose={(): void => { setPendingNavigate(null); }}
+            onClose={navigateGuard.clearPendingNavigate}
           >
             <div className="confirm-dialog-content">
               <p className="confirm-dialog-message">
@@ -829,8 +695,9 @@ export const AppShell = (): ReactElement => {
                   type="button"
                   className="confirm-dialog-btn confirm-dialog-btn--discard"
                   onClick={(): void => {
-                    const nav = pendingNavigate;
-                    setPendingNavigate(null);
+                    const nav = navigateGuard.pendingNavigate;
+                    navigateGuard.clearPendingNavigate();
+                    if (!nav) return;
                     if (nav.kind === "switch") rawServices.switchSession(nav.sessionId);
                     else rawServices.closeSession(nav.sessionId);
                   }}
@@ -842,8 +709,9 @@ export const AppShell = (): ReactElement => {
                   className="confirm-dialog-btn"
                   onClick={(): void => {
                     rawServices.saveActiveGameNow();
-                    const nav = pendingNavigate;
-                    setPendingNavigate(null);
+                    const nav = navigateGuard.pendingNavigate;
+                    navigateGuard.clearPendingNavigate();
+                    if (!nav) return;
                     if (nav.kind === "switch") rawServices.switchSession(nav.sessionId);
                     else rawServices.closeSession(nav.sessionId);
                   }}
@@ -853,7 +721,7 @@ export const AppShell = (): ReactElement => {
                 <button
                   type="button"
                   className="confirm-dialog-btn confirm-dialog-btn--cancel"
-                  onClick={(): void => { setPendingNavigate(null); }}
+                  onClick={navigateGuard.clearPendingNavigate}
                 >
                   {t("editor.cancelLeave", "Cancel")}
                 </button>
@@ -874,28 +742,28 @@ export const AppShell = (): ReactElement => {
             t={t}
           />
         )}
-        {showTrainingHistory && (
+        {training.showTrainingHistory && (
           <TrainingHistoryPanel
             sourceGameRef={trainingSourceRef}
-            onClose={(): void => { setShowTrainingHistory(false); }}
-            onTrainAgain={(): void => { setShowTrainingHistory(false); setShowTrainingLauncher(true); }}
+            onClose={(): void => { training.setShowTrainingHistory(false); }}
+            onTrainAgain={(): void => { training.setShowTrainingHistory(false); training.setShowTrainingLauncher(true); }}
             t={t}
           />
         )}
-        {showTrainingLauncher && (
+        {training.showTrainingLauncher && (
           <TrainingLauncher
             gameTitle={trainingGameTitle}
             pgnText={pgnText}
             sourceRef={trainingSourceRef}
             t={t}
             onStart={(config): void => {
-              setShowTrainingLauncher(false);
+              training.setShowTrainingLauncher(false);
               trainingControls.start(config);
             }}
-            onCancel={(): void => { setShowTrainingLauncher(false); }}
+            onCancel={(): void => { training.setShowTrainingLauncher(false); }}
           />
         )}
-        {pendingTrainingPromotion && (
+        {training.pendingTrainingPromotion && (
           <PromotionPicker
             color={
               trainingControls.sessionState?.position.fen.split(" ")[1] === "b"
@@ -903,8 +771,8 @@ export const AppShell = (): ReactElement => {
                 : "w"
             }
             t={t}
-            onPick={handleTrainingPromotionPick}
-            onCancel={(): void => { setPendingTrainingPromotion(null); }}
+            onPick={training.handleTrainingPromotionPick}
+            onCancel={(): void => { training.setPendingTrainingPromotion(null); }}
           />
         )}
         {trainingControls.phase === "reviewing" &&
@@ -914,7 +782,7 @@ export const AppShell = (): ReactElement => {
               summary={trainingControls.summary}
               transcript={trainingControls.transcript}
               t={t}
-              onMerge={handleMergeResult}
+              onMerge={training.handleMergeResult}
               onDiscard={trainingControls.confirmResult}
             />
           )}
@@ -973,10 +841,10 @@ export const AppShell = (): ReactElement => {
           </dialog>
         )}
         {/* ── Training curriculum panel ── */}
-        {showCurriculumPanel && (
+        {training.showCurriculumPanel && (
           <CurriculumPanel
-            onClose={(): void => { setShowCurriculumPanel(false); }}
-            onLaunchTask={handleLaunchTaskFromCurriculum}
+            onClose={(): void => { training.setShowCurriculumPanel(false); }}
+            onLaunchTask={training.handleLaunchTaskFromCurriculum}
             t={t}
           />
         )}

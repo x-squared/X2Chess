@@ -10,6 +10,9 @@ area: Board navigation
 - `frontend/src/state/app_reducer.ts` — `NAVIGATE` actions
 - `dev/plans/move_entry_game_editing_b3c4d5e6.plan.md` — navigation and variation fork design
 
+## Edit rules
+See dev/check/00_README.md. These rules must be strictly adhered to when this file is being edited.
+
 ## Checklist
 
 - [ ] **NAV-1** — ← / → toolbar buttons step one move backward/forward.

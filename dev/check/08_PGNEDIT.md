@@ -26,6 +26,9 @@ area: PGN text editor (plain / text / tree modes, comments, NAGs, eval pills, TO
 - `dev/plans/game_anchors_b4c5d6e7.plan.md` — `[%anchor]` named anchors
 - `dev/plans/hover_position_preview_a3b2c1d0.plan.md` — hover mini-board popup design
 
+## Edit rules
+See dev/check/00_README.md. These rules must be strictly adhered to when this file is being edited.
+
 ## Checklist
 
 - [ ] **PGNEDIT-1** — Plain mode shows the raw PGN as a single text block.

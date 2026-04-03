@@ -1,0 +1,15 @@
+.hover-position-popup,
+.hover-position-popup * {
+  pointer-events: none;
+}
+
+.hover-position-popup {
+  position: fixed;
+  z-index: 200;
+  border-radius: 12px;
+  box-shadow: var(--shadow-m);
+}
+
+.analysis-panel-pv-move {
+  cursor: default;
+}

@@ -119,8 +119,8 @@ export type AppStartupServices = {
   openGameFromRef: (sourceRef: unknown) => void;
   /** Open the resource picker and add the chosen resource as a viewer tab. */
   openResource: () => void;
-  /** Open the drop/paste ingress with a raw PGN text string. */
-  openPgnText: (pgnText: string) => void;
+  /** Open the drop/paste ingress with a raw PGN text string and optional source hints. */
+  openPgnText: (pgnText: string, options?: { preferredTitle?: string; sourceRef?: { kind: string; locator: string; recordId?: string } | null }) => void;
   /**
    * Swap the display order of two games in a resource.
    * @param sourceRef - First game source reference.

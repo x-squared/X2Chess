@@ -10,6 +10,9 @@ area: Saving games
 - `frontend/src/hooks/createAppServices.ts` — save service wiring
 - `dev/plans/database_resource_2e8f4c91.plan.md` — DB save path and conflict handling
 
+## Edit rules
+See dev/check/00_README.md. These rules must be strictly adhered to when this file is being edited.
+
 ## Checklist
 
 - [ ] **SAVE-1** — Cmd/Ctrl+S saves the active game to its source (file or DB record).

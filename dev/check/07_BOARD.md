@@ -15,6 +15,9 @@ area: Chess board rendering and move entry
 - `dev/plans/board_shapes_3f4a5b6c.plan.md` — square highlights and arrows
 - `dev/plans/move_hints_hover_d4e5f6a7.plan.md` — hover legal-move dots
 
+## Edit rules
+See dev/check/00_README.md. These rules must be strictly adhered to when this file is being edited.
+
 ## Checklist
 
 - [ ] **BOARD-1** — Clicking a piece highlights it and shows legal move targets.

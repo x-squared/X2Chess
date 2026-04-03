@@ -6,6 +6,9 @@ area: Study mode (guided move-by-move replay with blanked board)
 ## Key source files
 - `frontend/src/components/StudyOverlay.tsx` — study mode overlay component
 
+## Edit rules
+See dev/check/00_README.md. These rules must be strictly adhered to when this file is being edited.
+
 ## Checklist
 
 - [ ] **STUDY-1** — Study mode is entered when the active game meets the requirements (has variations, comments).

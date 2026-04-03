@@ -36,7 +36,7 @@ import {
   useRef,
   type ReactElement,
 } from "react";
-import type { LinkAnnotation } from "../resources_viewer/link_parser";
+import type { LinkAnnotation } from "../../resources_viewer/link_parser";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

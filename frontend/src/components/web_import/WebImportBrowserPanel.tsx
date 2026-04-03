@@ -33,7 +33,7 @@ import {
   type ChangeEvent,
   type KeyboardEvent,
 } from "react";
-import type { BrowserPanelGateway } from "../resources/web_import/browser_panel_gateway";
+import type { BrowserPanelGateway } from "../../resources/web_import/browser_panel_gateway";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

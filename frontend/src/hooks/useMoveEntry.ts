@@ -38,8 +38,8 @@ import {
 } from "../model/pgn_move_ops";
 import type { PgnModel } from "../model/pgn_model";
 import type { PgnCursor } from "../model/pgn_move_ops";
-import type { ForkChoice } from "../components/DisambiguationDialog";
-import type { PromotionPiece } from "../components/PromotionPicker";
+import type { ForkChoice } from "../components/board/DisambiguationDialog";
+import type { PromotionPiece } from "../components/board/PromotionPicker";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 

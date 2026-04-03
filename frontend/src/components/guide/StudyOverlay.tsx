@@ -15,7 +15,7 @@
  */
 
 import { useState, useCallback, useEffect, type ReactElement } from "react";
-import type { StudyItem } from "../model/study_items";
+import type { StudyItem } from "../../model/study_items";
 
 type StudyOverlayProps = {
   item: StudyItem;

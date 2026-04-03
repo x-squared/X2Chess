@@ -25,16 +25,16 @@ import {
   type ChangeEvent,
   type KeyboardEvent,
 } from "react";
-import type { WebImportRule } from "../resources/web_import/web_import_types";
-import { BUILT_IN_RULES } from "../resources/web_import/built_in_rules";
+import type { WebImportRule } from "../../resources/web_import/web_import_types";
+import { BUILT_IN_RULES } from "../../resources/web_import/built_in_rules";
 import {
   loadUserRules,
   saveUserRules,
   validateRule,
-} from "../resources/web_import/user_rules_storage";
-import { buildRegistry } from "../resources/web_import/rule_registry";
-import { matchRule } from "../resources/web_import/rule_matcher";
-import { fetchFromRule } from "../resources/web_import/rule_fetcher";
+} from "../../resources/web_import/user_rules_storage";
+import { buildRegistry } from "../../resources/web_import/rule_registry";
+import { matchRule } from "../../resources/web_import/rule_matcher";
+import { fetchFromRule } from "../../resources/web_import/rule_fetcher";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

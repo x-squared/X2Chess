@@ -19,9 +19,9 @@
  */
 
 import type { ReactElement } from "react";
-import type { ShapeColor } from "../board/board_shapes";
-import type { ShapePrefs, SquareStyleMode } from "../runtime/shape_prefs";
-import { GUIDE_IDS } from "../guide/guide_ids";
+import type { ShapeColor } from "../../board/board_shapes";
+import type { ShapePrefs, SquareStyleMode } from "../../runtime/shape_prefs";
+import { GUIDE_IDS } from "../../guide/guide_ids";
 
 type SettingsPanelProps = {
   prefs: ShapePrefs;

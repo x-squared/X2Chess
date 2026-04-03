@@ -22,8 +22,8 @@
 
 import { useEffect, useState } from "react";
 import type { ReactElement, ChangeEvent } from "react";
-import { SUPPORTED_LOCALES } from "../app_shell/i18n";
-import { useAppContext } from "../state/app_context";
+import { SUPPORTED_LOCALES } from "../../app_shell/i18n";
+import { useAppContext } from "../../state/app_context";
 import {
   selectIsMenuOpen,
   selectLocale,
@@ -32,13 +32,13 @@ import {
   selectDevToolsEnabled,
   selectSessions,
   selectPositionPreviewOnHover,
-} from "../state/selectors";
-import { useServiceContext } from "../state/ServiceContext";
-import { useTranslator } from "../hooks/useTranslator";
-import { useUpdateCheck } from "../hooks/useUpdateCheck";
+} from "../../state/selectors";
+import { useServiceContext } from "../../state/ServiceContext";
+import { useTranslator } from "../../hooks/useTranslator";
+import { useUpdateCheck } from "../../hooks/useUpdateCheck";
 import { UpdateBanner } from "./UpdateBanner";
-import { WebImportRulesPanel } from "./WebImportRulesPanel";
-import type { SessionItemState } from "../state/app_reducer";
+import { WebImportRulesPanel } from "../web_import/WebImportRulesPanel";
+import type { SessionItemState } from "../../state/app_reducer";
 
 /** Reads the build timestamp injected by Vite at build time (falls back to "dev"). */
 const resolveBuildLabel = (): string => {

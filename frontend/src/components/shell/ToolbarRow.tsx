@@ -32,7 +32,7 @@
  */
 
 import type { ReactElement } from "react";
-import { GUIDE_IDS } from "../guide/guide_ids";
+import { GUIDE_IDS } from "../../guide/guide_ids";
 
 type ToolbarRowProps = {
   isAtStart: boolean;

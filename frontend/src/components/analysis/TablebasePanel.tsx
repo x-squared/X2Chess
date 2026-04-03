@@ -16,8 +16,8 @@
  */
 
 import { useCallback, type ReactElement } from "react";
-import type { TbProbeResult, TbWdl, TbMoveEntry } from "../resources/ext_databases/endgame_types";
-import { GUIDE_IDS } from "../guide/guide_ids";
+import type { TbProbeResult, TbWdl, TbMoveEntry } from "../../resources/ext_databases/endgame_types";
+import { GUIDE_IDS } from "../../guide/guide_ids";
 
 type TablebasePanelProps = {
   result: TbProbeResult | null;

@@ -1,5 +1,5 @@
 import type { ReactElement } from "react";
-import type { TabState } from "../resources_viewer/viewer_utils";
+import type { TabState } from "../../resources_viewer/viewer_utils";
 
 // ── Local helpers ─────────────────────────────────────────────────────────────
 

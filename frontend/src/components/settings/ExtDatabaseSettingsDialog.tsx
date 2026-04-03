@@ -14,7 +14,7 @@
  */
 
 import { useState, type ReactElement, type ChangeEvent } from "react";
-import type { ExtDatabaseSettings } from "../hooks/useExtDatabaseSettings";
+import type { ExtDatabaseSettings } from "../../hooks/useExtDatabaseSettings";
 
 // ── Options ───────────────────────────────────────────────────────────────────
 

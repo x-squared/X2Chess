@@ -23,15 +23,15 @@
 
 import { useMemo, useState } from "react";
 import type { ReactElement, ChangeEvent } from "react";
-import { GAME_INFO_HEADER_FIELDS, PLAYER_NAME_HEADER_KEYS, normalizeGameInfoHeaderValue } from "../app_shell/game_info";
-import { getHeaderValue, REQUIRED_PGN_TAG_DEFAULTS, resolveEcoOpeningName, normalizeX2StyleValue } from "../model";
-import { useAppContext } from "../state/app_context";
-import { selectIsGameInfoEditorOpen, selectPgnModel } from "../state/selectors";
-import { useServiceContext } from "../state/ServiceContext";
-import { useTranslator } from "../hooks/useTranslator";
+import { GAME_INFO_HEADER_FIELDS, PLAYER_NAME_HEADER_KEYS, normalizeGameInfoHeaderValue } from "../../app_shell/game_info";
+import { getHeaderValue, REQUIRED_PGN_TAG_DEFAULTS, resolveEcoOpeningName, normalizeX2StyleValue } from "../../model";
+import { useAppContext } from "../../state/app_context";
+import { selectIsGameInfoEditorOpen, selectPgnModel } from "../../state/selectors";
+import { useServiceContext } from "../../state/ServiceContext";
+import { useTranslator } from "../../hooks/useTranslator";
 import { PlayerAutocomplete } from "./PlayerAutocomplete";
-import type { PgnModel } from "../model/pgn_model";
-import { GUIDE_IDS } from "../guide/guide_ids";
+import type { PgnModel } from "../../model/pgn_model";
+import { GUIDE_IDS } from "../../guide/guide_ids";
 
 // ── Summary helpers ────────────────────────────────────────────────────────────
 

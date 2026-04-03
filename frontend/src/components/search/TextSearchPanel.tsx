@@ -15,13 +15,13 @@
  */
 
 import { useState, useCallback, type ReactElement, type KeyboardEvent } from "react";
-import { useAppContext } from "../state/app_context";
-import { useServiceContext } from "../state/ServiceContext";
-import { selectResourceViewerTabs } from "../state/selectors";
-import { isPgnResourceRef } from "../../../resource/domain/resource_ref";
-import type { TextSearchHit } from "../../../resource/client/search_coordinator";
-import type { PgnResourceRef } from "../../../resource/domain/resource_ref";
-import { GUIDE_IDS } from "../guide/guide_ids";
+import { useAppContext } from "../../state/app_context";
+import { useServiceContext } from "../../state/ServiceContext";
+import { selectResourceViewerTabs } from "../../state/selectors";
+import { isPgnResourceRef } from "../../../../resource/domain/resource_ref";
+import type { TextSearchHit } from "../../../../resource/client/search_coordinator";
+import type { PgnResourceRef } from "../../../../resource/domain/resource_ref";
+import { GUIDE_IDS } from "../../guide/guide_ids";
 
 type TextSearchPanelProps = {
   t: (key: string, fallback?: string) => string;

@@ -16,8 +16,8 @@
  */
 
 import type { ReactElement } from "react";
-import { useAppContext } from "../state/app_context";
-import { selectPgnModel } from "../state/selectors";
+import { useAppContext } from "../../state/app_context";
+import { selectPgnModel } from "../../state/selectors";
 
 // ── AST shape types (private — mirrors ast_panel.ts internal types) ────────────
 

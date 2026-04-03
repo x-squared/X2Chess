@@ -21,14 +21,14 @@ import {
   type ChangeEvent,
   type FormEvent,
 } from "react";
-import { LICHESS_GAMES_ADAPTER } from "../resources/ext_databases/lichess_games";
-import { CHESSDOTCOM_GAMES_ADAPTER } from "../resources/ext_databases/chessdotcom_games";
+import { LICHESS_GAMES_ADAPTER } from "../../resources/ext_databases/lichess_games";
+import { CHESSDOTCOM_GAMES_ADAPTER } from "../../resources/ext_databases/chessdotcom_games";
 import type {
   GameDatabaseAdapter,
   ExtGameEntry,
   GameSearchQuery,
-} from "../resources/ext_databases/game_db_types";
-import { GUIDE_IDS } from "../guide/guide_ids";
+} from "../../resources/ext_databases/game_db_types";
+import { GUIDE_IDS } from "../../guide/guide_ids";
 
 // ── Registered adapters ────────────────────────────────────────────────────────
 

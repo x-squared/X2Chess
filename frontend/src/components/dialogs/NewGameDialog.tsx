@@ -28,8 +28,8 @@ import {
   STANDARD_STARTING_FEN,
   validateFenStructure,
   validateKings,
-} from "../editor/fen_utils";
-import { useTranslator } from "../hooks/useTranslator";
+} from "../../editor/fen_utils";
+import { useTranslator } from "../../hooks/useTranslator";
 
 // ── FEN validation ─────────────────────────────────────────────────────────────
 

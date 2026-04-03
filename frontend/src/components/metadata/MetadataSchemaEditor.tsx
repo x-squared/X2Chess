@@ -26,13 +26,13 @@ import type {
   MetadataSchema,
   MetadataFieldDefinition,
   MetadataFieldType,
-} from "../../../resource/domain/metadata_schema";
+} from "../../../../resource/domain/metadata_schema";
 import {
   moveField,
   renumberFields,
   exportSchemaToJson,
   validateSchemaJson,
-} from "../resources_viewer/schema_storage";
+} from "../../resources_viewer/schema_storage";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 

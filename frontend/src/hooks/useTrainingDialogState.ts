@@ -3,7 +3,7 @@ import { Chess } from "chess.js";
 import type { TrainingSessionControls } from "../training/hooks/useTrainingSession";
 import type { MergeSelection } from "../training/domain/training_transcript";
 import type { Task } from "../training/curriculum/curriculum_plan";
-import type { PromotionPiece } from "../components/PromotionPicker";
+import type { PromotionPiece } from "../components/board/PromotionPicker";
 import type { AppStartupServices } from "../state/ServiceContext";
 import type { AppStoreState } from "../state/app_reducer";
 import { selectPgnModel } from "../state/selectors";

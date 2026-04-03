@@ -21,7 +21,7 @@
  */
 
 import type { ReactElement } from "react";
-import type { UpdateCheckState } from "../hooks/useUpdateCheck";
+import type { UpdateCheckState } from "../../hooks/useUpdateCheck";
 
 type UpdateBannerProps = {
   update: UpdateCheckState;

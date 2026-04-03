@@ -9,7 +9,7 @@ import {
   type TabState,
   METADATA_CANONICAL_ORDER,
   METADATA_LAST_KEYS,
-} from "../resources_viewer/viewer_utils";
+} from "../../resources_viewer/viewer_utils";
 
 // ── Metadata catalog builder ──────────────────────────────────────────────────
 

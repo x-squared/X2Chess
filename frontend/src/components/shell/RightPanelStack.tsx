@@ -14,20 +14,20 @@
  */
 
 import type { ReactElement } from "react";
-import type { EngineVariation } from "../../../engines/domain/analysis_types";
-import type { OpeningResult } from "../resources/ext_databases/opening_types";
-import type { TbProbeResult } from "../resources/ext_databases/endgame_types";
-import { AnalysisPanel } from "./AnalysisPanel";
-import { OpeningExplorerPanel } from "./OpeningExplorerPanel";
-import { TablebasePanel } from "./TablebasePanel";
-import { CollectionExplorerPanel } from "./CollectionExplorerPanel";
-import { GameSearchPanel } from "./GameSearchPanel";
-import { PositionSearchPanel } from "./PositionSearchPanel";
-import { TextSearchPanel } from "./TextSearchPanel";
-import { ResourceViewer } from "./ResourceViewer";
-import { SettingsPanel } from "./SettingsPanel";
-import type { ShapePrefs } from "../runtime/shape_prefs";
-import { GUIDE_IDS } from "../guide/guide_ids";
+import type { EngineVariation } from "../../../../engines/domain/analysis_types";
+import type { OpeningResult } from "../../resources/ext_databases/opening_types";
+import type { TbProbeResult } from "../../resources/ext_databases/endgame_types";
+import { AnalysisPanel } from "../analysis/AnalysisPanel";
+import { OpeningExplorerPanel } from "../analysis/OpeningExplorerPanel";
+import { TablebasePanel } from "../analysis/TablebasePanel";
+import { CollectionExplorerPanel } from "../resource_viewer/CollectionExplorerPanel";
+import { GameSearchPanel } from "../search/GameSearchPanel";
+import { PositionSearchPanel } from "../search/PositionSearchPanel";
+import { TextSearchPanel } from "../search/TextSearchPanel";
+import { ResourceViewer } from "../resource_viewer/ResourceViewer";
+import { SettingsPanel } from "../settings/SettingsPanel";
+import type { ShapePrefs } from "../../runtime/shape_prefs";
+import { GUIDE_IDS } from "../../guide/guide_ids";
 
 export type PanelId =
   | "resources"

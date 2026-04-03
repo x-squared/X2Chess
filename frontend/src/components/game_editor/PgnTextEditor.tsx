@@ -24,9 +24,9 @@
 
 import { useMemo, useRef, useEffect, useCallback, useState } from "react";
 import type { ReactElement, KeyboardEvent as ReactKeyboardEvent, FormEvent, MouseEvent } from "react";
-import { buildTextEditorPlan } from "../editor/text_editor_plan";
-import type { PlanBlock, PlanToken, InlineToken, CommentToken } from "../editor/text_editor_plan";
-import { useAppContext } from "../state/app_context";
+import { buildTextEditorPlan } from "../../editor/text_editor_plan";
+import type { PlanBlock, PlanToken, InlineToken, CommentToken } from "../../editor/text_editor_plan";
+import { useAppContext } from "../../state/app_context";
 import {
   selectPgnModel,
   selectLayoutMode,
@@ -34,11 +34,11 @@ import {
   selectPendingFocusCommentId,
   selectPositionPreviewOnHover,
   selectShowEvalPills,
-} from "../state/selectors";
-import { useHoverPreview } from "./HoverPreviewContext";
-import { resolveMovePositionById, type PgnModelForMoves } from "../board/move_position";
-import { useServiceContext } from "../state/ServiceContext";
-import { useTranslator } from "../hooks/useTranslator";
+} from "../../state/selectors";
+import { useHoverPreview } from "../board/HoverPreviewContext";
+import { resolveMovePositionById, type PgnModelForMoves } from "../../board/move_position";
+import { useServiceContext } from "../../state/ServiceContext";
+import { useTranslator } from "../../hooks/useTranslator";
 import {
   truncateAfter,
   truncateBefore,
@@ -48,40 +48,40 @@ import {
   findCursorForMoveId,
   findMoveNode,
   findMoveSideById,
-} from "../model/pgn_move_ops";
+} from "../../model/pgn_move_ops";
 import { TruncationMenu } from "./TruncationMenu";
 import type { TruncationAction } from "./TruncationMenu";
-import { QaBadge, QaInsertDialog } from "./QaBadge";
+import { QaBadge, QaInsertDialog } from "../badges/QaBadge";
 import {
   parseQaAnnotations,
   hasQaAnnotations,
   stripQaAnnotations,
-} from "../resources_viewer/qa_parser";
-import { useQaDialog } from "../editor/useQaDialog";
-import { TrainBadge, TrainInsertDialog } from "./TrainBadge";
+} from "../../resources_viewer/qa_parser";
+import { useQaDialog } from "../../editor/useQaDialog";
+import { TrainBadge, TrainInsertDialog } from "../badges/TrainBadge";
 import {
   parseTrainTag,
   hasTrainAnnotation,
   stripTrainAnnotation,
-} from "../resources_viewer/train_tag_parser";
-import { useTrainDialog } from "../editor/useTrainDialog";
-import { TodoBadge, TodoInsertDialog, TodoPanel } from "./TodoBadge";
-import type { TodoPanelItem } from "./TodoBadge";
+} from "../../resources_viewer/train_tag_parser";
+import { useTrainDialog } from "../../editor/useTrainDialog";
+import { TodoBadge, TodoInsertDialog, TodoPanel } from "../badges/TodoBadge";
+import type { TodoPanelItem } from "../badges/TodoBadge";
 import {
   parseTodoAnnotations,
   hasTodoAnnotations,
   stripTodoAnnotations,
-} from "../resources_viewer/todo_parser";
-import { useTodoDialog } from "../editor/useTodoDialog";
-import { LinkBadge } from "./LinkBadge";
+} from "../../resources_viewer/todo_parser";
+import { useTodoDialog } from "../../editor/useTodoDialog";
+import { LinkBadge } from "../badges/LinkBadge";
 import {
   parseLinkAnnotations,
   hasLinkAnnotations,
   stripLinkAnnotations,
-} from "../resources_viewer/link_parser";
-import { useLinkDialog } from "../editor/useLinkDialog";
-import { GamePickerDialog } from "./GamePickerDialog";
-import { AnchorBadge, AnchorRefChip } from "./AnchorBadge";
+} from "../../resources_viewer/link_parser";
+import { useLinkDialog } from "../../editor/useLinkDialog";
+import { GamePickerDialog } from "../dialogs/GamePickerDialog";
+import { AnchorBadge, AnchorRefChip } from "../badges/AnchorBadge";
 import {
   parseAnchorAnnotations,
   hasAnchorAnnotations,
@@ -89,22 +89,22 @@ import {
   parseAnchorRefAnnotations,
   hasAnchorRefAnnotations,
   stripAnchorRefAnnotations,
-} from "../resources_viewer/anchor_parser";
-import { useAnchorDefDialog } from "../editor/useAnchorDefDialog";
-import { useAnchorRefDialog } from "../editor/useAnchorRefDialog";
-import { resolveAnchors } from "../editor/resolveAnchors";
-import { EvalBadge } from "./EvalBadge";
+} from "../../resources_viewer/anchor_parser";
+import { useAnchorDefDialog } from "../../editor/useAnchorDefDialog";
+import { useAnchorRefDialog } from "../../editor/useAnchorRefDialog";
+import { resolveAnchors } from "../../editor/resolveAnchors";
+import { EvalBadge } from "../badges/EvalBadge";
 import {
   parseEvalAnnotations,
   hasEvalAnnotations,
   stripEvalAnnotations,
   replaceEvalAnnotation,
-} from "../resources_viewer/eval_parser";
-import type { ResolvedAnchor } from "../editor/resolveAnchors";
-import { AnchorDefDialog } from "./AnchorDefDialog";
-import { AnchorPickerDialog } from "./AnchorPickerDialog";
+} from "../../resources_viewer/eval_parser";
+import type { ResolvedAnchor } from "../../editor/resolveAnchors";
+import { AnchorDefDialog } from "../anchors/AnchorDefDialog";
+import { AnchorPickerDialog } from "../anchors/AnchorPickerDialog";
 import { NagPicker } from "./NagPicker";
-import type { PgnModel } from "../model/pgn_model";
+import type { PgnModel } from "../../model/pgn_model";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -1058,8 +1058,8 @@ export const PgnTextEditor = (): ReactElement => {
       if (!pgnModel) return;
       const cursor = findCursorForMoveId(pgnModel, action.moveId);
       if (!cursor) return;
-      let newModel: import("../model/pgn_model").PgnModel;
-      let newCursor: import("../model/pgn_move_ops").PgnCursor | null;
+      let newModel: import("../../model/pgn_model").PgnModel;
+      let newCursor: import("../../model/pgn_move_ops").PgnCursor | null;
       switch (action.type) {
         case "delete_from_here":
           [newModel, newCursor] = truncateAfter(pgnModel, cursor);

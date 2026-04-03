@@ -12,15 +12,15 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ChangeEvent,
 } from "react";
-import { clampWidth } from "../resources_viewer/viewer_utils";
+import { clampWidth } from "../../resources_viewer/viewer_utils";
 import type {
   TabState,
   ResourceRow,
   GroupByState,
   SortConfig,
-} from "../resources_viewer/viewer_utils";
-import type { MetadataSchema, MetadataFieldDefinition } from "../../../resource/domain/metadata_schema";
-import type { TrainingBadge } from "../training/transcript_storage";
+} from "../../resources_viewer/viewer_utils";
+import type { MetadataSchema, MetadataFieldDefinition } from "../../../../resource/domain/metadata_schema";
+import type { TrainingBadge } from "../../training/transcript_storage";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 

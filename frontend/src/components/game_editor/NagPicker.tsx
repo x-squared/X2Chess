@@ -33,8 +33,8 @@ import {
   colorPairCode,
   type NagDef,
   type NagGroup,
-} from "../model/nag_defs";
-import { GUIDE_IDS } from "../guide/guide_ids";
+} from "../../model/nag_defs";
+import { GUIDE_IDS } from "../../guide/guide_ids";
 
 // ── Shared row component ───────────────────────────────────────────────────────
 

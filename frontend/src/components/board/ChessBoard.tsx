@@ -34,7 +34,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Chess } from "chess.js";
 import { Chessground } from "chessground";
-import { useAppContext } from "../state/app_context";
+import { useAppContext } from "../../state/app_context";
 import {
   selectBoardFlipped,
   selectBoardPreview,
@@ -42,14 +42,14 @@ import {
   selectMoveDelayMs,
   selectMoves,
   selectAnnotationShapes,
-} from "../state/selectors";
-import type { BoardKey, BoardShape, ShapeColor, ShapePresets } from "../board/board_shapes";
-import { isBoardKey, DEFAULT_PRESETS } from "../board/board_shapes";
-import type { SquareStyleMode } from "../runtime/shape_prefs";
-import type { MoveHint } from "../board/move_hints";
-import { attachDrawableGestures } from "../board/drawable_gestures";
-import { attachHoverListener } from "../board/hover_listener";
-import { computeMoveHints } from "../board/move_hints";
+} from "../../state/selectors";
+import type { BoardKey, BoardShape, ShapeColor, ShapePresets } from "../../board/board_shapes";
+import { isBoardKey, DEFAULT_PRESETS } from "../../board/board_shapes";
+import type { SquareStyleMode } from "../../runtime/shape_prefs";
+import type { MoveHint } from "../../board/move_hints";
+import { attachDrawableGestures } from "../../board/drawable_gestures";
+import { attachHoverListener } from "../../board/hover_listener";
+import { computeMoveHints } from "../../board/move_hints";
 
 type ChessgroundApi = ReturnType<typeof Chessground>;
 

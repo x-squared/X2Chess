@@ -23,7 +23,7 @@ import {
   type ReactElement,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
-import type { QaAnnotation } from "../resources_viewer/qa_parser";
+import type { QaAnnotation } from "../../resources_viewer/qa_parser";
 
 // ── QaBadge (read popover, UV9 + UV11) ───────────────────────────────────────
 

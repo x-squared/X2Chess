@@ -28,8 +28,8 @@
 
 import { useState } from "react";
 import type { ReactElement, ChangeEvent } from "react";
-import { normalizeGameInfoHeaderValue } from "../app_shell/game_info";
-import { useServiceContext } from "../state/ServiceContext";
+import { normalizeGameInfoHeaderValue } from "../../app_shell/game_info";
+import { useServiceContext } from "../../state/ServiceContext";
 
 /** Props for the PlayerAutocomplete component. */
 type PlayerAutocompleteProps = {

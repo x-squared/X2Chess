@@ -22,8 +22,8 @@
  */
 
 import type { ReactElement } from "react";
-import type { SessionItemState } from "../state/app_reducer";
-import { useTranslator } from "../hooks/useTranslator";
+import type { SessionItemState } from "../../state/app_reducer";
+import { useTranslator } from "../../hooks/useTranslator";
 
 /** Props for the GameTabs component. */
 type GameTabsProps = {

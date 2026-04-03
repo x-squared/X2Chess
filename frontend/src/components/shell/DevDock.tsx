@@ -19,12 +19,12 @@
  */
 
 import type { ReactElement } from "react";
-import { useAppContext } from "../state/app_context";
-import { selectDevDockOpen } from "../state/selectors";
-import { useServiceContext } from "../state/ServiceContext";
-import { useTranslator } from "../hooks/useTranslator";
-import { AstPanel } from "./AstPanel";
-import { GUIDE_IDS } from "../guide/guide_ids";
+import { useAppContext } from "../../state/app_context";
+import { selectDevDockOpen } from "../../state/selectors";
+import { useServiceContext } from "../../state/ServiceContext";
+import { useTranslator } from "../../hooks/useTranslator";
+import { AstPanel } from "../game_editor/AstPanel";
+import { GUIDE_IDS } from "../../guide/guide_ids";
 
 /** Renders the developer tools dock with the AST panel. */
 export const DevDock = (): ReactElement => {

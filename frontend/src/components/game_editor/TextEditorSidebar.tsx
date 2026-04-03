@@ -23,7 +23,7 @@
  */
 
 import type { ReactElement } from "react";
-import { GUIDE_IDS } from "../guide/guide_ids";
+import { GUIDE_IDS } from "../../guide/guide_ids";
 
 type TextEditorSidebarProps = {
   layoutMode: "plain" | "text" | "tree";

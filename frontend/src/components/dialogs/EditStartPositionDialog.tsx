@@ -20,7 +20,7 @@ import {
   useCallback,
   type ReactElement,
 } from "react";
-import { STANDARD_STARTING_FEN, validateFenStructure, validateKings } from "../editor/fen_utils";
+import { STANDARD_STARTING_FEN, validateFenStructure, validateKings } from "../../editor/fen_utils";
 import { PositionSetupBoard } from "./NewGameDialog";
 
 type EditStartPositionDialogProps = {

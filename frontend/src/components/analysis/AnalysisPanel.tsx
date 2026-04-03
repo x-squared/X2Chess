@@ -18,9 +18,9 @@
  */
 
 import { useCallback, type ReactElement } from "react";
-import type { EngineVariation } from "../../../engines/domain/analysis_types";
-import type { EngineScore } from "../../../engines/domain/uci_types";
-import { GUIDE_IDS } from "../guide/guide_ids";
+import type { EngineVariation } from "../../../../engines/domain/analysis_types";
+import type { EngineScore } from "../../../../engines/domain/uci_types";
+import { GUIDE_IDS } from "../../guide/guide_ids";
 
 type AnalysisPanelProps = {
   /** Current top variations from the engine. */

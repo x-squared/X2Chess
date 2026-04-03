@@ -19,8 +19,8 @@
 
 import { createPortal } from "react-dom";
 import type { ReactElement } from "react";
-import { useAppContext } from "../state/app_context";
-import { selectBoardFlipped } from "../state/selectors";
+import { useAppContext } from "../../state/app_context";
+import { selectBoardFlipped } from "../../state/selectors";
 import { useHoverPreview } from "./HoverPreviewContext";
 import { MiniBoard } from "./MiniBoard";
 

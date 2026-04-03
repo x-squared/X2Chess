@@ -17,8 +17,8 @@
  */
 
 import { useCallback, type ReactElement } from "react";
-import type { OpeningResult, OpeningMove } from "../resources/ext_databases/opening_types";
-import { GUIDE_IDS } from "../guide/guide_ids";
+import type { OpeningResult, OpeningMove } from "../../resources/ext_databases/opening_types";
+import { GUIDE_IDS } from "../../guide/guide_ids";
 
 type OpeningExplorerPanelProps = {
   result: OpeningResult | null;

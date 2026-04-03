@@ -22,9 +22,9 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import type { ReactElement } from "react";
-import { useAppContext } from "../state/app_context";
-import { useServiceContext } from "../state/ServiceContext";
-import { selectDevToolsEnabled } from "../state/selectors";
+import { useAppContext } from "../../state/app_context";
+import { useServiceContext } from "../../state/ServiceContext";
+import { selectDevToolsEnabled } from "../../state/selectors";
 
 type HoveredTarget = {
   guideId: string;

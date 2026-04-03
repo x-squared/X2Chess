@@ -25,8 +25,8 @@
  */
 
 import { useState, useCallback, type ReactElement, type ChangeEvent } from "react";
-import type { MetadataFieldDefinition } from "../../../resource/domain/metadata_schema";
-import { GamePickerDialog, type PickerRow } from "./GamePickerDialog";
+import type { MetadataFieldDefinition } from "../../../../resource/domain/metadata_schema";
+import { GamePickerDialog, type PickerRow } from "../dialogs/GamePickerDialog";
 
 type MetadataFieldInputProps = {
   field: MetadataFieldDefinition;

@@ -28,9 +28,9 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
 } from "react";
-import type { AnchorAnnotation, AnchorRefAnnotation } from "../resources_viewer/anchor_parser";
-import type { ResolvedAnchor } from "../editor/resolveAnchors";
-import { useHoverPreview } from "./HoverPreviewContext";
+import type { AnchorAnnotation, AnchorRefAnnotation } from "../../resources_viewer/anchor_parser";
+import type { ResolvedAnchor } from "../../editor/resolveAnchors";
+import { useHoverPreview } from "../board/HoverPreviewContext";
 
 // ── AnchorBadge ───────────────────────────────────────────────────────────────
 

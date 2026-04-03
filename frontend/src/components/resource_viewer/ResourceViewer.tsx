@@ -36,15 +36,15 @@ import {
   type FormEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { useAppContext } from "../state/app_context";
+import { useAppContext } from "../../state/app_context";
 import {
   selectResourceViewerTabs,
   selectActiveResourceTabId,
-} from "../state/selectors";
-import type { ResourceTabSnapshot } from "../state/app_reducer";
-import { useTranslator } from "../hooks/useTranslator";
-import { getResourceLoaderService } from "../services/resource_loader";
-import { useServiceContext } from "../state/ServiceContext";
+} from "../../state/selectors";
+import type { ResourceTabSnapshot } from "../../state/app_reducer";
+import { useTranslator } from "../../hooks/useTranslator";
+import { getResourceLoaderService } from "../../services/resource_loader";
+import { useServiceContext } from "../../state/ServiceContext";
 import {
   clampWidth,
   readPrefsMap,
@@ -59,23 +59,23 @@ import {
   type ResourceRef,
   type GroupByState,
   type SortConfig,
-} from "../resources_viewer/viewer_utils";
-import { GUIDE_IDS } from "../guide/guide_ids";
+} from "../../resources_viewer/viewer_utils";
+import { GUIDE_IDS } from "../../guide/guide_ids";
 import { ResourceTabBar } from "./ResourceTabBar";
 import { ResourceTable } from "./ResourceTable";
 import { ResourceMetadataDialog } from "./ResourceMetadataDialog";
-import { MetadataSchemaEditor } from "./MetadataSchemaEditor";
-import { NewGameDialog } from "./NewGameDialog";
+import { MetadataSchemaEditor } from "../metadata/MetadataSchemaEditor";
+import { NewGameDialog } from "../dialogs/NewGameDialog";
 import { ResourceToolbar } from "./ResourceToolbar";
 import {
   loadSchemas,
   saveSchemas,
   upsertSchema,
-} from "../resources_viewer/schema_storage";
-import type { MetadataSchema } from "../../../resource/domain/metadata_schema";
-import { BUILT_IN_SCHEMA } from "../../../resource/domain/metadata_schema";
-import { loadBadgesForRefs } from "../training/transcript_storage";
-import type { TrainingBadge } from "../training/transcript_storage";
+} from "../../resources_viewer/schema_storage";
+import type { MetadataSchema } from "../../../../resource/domain/metadata_schema";
+import { BUILT_IN_SCHEMA } from "../../../../resource/domain/metadata_schema";
+import { loadBadgesForRefs } from "../../training/transcript_storage";
+import type { TrainingBadge } from "../../training/transcript_storage";
 
 // ── Local types ───────────────────────────────────────────────────────────────
 

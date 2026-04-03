@@ -13,8 +13,6 @@
  *   exported function signatures and typed callback contracts.
  */
 
-import type { MovePositionIndex, PgnModelForMoves } from "../board/move_position";
-import type { BoardPreviewLike } from "../board/runtime";
 import { DEFAULT_RESOURCE_VIEWER_METADATA_KEYS } from "../../../resource/domain/metadata";
 
 export const DEFAULT_LOCALE = "en";
@@ -22,53 +20,50 @@ export const DEFAULT_APP_MODE = "DEV";
 
 /** Normalized player row used by game-info autocomplete and bundled seed data. */
 export type PlayerRecord = { lastName: string; firstName: string };
-type ParsePgnToModelFn = (source: string) => unknown;
 
+/**
+ * Shared (non-session) application state.
+ *
+ * Game-specific fields (pgnModel, pgnText, currentPly, moves, etc.) are no longer
+ * held here — they live in each session's own `GameSessionState` object and are
+ * accessed via `ActiveSessionRef.current`.
+ */
 export type AppState = {
-  moves: string[];
-  currentPly: number;
-  pgnText: string;
-  pgnModel: PgnModelForMoves;
-  moveDelayMs: number;
-  soundEnabled: boolean;
-  isAnimating: boolean;
-  animationRunId: number;
-  verboseMoves: Array<{ flags?: string; from?: string; to?: string }>;
-  movePositionById: MovePositionIndex;
-  boardPreview: BoardPreviewLike | null;
-  statusMessage: string;
-  errorMessage: string;
-  pendingFocusCommentId: string | null;
-  selectedMoveId: string | null;
-  undoStack: unknown[];
-  redoStack: unknown[];
-  isMenuOpen: boolean;
-  isGameInfoEditorOpen: boolean;
+  // Resource / file system
   gameDirectoryHandle: unknown;
   gameDirectoryPath: string;
   gameRootPath: string;
+  activeSourceKind: string;
+
+  // Persistence
   autosaveTimer: number | null;
   saveRequestSeq: number;
   isHydratingGame: boolean;
-  playerStore: PlayerRecord[];
-  locale: string;
+  defaultSaveMode: string;
+
+  // Sessions (metadata only — game state is in GameSession.ownState)
   gameSessions: unknown[];
   activeSessionId: string | null;
   nextSessionSeq: number;
+
+  // Resource viewer
   resourceViewerTabs: unknown[];
   activeResourceTabId: string | null;
   resourceViewerDefaultMetadataKeys: string[];
-  activeSourceKind: string;
-  defaultSaveMode: string;
+
+  // App configuration
   appMode: string;
+  appConfig: Record<string, unknown>;
   isDeveloperToolsEnabled: boolean;
-  isDevDockOpen: boolean;
-  activeDevTab: string;
+  locale: string;
+  soundEnabled: boolean;
+  moveDelayMs: number;
+  playerStore: PlayerRecord[];
+
+  // UI dimensions (layout-only, not persisted to React store)
   devDockHeightPx: number;
   resourceViewerHeightPx: number;
   boardColumnWidthPx: number;
-  pgnLayoutMode: string;
-  appConfig: Record<string, unknown>;
 };
 
 /**
@@ -91,57 +86,31 @@ export const DEFAULT_PGN = `[Event "Sample"]
 /**
  * Create initial shared app state object.
  *
- * @param {Function} parsePgnToModelFn - PGN parser function `(source: string) => object`.
- * @param {string} [defaultPgn=DEFAULT_PGN] - Default PGN source text.
- * @returns {object} Initial runtime state.
+ * @returns {AppState} Initial runtime state.
  */
-export const createInitialAppState = (
-  parsePgnToModelFn: ParsePgnToModelFn,
-  defaultPgn: string = DEFAULT_PGN,
-): AppState => ({
-  moves: [],
-  currentPly: 0,
-  pgnText: defaultPgn,
-  pgnModel: parsePgnToModelFn(defaultPgn) as PgnModelForMoves,
-  moveDelayMs: 220,
-  soundEnabled: true,
-  isAnimating: false,
-  animationRunId: 0,
-  verboseMoves: [],
-  movePositionById: {},
-  boardPreview: null,
-  statusMessage: "",
-  errorMessage: "",
-  pendingFocusCommentId: null,
-  selectedMoveId: null,
-  undoStack: [],
-  redoStack: [],
-  isMenuOpen: false,
-  isGameInfoEditorOpen: false,
+export const createInitialAppState = (): AppState => ({
   gameDirectoryHandle: null,
   gameDirectoryPath: "",
   gameRootPath: "",
+  activeSourceKind: "directory",
   autosaveTimer: null,
   saveRequestSeq: 0,
   isHydratingGame: false,
-  playerStore: [] as PlayerRecord[],
-  locale: DEFAULT_LOCALE,
+  defaultSaveMode: "auto",
   gameSessions: [],
   activeSessionId: null,
   nextSessionSeq: 1,
   resourceViewerTabs: [],
   activeResourceTabId: null,
   resourceViewerDefaultMetadataKeys: [...DEFAULT_RESOURCE_VIEWER_METADATA_KEYS],
-  activeSourceKind: "directory",
-  defaultSaveMode: "auto",
   appMode: DEFAULT_APP_MODE,
+  appConfig: {},
   isDeveloperToolsEnabled: true,
-  isDevDockOpen: false,
-  activeDevTab: "ast",
+  locale: DEFAULT_LOCALE,
+  soundEnabled: true,
+  moveDelayMs: 220,
+  playerStore: [] as PlayerRecord[],
   devDockHeightPx: 320,
   resourceViewerHeightPx: 260,
   boardColumnWidthPx: 520,
-  /** PGN editor layout; overridden from `[X2Style "..."]` when present (default plain). */
-  pgnLayoutMode: "plain",
-  appConfig: {},
 });

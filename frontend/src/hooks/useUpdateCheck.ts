@@ -22,6 +22,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { isTauriRuntime } from "../resources/tauri_gateways";
+import { CURRENT_APP_VERSION, isNewerVersion } from "../runtime/app_version";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -45,31 +46,6 @@ export type UseUpdateCheckResult = {
   installUpdate: () => void;
   /** Dismiss the update banner until the next app launch. */
   dismissUpdate: () => void;
-};
-
-// ── Semver comparison ─────────────────────────────────────────────────────────
-
-/**
- * Returns `true` if `remote` is strictly newer than `local`.
- * Both must be `MAJOR.MINOR.PATCH` strings; anything else returns `false`.
- *
- * @param local - Current app version, e.g. `"0.1.0"`.
- * @param remote - Remote version from `latest.json`, e.g. `"0.2.0"`.
- */
-export const isNewerVersion = (local: string, remote: string): boolean => {
-  const parse = (v: string): number[] | null => {
-    const parts = v.replace(/^v/, "").split(".").map(Number);
-    if (parts.length !== 3 || parts.some(isNaN)) return null;
-    return parts;
-  };
-  const l = parse(local);
-  const r = parse(remote);
-  if (!l || !r) return false;
-  for (let i = 0; i < 3; i++) {
-    if ((r[i] ?? 0) > (l[i] ?? 0)) return true;
-    if ((r[i] ?? 0) < (l[i] ?? 0)) return false;
-  }
-  return false;
 };
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
@@ -96,15 +72,11 @@ export const useUpdateCheck = (): UseUpdateCheckResult => {
           return;
         }
         const version: string = available.version ?? "unknown";
-        const current: string =
-          typeof __X2CHESS_APP_VERSION__ !== "undefined"
-            ? __X2CHESS_APP_VERSION__
-            : "0.0.0";
-        if (!isNewerVersion(current, version)) {
+        if (isNewerVersion(CURRENT_APP_VERSION, version)) {
+          setUpdate({ status: "available", version });
+        } else {
           setUpdate({ status: "idle" });
-          return;
         }
-        setUpdate({ status: "available", version });
       } catch {
         // Silent failure — update check is non-critical.
         setUpdate({ status: "idle" });

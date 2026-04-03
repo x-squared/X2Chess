@@ -3,8 +3,8 @@
  * React reducer.
  *
  * This hook:
- *  1. Creates a mutable `AppState` object (held in a `useRef`) that the
- *     pure-logic service modules can read and write.
+ *  1. Creates a `ServicesBundle` (held in a `useRef`) containing shared state,
+ *     an `ActiveSessionRef`, and all service instances.
  *  2. Wires every service's `onRender` callback to `bundle.render()` which
  *     dispatches the updated state into the React `useReducer` store.
  *  3. Loads persisted preferences from `localStorage` on mount.
@@ -42,6 +42,7 @@ import type { BoardShape } from "../board/board_shapes";
 import {
   DEFAULT_LOCALE,
   DEFAULT_APP_MODE,
+  DEFAULT_PGN,
   type AppState,
   type PlayerRecord,
 } from "../app_shell/app_state";
@@ -51,14 +52,19 @@ import {
   resolveBuildAppMode,
   readBootstrapUiPrefs,
   resolveInitialLocale,
-  MODE_STORAGE_KEY,
 } from "../runtime/bootstrap_prefs";
+import { shellPrefsStore } from "../runtime/shell_prefs_store";
+import { workspaceSnapshotStore } from "../runtime/workspace_snapshot_store";
+import { hasUnsavedSessions } from "../runtime/workspace_persistence";
+import { migrateLocalStorage } from "../storage/migrate_local_storage";
+import { migrateRemoteRulesCache } from "../runtime/remote_rules_store";
 import { readShapePrefs, writeShapePrefs } from "../runtime/shape_prefs";
 import type { ShapePrefs } from "../runtime/shape_prefs";
 import { useAppContext } from "../state/app_context";
 import type { AppStartupServices } from "../state/ServiceContext";
 import type { AppAction } from "../state/actions";
 import type { PgnModel } from "../model/pgn_model";
+import type { GameSessionState } from "../game_sessions/game_session_state";
 import type { PgnResourceRef } from "../../../resource/domain/resource_ref";
 import type { PositionSearchHit, TextSearchHit } from "../../../resource/client/search_coordinator";
 import type { MoveFrequencyEntry } from "../../../resource/domain/move_frequency";
@@ -67,6 +73,17 @@ import {
   createAppServicesBundle,
   type ServicesBundle,
 } from "./createAppServices";
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Return the last non-empty path segment of a locator string, or a fallback. */
+const lastLocatorSegment = (locator: string | null | undefined, fallback: string): string => {
+  const segments: string[] = (locator ?? "").split("/");
+  for (let i = segments.length - 1; i >= 0; i -= 1) {
+    if (segments[i]) return segments[i];
+  }
+  return fallback;
+};
 
 // ── Hook ───────────────────────────────────────────────────────────────────────
 
@@ -84,9 +101,7 @@ export const useAppStartup = (): AppStartupServices => {
 
   // Lazily create all services once (on first render).
   const bundleRef = useRef<ServicesBundle | null>(null);
-  if (bundleRef.current === null) {
-    bundleRef.current = createAppServicesBundle(dispatchRef);
-  }
+  bundleRef.current ??= createAppServicesBundle(dispatchRef);
   const bundle: ServicesBundle = bundleRef.current;
 
   // Stable sync: delegates to the bundle's render function so there is a
@@ -97,45 +112,106 @@ export const useAppStartup = (): AppStartupServices => {
 
   // ── Mount effect: load preferences, initialise PGN, open first session ──
   useEffect((): void => {
-    const s: AppState = bundle.legacyState;
+    const s: AppState = bundle.sharedState;
 
-    // 1. Load persisted preferences.
+    // 1. Consolidate legacy localStorage keys into compound stores (idempotent).
+    migrateLocalStorage();
+    migrateRemoteRulesCache();
+
+    // 2. Load persisted preferences from the compound shell-prefs store.
     const appMode = resolveBuildAppMode(DEFAULT_APP_MODE);
     const prefs = readBootstrapUiPrefs(appMode);
+    const shellPrefs = shellPrefsStore.read();
     s.isDeveloperToolsEnabled = prefs.isDeveloperToolsEnabled;
     s.appMode = appMode;
+    dispatch({ type: "set_dev_tools_enabled", enabled: prefs.isDeveloperToolsEnabled });
 
-    // 2. Resolve locale.
+    // 3. Resolve locale.
     s.locale = resolveInitialLocale(resolveLocale, DEFAULT_LOCALE);
+    dispatch({ type: "set_locale", locale: s.locale });
 
-    // 3. Load persisted sound/speed/preview prefs.
-    const savedSound = window.localStorage?.getItem("x2chess.sound");
-    if (savedSound === "false") s.soundEnabled = false;
-    const savedSpeed = Number(window.localStorage?.getItem("x2chess.moveDelayMs"));
-    if (Number.isFinite(savedSpeed) && savedSpeed >= 0) s.moveDelayMs = savedSpeed;
-    if (window.localStorage?.getItem("x2chess.positionPreviewOnHover") === "false") {
+    // 4. Load persisted sound/speed/preview prefs.
+    if (!shellPrefs.sound) {
+      s.soundEnabled = false;
+      dispatch({ type: "set_sound_enabled", enabled: false });
+    }
+    if (Number.isFinite(shellPrefs.moveDelayMs) && shellPrefs.moveDelayMs > 0) {
+      s.moveDelayMs = shellPrefs.moveDelayMs;
+      dispatch({ type: "set_move_delay_ms", value: shellPrefs.moveDelayMs });
+    }
+    if (!shellPrefs.positionPreviewOnHover) {
       dispatch({ type: "set_position_preview_on_hover", enabled: false });
     }
     const savedShapePrefs: ShapePrefs = readShapePrefs();
     dispatch({ type: "set_shape_prefs", prefs: savedShapePrefs });
 
-    // 4. Load persisted layout mode.
-    const savedLayout = window.localStorage?.getItem("x2chess.pgnLayout");
-    if (savedLayout === "text" || savedLayout === "tree" || savedLayout === "plain") {
-      s.pgnLayoutMode = savedLayout;
-    }
+    // 5. Restore workspace snapshot (sessions + resource tabs) or fall back to
+    //    a blank default session when no snapshot exists.
+    type LayoutMode = "plain" | "text" | "tree";
+    const snapshot = workspaceSnapshotStore.read();
 
-    // 5. Initialise with default PGN (creates initial session).
-    try {
-      bundle.pgnRuntime.initializeWithDefaultPgn();
-      const initialSnapshot = bundle.sessionModel.captureActiveSessionSnapshot();
-      bundle.sessionStore.openSession({
-        snapshot: initialSnapshot,
-        title: "Game 1",
-      });
-    } catch (err: unknown) {
-      const message: string = err instanceof Error ? err.message : String(err);
-      dispatch({ type: "set_error_message", message });
+    if (snapshot.sessions.length > 0) {
+      // Map old session IDs → new session IDs so we can switch to the right one.
+      const idMap = new Map<string, string>();
+      for (const snap of snapshot.sessions) {
+        try {
+          const sessionState: GameSessionState =
+            bundle.sessionModel.createSessionFromPgnText(snap.pgnText);
+          sessionState.pgnLayoutMode = (snap.pgnLayoutMode as LayoutMode) || "plain";
+          sessionState.currentPly = snap.currentPly;
+          sessionState.selectedMoveId = snap.selectedMoveId;
+          const opened = bundle.sessionStore.openSession({
+            ownState: sessionState,
+            title: snap.title,
+            sourceRef: snap.sourceRef ?? null,
+            saveMode: snap.saveMode,
+          });
+          if (snap.dirtyState === "dirty" || snap.dirtyState === "error") {
+            bundle.sessionStore.updateActiveSessionMeta({ dirtyState: snap.dirtyState });
+          }
+          idMap.set(snap.sessionId, opened.sessionId);
+        } catch {
+          // Skip sessions with corrupt PGN.
+        }
+      }
+
+      // Restore the previously active session.
+      if (snapshot.activeSessionId) {
+        const restoredId = idMap.get(snapshot.activeSessionId);
+        if (restoredId) bundle.sessionStore.switchToSession(restoredId);
+      }
+
+      // Restore resource viewer tabs.
+      for (const tabSnap of snapshot.resourceTabs) {
+        if (tabSnap.kind && tabSnap.locator) {
+          bundle.resourceViewer.upsertTab({
+            title: tabSnap.title,
+            resourceRef: { kind: tabSnap.kind, locator: tabSnap.locator },
+            select: tabSnap.tabId === snapshot.activeResourceTabId,
+          });
+        }
+      }
+
+      // Dispatch active session layout mode to React.
+      const activeLayout = bundle.activeSessionRef.current.pgnLayoutMode as LayoutMode;
+      if (activeLayout !== "plain") {
+        dispatch({ type: "set_layout_mode", mode: activeLayout });
+      }
+    } else {
+      // No saved workspace — open a blank default session.
+      const resolvedLayout: LayoutMode = shellPrefs.pgnLayout;
+      try {
+        const initialState: GameSessionState =
+          bundle.sessionModel.createSessionFromPgnText(DEFAULT_PGN);
+        initialState.pgnLayoutMode = resolvedLayout;
+        bundle.sessionStore.openSession({ ownState: initialState, title: "Game 1" });
+        if (resolvedLayout !== "plain") {
+          dispatch({ type: "set_layout_mode", mode: resolvedLayout });
+        }
+      } catch (err: unknown) {
+        const message: string = err instanceof Error ? err.message : String(err);
+        dispatch({ type: "set_error_message", message });
+      }
     }
 
     // 6. Sync all computed state to React.
@@ -157,20 +233,21 @@ export const useAppStartup = (): AppStartupServices => {
         void bundle.navigation.gotoRelativeStep(1);
       },
       gotoLast: (): void => {
-        void bundle.navigation.gotoPly(bundle.legacyState.moves.length);
+        void bundle.navigation.gotoPly(bundle.activeSessionRef.current.moves.length);
       },
       gotoMoveById: (moveId: string): void => {
-        const pos = bundle.legacyState.movePositionById?.[moveId] as
+        const g: GameSessionState = bundle.activeSessionRef.current;
+        const pos = g.movePositionById?.[moveId] as
           | { mainlinePly?: number | null; fen?: string; lastMove?: [string, string] | null }
           | undefined;
         if (pos && typeof pos.mainlinePly === "number") {
-          bundle.legacyState.selectedMoveId = moveId;
-          bundle.legacyState.boardPreview = null;
+          g.selectedMoveId = moveId;
+          g.boardPreview = null;
           syncStateToReact();
           void bundle.navigation.gotoPly(pos.mainlinePly, { animate: false });
         } else {
-          bundle.legacyState.selectedMoveId = moveId;
-          bundle.legacyState.boardPreview = pos?.fen
+          g.selectedMoveId = moveId;
+          g.boardPreview = pos?.fen
             ? ({ fen: pos.fen, lastMove: pos.lastMove ?? null } as unknown as import("../board/runtime").BoardPreviewLike)
             : null;
           syncStateToReact();
@@ -181,90 +258,73 @@ export const useAppStartup = (): AppStartupServices => {
 
       // PGN editing
       loadPgnText: (pgnText: string): void => {
-        const s: AppState = bundle.legacyState;
-        s.pgnText = pgnText;
-        s.pgnModel = ensureRequiredPgnHeaders(parsePgnToModel(pgnText)) as typeof s.pgnModel;
-        s.currentPly = 0;
-        s.selectedMoveId = null;
+        const g: GameSessionState = bundle.activeSessionRef.current;
+        g.pgnText = pgnText;
+        g.pgnModel = ensureRequiredPgnHeaders(parsePgnToModel(pgnText)) as typeof g.pgnModel;
+        g.currentPly = 0;
+        g.selectedMoveId = null;
         bundle.pgnRuntime.syncChessParseState(pgnText);
+        bundle.sessionStore.updateActiveSessionMeta({ dirtyState: "dirty" });
         syncStateToReact();
       },
       insertComment: (moveId: string, position: "before" | "after"): { id: string; rawText: string } | null => {
-        const existing = findExistingCommentIdAroundMove(
-          bundle.legacyState.pgnModel,
-          moveId,
-          position,
-        );
+        const g: GameSessionState = bundle.activeSessionRef.current;
+        const existing = findExistingCommentIdAroundMove(g.pgnModel, moveId, position);
         if (existing) {
-          bundle.legacyState.pendingFocusCommentId = existing;
-          bundle.legacyState.selectedMoveId = null;
+          g.pendingFocusCommentId = existing;
+          g.selectedMoveId = null;
           syncStateToReact();
-          const rawText = getCommentRawById(bundle.legacyState.pgnModel, existing) ?? "";
+          const rawText = getCommentRawById(g.pgnModel, existing) ?? "";
           return { id: existing, rawText };
         }
-        const result = insertCommentAroundMove(
-          bundle.legacyState.pgnModel,
-          moveId,
-          position,
-        );
-        bundle.legacyState.selectedMoveId = null;
+        const result = insertCommentAroundMove(g.pgnModel, moveId, position);
+        g.selectedMoveId = null;
         bundle.applyModelUpdate(result.model, result.insertedCommentId, {
           recordHistory: true,
-          preferredLayoutMode: bundle.legacyState.pgnLayoutMode,
+          preferredLayoutMode: g.pgnLayoutMode,
         });
         return result.insertedCommentId ? { id: result.insertedCommentId, rawText: "" } : null;
       },
       focusCommentAroundMove: (moveId: string, position: "before" | "after"): void => {
-        const existing = findExistingCommentIdAroundMove(
-          bundle.legacyState.pgnModel,
-          moveId,
-          position,
-        );
+        const g: GameSessionState = bundle.activeSessionRef.current;
+        const existing = findExistingCommentIdAroundMove(g.pgnModel, moveId, position);
         if (existing) {
-          bundle.legacyState.pendingFocusCommentId = existing;
+          g.pendingFocusCommentId = existing;
           syncStateToReact();
         }
       },
       saveCommentText: (commentId: string, text: string): void => {
-        const newModel = setCommentTextById(
-          bundle.legacyState.pgnModel,
-          commentId,
-          text,
-        );
+        const g: GameSessionState = bundle.activeSessionRef.current;
+        const newModel = setCommentTextById(g.pgnModel, commentId, text);
         if (newModel) {
           bundle.applyModelUpdate(newModel, null, {
             recordHistory: false,
-            preferredLayoutMode: bundle.legacyState.pgnLayoutMode,
+            preferredLayoutMode: g.pgnLayoutMode,
           });
         }
       },
       applyDefaultIndent: (): void => {
-        const newModel = applyDefaultIndentDirectives(bundle.legacyState.pgnModel);
+        const g: GameSessionState = bundle.activeSessionRef.current;
+        const newModel = applyDefaultIndentDirectives(g.pgnModel);
         if (newModel) {
           bundle.applyModelUpdate(newModel, null, { recordHistory: true });
         }
       },
       saveBoardShapes: (moveId: string, shapes: BoardShape[]): void => {
-        // Validate the move exists in the current model.
-        if (!findMoveNode(bundle.legacyState.pgnModel as PgnModel, moveId)) return;
+        const g: GameSessionState = bundle.activeSessionRef.current;
+        if (!findMoveNode(g.pgnModel as PgnModel, moveId)) return;
 
-        // Find or create the "after" comment for this move.
-        let commentId: string | null = findExistingCommentIdAroundMove(
-          bundle.legacyState.pgnModel,
-          moveId,
-          "after",
-        );
-        let workingModel: unknown = bundle.legacyState.pgnModel;
+        let commentId: string | null = findExistingCommentIdAroundMove(g.pgnModel, moveId, "after");
+        let workingModel: unknown = g.pgnModel;
 
         if (!commentId) {
-          if (shapes.length === 0) return; // Nothing to do — no comment, no shapes.
+          if (shapes.length === 0) return;
           const result = insertCommentAroundMove(workingModel, moveId, "after", "");
           if (!result.insertedCommentId) return;
           commentId = result.insertedCommentId;
           workingModel = result.model;
         }
 
-        // Read existing raw text, strip old shape annotations, append new ones.
         const existingRaw: string | null = getCommentRawById(workingModel, commentId);
         const stripped: string = stripShapeAnnotations(existingRaw ?? "");
         const shapePart: string = serializeShapes(shapes);
@@ -274,39 +334,38 @@ export const useAppStartup = (): AppStartupServices => {
         if (updatedModel) {
           bundle.applyModelUpdate(updatedModel, null, {
             recordHistory: true,
-            preferredLayoutMode: bundle.legacyState.pgnLayoutMode,
+            preferredLayoutMode: g.pgnLayoutMode,
           });
         }
       },
       toggleMoveNag: (moveId: string, nag: string): void => {
-        const newModel = toggleMoveNag(bundle.legacyState.pgnModel, moveId, nag);
+        const g: GameSessionState = bundle.activeSessionRef.current;
+        const newModel = toggleMoveNag(g.pgnModel, moveId, nag);
         bundle.applyModelUpdate(newModel, null, {
           recordHistory: true,
-          preferredLayoutMode: bundle.legacyState.pgnLayoutMode,
+          preferredLayoutMode: g.pgnLayoutMode,
         });
       },
       updateGameInfoHeader: (key: string, rawValue: string): void => {
+        const g: GameSessionState = bundle.activeSessionRef.current;
+        const s: AppState = bundle.sharedState;
         const normalizedValue: string = normalizeGameInfoHeaderValue(key, rawValue);
-        const newModel = setHeaderValue(
-          bundle.legacyState.pgnModel as PgnModel,
-          key,
-          normalizedValue,
-        );
+        const newModel = setHeaderValue(g.pgnModel as PgnModel, key, normalizedValue);
         if (key === "X2Style") {
           const mode: "plain" | "text" | "tree" = normalizeX2StyleValue(normalizedValue);
-          bundle.legacyState.pgnLayoutMode = mode;
-          window.localStorage?.setItem("x2chess.pgnLayout", mode);
+          g.pgnLayoutMode = mode;
+          shellPrefsStore.write({ ...shellPrefsStore.read(), pgnLayout: mode });
         }
         if (key === "White" || key === "Black") {
           const record: PlayerRecord | null = parsePlayerRecord(normalizedValue);
           if (record) {
             const storeKey: string = `${record.lastName.toLowerCase()}|${record.firstName.toLowerCase()}`;
-            const exists: boolean = (bundle.legacyState.playerStore as PlayerRecord[]).some(
+            const exists: boolean = s.playerStore.some(
               (p: PlayerRecord): boolean =>
                 `${p.lastName.toLowerCase()}|${p.firstName.toLowerCase()}` === storeKey,
             );
             if (!exists) {
-              (bundle.legacyState.playerStore as PlayerRecord[]).push(record);
+              s.playerStore.push(record);
             }
           }
         }
@@ -315,19 +374,20 @@ export const useAppStartup = (): AppStartupServices => {
 
       // Move entry
       applyPgnModelEdit: (newModel: PgnModel, targetMoveId: string | null): void => {
+        const g: GameSessionState = bundle.activeSessionRef.current;
         bundle.applyModelUpdate(newModel, null, {
           recordHistory: true,
-          preferredLayoutMode: bundle.legacyState.pgnLayoutMode,
+          preferredLayoutMode: g.pgnLayoutMode,
         });
         if (targetMoveId) {
-          const pos = (bundle.legacyState.movePositionById as Record<string, { mainlinePly?: number | null; fen?: string; lastMove?: [string, string] | null } | undefined> | undefined)?.[targetMoveId];
+          const pos = (g.movePositionById as Record<string, { mainlinePly?: number | null; fen?: string; lastMove?: [string, string] | null } | undefined> | undefined)?.[targetMoveId];
           if (pos && typeof pos.mainlinePly === "number") {
-            bundle.legacyState.selectedMoveId = targetMoveId;
-            bundle.legacyState.boardPreview = null;
+            g.selectedMoveId = targetMoveId;
+            g.boardPreview = null;
             void bundle.navigation.gotoPly(pos.mainlinePly, { animate: false });
           } else if (pos?.fen) {
-            bundle.legacyState.selectedMoveId = targetMoveId;
-            bundle.legacyState.boardPreview = { fen: pos.fen, lastMove: pos.lastMove ?? null } as unknown as import("../board/runtime").BoardPreviewLike;
+            g.selectedMoveId = targetMoveId;
+            g.boardPreview = { fen: pos.fen, lastMove: pos.lastMove ?? null } as unknown as import("../board/runtime").BoardPreviewLike;
             syncStateToReact();
           }
         }
@@ -350,8 +410,8 @@ export const useAppStartup = (): AppStartupServices => {
         const result = bundle.sessionStore.closeSession(sessionId);
         if (result.closed) {
           if (result.emptyAfterClose) {
-            const snap = bundle.sessionModel.createSessionFromPgnText("");
-            bundle.sessionStore.openSession({ snapshot: snap, title: "New Game" });
+            const newState: GameSessionState = bundle.sessionModel.createSessionFromPgnText("");
+            bundle.sessionStore.openSession({ ownState: newState, title: "New Game" });
           }
           syncStateToReact();
         }
@@ -364,8 +424,9 @@ export const useAppStartup = (): AppStartupServices => {
             const selected = await bundle.resources.chooseResourceByPicker();
             if (!selected) return;
             const ref = selected.resourceRef;
+            const locatorLastSegment: string = lastLocatorSegment(ref.locator, String(ref.kind ?? "Resource"));
             bundle.resourceViewer.upsertTab({
-              title: String(ref.locator ?? "").split("/").filter(Boolean).at(-1) || String(ref.kind ?? "Resource"),
+              title: locatorLastSegment,
               resourceRef: ref,
               select: true,
             });
@@ -377,10 +438,10 @@ export const useAppStartup = (): AppStartupServices => {
         })();
       },
       openPgnText: (pgnText: string, options?: { preferredTitle?: string; sourceRef?: { kind: string; locator: string; recordId?: string } | null }): void => {
-        const snap = bundle.sessionModel.createSessionFromPgnText(pgnText);
-        const derivedTitle: string = bundle.sessionModel.deriveSessionTitle(snap.pgnModel, "New Game");
+        const newState: GameSessionState = bundle.sessionModel.createSessionFromPgnText(pgnText);
+        const derivedTitle: string = bundle.sessionModel.deriveSessionTitle(newState.pgnModel, "New Game");
         const title: string = options?.preferredTitle || derivedTitle;
-        bundle.sessionStore.openSession({ snapshot: snap, title, sourceRef: options?.sourceRef ?? null });
+        bundle.sessionStore.openSession({ ownState: newState, title, sourceRef: options?.sourceRef ?? null });
         syncStateToReact();
       },
       reorderGameInResource: async (sourceRef: unknown, neighborSourceRef: unknown): Promise<void> => {
@@ -406,11 +467,12 @@ export const useAppStartup = (): AppStartupServices => {
               locator: String(ref?.locator ?? ""),
               recordId: ref?.recordId == null ? undefined : String(ref.recordId),
             });
-            const s: AppState = bundle.legacyState;
-            s.pgnText = result.pgnText;
-            s.pgnModel = ensureRequiredPgnHeaders(parsePgnToModel(result.pgnText)) as typeof s.pgnModel;
-            s.currentPly = 0;
-            s.selectedMoveId = null;
+            // Write directly into the active session's state object.
+            const g: GameSessionState = bundle.activeSessionRef.current;
+            g.pgnText = result.pgnText;
+            g.pgnModel = ensureRequiredPgnHeaders(parsePgnToModel(result.pgnText)) as typeof g.pgnModel;
+            g.currentPly = 0;
+            g.selectedMoveId = null;
             bundle.pgnRuntime.syncChessParseState(result.pgnText);
             // Record the source so the session no longer shows as unsaved.
             bundle.sessionStore.updateActiveSessionMeta({
@@ -440,10 +502,10 @@ export const useAppStartup = (): AppStartupServices => {
             locator: String(sourceRef.locator),
             recordId,
           });
-          const snap = bundle.sessionModel.createSessionFromPgnText(result.pgnText);
-          const title: string = bundle.sessionModel.deriveSessionTitle(snap.pgnModel, recordId);
+          const newState: GameSessionState = bundle.sessionModel.createSessionFromPgnText(result.pgnText);
+          const title: string = bundle.sessionModel.deriveSessionTitle(newState.pgnModel, recordId);
           bundle.sessionStore.openSession({
-            snapshot: snap,
+            ownState: newState,
             title,
             sourceRef: { kind: String(sourceRef.kind), locator: String(sourceRef.locator), recordId },
           });
@@ -483,58 +545,53 @@ export const useAppStartup = (): AppStartupServices => {
         return { kind: String(sourceRef.kind), locator: String(sourceRef.locator) };
       },
 
-      // Shell state
+      // Shell state — pure React dispatch; sharedState kept in sync for service reads
       setMenuOpen: (open: boolean): void => {
-        bundle.legacyState.isMenuOpen = open;
         dispatch({ type: "set_is_menu_open", open });
       },
       setDevDockOpen: (open: boolean): void => {
-        bundle.legacyState.isDevDockOpen = open;
-        if (open && !bundle.legacyState.isDeveloperToolsEnabled) {
-          bundle.legacyState.isDeveloperToolsEnabled = true;
+        if (open && !bundle.sharedState.isDeveloperToolsEnabled) {
+          bundle.sharedState.isDeveloperToolsEnabled = true;
           dispatch({ type: "set_dev_tools_enabled", enabled: true });
         }
         dispatch({ type: "set_dev_dock_open", open });
-        window.localStorage?.setItem(MODE_STORAGE_KEY, String(open));
       },
       setActiveDevTab: (_tab: "ast"): void => {
-        bundle.legacyState.activeDevTab = "ast";
-        bundle.legacyState.isDevDockOpen = true;
         dispatch({ type: "set_active_dev_tab", tab: "ast" });
         dispatch({ type: "set_dev_dock_open", open: true });
       },
       setLayoutMode: (mode: "plain" | "text" | "tree"): void => {
-        bundle.legacyState.pgnLayoutMode = mode;
+        bundle.activeSessionRef.current.pgnLayoutMode = mode;
         dispatch({ type: "set_layout_mode", mode });
-        window.localStorage?.setItem("x2chess.pgnLayout", mode);
+        shellPrefsStore.write({ ...shellPrefsStore.read(), pgnLayout: mode });
       },
       setShowEvalPills: (show: boolean): void => {
         dispatch({ type: "set_show_eval_pills", show });
       },
       setLocale: (locale: string): void => {
         const resolved: string = resolveLocale(locale);
-        bundle.legacyState.locale = resolved;
+        bundle.sharedState.locale = resolved;
         dispatch({ type: "set_locale", locale: resolved });
-        window.localStorage?.setItem("x2chess.locale", resolved);
+        shellPrefsStore.write({ ...shellPrefsStore.read(), locale: resolved });
       },
       setMoveDelayMs: (value: number): void => {
-        bundle.legacyState.moveDelayMs = value;
+        bundle.sharedState.moveDelayMs = value;
         dispatch({ type: "set_move_delay_ms", value });
-        window.localStorage?.setItem("x2chess.moveDelayMs", String(value));
+        shellPrefsStore.write({ ...shellPrefsStore.read(), moveDelayMs: value });
       },
       setSoundEnabled: (enabled: boolean): void => {
-        bundle.legacyState.soundEnabled = enabled;
+        bundle.sharedState.soundEnabled = enabled;
         dispatch({ type: "set_sound_enabled", enabled });
-        window.localStorage?.setItem("x2chess.sound", String(enabled));
+        shellPrefsStore.write({ ...shellPrefsStore.read(), sound: enabled });
       },
       setPositionPreviewOnHover: (enabled: boolean): void => {
         dispatch({ type: "set_position_preview_on_hover", enabled });
-        window.localStorage?.setItem("x2chess.positionPreviewOnHover", String(enabled));
+        shellPrefsStore.write({ ...shellPrefsStore.read(), positionPreviewOnHover: enabled });
       },
       setDeveloperToolsEnabled: (enabled: boolean): void => {
-        bundle.legacyState.isDeveloperToolsEnabled = enabled;
+        bundle.sharedState.isDeveloperToolsEnabled = enabled;
         dispatch({ type: "set_dev_tools_enabled", enabled });
-        window.localStorage?.setItem(MODE_STORAGE_KEY, String(enabled));
+        shellPrefsStore.write({ ...shellPrefsStore.read(), developerToolsEnabled: enabled });
       },
       setShapePrefs: (prefs: ShapePrefs): void => {
         writeShapePrefs(prefs);
@@ -542,7 +599,7 @@ export const useAppStartup = (): AppStartupServices => {
       },
       setSaveMode: (mode: string): void => {
         const saveMode: "auto" | "manual" = mode === "manual" ? "manual" : "auto";
-        bundle.legacyState.defaultSaveMode = saveMode;
+        bundle.sharedState.defaultSaveMode = saveMode;
         bundle.sessionStore.updateActiveSessionMeta({ saveMode });
         syncStateToReact();
       },
@@ -550,14 +607,14 @@ export const useAppStartup = (): AppStartupServices => {
         void bundle.sessionPersistence.persistActiveSessionNow();
       },
       saveSessionById: (sessionId: string): void => {
-        if (bundle.legacyState.activeSessionId !== sessionId) {
+        if (bundle.sharedState.activeSessionId !== sessionId) {
           bundle.sessionStore.switchToSession(sessionId);
           syncStateToReact();
         }
         void bundle.sessionPersistence.persistActiveSessionNow();
       },
       getPlayerNameSuggestions: (query: string): string[] =>
-        buildPlayerNameSuggestions(bundle.legacyState.playerStore, query),
+        buildPlayerNameSuggestions(bundle.sharedState.playerStore, query),
 
       // Overridden by AppShell to open the curriculum panel.
       openCurriculumPanel: (): void => {},

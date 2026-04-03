@@ -297,6 +297,13 @@ export const appReducer = (state: AppStoreState, action: AppAction): AppStoreSta
       };
     }
 
+    case "set_active_resource_data":
+      return {
+        ...state,
+        activeResourceRowCount: action.rowCount,
+        activeResourceErrorMessage: action.errorMessage,
+      };
+
     case "set_board_preview":
       return { ...state, boardPreview: action.preview };
 

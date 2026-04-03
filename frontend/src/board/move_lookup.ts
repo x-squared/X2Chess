@@ -4,6 +4,7 @@ import type {
   MovePositionResolved,
   PgnModelForMoves,
 } from "./move_position";
+import type { ActiveSessionRef } from "../game_sessions/game_session_state";
 
 /**
  * Move Lookup module.
@@ -13,19 +14,14 @@ import type {
  *
  * Configuration API:
  * - Injects callbacks `buildMovePositionByIdFn` and `resolveMovePositionByIdFn`.
- * - Reads and updates `state.movePositionById` cache.
+ * - Reads and updates `sessionRef.current.movePositionById` cache.
  *
  * Communication API:
  * - Returns `getMovePositionById(moveId, options)` for board/editor callers.
  */
 
-type MoveLookupState = {
-  pgnModel: PgnModelForMoves;
-  movePositionById: MovePositionIndex;
-};
-
 type MoveLookupDeps = {
-  state: MoveLookupState;
+  sessionRef: ActiveSessionRef;
   buildMovePositionByIdFn: (pgnModel: PgnModelForMoves) => MovePositionIndex;
   resolveMovePositionByIdFn: (
     pgnModel: PgnModelForMoves,
@@ -46,13 +42,8 @@ type MoveLookupCapabilities = {
 export const createMoveLookupCapabilities = (
   deps: MoveLookupDeps,
 ): MoveLookupCapabilities => {
-  const state: MoveLookupState = deps.state;
-  const buildMovePositionByIdFn: (pgnModel: PgnModelForMoves) => MovePositionIndex =
-    deps.buildMovePositionByIdFn;
-  const resolveMovePositionByIdFn: (
-    pgnModel: PgnModelForMoves,
-    moveId: string,
-  ) => MovePositionResolved | null = deps.resolveMovePositionByIdFn;
+  const { sessionRef, buildMovePositionByIdFn, resolveMovePositionByIdFn } = deps;
+
   /**
    * Resolve move position metadata by move id with cached index + on-demand fallback.
    */
@@ -61,15 +52,17 @@ export const createMoveLookupCapabilities = (
     { allowResolve = false }: { allowResolve?: boolean } = {},
   ): MovePositionRecord | MovePositionResolved | null => {
     if (!moveId) return null;
+    const g = sessionRef.current;
+    const pgnModel = g.pgnModel as PgnModelForMoves;
 
-    let target: MovePositionRecord | MovePositionResolved | undefined = state.movePositionById?.[moveId];
+    let target: MovePositionRecord | MovePositionResolved | undefined = g.movePositionById?.[moveId];
     if (!target) {
-      state.movePositionById = buildMovePositionByIdFn(state.pgnModel);
-      target = state.movePositionById?.[moveId];
+      g.movePositionById = buildMovePositionByIdFn(pgnModel);
+      target = g.movePositionById?.[moveId];
     }
 
     if (!target && allowResolve) {
-      const resolved = resolveMovePositionByIdFn(state.pgnModel, moveId);
+      const resolved = resolveMovePositionByIdFn(pgnModel, moveId);
       if (resolved) {
         const normalizedResolved: MovePositionRecord = {
           ...resolved,
@@ -77,8 +70,8 @@ export const createMoveLookupCapabilities = (
           previousMoveId: null,
           nextMoveId: null,
         };
-        state.movePositionById = {
-          ...(state.movePositionById || {}),
+        g.movePositionById = {
+          ...g.movePositionById,
           [moveId]: normalizedResolved,
         };
         target = normalizedResolved;

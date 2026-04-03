@@ -11,7 +11,7 @@
  *
  * Communication API:
  * - `readPrefsMap` / `writePrefsMap` / `readGroupByState` / `writeGroupByState`
- *   use `window.localStorage`.
+ *   use `globalThis.localStorage`.
  * - All other exports are pure functions with no I/O.
  */
 
@@ -97,25 +97,19 @@ export const clampWidth = (value: unknown): number => {
 
 // ── Column-prefs localStorage helpers ────────────────────────────────────────
 
-export const readPrefsMap = (): Record<string, TabPrefs> => {
-  try {
-    const raw: string | null = window.localStorage?.getItem(PREFS_STORAGE_KEY) ?? null;
-    if (!raw) return {};
-    const parsed: unknown = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object") return {};
-    return parsed as Record<string, TabPrefs>;
-  } catch {
-    return {};
-  }
-};
+import { createVersionedStore } from "../storage";
 
-export const writePrefsMap = (map: Record<string, TabPrefs>): void => {
-  try {
-    window.localStorage?.setItem(PREFS_STORAGE_KEY, JSON.stringify(map));
-  } catch {
-    // Storage unavailable — keep UI functional.
-  }
-};
+const columnPrefsStore = createVersionedStore<Record<string, TabPrefs>>({
+  key: PREFS_STORAGE_KEY,
+  version: 1,
+  defaultValue: {},
+  // v0 (raw legacy payload) → v1: pass through if it's a plain object, else reset.
+  migrations: [(raw) => (raw !== null && typeof raw === "object" && !Array.isArray(raw) ? raw : {})],
+});
+
+export const readPrefsMap = (): Record<string, TabPrefs> => columnPrefsStore.read();
+
+export const writePrefsMap = (map: Record<string, TabPrefs>): void => columnPrefsStore.write(map);
 
 export const persistTabPrefs = (tab: TabState): void => {
   const map: Record<string, TabPrefs> = readPrefsMap();
@@ -132,7 +126,7 @@ export const persistTabPrefs = (tab: TabState): void => {
 export const readGroupByState = (tabId: string): GroupByState => {
   try {
     const raw: string | null =
-      window.localStorage?.getItem(`${GROUP_BY_STORAGE_PREFIX}${tabId}`) ?? null;
+      globalThis.localStorage?.getItem(`${GROUP_BY_STORAGE_PREFIX}${tabId}`) ?? null;
     if (!raw) return { fields: [], collapsedKeys: [] };
     const parsed: unknown = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object") return { fields: [], collapsedKeys: [] };
@@ -152,7 +146,7 @@ export const readGroupByState = (tabId: string): GroupByState => {
 
 export const writeGroupByState = (tabId: string, state: GroupByState): void => {
   try {
-    window.localStorage?.setItem(
+    globalThis.localStorage?.setItem(
       `${GROUP_BY_STORAGE_PREFIX}${tabId}`,
       JSON.stringify(state),
     );

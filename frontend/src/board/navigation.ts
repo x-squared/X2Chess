@@ -1,6 +1,7 @@
 import { Chess } from "chess.js";
 import type { MovePositionRecord } from "./move_position";
 import type { ChessSoundType } from "./move_sound";
+import type { ActiveSessionRef } from "../game_sessions/game_session_state";
 
 /**
  * Navigation module.
@@ -10,28 +11,19 @@ import type { ChessSoundType } from "./move_sound";
  *
  * Configuration API:
  * - Configuration is provided via typed function parameters/options in these exports
- *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
+ *   (for example `deps`, `sessionRef`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - This module communicates through shared `state`; interactions are explicit in
+ * - This module communicates through `sessionRef.current`; interactions are explicit in
  *   exported function signatures and typed callback contracts.
  */
-
-type NavigationState = {
-  selectedMoveId: string | null;
-  currentPly: number;
-  moves: string[];
-  verboseMoves: Array<{ flags?: string }>;
-  animationRunId: number;
-  isAnimating: boolean;
-  boardPreview: unknown | null;
-  moveDelayMs: number;
-};
 
 type MoveCommentSide = "before" | "after";
 
 type CreateBoardNavigationDeps = {
-  state: NavigationState;
+  sessionRef: ActiveSessionRef;
+  /** Returns the current move animation delay in milliseconds. */
+  getDelayMs: () => number;
   getMovePositionById: (
     moveId: string | null,
     options: { allowResolve: boolean },
@@ -56,7 +48,8 @@ type BoardNavigationCapabilities = {
  * @returns {BoardNavigationCapabilities} Navigation methods.
  */
 export const createBoardNavigationCapabilities = ({
-  state,
+  sessionRef,
+  getDelayMs,
   getMovePositionById,
   selectMoveById,
   findCommentIdAroundMove,
@@ -72,6 +65,7 @@ export const createBoardNavigationCapabilities = ({
     movedSan: string,
     plyAfterStep: number,
   ): ChessSoundType => {
+    const g = sessionRef.current;
     if (direction < 0) return "move";
     const san = String(movedSan || "");
     if (!san) return "move";
@@ -81,7 +75,7 @@ export const createBoardNavigationCapabilities = ({
       try {
         const game = new Chess();
         for (let i = 0; i < plyAfterStep; i += 1) {
-          game.move(state.moves[i]);
+          game.move(g.moves[i]);
         }
         return game.isStalemate();
       } catch {
@@ -91,7 +85,7 @@ export const createBoardNavigationCapabilities = ({
     if (isStalemateNow) return "stalemate";
     if (san.includes("+")) return "check";
 
-    const verbose = state.verboseMoves[plyAfterStep - 1];
+    const verbose = g.verboseMoves[plyAfterStep - 1];
     const flags = String(verbose?.flags || "");
     if (flags.includes("k") || flags.includes("q") || /^O-O(?:-O)?/.test(san)) {
       return "castling";
@@ -105,7 +99,7 @@ export const createBoardNavigationCapabilities = ({
   /** Sleep helper used by animated move stepping. */
   const sleep = (ms: number): Promise<void> =>
     new Promise((resolve) => {
-      window.setTimeout(resolve, ms);
+      globalThis.setTimeout(resolve, ms);
     });
 
   /** Jump or animate to a target ply. */
@@ -113,42 +107,42 @@ export const createBoardNavigationCapabilities = ({
     nextPly: number,
     { animate = true }: { animate?: boolean } = {},
   ): Promise<void> => {
-    const bounded = Math.max(0, Math.min(nextPly, state.moves.length));
-    if (bounded === state.currentPly) return;
+    const g = sessionRef.current;
+    const bounded = Math.max(0, Math.min(nextPly, g.moves.length));
+    if (bounded === g.currentPly) return;
 
     if (!animate) {
-      state.animationRunId += 1;
-      state.isAnimating = false;
-      state.boardPreview = null;
-      state.currentPly = bounded;
+      g.animationRunId += 1;
+      g.isAnimating = false;
+      g.boardPreview = null;
+      g.currentPly = bounded;
       render();
       return;
     }
 
-    const direction = bounded > state.currentPly ? 1 : -1;
-    const runId = ++state.animationRunId;
-    state.boardPreview = null;
-    state.isAnimating = true;
+    const direction = bounded > g.currentPly ? 1 : -1;
+    const runId = ++g.animationRunId;
+    g.boardPreview = null;
+    g.isAnimating = true;
     render();
 
     try {
-      while (state.currentPly !== bounded) {
-        if (runId !== state.animationRunId) return;
-        // Apply move immediately, then wait for the configured transition interval.
-        state.currentPly += direction;
+      while (sessionRef.current.currentPly !== bounded) {
+        if (runId !== sessionRef.current.animationRunId) return;
+        sessionRef.current.currentPly += direction;
         render();
         const movedSan = direction > 0
-          ? state.moves[state.currentPly - 1]
-          : state.moves[state.currentPly];
-        const soundType = resolveMoveSoundType(direction, movedSan, state.currentPly);
+          ? sessionRef.current.moves[sessionRef.current.currentPly - 1]
+          : sessionRef.current.moves[sessionRef.current.currentPly];
+        const soundType = resolveMoveSoundType(direction, movedSan, sessionRef.current.currentPly);
         await playMoveSound(soundType);
-        if (state.moveDelayMs > 0) {
-          await sleep(state.moveDelayMs);
+        if (getDelayMs() > 0) {
+          await sleep(getDelayMs());
         }
       }
     } finally {
-      if (runId === state.animationRunId) {
-        state.isAnimating = false;
+      if (runId === sessionRef.current.animationRunId) {
+        sessionRef.current.isAnimating = false;
         render();
       }
     }
@@ -157,7 +151,7 @@ export const createBoardNavigationCapabilities = ({
   /** Move one relative step, aware of selected variation context. */
   const gotoRelativeStep = async (direction: number): Promise<void> => {
     const step = direction < 0 ? -1 : 1;
-    const selectedMoveId = state.selectedMoveId;
+    const selectedMoveId = sessionRef.current.selectedMoveId;
     const selectedPosition = getMovePositionById(selectedMoveId, { allowResolve: false });
     if (selectedPosition && !Number.isInteger(selectedPosition.mainlinePly)) {
       if (step < 0) {
@@ -174,12 +168,12 @@ export const createBoardNavigationCapabilities = ({
         return;
       }
     }
-    await gotoPly(state.currentPly + step);
+    await gotoPly(sessionRef.current.currentPly + step);
   };
 
   /** Handle arrow-key navigation for selected move context. */
   const handleSelectedMoveArrowHotkey = (event: KeyboardEvent): boolean => {
-    const moveId = state.selectedMoveId;
+    const moveId = sessionRef.current.selectedMoveId;
     const movePosition = getMovePositionById(moveId, { allowResolve: false });
     if (!moveId || !movePosition) return false;
     const isLeft = event.key === "ArrowLeft";

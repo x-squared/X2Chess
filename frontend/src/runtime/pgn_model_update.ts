@@ -1,3 +1,5 @@
+import type { ActiveSessionRef } from "../game_sessions/game_session_state";
+
 type PgnRuntimeCapabilitiesLike = {
   applyPgnModelUpdate: (
     nextModel: unknown,
@@ -6,20 +8,15 @@ type PgnRuntimeCapabilitiesLike = {
   ) => void;
 };
 
-type PgnModelUpdateState = {
-  pgnModel: unknown;
-  pgnLayoutMode: string;
-};
-
 type ApplyPgnModelUpdateDeps = {
   pgnRuntimeCapabilities: PgnRuntimeCapabilitiesLike;
-  state: PgnModelUpdateState;
+  sessionRef: ActiveSessionRef;
   normalizeX2StyleValue: (value: unknown) => "plain" | "text" | "tree";
 };
 
 export const createApplyPgnModelUpdate = ({
   pgnRuntimeCapabilities,
-  state,
+  sessionRef,
   normalizeX2StyleValue,
 }: ApplyPgnModelUpdateDeps) => {
   return (
@@ -30,7 +27,7 @@ export const createApplyPgnModelUpdate = ({
     pgnRuntimeCapabilities.applyPgnModelUpdate(nextModel, focusCommentId, options);
     const preferredLayoutMode = options.preferredLayoutMode;
     if (preferredLayoutMode !== undefined) {
-      state.pgnLayoutMode = normalizeX2StyleValue(preferredLayoutMode);
+      sessionRef.current.pgnLayoutMode = normalizeX2StyleValue(preferredLayoutMode);
     }
   };
 };

@@ -15,14 +15,27 @@
 
 import type { CurriculumPlan } from "./curriculum_plan";
 import { parseCurriculumPlan, serializeCurriculumPlan } from "./curriculum_io";
+import { createVersionedStore } from "../../storage";
 
 const PLAN_KEY = "x2chess.curriculum-plan";
 
+// The store holds the serialized plan string; parsing/serialization is owned
+// by curriculum_io so the versioned store deals only in opaque strings.
+const planStore = createVersionedStore<string | null>({
+  key: PLAN_KEY,
+  version: 1,
+  defaultValue: null,
+  migrations: [
+    // v0→v1: raw payload was the serialized plan string directly — pass through.
+    (raw) => (typeof raw === "string" ? raw : null),
+  ],
+});
+
 /** Load the plan stored in localStorage. Returns null when absent or corrupt. */
 export const loadStoredPlan = (): CurriculumPlan | null => {
+  const raw = planStore.read();
+  if (!raw) return null;
   try {
-    const raw = localStorage.getItem(PLAN_KEY);
-    if (!raw) return null;
     return parseCurriculumPlan(raw);
   } catch {
     return null;
@@ -31,18 +44,10 @@ export const loadStoredPlan = (): CurriculumPlan | null => {
 
 /** Persist a plan to localStorage. */
 export const storeCurrentPlan = (plan: CurriculumPlan): void => {
-  try {
-    localStorage.setItem(PLAN_KEY, serializeCurriculumPlan(plan));
-  } catch {
-    // localStorage may be unavailable; fail silently.
-  }
+  planStore.write(serializeCurriculumPlan(plan));
 };
 
 /** Remove the stored plan from localStorage. */
 export const clearStoredPlan = (): void => {
-  try {
-    localStorage.removeItem(PLAN_KEY);
-  } catch {
-    // Ignore.
-  }
+  planStore.reset();
 };

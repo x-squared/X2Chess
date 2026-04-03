@@ -3,7 +3,7 @@
  *
  * Fetches the rules manifest from the GitHub Pages rules server at startup
  * (non-blocking, all failures silent).  When a newer version of the web-import
- * rules is found, the updated rules are stored in `localStorage` and returned
+ * rules is found, the updated rules are stored in localStorage and returned
  * so the caller can refresh the active web-import rule registry.
  *
  * Integration API:
@@ -15,23 +15,21 @@
  *
  * Configuration API:
  * - Rules manifest URL: `RULES_MANIFEST_URL` constant below.
- * - Cache key: `RULES_CACHE_KEY` in `localStorage`.
+ * - Cache: `remoteRulesCacheStore` in localStorage.
  *
  * Communication API:
  * - Outbound: `fetch()` to the GitHub Pages rules manifest.
- * - Side effect: writes updated rules to `localStorage` on successful fetch.
+ * - Side effect: writes updated rules to localStorage on successful fetch.
  */
 
 import { useState, useEffect } from "react";
 import type { WebImportRule } from "../resources/web_import/web_import_types";
+import { remoteRulesCacheStore } from "../runtime/remote_rules_store";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const RULES_MANIFEST_URL =
   "https://x-squared.github.io/X2Chess/rules/manifest.json";
-
-const RULES_CACHE_KEY = "x2chess.webImportRules.v1";
-const RULES_VERSION_KEY = "x2chess.webImportRules.version";
 
 // ── Manifest type ─────────────────────────────────────────────────────────────
 
@@ -44,36 +42,6 @@ type RulesManifest = {
       url: string;
     };
   };
-};
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-const loadCachedRules = (): WebImportRule[] => {
-  try {
-    const raw = localStorage.getItem(RULES_CACHE_KEY);
-    if (!raw) return [];
-    const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as WebImportRule[]) : [];
-  } catch {
-    return [];
-  }
-};
-
-const saveCachedRules = (rules: WebImportRule[], version: number): void => {
-  try {
-    localStorage.setItem(RULES_CACHE_KEY, JSON.stringify(rules));
-    localStorage.setItem(RULES_VERSION_KEY, String(version));
-  } catch {
-    // localStorage may be full or unavailable — ignore.
-  }
-};
-
-const loadCachedVersion = (): number => {
-  try {
-    return Number(localStorage.getItem(RULES_VERSION_KEY) ?? "0");
-  } catch {
-    return 0;
-  }
 };
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
@@ -90,24 +58,25 @@ export const useRulesRefresh = (): WebImportRule[] | null => {
 
   useEffect((): void => {
     void (async (): Promise<void> => {
+      const cachedRules = (): WebImportRule[] => remoteRulesCacheStore.read()?.rules ?? [];
+
       try {
         const manifestResponse = await fetch(RULES_MANIFEST_URL);
         if (!manifestResponse.ok) {
-          setRemoteRules(loadCachedRules());
+          setRemoteRules(cachedRules());
           return;
         }
 
         const manifest = await manifestResponse.json() as RulesManifest;
         const webImportSpec = manifest.rules?.webImport;
         if (!webImportSpec) {
-          setRemoteRules(loadCachedRules());
+          setRemoteRules(cachedRules());
           return;
         }
 
-        const cachedVersion = loadCachedVersion();
+        const cachedVersion = remoteRulesCacheStore.read()?.version ?? 0;
         if (webImportSpec.version <= cachedVersion) {
-          // Already up to date — return the cached rules.
-          setRemoteRules(loadCachedRules());
+          setRemoteRules(cachedRules());
           return;
         }
 
@@ -119,21 +88,21 @@ export const useRulesRefresh = (): WebImportRule[] | null => {
 
         const rulesResponse = await fetch(rulesUrl);
         if (!rulesResponse.ok) {
-          setRemoteRules(loadCachedRules());
+          setRemoteRules(cachedRules());
           return;
         }
 
         const rules = await rulesResponse.json() as WebImportRule[];
         if (!Array.isArray(rules)) {
-          setRemoteRules(loadCachedRules());
+          setRemoteRules(cachedRules());
           return;
         }
 
-        saveCachedRules(rules, webImportSpec.version);
+        remoteRulesCacheStore.write({ version: webImportSpec.version, rules });
         setRemoteRules(rules);
       } catch {
         // All failures are silent — use whatever is cached.
-        setRemoteRules(loadCachedRules());
+        setRemoteRules(cachedRules());
       }
     })();
   }, []); // run once on mount

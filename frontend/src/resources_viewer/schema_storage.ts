@@ -15,37 +15,39 @@
  */
 
 import type { MetadataSchema, MetadataFieldDefinition } from "../../../resource/domain/metadata_schema";
+import { createVersionedStore } from "../storage";
 
 const STORAGE_KEY = "x2chess.metadata-schemas";
 
-// ── Serialized container ───────────────────────────────────────────────────────
+// ── Versioned store ────────────────────────────────────────────────────────────
 
-type SchemasContainer = {
-  schemas: MetadataSchema[];
-};
+const schemasStore = createVersionedStore<MetadataSchema[]>({
+  key: STORAGE_KEY,
+  version: 1,
+  defaultValue: [],
+  migrations: [
+    // v0→v1: legacy payload was `{ schemas: MetadataSchema[] }` (container object).
+    // Unwrap the container, or return an empty array for unrecognised shapes.
+    (raw): unknown => {
+      if (Array.isArray(raw)) return raw;
+      if (raw !== null && typeof raw === "object") {
+        const container = raw as Record<string, unknown>;
+        if (Array.isArray(container["schemas"])) return container["schemas"];
+      }
+      return [];
+    },
+  ],
+});
 
 // ── Read ───────────────────────────────────────────────────────────────────────
 
 /** Load all user-defined schemas from localStorage. Returns `[]` if none saved. */
-export const loadSchemas = (): MetadataSchema[] => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as SchemasContainer;
-    if (!Array.isArray(parsed?.schemas)) return [];
-    return parsed.schemas;
-  } catch {
-    return [];
-  }
-};
+export const loadSchemas = (): MetadataSchema[] => schemasStore.read();
 
 // ── Write ──────────────────────────────────────────────────────────────────────
 
 /** Persist the full schemas list to localStorage. */
-export const saveSchemas = (schemas: MetadataSchema[]): void => {
-  const container: SchemasContainer = { schemas };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(container));
-};
+export const saveSchemas = (schemas: MetadataSchema[]): void => schemasStore.write(schemas);
 
 // ── Lookup ─────────────────────────────────────────────────────────────────────
 
@@ -111,7 +113,7 @@ export const validateSchemaJson = (json: string): MetadataSchema => {
     throw new Error("Schema file is malformed: missing id or name");
   }
   if (!Array.isArray(schema.fields)) {
-    throw new Error("Schema file is malformed: fields must be an array");
+    throw new TypeError("Schema file is malformed: fields must be an array");
   }
   return schema;
 };

@@ -2,19 +2,20 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { createInitialAppState } from "../../src/app_shell/app_state.js";
+import { initialAppStoreState } from "../../src/state/app_reducer.js";
 
 /** Read the contents of both the global stylesheet and the main component stylesheet. */
 const readAllCss = async (): Promise<string> => {
   const [main, components] = await Promise.all([
     readFile(new URL("../../src/styles.css", import.meta.url), "utf8"),
-    readFile(new URL("../../src/components/resource_viewer.css", import.meta.url), "utf8"),
+    readFile(new URL("../../src/components/resource_viewer/resource_viewer.css", import.meta.url), "utf8"),
   ]);
   return main + "\n" + components;
 };
 
 test("developer dock starts closed in initial app state", () => {
-  const state = createInitialAppState(() => ({}));
-  assert.equal(state.isDevDockOpen, false);
+  // isDevDockOpen is now pure React state, not in shared AppState.
+  assert.equal(initialAppStoreState.isDevDockOpen, false);
 });
 
 test("developer dock hidden attribute is enforced by CSS", async () => {
@@ -23,7 +24,7 @@ test("developer dock hidden attribute is enforced by CSS", async () => {
 });
 
 test("resource viewer height has stable default in initial state", () => {
-  const state = createInitialAppState(() => ({}));
+  const state = createInitialAppState();
   assert.equal(state.resourceViewerHeightPx, 260);
 });
 
@@ -34,7 +35,7 @@ test("resource viewer uses CSS variable height", async () => {
 });
 
 test("board column width has stable default in initial state", () => {
-  const state = createInitialAppState(() => ({}));
+  const state = createInitialAppState();
   assert.equal(state.boardColumnWidthPx, 520);
 });
 

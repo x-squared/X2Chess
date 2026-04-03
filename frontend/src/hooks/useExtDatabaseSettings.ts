@@ -6,71 +6,19 @@
  * - `useExtDatabaseSettings()` — returns settings and setters.
  *
  * Configuration API:
- * - Storage key: `"x2chess.ext-db-settings"` in localStorage.
+ * - Storage key: `"x2chess.ext-db-settings"` in localStorage (via `extDatabaseSettingsStore`).
  *
  * Communication API:
  * - Pure React hook; no network calls.
  */
 
 import { useState, useCallback } from "react";
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-export type OpeningExplorerSettings = {
-  /**
-   * Lichess speed filters for the "lichess" source.
-   * Empty array = all speeds included (Lichess default).
-   */
-  speeds: string[];
-  /**
-   * Lichess rating bucket filters for the "lichess" source.
-   * Empty array = all ratings included (Lichess default).
-   */
-  ratings: number[];
-};
-
-export type ExtDatabaseSettings = {
-  openingExplorer: OpeningExplorerSettings;
-};
-
-const STORAGE_KEY = "x2chess.ext-db-settings";
-
-const DEFAULT_SETTINGS: ExtDatabaseSettings = {
-  openingExplorer: {
-    speeds: [],
-    ratings: [],
-  },
-};
-
-// ── Persistence helpers ───────────────────────────────────────────────────────
-
-const loadSettings = (): ExtDatabaseSettings => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_SETTINGS;
-    const parsed = JSON.parse(raw) as Partial<ExtDatabaseSettings>;
-    return {
-      openingExplorer: {
-        speeds: Array.isArray(parsed.openingExplorer?.speeds)
-          ? (parsed.openingExplorer.speeds as string[])
-          : [],
-        ratings: Array.isArray(parsed.openingExplorer?.ratings)
-          ? (parsed.openingExplorer.ratings as number[])
-          : [],
-      },
-    };
-  } catch {
-    return DEFAULT_SETTINGS;
-  }
-};
-
-const persistSettings = (settings: ExtDatabaseSettings): void => {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-  } catch {
-    // Quota exceeded or private browsing — silently ignore.
-  }
-};
+import {
+  extDatabaseSettingsStore,
+  DEFAULT_EXT_DATABASE_SETTINGS,
+} from "../runtime/ext_database_settings_store";
+import type { ExtDatabaseSettings } from "../runtime/ext_database_settings_store";
+export type { ExtDatabaseSettings, OpeningExplorerSettings } from "../runtime/ext_database_settings_store";
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
@@ -82,11 +30,11 @@ export type ExtDatabaseSettingsState = {
 };
 
 export const useExtDatabaseSettings = (): ExtDatabaseSettingsState => {
-  const [settings, setSettings] = useState<ExtDatabaseSettings>(loadSettings);
+  const [settings, setSettings] = useState<ExtDatabaseSettings>(() => extDatabaseSettingsStore.read());
 
   const update = useCallback((next: ExtDatabaseSettings): void => {
     setSettings(next);
-    persistSettings(next);
+    extDatabaseSettingsStore.write(next);
   }, []);
 
   const setOpeningExplorerSpeeds = useCallback(
@@ -104,7 +52,7 @@ export const useExtDatabaseSettings = (): ExtDatabaseSettingsState => {
   );
 
   const resetToDefaults = useCallback((): void => {
-    update(DEFAULT_SETTINGS);
+    update(DEFAULT_EXT_DATABASE_SETTINGS);
   }, [update]);
 
   return { settings, setOpeningExplorerSpeeds, setOpeningExplorerRatings, resetToDefaults };

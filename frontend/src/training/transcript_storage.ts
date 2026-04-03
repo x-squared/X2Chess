@@ -17,6 +17,8 @@
  * - Pure functions; no React dependencies.
  */
 
+import { createVersionedStore } from "../storage";
+
 // ── Badge store ───────────────────────────────────────────────────────────────
 
 const BADGE_KEY = "x2chess.training-badges";
@@ -50,56 +52,59 @@ export type SessionRecord = {
 type BadgeStore = Record<string, TrainingBadge>;
 type SessionStore = Record<string, SessionRecord[]>;
 
-const readJson = <T>(key: string, fallback: T): T => {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return fallback;
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
-};
+// ── Versioned stores ──────────────────────────────────────────────────────────
 
-const writeJson = (key: string, value: unknown): void => {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // Quota exceeded or private browsing — silently ignore.
-  }
-};
+const badgeStore = createVersionedStore<BadgeStore>({
+  key: BADGE_KEY,
+  version: 1,
+  defaultValue: {},
+  migrations: [
+    // v0→v1: raw payload was already a plain Record — pass through.
+    (raw) => (raw !== null && typeof raw === "object" && !Array.isArray(raw) ? raw : {}),
+  ],
+});
+
+const sessionStore = createVersionedStore<SessionStore>({
+  key: SESSION_KEY,
+  version: 1,
+  defaultValue: {},
+  migrations: [
+    // v0→v1: raw payload was already a plain Record — pass through.
+    (raw) => (raw !== null && typeof raw === "object" && !Array.isArray(raw) ? raw : {}),
+  ],
+});
+
+// ── Public API ────────────────────────────────────────────────────────────────
 
 /**
  * Record a completed training session for a game.
  * Updates the aggregate badge and appends to the session history.
  * No-op when `sourceGameRef` is empty (unsaved/anonymous session).
  */
+type SessionStats = { correct: number; wrong: number; skipped: number; total: number; gradeLabel: string };
+const EMPTY_STATS: SessionStats = { correct: 0, wrong: 0, skipped: 0, total: 0, gradeLabel: "" };
+
 export const saveTranscriptBadge = (
   sourceGameRef: string,
   scorePercent: number,
   protocol: string = "",
-  stats: { correct: number; wrong: number; skipped: number; total: number; gradeLabel: string } = {
-    correct: 0,
-    wrong: 0,
-    skipped: 0,
-    total: 0,
-    gradeLabel: "",
-  },
+  stats: SessionStats = EMPTY_STATS,
 ): void => {
   if (!sourceGameRef) return;
   const now = new Date().toISOString();
 
   // Update badge aggregate.
-  const badges = readJson<BadgeStore>(BADGE_KEY, {});
+  const badges = badgeStore.read();
   const existing = badges[sourceGameRef];
   badges[sourceGameRef] = {
     sessionCount: (existing?.sessionCount ?? 0) + 1,
     bestScore: Math.max(existing?.bestScore ?? 0, scorePercent),
     lastSessionAt: now,
   };
-  writeJson(BADGE_KEY, badges);
+  badgeStore.write(badges);
 
   // Append session record.
-  const sessions = readJson<SessionStore>(SESSION_KEY, {});
+  const sessions = sessionStore.read();
   const history = sessions[sourceGameRef] ?? [];
   history.push({
     date: now,
@@ -112,7 +117,7 @@ export const saveTranscriptBadge = (
     gradeLabel: stats.gradeLabel,
   });
   sessions[sourceGameRef] = history;
-  writeJson(SESSION_KEY, sessions);
+  sessionStore.write(sessions);
 };
 
 /**
@@ -121,7 +126,7 @@ export const saveTranscriptBadge = (
  */
 export const loadBadgesForRefs = (refs: string[]): Map<string, TrainingBadge> => {
   if (refs.length === 0) return new Map();
-  const store = readJson<BadgeStore>(BADGE_KEY, {});
+  const store = badgeStore.read();
   const result = new Map<string, TrainingBadge>();
   for (const ref of refs) {
     const badge = store[ref];
@@ -137,7 +142,7 @@ export const loadBadgesForRefs = (refs: string[]): Map<string, TrainingBadge> =>
  */
 export const loadSessionHistory = (sourceGameRef: string): SessionRecord[] => {
   if (!sourceGameRef) return [];
-  const store = readJson<SessionStore>(SESSION_KEY, {});
+  const store = sessionStore.read();
   const sessions = store[sourceGameRef] ?? [];
   return [...sessions].reverse();
 };

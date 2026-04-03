@@ -322,6 +322,12 @@ export const AppShell = (): ReactElement => {
   const rawServices: AppStartupServices = useAppStartup();
 
   const navigateGuard = useNavigateGuard(rawServices, sessions, activeSession);
+  const confirmDialogRef = useRef<HTMLDialogElement>(null);
+  useEffect((): void => {
+    if (navigateGuard.pendingNavigate) {
+      confirmDialogRef.current?.showModal();
+    }
+  }, [navigateGuard.pendingNavigate]);
 
   const training = useTrainingDialogState(
     trainingControls,
@@ -682,7 +688,7 @@ export const AppShell = (): ReactElement => {
         {/* ── Navigate-away guard (M8) ── */}
         {navigateGuard.pendingNavigate && (
           <dialog
-            open
+            ref={confirmDialogRef}
             className="confirm-dialog"
             onClose={navigateGuard.clearPendingNavigate}
           >

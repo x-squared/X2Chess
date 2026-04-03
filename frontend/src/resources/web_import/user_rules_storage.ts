@@ -15,35 +15,33 @@
  */
 
 import type { WebImportRule } from "./web_import_types";
+import { createVersionedStore } from "../../storage";
 
 const USER_RULES_KEY = "x2chess.webImport.userRules";
+
+const userRulesStore = createVersionedStore<WebImportRule[]>({
+  key: USER_RULES_KEY,
+  version: 1,
+  defaultValue: [],
+  migrations: [
+    // v0→v1: raw payload was already a plain array — pass through.
+    (raw) => (Array.isArray(raw) ? raw : []),
+  ],
+});
 
 /**
  * Load user-defined web import rules from localStorage.
  * Returns an empty array on any parse failure or when absent.
  */
-export const loadUserRules = (): WebImportRule[] => {
-  try {
-    const raw = localStorage.getItem(USER_RULES_KEY);
-    if (!raw) return [];
-    const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as WebImportRule[]) : [];
-  } catch {
-    return [];
-  }
-};
+export const loadUserRules = (): WebImportRule[] => userRulesStore.read();
 
 /**
  * Persist user-defined web import rules to localStorage.
  * Fires `x2chess:userRulesChanged` on `window` after saving.
  */
 export const saveUserRules = (rules: WebImportRule[]): void => {
-  try {
-    localStorage.setItem(USER_RULES_KEY, JSON.stringify(rules));
-    window.dispatchEvent(new CustomEvent("x2chess:userRulesChanged"));
-  } catch {
-    // localStorage may be full or unavailable — ignore.
-  }
+  userRulesStore.write(rules);
+  globalThis.dispatchEvent(new CustomEvent("x2chess:userRulesChanged"));
 };
 
 /**
@@ -70,7 +68,7 @@ export const validateRule = (obj: unknown): string | null => {
   }
   // Validate that urlPattern compiles.
   try {
-    new RegExp(r.urlPattern as string);
+    new RegExp(r.urlPattern);
   } catch {
     return "Rule `urlPattern` is not a valid regular expression.";
   }

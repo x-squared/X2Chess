@@ -1,66 +1,64 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createGameSessionStore } from "../../src/game_sessions/session_store.js";
+import { createEmptyGameSessionState } from "../../src/game_sessions/game_session_state.js";
+import type { ActiveSessionRef } from "../../src/game_sessions/game_session_state.js";
 
-test("session store switches sessions without losing active snapshot", () => {
+test("session store switches sessions without losing active state", () => {
   const state = {
     gameSessions: [],
     activeSessionId: null,
     nextSessionSeq: 1,
   };
-  let activeSnapshot = { pgnText: "initial" };
-  const store = createGameSessionStore({
-    state,
-    captureActiveSessionSnapshot: () => ({ ...activeSnapshot }),
-    applySessionSnapshotToState: (snapshot) => {
-      activeSnapshot = { ...snapshot };
-    },
-    disposeSessionSnapshot: () => {},
-  });
+  const activeSessionRef: ActiveSessionRef = { current: createEmptyGameSessionState() };
+  const store = createGameSessionStore({ state, activeSessionRef });
 
-  const first = store.openSession({
-    snapshot: { pgnText: "gameA" },
-    title: "A",
-    sourceRef: { kind: "file", locator: "root", recordId: "a.pgn" },
-  });
-  activeSnapshot.pgnText = "gameA-edited";
-  const second = store.openSession({
-    snapshot: { pgnText: "gameB" },
-    title: "B",
-    sourceRef: { kind: "file", locator: "root", recordId: "b.pgn" },
-  });
+  const stateA = createEmptyGameSessionState();
+  stateA.pgnText = "gameA";
+  const first = store.openSession({ ownState: stateA, title: "A",
+    sourceRef: { kind: "file", locator: "root", recordId: "a.pgn" } });
+
+  stateA.pgnText = "gameA-edited";
+
+  const stateB = createEmptyGameSessionState();
+  stateB.pgnText = "gameB";
+  const second = store.openSession({ ownState: stateB, title: "B",
+    sourceRef: { kind: "file", locator: "root", recordId: "b.pgn" } });
 
   assert.equal(state.gameSessions.length, 2);
   assert.equal(state.activeSessionId, second.sessionId);
-  assert.equal(state.gameSessions[0].snapshot.pgnText, "gameA-edited");
+  // stateA is still the live object for session A — edits are in-place.
+  assert.equal(stateA.pgnText, "gameA-edited");
 
   const switched = store.switchToSession(first.sessionId);
   assert.equal(switched, true);
   assert.equal(state.activeSessionId, first.sessionId);
-  assert.equal(activeSnapshot.pgnText, "gameA-edited");
+  // After switching, the ref points at stateA.
+  assert.equal(activeSessionRef.current.pgnText, "gameA-edited");
 });
 
-test("closing session disposes snapshot and selects adjacent session", () => {
+test("closing session selects adjacent session and updates ref", () => {
   const state = {
     gameSessions: [],
     activeSessionId: null,
     nextSessionSeq: 1,
   };
-  const disposed = [];
-  const store = createGameSessionStore({
-    state,
-    captureActiveSessionSnapshot: () => ({ pgnText: "runtime" }),
-    applySessionSnapshotToState: () => {},
-    disposeSessionSnapshot: (snapshot) => disposed.push(snapshot.pgnText),
-  });
+  const activeSessionRef: ActiveSessionRef = { current: createEmptyGameSessionState() };
+  const store = createGameSessionStore({ state, activeSessionRef });
 
-  const s1 = store.openSession({ snapshot: { pgnText: "A" }, title: "A" });
-  const s2 = store.openSession({ snapshot: { pgnText: "B" }, title: "B" });
+  const stateA = createEmptyGameSessionState();
+  stateA.pgnText = "A";
+  const s1 = store.openSession({ ownState: stateA, title: "A" });
+
+  const stateB = createEmptyGameSessionState();
+  stateB.pgnText = "B";
+  const s2 = store.openSession({ ownState: stateB, title: "B" });
+
   const result = store.closeSession(s2.sessionId);
 
   assert.equal(result.closed, true);
   assert.equal(result.emptyAfterClose, false);
-  assert.equal(disposed[0], "B");
   assert.equal(state.activeSessionId, s1.sessionId);
+  // After closing B, the ref must point at A's state.
+  assert.equal(activeSessionRef.current.pgnText, "A");
 });
-

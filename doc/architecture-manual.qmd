@@ -1,6 +1,6 @@
 # X2Chess Architecture Manual
 
-Last updated: 2026-03-21
+Last updated: 2026-04-03
 
 ## 1) Goals
 
@@ -114,7 +114,281 @@ Environment and toolchain setup is documented in `doc/setup-manual.qmd`.
 - Naming convention:
   - The conjunction of board and text editor is called **Game-Viewer**.
 
-## 4) Constraints for Ongoing Work
+## 3.5 App-Version and Data-Migration Strategy
+
+All persistent data in X2Chess is versioned so that older instances can be detected and
+upgraded automatically on startup. Three layers are covered:
+
+### 3.5.1 App version constant
+
+- **Source of truth:** `frontend/src-tauri/tauri.conf.json` → injected as `__X2CHESS_APP_VERSION__` by Vite.
+- **Access point:** `frontend/src/runtime/app_version.ts` exports `CURRENT_APP_VERSION: string`,
+  `parseSemver`, and `isNewerVersion`. All code that needs the version reads from this module;
+  no other file duplicates the inline `typeof __X2CHESS_APP_VERSION__` guard.
+
+### 3.5.2 SQLite database schema migrations
+
+- **Owner:** `resource/database/migrations/` (runner + steps + manifest).
+- **Mechanism:** `schema_version` table records applied versions. `runMigrations(db)` is idempotent —
+  safe to call on every DB open; it skips already-applied steps.
+- **Naming convention:** migration files are prefixed `NNNN_` (e.g. `0001_init.ts`).
+- **Rule:** Never modify a migration step after it has been shipped. Add a new step instead.
+
+### 3.5.3 localStorage versioned stores
+
+- **Primitive:** `frontend/src/storage/versioned_store.ts` — `createVersionedStore<T>(config)`.
+- **Envelope format:** every managed key stores `{ "v": <number>, "data": <T> }` JSON.
+- **On read:**
+  - Absent key → return default (no write-back).
+  - Current version → return data directly.
+  - Older version → apply migration chain in-place; write upgraded envelope back.
+  - Future version (data from a newer build) → return default *without overwriting*.
+  - Corrupt JSON → reset key to default; log a warning.
+- **Adding a store:** call `createVersionedStore` with `version: 1` and `migrations: []`.
+  Increment `version` and add a migration step whenever the stored shape changes incompatibly.
+- **Migration step indexing:** `migrations[i]` upgrades data from version `i` to version `i+1`.
+  Array length must equal `version - 1`. A step returning `null` signals unrecoverable data
+  and triggers a reset to `defaultValue`.
+
+#### Managed stores (version 1 baseline)
+
+| Store | Key | File |
+|---|---|---|
+| Shell prefs (compound) | `x2chess.shellPrefs` | `runtime/shell_prefs_store.ts` |
+| Shape / board decoration prefs | `x2chess.shapePrefs.v1` | `runtime/shape_prefs.ts` |
+| Resource viewer column prefs | `x2chess.resourceViewerColumnPrefs.v1` | `resources_viewer/viewer_utils.ts` |
+| Metadata schemas | `x2chess.metadata-schemas` | `resources_viewer/schema_storage.ts` |
+| External DB settings | `x2chess.ext-db-settings` | `runtime/ext_database_settings_store.ts` |
+| Remote rules cache | `x2chess.webImportRules` | `runtime/remote_rules_store.ts` |
+| User web-import rules | `x2chess.webImport.userRules` | `resources/web_import/user_rules_storage.ts` |
+| Training badges | `x2chess.training-badges` | `training/transcript_storage.ts` |
+| Training sessions | `x2chess.training-sessions` | `training/transcript_storage.ts` |
+| Curriculum plan | `x2chess.curriculum-plan` | `training/curriculum/curriculum_storage.ts` |
+
+Dynamic per-tab group-by state (`x2chess.groupby.<tabId>`) and the visual-asset cache
+(`chess-app:visual-asset:v2:<key>`) are intentionally excluded — they are ephemeral UI state
+and asset caches respectively, not user configuration.
+
+### 3.5.4 Legacy key consolidation (one-shot migration)
+
+Individual shell-preference keys written by earlier builds (`x2chess.sound`,
+`x2chess.moveDelayMs`, `x2chess.locale`, `x2chess.pgnLayout`, `x2chess.developerTools`,
+`x2chess.positionPreviewOnHover`, `x2chess.resourceViewerHeightPx`,
+`x2chess.boardColumnWidthPx`) are merged into the compound `x2chess.shellPrefs` key on
+the **first startup after upgrade** by `migrateLocalStorage()` in
+`frontend/src/storage/migrate_local_storage.ts`. The function is idempotent: if the
+compound key already exists it returns immediately. Legacy keys are deleted after consolidation.
+
+Similarly, `migrateRemoteRulesCache()` in `runtime/remote_rules_store.ts` merges the
+legacy two-key remote rules cache (`x2chess.webImportRules.v1` +
+`x2chess.webImportRules.version`) into the compound `x2chess.webImportRules` key.
+
+### 3.5.5 Startup sequence
+
+```
+useAppStartup mount effect
+  │
+  ├─ [SYNC] migrateLocalStorage()         ← consolidate legacy shell-pref keys
+  ├─ [SYNC] migrateRemoteRulesCache()     ← consolidate legacy rules-cache keys
+  ├─ [SYNC] versioned store reads         ← auto-migrate on first access
+  │
+  └─ [ASYNC, inside Tauri gateway open]
+       runMigrations(db)                  ← idempotent DB schema migration
+```
+
+### 3.5.6 Version-gating (future)
+
+Neither localStorage nor DB migrations currently require app-version gating (all steps
+are additive). If a future migration must only run on a specific version transition, use
+`CURRENT_APP_VERSION` / `parseSemver` from `runtime/app_version.ts` as the guard inside
+the migration step or `migrateLocalStorage`.
+
+## 4) Configuration
+
+Configuration in X2Chess splits into two distinct categories: **build-time configuration**
+embedded at compile time and **user preferences** persisted at runtime.
+
+### 4.1 Build-time configuration
+
+Build-time values are fixed when the application is compiled. They cannot be changed at runtime.
+
+**Source of truth:** `frontend/src-tauri/tauri.conf.json`
+
+This file owns:
+
+- `version` — the application semver string (canonical source for `CURRENT_APP_VERSION`;
+  see §3.5.1).
+- `productName`, `identifier` — product and bundle identity.
+- Window dimensions and minimum constraints (`width`, `height`, `minWidth`, `minHeight`).
+- Updater endpoint and signing public key.
+
+**Vite build globals**
+
+Vite reads `tauri.conf.json` at build time (`frontend/vite.config.ts`) and injects three
+compile-time constants into every bundle:
+
+| Global | Value | Usage |
+|---|---|---|
+| `__X2CHESS_MODE__` | `"DEV"` or `"PROD"` | Controls developer-tools default; consumed by `runtime/bootstrap_prefs.ts`. |
+| `__X2CHESS_APP_VERSION__` | Semver string from `tauri.conf.json` | Re-exported exclusively from `runtime/app_version.ts`; used for version-gated migrations. |
+| `__X2CHESS_BUILD_TIMESTAMP__` | ISO-8601 string set at build time | Available for diagnostic display. |
+
+All code that needs the version reads it from `runtime/app_version.ts`. No other file reads
+`__X2CHESS_APP_VERSION__` directly.
+
+### 4.2 User preferences
+
+User preferences are values the user can change within the application. They persist across
+sessions via the versioned localStorage mechanism described in §3.5.3.
+
+Each preference group is a named versioned store backed by a single localStorage key.
+Stores are read once on startup (after legacy key consolidation; see §3.5.5) and written
+back whenever a preference changes.
+
+#### Preference stores
+
+| Store | Key | File | Contents |
+|---|---|---|---|
+| Shell prefs | `x2chess.shellPrefs` | `runtime/shell_prefs_store.ts` | Sound, locale, move delay, PGN layout mode, position preview, developer tools, panel sizes |
+| Shape / board prefs | `x2chess.shapePrefs.v1` | `runtime/shape_prefs.ts` | Annotation colors, square highlight style, move-hint dots |
+| External DB settings | `x2chess.ext-db-settings` | `runtime/ext_database_settings_store.ts` | Opening explorer speed/rating filters |
+| Resource viewer column prefs | `x2chess.resourceViewerColumnPrefs.v1` | `resources_viewer/viewer_utils.ts` | Column widths and visibility |
+
+For the complete list of all managed stores see the table in §3.5.3.
+
+#### Preference lifecycle
+
+1. **Startup** — `useAppStartup` reads all stores synchronously; the values initialise
+   `AppStoreState` and service-layer state via `syncStateToReact()`.
+2. **Change** — a user action dispatches through `ServiceContext`. The setter writes the
+   store synchronously (`store.write(value)`) and updates the service-layer state.
+   Shell-pref setters dispatch directly to React and bypass `render()` (see §6.3).
+3. **Future build** — if a newer build already wrote a higher-versioned envelope, the
+   current build returns `defaultValue` without overwriting. The newer data is preserved
+   for when that build runs again.
+
+#### Adding a preference
+
+1. Add the field to the relevant `*Prefs` type and to `DEFAULT_*_PREFS`.
+2. If the stored shape changes incompatibly, increment `version` and append a
+   `MigrationStep` to `migrations`.
+3. Expose a setter callback in `ServiceContext` and wire it in `createAppServices.ts`.
+4. Register the store in the table in §3.5.3 of this manual.
+
+## 5) Testing
+
+### 5.1 Test runner and location
+
+Tests use Node's built-in test runner (`node:test`) invoked through `tsx`
+for TypeScript support.  No third-party test framework or mocking library is
+used; tests rely on real implementations or hand-written stubs.
+
+```bash
+# from frontend/
+npm test                                       # run all tests
+tsx --test "test/foo/**/*.test.ts"             # run a subset
+```
+
+Test files live under `frontend/test/`, mirroring the `src/` structure
+exactly — for example `src/board/shape_serializer.ts` →
+`test/board/shape_serializer.test.ts`.
+
+### 5.2 What to test
+
+**Pure-logic modules are the primary test target.** Any module under `model/`,
+`editor/`, `board/`, `game_sessions/`, `resources/`, `resources_viewer/`,
+`runtime/`, or `training/` that exports non-trivial logic should have a
+corresponding test file.
+
+The `state/app_reducer.ts` reducer and `state/selectors.ts` are pure functions
+and are tested like any other pure-logic module, despite living in `state/`.
+
+**React components, hooks, and Tauri gateways are not unit-tested.** They
+belong to the integration layer and are validated through manual QA.
+
+### 5.3 Coverage map
+
+| Test directory | Source coverage |
+|---|---|
+| `test/board/` | `src/board/` — move lookup, navigation, shape parser/serializer, physical board protocols |
+| `test/editor/` | `src/editor/` — FEN utils, tree numbering, collapse, editor plan, anchor resolver |
+| `test/engines/` | Engine manager, UCI parser/writer/session |
+| `test/game_sessions/` | Session store, persistence, ingress handlers |
+| `test/model/` | PGN model parser, serializer, commands, move ops, undo/redo, x2-style |
+| `test/resources/` | Material key, PGN DB adapter, PGN metadata, web-import rules |
+| `test/resources_viewer/` | Annotation parsers: anchor, eval, link, QA, schema storage, todo, train tag |
+| `test/runtime/` | Resource ref utilities |
+| `test/state/` | App reducer, selectors |
+| `test/training/` | Move acceptance, replay protocol, transcript, merge, train-tag parser, curriculum I/O |
+
+### 5.4 Writing new tests
+
+- Import source files with the `.js` extension (required by the ESM/tsx loader):
+  `import { foo } from "../../src/bar.js"`.
+- Use `String.raw\`…\`` for strings containing backslash sequences (PGN escape
+  characters, regex literals) to avoid double-escaping noise.
+- Stub external dependencies with minimal inline objects; never duplicate
+  production logic in stubs.
+- One test file per source module — do not mix multiple modules into one file.
+
+## 6) Key Concepts
+
+### 6.1 GameSessionState and ActiveSessionRef
+
+Each open game tab is backed by a dedicated `GameSessionState` object
+(`frontend/src/game_sessions/game_session_state.ts`). This object is the
+single source of truth for all game-specific mutable state for one session:
+
+- **PGN / model**: `pgnModel`, `pgnText`, `moves`, `verboseMoves`,
+  `movePositionById`, `pgnLayoutMode`
+- **Navigation**: `currentPly`, `selectedMoveId`, `boardPreview`,
+  `animationRunId`, `isAnimating`
+- **Editor messages**: `errorMessage`, `statusMessage`, `pendingFocusCommentId`
+- **Edit history**: `undoStack`, `redoStack`
+
+Service modules (`pgn_runtime`, `history`, `move_lookup`, `navigation`,
+`pgn_model_update`) never receive a global state object. They receive an
+`ActiveSessionRef = { current: GameSessionState }` and read/write only
+`sessionRef.current.*`. This makes the active session swappable without
+copying data: a session switch is a single pointer assignment
+`activeSessionRef.current = target.ownState`. Each `GameSession` in the
+session store holds its live `GameSessionState` in an `ownState` field —
+there is no freeze/thaw snapshot cycle.
+
+### 6.2 Shared Application State
+
+Non-game state lives in `AppState` (`app_shell/app_state.ts`): resource
+viewer tabs, player store, file system handles, save mode defaults, app
+config, and a few service-read fields (locale, sound, moveDelayMs). This is
+a shared mutable object referenced directly by service modules. It holds no
+game-specific fields.
+
+Shell preferences (sound, locale, move delay, layout mode, position preview,
+developer tools) are the authoritative province of the React store
+(`AppStoreState`) and are persisted via `shellPrefsStore` — a versioned
+localStorage store (`frontend/src/runtime/shell_prefs_store.ts`). Shell
+preference setters dispatch to React directly and do not go through
+`render()`.
+
+### 6.3 The React State Bridge
+
+The React `useReducer` store (`AppStoreState` / `appReducer`) is the
+authoritative state for all rendering. The bridge between the service layer
+and React is the `render()` function assembled in `createAppServices.ts`:
+
+1. Any service mutation calls `render()` (or `syncStateToReact()` in
+   `useAppStartup`).
+2. `render()` reads `activeSessionRef.current` (game state) and `sharedState`
+   (shared state), then dispatches typed actions to the React store.
+3. React components read state exclusively through selectors
+   (`state/selectors.ts`).
+4. Components trigger mutations exclusively via `ServiceContext` callbacks —
+   never `dispatch` for game logic.
+
+Shell preference setters are the only exception: they dispatch to React
+directly and bypass `render()`.
+
+## 7) Constraints for Ongoing Work
 
 - Keep browser fat-client as primary source of feature truth.
 - Keep reduced app-profile differences explicit and documented.

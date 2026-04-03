@@ -64,6 +64,15 @@ export type AppAction =
       tabs: ResourceTabSnapshot[];
       activeTabId: string | null;
     }
+  /**
+   * Update the active resource tab's row count and error message.
+   * Dispatched by `render()` after reading the active tab from legacy state.
+   */
+  | {
+      type: "set_active_resource_data";
+      rowCount: number;
+      errorMessage: string;
+    }
   // ── Board preview ──────────────────────────────────────────────────────
   /**
    * Variation move preview position.  When non-null, `ChessBoard` shows this

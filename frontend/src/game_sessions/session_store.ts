@@ -14,12 +14,11 @@
  */
 
 import type { SourceRefLike } from "../runtime/bootstrap_shared";
+import type { ActiveSessionRef, GameSessionState } from "./game_session_state";
 
 type SaveMode = "auto" | "manual";
 
-type DirtyState = "clean" | "dirty" | string;
-
-type SessionSnapshot = unknown;
+type DirtyState = "clean" | "dirty" | "saving" | "error" | (string & Record<never, never>);
 
 type GameSession = {
   sessionId: string;
@@ -29,7 +28,8 @@ type GameSession = {
   revisionToken: string;
   dirtyState: DirtyState;
   saveMode: SaveMode;
-  snapshot: SessionSnapshot;
+  /** Live state object owned by this session. The activeSessionRef points here when active. */
+  ownState: GameSessionState;
 };
 
 type SessionStoreState = {
@@ -39,7 +39,7 @@ type SessionStoreState = {
 };
 
 type OpenSessionInput = {
-  snapshot: SessionSnapshot;
+  ownState: GameSessionState;
   title: string;
   sourceRef?: SourceRefLike | null;
   pendingResourceRef?: SourceRefLike | null;
@@ -58,37 +58,27 @@ type ActiveSessionPatch = {
 
 type SessionStoreDeps<TState extends SessionStoreState> = {
   state: TState;
-  captureActiveSessionSnapshot: () => SessionSnapshot;
-  applySessionSnapshotToState: (snapshot: unknown) => void;
-  disposeSessionSnapshot: (snapshot: unknown) => void;
+  /** Ref whose `current` is swapped to the active session's ownState on every switch. */
+  activeSessionRef: ActiveSessionRef;
 };
 
 export const createGameSessionStore = <TState extends SessionStoreState>({
   state,
-  captureActiveSessionSnapshot,
-  applySessionSnapshotToState,
-  disposeSessionSnapshot,
+  activeSessionRef,
 }: SessionStoreDeps<TState>) => {
   const getSessions = (): GameSession[] => (Array.isArray(state.gameSessions) ? state.gameSessions : []) as GameSession[];
 
   const getActiveSession = (): GameSession | null =>
     getSessions().find((session: GameSession): boolean => session.sessionId === state.activeSessionId) || null;
 
-  const persistActiveSession = (): void => {
-    const active: GameSession | null = getActiveSession();
-    if (!active) return;
-    active.snapshot = captureActiveSessionSnapshot();
-  };
-
   const openSession = ({
-    snapshot,
+    ownState,
     title,
     sourceRef = null,
     pendingResourceRef = null,
     revisionToken = "",
     saveMode = "auto",
   }: OpenSessionInput): GameSession => {
-    persistActiveSession();
     const currentSessionSeq: number = state.nextSessionSeq;
     state.nextSessionSeq += 1;
     const session: GameSession = {
@@ -99,11 +89,11 @@ export const createGameSessionStore = <TState extends SessionStoreState>({
       revisionToken: String(revisionToken || ""),
       dirtyState: "clean",
       saveMode: saveMode === "manual" ? "manual" : "auto",
-      snapshot,
+      ownState,
     };
     getSessions().push(session);
     state.activeSessionId = session.sessionId;
-    applySessionSnapshotToState(snapshot);
+    activeSessionRef.current = ownState;
     return session;
   };
 
@@ -113,9 +103,8 @@ export const createGameSessionStore = <TState extends SessionStoreState>({
       (session: GameSession): boolean => session.sessionId === sessionId,
     );
     if (!target) return false;
-    persistActiveSession();
     state.activeSessionId = target.sessionId;
-    applySessionSnapshotToState(target.snapshot);
+    activeSessionRef.current = target.ownState;
     return true;
   };
 
@@ -123,10 +112,7 @@ export const createGameSessionStore = <TState extends SessionStoreState>({
     const sessions = getSessions();
     const index: number = sessions.findIndex((session: GameSession): boolean => session.sessionId === sessionId);
     if (index < 0) return { closed: false, emptyAfterClose: getSessions().length === 0 };
-    const removed: GameSession | undefined = sessions.splice(index, 1)[0];
-    if (removed) {
-      disposeSessionSnapshot(removed.snapshot);
-    }
+    sessions.splice(index, 1);
     if (sessions.length === 0) {
       state.activeSessionId = null;
       return { closed: true, emptyAfterClose: true };
@@ -134,7 +120,7 @@ export const createGameSessionStore = <TState extends SessionStoreState>({
     const nextIndex: number = Math.min(index, sessions.length - 1);
     const next: GameSession = sessions[nextIndex];
     state.activeSessionId = next.sessionId;
-    applySessionSnapshotToState(next.snapshot);
+    activeSessionRef.current = next.ownState;
     return { closed: true, emptyAfterClose: false };
   };
 
@@ -154,7 +140,6 @@ export const createGameSessionStore = <TState extends SessionStoreState>({
     getActiveSession,
     listSessions: (): GameSession[] => [...getSessions()],
     openSession,
-    persistActiveSession,
     switchToSession,
     updateActiveSessionMeta,
   };

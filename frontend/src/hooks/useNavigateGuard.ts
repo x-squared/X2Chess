@@ -23,6 +23,11 @@ export type NavigateGuardState = {
  * The caller is responsible for rendering the confirmation dialog using
  * `pendingNavigate`, `clearPendingNavigate`, and the original `rawServices`
  * to perform the confirmed navigation.
+ *
+ * @param rawServices Unguarded services from `useAppStartup`.
+ * @param sessions Current session list from React state.
+ * @param activeSession Currently active session item, or `undefined` if none is active.
+ * @returns Guarded navigation callbacks plus `pendingNavigate` / `clearPendingNavigate` for the confirmation dialog.
  */
 export const useNavigateGuard = (
   rawServices: AppStartupServices,

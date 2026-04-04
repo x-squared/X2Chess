@@ -118,6 +118,8 @@ type UseWebImportResult = {
  * panel state for Tier 3 (webview) rules.
  *
  * Must be called inside the `AppProvider` and `ServiceContext.Provider` trees.
+ *
+ * @returns `UseWebImportResult` with `resolveUrl`, `browserPanelState`, `closeBrowserPanel`, and `handleCaptureResult`.
  */
 export const useWebImport = (): UseWebImportResult => {
   const { dispatch } = useAppContext();

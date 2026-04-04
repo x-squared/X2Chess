@@ -65,6 +65,8 @@ export type EngineAnalysisState = {
 /**
  * Manages engine analysis lifecycle for a given board position.
  * Safe to render when no engine is configured — returns inert state.
+ *
+ * @returns Engine analysis state with `variations`, `isAnalyzing`, `engineName`, `startAnalysis`, `stopAnalysis`, and `findBestMove`.
  */
 export const useEngineAnalysis = (): EngineAnalysisState => {
   const [variations, setVariations] = useState<EngineVariation[]>([]);

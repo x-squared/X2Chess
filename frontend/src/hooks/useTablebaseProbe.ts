@@ -32,6 +32,14 @@ const fenPieceCount = (fen: string): number => {
   return count;
 };
 
+/**
+ * Probe the Lichess 7-piece tablebase for the given board position.
+ *
+ * Only activates when the position has ≤ 7 pieces; probes are debounced 200 ms.
+ *
+ * @param fen Current board FEN string.
+ * @returns Tablebase probe state with `result`, `isLoading`, `enabled`, and `setEnabled`.
+ */
 export const useTablebaseProbe = (fen: string): TablebaseProbeState => {
   const [result, setResult] = useState<TbProbeResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);

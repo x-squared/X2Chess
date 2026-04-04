@@ -37,6 +37,15 @@ type UseGameIngressDeps = {
   resolveUrl?: ((url: string) => Promise<void>) | undefined;
 };
 
+/**
+ * Bind drag-and-drop and paste event handlers for PGN game ingress.
+ *
+ * @param deps.appPanelRef Ref to the element that receives drag events.
+ * @param deps.overlayRef Ref to the drop-overlay element whose `hidden` attribute is toggled.
+ * @param deps.isLikelyPgnText Predicate returning `true` when a string looks like PGN.
+ * @param deps.openPgnText Callback invoked with validated PGN text on drop or paste.
+ * @param deps.resolveUrl Optional callback invoked when pasted or dropped text is an HTTP URL.
+ */
 export const useGameIngress = ({
   appPanelRef,
   overlayRef,

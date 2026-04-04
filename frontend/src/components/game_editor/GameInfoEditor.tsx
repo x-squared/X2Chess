@@ -99,6 +99,7 @@ type FieldInputProps = {
 const FieldInput = ({ field, defaultVal, onCommit }: FieldInputProps): ReactElement => {
   const id: string = `game-info-${field.key.toLowerCase()}`;
   const [value, setValue] = useState<string>(defaultVal);
+  const [isInvalid, setIsInvalid] = useState<boolean>(false);
 
   const handleSelectChange = (e: ChangeEvent<HTMLSelectElement>): void => {
     const raw: string = e.target.value;
@@ -108,11 +109,13 @@ const FieldInput = ({ field, defaultVal, onCommit }: FieldInputProps): ReactElem
 
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>): void => {
     setValue(e.target.value);
+    if (isInvalid) setIsInvalid(false);
   };
 
   const handleInputBlur = (): void => {
     const normalized: string = normalizeGameInfoHeaderValue(field.key, value);
     setValue(normalized);
+    setIsInvalid(field.validate ? !field.validate(normalized) : false);
     onCommit(field.key, normalized);
   };
 
@@ -138,6 +141,7 @@ const FieldInput = ({ field, defaultVal, onCommit }: FieldInputProps): ReactElem
       id={id}
       type={field.control === "number" ? "number" : "text"}
       data-header-key={field.key}
+      className={isInvalid ? "field-invalid" : undefined}
       placeholder={field.placeholder ?? field.label}
       value={value}
       onChange={handleInputChange}

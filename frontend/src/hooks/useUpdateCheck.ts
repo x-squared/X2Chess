@@ -53,6 +53,8 @@ export type UseUpdateCheckResult = {
 /**
  * Check for app updates on mount.  No-op if not running inside the Tauri
  * desktop runtime (e.g. browser dev mode).
+ *
+ * @returns `UseUpdateCheckResult` with `update` status, `installUpdate`, and `dismissUpdate`.
  */
 export const useUpdateCheck = (): UseUpdateCheckResult => {
   const [update, setUpdate] = useState<UpdateCheckState>({ status: "idle" });

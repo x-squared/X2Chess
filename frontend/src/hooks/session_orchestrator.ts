@@ -61,6 +61,9 @@ const lastLocatorSegment = (locator: string | null | undefined, fallback: string
 /**
  * Resolve the selected move ID for the current ply when not in board-preview mode.
  * Walks `movePositionById` to find the entry whose `mainlinePly` matches.
+ *
+ * @param g Active game session state.
+ * @returns The matched move ID, or `null` at ply 0.
  */
 export const resolveSelectedMoveId = (g: GameSessionState): string | null => {
   const bp = g.boardPreview as { fen?: string } | null;

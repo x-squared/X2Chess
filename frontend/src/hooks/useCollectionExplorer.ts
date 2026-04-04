@@ -46,6 +46,11 @@ const fenAtPly = (moves: string[], ply: number): string => {
   return game.fen();
 };
 
+/**
+ * Subscribe to live move-frequency data for the current board position across all open DB resources.
+ *
+ * @returns `CollectionExplorerState` with `entries` (sorted by count descending) and `loading` flag.
+ */
 export const useCollectionExplorer = (): CollectionExplorerState => {
   const { state } = useAppContext();
   const services = useServiceContext();

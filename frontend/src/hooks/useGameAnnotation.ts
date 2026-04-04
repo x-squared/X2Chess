@@ -81,6 +81,12 @@ const nagForDelta = (
   return null;
 };
 
+/**
+ * Batch-annotate a game using engine evaluations.
+ *
+ * @param findBestMove Async engine query function, typically from `useEngineAnalysis`.
+ * @returns Annotation phase, progress, annotated model, and `start`/`cancel` callbacks.
+ */
 export const useGameAnnotation = (findBestMove: FindBestMoveFn): GameAnnotationState => {
   const [phase, setPhase] = useState<AnnotatePhase>("idle");
   const [progress, setProgress] = useState<AnnotationProgress>({ current: 0, total: 0 });

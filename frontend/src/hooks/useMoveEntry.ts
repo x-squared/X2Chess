@@ -101,7 +101,11 @@ const buildCursor = (model: PgnModel, selectedMoveId: string | null): PgnCursor 
 
 // ── Hook ───────────────────────────────────────────────────────────────────────
 
-/** Board move entry hook: manages fork and promotion dialog state. */
+/**
+ * Board move entry hook: manages fork and promotion dialog state.
+ *
+ * @returns `MoveEntryState` with move callbacks, `pendingFork`, and `pendingPromotion`.
+ */
 export const useMoveEntry = (): MoveEntryState => {
   const { state } = useAppContext();
   const services = useServiceContext();

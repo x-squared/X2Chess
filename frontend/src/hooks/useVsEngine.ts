@@ -63,6 +63,12 @@ const detectGameOver = (chess: Chess): { reason: string; winner: "white" | "blac
   return null;
 };
 
+/**
+ * Manage a "play vs engine" game session.
+ *
+ * @param findBestMove Async engine query function, typically from `useEngineAnalysis`.
+ * @returns Active game state and `start`/`stop`/`onUserMove` callbacks.
+ */
 export const useVsEngine = (findBestMove: FindBestMoveFn): VsEngineState => {
   const [active, setActive] = useState(false);
   const [fen, setFen] = useState(STANDARD_FEN);

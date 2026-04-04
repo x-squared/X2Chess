@@ -319,6 +319,22 @@ span[data-kind="branch_header"] {
   user-select: text;
 }
 
+/* View-mode comment: clicking anywhere activates the contentEditable editor. */
+.text-editor-comment-block:not([contenteditable]) {
+  cursor: text;
+}
+
+/* Inline URL links inside comment view-mode — inherit comment colour, underlined. */
+.comment-url-link {
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.comment-url-link:hover {
+  opacity: 0.75;
+}
+
 /* Muted markers in tree mode — [[br]] and [[indent]] show as literal greyed text.
    Intro comments stay emphasised and should not be muted. */
 [data-layout-mode="tree"] .text-editor-comment.plain:not(.text-editor-comment-intro) {

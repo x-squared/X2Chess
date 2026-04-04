@@ -25,6 +25,16 @@ export type OpeningExplorerState = {
   setEnabled: (enabled: boolean) => void;
 };
 
+/**
+ * Query the Lichess opening explorer for the given board position.
+ *
+ * Queries are debounced 200 ms and cancelled when the FEN or source changes.
+ *
+ * @param fen Current board FEN string.
+ * @param speeds Lichess time-control filter (e.g. `["blitz", "rapid"]`). Defaults to all speeds.
+ * @param ratings Rating bucket filter (e.g. `[2000, 2200]`). Defaults to all rating buckets.
+ * @returns Opening explorer state with `result`, `isLoading`, `source`, `setSource`, `enabled`, `setEnabled`.
+ */
 export const useOpeningExplorer = (
   fen: string,
   speeds: string[] = [],

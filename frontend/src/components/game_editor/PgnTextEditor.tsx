@@ -23,6 +23,9 @@
 
 import { useMemo, useRef, useEffect, useCallback, useState } from "react";
 import type { ReactElement, KeyboardEvent as ReactKeyboardEvent, FormEvent, MouseEvent, CSSProperties } from "react";
+import { splitCommentUrls } from "../../editor/comment_url_utils";
+import type { CommentSegment } from "../../editor/comment_url_utils";
+import { openExternalUrl } from "../../resources/open_url";
 import { buildTextEditorPlan } from "../../editor/text_editor_plan";
 import type { PlanBlock, PlanToken, InlineToken, CommentToken } from "../../editor/text_editor_plan";
 import { useAppContext } from "../../state/app_context";
@@ -206,45 +209,47 @@ type CommentBlockProps = {
 };
 
 /**
- * Renders a single PGN comment as a `contentEditable` div.
+ * Renders a single PGN comment with a view/edit split.
  *
- * The element is semi-uncontrolled: `innerText` is set on mount and
- * whenever `token.text` changes from an external source (e.g. QA dialog save,
- * layout-mode switch). User keystrokes are NOT overwritten — a ref flag
- * (`isUserEditPending`) suppresses the reactive update for the one render
- * cycle immediately following an `onInput` event, after which external
- * changes are tracked normally.
+ * **View mode** (default): a static div whose text is split into literal and
+ * URL segments.  Detected URLs render as `<a>` elements that open in the
+ * system browser on click.  Clicking anywhere else on the div activates edit
+ * mode.
+ *
+ * **Edit mode**: a `contentEditable` div.  The element is semi-uncontrolled:
+ * `innerText` is set on entry and whenever `token.text` changes from an
+ * external source (e.g. QA dialog save, layout-mode switch).  User keystrokes
+ * are NOT overwritten — a ref flag (`isUserEditPending`) suppresses the
+ * reactive update for the one render cycle immediately following an `onInput`
+ * event.  Blur returns the block to view mode.
  *
  * Cmd/Ctrl+B/I/U apply bold, italic, and underline formatting via `execCommand`.
- * In plain/tree mode (plainLiteralComment=true), Enter inserts `[[br]]` rather
- * than a raw newline, keeping line-break markers visible as editable markup.
+ * In plain/tree mode (`plainLiteralComment=true`), Enter inserts `[[br]]`
+ * rather than a raw newline.
  */
 const CommentBlock = ({ token, isFocused, onEdit, onFocusHandled }: CommentBlockProps): ReactElement => {
   const ref = useRef<HTMLDivElement>(null);
+  // Newly-inserted comments start in edit mode immediately.
+  const [isEditMode, setIsEditMode] = useState<boolean>(isFocused);
   // True for exactly one render cycle after the user makes an edit, so we
   // skip the reactive innerText update and avoid clobbering the user's caret.
   const isUserEditPending = useRef<boolean>(false);
 
-  // Set innerText on mount.
+  // Sync innerText into the contentEditable whenever we enter edit mode or
+  // the model provides a new display value.
   useEffect((): void => {
-    if (ref.current) ref.current.innerText = token.text;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // intentionally run once on mount
-
-  // Re-sync innerText when the model provides a new display value (e.g. QA
-  // dialog save, layout-mode switch).  Skipped for the render cycle that
-  // immediately follows a user input event.
-  useEffect((): void => {
+    if (!isEditMode) return;
     if (isUserEditPending.current) {
       isUserEditPending.current = false;
       return;
     }
     if (ref.current) ref.current.innerText = token.text;
-  }, [token.text]);
+  }, [isEditMode, token.text]);
 
-  /** Move caret to end of element when this comment should receive focus. */
+  /** Move caret to end when this comment should receive focus (new insert). */
   useEffect((): void => {
     if (!isFocused || !ref.current) return;
+    setIsEditMode(true);
     ref.current.focus();
     const sel: Selection | null = window.getSelection();
     if (!sel) return;
@@ -291,18 +296,53 @@ const CommentBlock = ({ token, isFocused, onEdit, onFocusHandled }: CommentBlock
     .filter(Boolean)
     .join(" ");
 
+  // ── Edit mode: existing contentEditable behaviour ──────────────────────────
+  if (isEditMode) {
+    return (
+      <div
+        ref={ref}
+        contentEditable
+        suppressContentEditableWarning
+        className={className}
+        data-kind="comment"
+        data-comment-id={token.commentId}
+        data-focus-first-comment-at-start={token.focusFirstCommentAtStart ? "true" : undefined}
+        onInput={handleInput}
+        onKeyDown={handleKeyDown}
+        onBlur={(): void => { setIsEditMode(false); }}
+      />
+    );
+  }
+
+  // ── View mode: static render with clickable URLs ───────────────────────────
+  const segments: CommentSegment[] = splitCommentUrls(token.text);
   return (
     <div
-      ref={ref}
-      contentEditable
-      suppressContentEditableWarning
       className={className}
       data-kind="comment"
       data-comment-id={token.commentId}
       data-focus-first-comment-at-start={token.focusFirstCommentAtStart ? "true" : undefined}
-      onInput={handleInput}
-      onKeyDown={handleKeyDown}
-    />
+      onClick={(): void => { setIsEditMode(true); }}
+    >
+      {segments.map((seg: CommentSegment, i: number): ReactElement =>
+        seg.kind === "url" ? (
+          <a
+            key={i}
+            href={seg.href}
+            className="comment-url-link"
+            onClick={(e: MouseEvent<HTMLAnchorElement>): void => {
+              e.preventDefault();
+              e.stopPropagation(); // don't activate edit mode
+              openExternalUrl(seg.href);
+            }}
+          >
+            {seg.text}
+          </a>
+        ) : (
+          <span key={i}>{seg.text}</span>
+        )
+      )}
+    </div>
   );
 };
 

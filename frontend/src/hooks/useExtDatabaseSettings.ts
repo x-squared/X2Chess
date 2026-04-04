@@ -29,6 +29,11 @@ export type ExtDatabaseSettingsState = {
   resetToDefaults: () => void;
 };
 
+/**
+ * Read and update localStorage-persisted external database settings.
+ *
+ * @returns `ExtDatabaseSettingsState` with current `settings` and setter callbacks.
+ */
 export const useExtDatabaseSettings = (): ExtDatabaseSettingsState => {
   const [settings, setSettings] = useState<ExtDatabaseSettings>(() => extDatabaseSettingsStore.read());
 

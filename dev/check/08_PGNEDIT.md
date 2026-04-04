@@ -1,6 +1,6 @@
 ---
 section: PGNEDIT
-area: PGN text editor (plain / text / tree modes, comments, NAGs, eval pills, TODO, game links, position preview)
+area: PGN text editor (plain / text / tree modes, comments, NAGs, eval pills, TODO, game links, URL links, position preview)
 ---
 
 ## Key source files
@@ -19,6 +19,8 @@ area: PGN text editor (plain / text / tree modes, comments, NAGs, eval pills, TO
 - `frontend/src/editor/tree_numbering.ts` — tree-mode branch labelling (A / B / A.1)
 - `frontend/src/editor/useTodoDialog.ts` — TODO annotation dialog logic
 - `frontend/src/editor/useLinkDialog.ts` — game-link annotation dialog logic
+- `frontend/src/editor/comment_url_utils.ts` — URL detection and text segmentation
+- `frontend/src/resources/open_url.ts` — platform-aware external URL opener
 - `frontend/src/editor/useQaDialog.ts` — Q/A annotation dialog logic
 - `dev/plans/tree_text_editor_convergence_5ac46f02.plan.md` — plain/text/tree convergence
 - `dev/plans/text_mode_layout_example_f7a8b9c0.plan.md` — `[[br]]`/`[[indent]]` layout markers
@@ -91,3 +93,8 @@ See dev/check/00_README.md. These rules must be strictly adhered to when this fi
 - [ ] **PGNEDIT-58** — The `±` toggle button in the text-editor sidebar shows/hides all eval pills in text and tree modes; the button appears active (highlighted) when pills are visible.
 - [ ] **PGNEDIT-59** — The `±` toggle button is disabled in plain mode.
 - [ ] **PGNEDIT-60** — When eval pills are hidden via the toggle, `[%eval]` markup is still stripped from the comment display text (raw marker text is never shown to the user).
+- [ ] **PGNEDIT-61** — A URL in comment text (e.g. `https://lichess.org/abc` or `www.example.com`) renders as an underlined link in view mode (text/tree/plain).
+- [ ] **PGNEDIT-62** — Clicking a URL link opens it in the system default browser; it does not activate comment edit mode.
+- [ ] **PGNEDIT-63** — Clicking non-URL text in the comment activates the `contentEditable` editor as before.
+- [ ] **PGNEDIT-64** — Clicking away (blur) from an active comment editor returns it to view mode; URL links are visible again.
+- [ ] **PGNEDIT-65** — A newly inserted comment (via "Add comment") opens directly in edit mode, bypassing the static view.

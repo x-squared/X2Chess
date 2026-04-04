@@ -36,6 +36,21 @@ All source code must include public documentation that explains intent and behav
 - For callbacks, document callback signature and when it is invoked.
 - For structured objects, document expected keys and constraints.
 
+## JSDoc format for exported functions
+
+Use JSDoc tags on all exported functions, hook factories, and factory functions.
+
+- `@param name Description` for every parameter. Omit `{type}` — TypeScript types
+  are the authoritative declaration.
+- `@returns Description` when the return value is non-void.
+- No `@param` or `@returns` on exported **type aliases** and **interfaces** — use
+  inline field comments instead.
+- File-level Integration / Configuration / Communication API comments satisfy the
+  module-level doc requirement and need not be repeated per-function.
+- No-parameter hooks returning a named state type still require `@returns` with a
+  one-line description of what the state object exposes; the type name alone is
+  not sufficient.
+
 ## Delivery checks before finalizing changes
 
 - New/updated source files include top-level intent comments.

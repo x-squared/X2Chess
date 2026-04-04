@@ -4,9 +4,9 @@ import type { RefObject } from "react";
 /**
  * Wires up the board/editor column resize handle.
  *
- * Returns refs that must be attached to the board-editor box and the resize
- * handle element.  Dragging the handle updates `--board-column-width` on
- * `document.documentElement`.
+ * Dragging the handle updates `--board-column-width` on `document.documentElement`.
+ *
+ * @returns `boardEditorBoxRef` and `boardResizeHandleRef` to attach to the corresponding DOM elements.
  */
 export const useBoardColumnResize = (): {
   boardEditorBoxRef: RefObject<HTMLDivElement | null>;

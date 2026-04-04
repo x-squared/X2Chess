@@ -50,6 +50,26 @@ type GameInfoStateLike = {
  */
 export const PLAYER_NAME_HEADER_KEYS: readonly HeaderKey[] = ["White", "Black", "Annotator"];
 
+// Declared here so GAME_INFO_HEADER_FIELDS can reference it in the Date entry.
+const isPlausibleDateValues = (dd: string, mm: string, yyyy: string): boolean => {
+  const d = Number.parseInt(dd, 10);
+  const m = Number.parseInt(mm, 10);
+  const y = Number.parseInt(yyyy, 10);
+  return d >= 1 && d <= 31 && m >= 1 && m <= 12 && y >= 1000 && y <= 2999;
+};
+
+/**
+ * Returns true when `value` is empty or a structurally valid dd.mm.yyyy date.
+ *
+ * @param {string} value - Normalized date string.
+ * @returns {boolean} Whether the value represents a valid or absent date.
+ */
+export const isValidNormalizedDate = (value: string): boolean => {
+  if (!value) return true;
+  const m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(value);
+  return m !== null && isPlausibleDateValues(m[1], m[2], m[3]);
+};
+
 /**
  * Editable game-info header fields rendered in the fold-down editor.
  */
@@ -59,18 +79,11 @@ type GameInfoField = {
   control: "text" | "select" | "number";
   placeholder?: string;
   options?: string[];
+  validate?: (value: string) => boolean;
 };
 
 export const GAME_INFO_HEADER_FIELDS: readonly GameInfoField[] = [
-  { key: "Event", label: "Event", control: "text" },
-  { key: "Site", label: "Site", control: "text" },
-  { key: "Round", label: "Round", control: "text" },
-  {
-    key: "Date",
-    label: "Date",
-    control: "text",
-    placeholder: "dd.mm.yyyy",
-  },
+  // Row 1 — players + result
   {
     key: "White",
     label: "White",
@@ -89,13 +102,7 @@ export const GAME_INFO_HEADER_FIELDS: readonly GameInfoField[] = [
     control: "select",
     options: ["*", "1-0", "0-1", "1/2-1/2"],
   },
-  {
-    key: "ECO",
-    label: "ECO",
-    control: "select",
-    options: ["", ...ECO_OPENING_CODES],
-  },
-  { key: "Opening", label: "Opening", control: "text" },
+  // Row 2 — ratings + event
   {
     key: "WhiteElo",
     label: "WhiteElo",
@@ -108,8 +115,28 @@ export const GAME_INFO_HEADER_FIELDS: readonly GameInfoField[] = [
     control: "number",
     placeholder: "integer",
   },
-  { key: "TimeControl", label: "TimeControl", control: "text" },
+  { key: "Event", label: "Event", control: "text" },
+  // Row 3 — opening + termination
+  {
+    key: "ECO",
+    label: "ECO",
+    control: "select",
+    options: ["", ...ECO_OPENING_CODES],
+  },
+  { key: "Opening", label: "Opening", control: "text" },
   { key: "Termination", label: "Termination", control: "text" },
+  // Row 4 — date + venue
+  {
+    key: "Date",
+    label: "Date",
+    control: "text",
+    placeholder: "dd.mm.yyyy",
+    validate: isValidNormalizedDate,
+  },
+  { key: "Site", label: "Site", control: "text" },
+  { key: "Round", label: "Round", control: "text" },
+  // Remaining fields
+  { key: "TimeControl", label: "TimeControl", control: "text" },
   {
     key: "Annotator",
     label: "Annotator",
@@ -312,15 +339,60 @@ const formatPlayersSummaryForHeader = (whiteRaw: unknown, blackRaw: unknown): st
   return [whiteLast, blackLast].filter(Boolean).join(" - ").trim();
 };
 
+const RE_DATE_CANONICAL   = /^\d{2}\.\d{2}\.\d{4}$/;
+const RE_DATE_YMD_DOT     = /^(\d{4})\.(\d{2})\.(\d{2})$/;
+const RE_DATE_DMY_SEP     = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/;
+const RE_DATE_ISO_SEP     = /^(\d{4})[/-](\d{2})[/-](\d{2})$/;
+const RE_DATE_SINGLE_DOT  = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/;
+const RE_DATE_8DIGITS     = /^(\d{8})$/;
+const RE_DATE_MISSING_DOT = /^(\d{1,2})\.(\d{2})(\d{4})$/;
+
 const normalizeDateValue = (rawValue: unknown): string => {
   const source = String(rawValue ?? "").trim();
   if (!source) return "";
-  if (/^\d{2}\.\d{2}\.\d{4}$/.test(source)) return source;
-  const ymdMatch = source.match(/^(\d{4})\.(\d{2})\.(\d{2})$/);
-  if (ymdMatch) {
-    const [, yyyy, mm, dd] = ymdMatch;
+
+  // dd.mm.yyyy — already canonical
+  if (RE_DATE_CANONICAL.test(source)) return source;
+
+  // yyyy.mm.dd
+  const ymdDot = RE_DATE_YMD_DOT.exec(source);
+  if (ymdDot) return `${ymdDot[3]}.${ymdDot[2]}.${ymdDot[1]}`;
+
+  // d(d)/m(m)/yyyy or d(d)-m(m)-yyyy
+  const dmySep = RE_DATE_DMY_SEP.exec(source);
+  if (dmySep) {
+    const dd = dmySep[1].padStart(2, "0"), mm = dmySep[2].padStart(2, "0"), yyyy = dmySep[3];
     return `${dd}.${mm}.${yyyy}`;
   }
+
+  // yyyy-mm-dd or yyyy/mm/dd (ISO)
+  const isoSep = RE_DATE_ISO_SEP.exec(source);
+  if (isoSep) return `${isoSep[3]}.${isoSep[2]}.${isoSep[1]}`;
+
+  // d.m.yyyy with one or two digits per part
+  const singleDot = RE_DATE_SINGLE_DOT.exec(source);
+  if (singleDot) {
+    const dd = singleDot[1].padStart(2, "0"), mm = singleDot[2].padStart(2, "0"), yyyy = singleDot[3];
+    return `${dd}.${mm}.${yyyy}`;
+  }
+
+  // 8 pure digits — try ddmmyyyy, then yyyymmdd
+  const digits8 = RE_DATE_8DIGITS.exec(source);
+  if (digits8) {
+    const s = digits8[1];
+    const dd1 = s.slice(0, 2), mm1 = s.slice(2, 4), yyyy1 = s.slice(4);
+    if (isPlausibleDateValues(dd1, mm1, yyyy1)) return `${dd1}.${mm1}.${yyyy1}`;
+    const yyyy2 = s.slice(0, 4), mm2 = s.slice(4, 6), dd2 = s.slice(6);
+    if (isPlausibleDateValues(dd2, mm2, yyyy2)) return `${dd2}.${mm2}.${yyyy2}`;
+  }
+
+  // dd.mmyyyy — missing second dot (e.g. "01.012026")
+  const missingDot = RE_DATE_MISSING_DOT.exec(source);
+  if (missingDot) {
+    const dd = missingDot[1].padStart(2, "0"), mm = missingDot[2], yyyy = missingDot[3];
+    if (isPlausibleDateValues(dd, mm, yyyy)) return `${dd}.${mm}.${yyyy}`;
+  }
+
   return source;
 };
 

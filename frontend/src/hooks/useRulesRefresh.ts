@@ -51,7 +51,8 @@ type RulesManifest = {
  *
  * Returns `null` while the fetch is in progress.  Returns an empty array if
  * the fetch fails, the remote version is not newer, or there are no rules.
- * Returns the fetched `WebImportRule[]` on a successful update.
+ *
+ * @returns Updated `WebImportRule[]` on a successful newer-version fetch, or `null` while pending.
  */
 export const useRulesRefresh = (): WebImportRule[] | null => {
   const [remoteRules, setRemoteRules] = useState<WebImportRule[] | null>(null);

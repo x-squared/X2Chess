@@ -31,6 +31,11 @@ export type TrainingDialogControls = {
  *
  * Board-preview syncing and hint handling remain in AppShell because they
  * touch `dispatch` and engine state.
+ *
+ * @param trainingControls Live training session controls from `useTrainingSession`.
+ * @param rawServices App services used to apply merge results to the active session.
+ * @param getState Synchronous accessor for the latest `AppStoreState`.
+ * @returns Dialog visibility flags, event handlers, and pending-promotion state.
  */
 export const useTrainingDialogState = (
   trainingControls: TrainingSessionControls,

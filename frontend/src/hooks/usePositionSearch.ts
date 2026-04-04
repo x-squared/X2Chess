@@ -50,6 +50,11 @@ const fenAtPly = (moves: string[], ply: number): string => {
   return game.fen();
 };
 
+/**
+ * Fan out a position hash search across all open DB resource tabs.
+ *
+ * @returns `PositionSearchState` with `results`, `loading` flag, and a stable `search` callback.
+ */
 export const usePositionSearch = (): PositionSearchState => {
   const { state } = useAppContext();
   const services = useServiceContext();

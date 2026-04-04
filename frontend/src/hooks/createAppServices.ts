@@ -77,6 +77,12 @@ type BoardPreviewValue = { fen: string; lastMove?: [string, string] | null } | n
 // ── State-to-React sync helpers ────────────────────────────────────────────────
 
 /** Normalise a raw devTab string into the accepted union. */
+/**
+ * Normalise a raw devTab value to the accepted union type.
+ *
+ * @param _raw Any raw value from persisted state.
+ * @returns Always `"ast"` — the only supported dev tab.
+ */
 export const toDevTab = (_raw: unknown): "ast" => "ast";
 
 type RawSession = {
@@ -139,6 +145,12 @@ type RawResourceTab = {
   resourceRef?: { kind?: unknown; locator?: unknown } | null;
 };
 
+/**
+ * Map a raw resource-tab object to `ResourceTabSnapshot`, or `null` when `tabId` is absent.
+ *
+ * @param raw Raw tab object from `resourceViewer.buildTabSnapshots()`.
+ * @returns Typed tab snapshot, or `null` when the `tabId` field is missing.
+ */
 export const toResourceTab = (raw: unknown): ResourceTabSnapshot | null => {
   const tab: RawResourceTab = (raw as RawResourceTab) ?? {};
   const tabId: string = typeof tab.tabId === "string" ? tab.tabId : "";

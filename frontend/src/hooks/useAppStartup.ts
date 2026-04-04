@@ -34,17 +34,18 @@ import {
   resolveInitialLocale,
   initDevPrefsMode,
   readShellPrefsForStartup,
+  type AppMode,
   type DevPrefsMode,
 } from "../runtime/bootstrap_prefs";
-import { workspaceSnapshotStore } from "../runtime/workspace_snapshot_store";
+import {
+  workspaceSnapshotStore,
+  type WorkspaceSnapshot,
+} from "../runtime/workspace_snapshot_store";
 import { migrateLocalStorage } from "../storage/migrate_local_storage";
 import { migrateRemoteRulesCache } from "../runtime/remote_rules_store";
 import { readShapePrefs } from "../runtime/shape_prefs";
-import type { ShapePrefs } from "../runtime/shape_prefs";
 import { readEditorStylePrefs } from "../runtime/editor_style_prefs";
-import type { EditorStylePrefs } from "../runtime/editor_style_prefs";
 import { readDefaultLayoutPrefs } from "../runtime/default_layout_prefs";
-import type { DefaultLayoutPrefs } from "../runtime/default_layout_prefs";
 import { useAppContext } from "../state/app_context";
 import type { AppStartupServices } from "../state/ServiceContext";
 import type { AppAction } from "../state/actions";
@@ -61,6 +62,10 @@ import {
   resolveSelectedMoveId,
 } from "./session_orchestrator";
 
+// ── Shared types ──────────────────────────────────────────────────────────────
+
+type LayoutMode = "plain" | "text" | "tree";
+
 // ── Module-level helpers ──────────────────────────────────────────────────────
 
 /**
@@ -75,12 +80,149 @@ const dispatchInitialSessionState = (g: GameSessionState, dispatch: Dispatch<App
   dispatch({ type: "set_pending_focus", commentId: g.pendingFocusCommentId });
 };
 
+/**
+ * Read all persisted startup preferences and dispatch them to React state.
+ *
+ * @param dispatch - React dispatch function.
+ * @param appMode - Resolved build mode (`DEV` or `PROD`).
+ * @param devPrefsMode - Whether to apply stored user prefs or factory defaults in DEV.
+ * @returns The resolved PGN layout mode, forwarded to `openFreshSession` when no
+ *   snapshot exists.
+ */
+const applyBootstrapPrefs = (
+  dispatch: Dispatch<AppAction>,
+  appMode: AppMode,
+  devPrefsMode: DevPrefsMode,
+): LayoutMode => {
+  const prefs = readBootstrapUiPrefs(appMode, devPrefsMode);
+  const shellPrefs = readShellPrefsForStartup(devPrefsMode);
+
+  // Bootstrap UI flags and locale.
+  dispatch({ type: "set_dev_tools_enabled", enabled: prefs.isDeveloperToolsEnabled });
+  dispatch({ type: "set_locale", locale: resolveInitialLocale(resolveLocale, DEFAULT_LOCALE, devPrefsMode) });
+
+  // Shell prefs — only dispatch when the value differs from the reducer default
+  // so the initial render stays unchanged for users who never changed these.
+  if (!shellPrefs.sound) {
+    dispatch({ type: "set_sound_enabled", enabled: false });
+  }
+  if (Number.isFinite(shellPrefs.moveDelayMs) && shellPrefs.moveDelayMs > 0) {
+    dispatch({ type: "set_move_delay_ms", value: shellPrefs.moveDelayMs });
+  }
+  if (!shellPrefs.positionPreviewOnHover) {
+    dispatch({ type: "set_position_preview_on_hover", enabled: false });
+  }
+
+  // Board decoration and editor style prefs are always dispatched because their
+  // defaults are non-trivial objects that must match stored values exactly.
+  dispatch({ type: "set_shape_prefs", prefs: readShapePrefs() });
+  dispatch({ type: "set_editor_style_prefs", prefs: readEditorStylePrefs() });
+  dispatch({ type: "set_default_layout_prefs", prefs: readDefaultLayoutPrefs() });
+
+  return shellPrefs.pgnLayout;
+};
+
+/**
+ * Restore all sessions and resource tabs from a saved workspace snapshot.
+ *
+ * Session IDs in the snapshot are one-time identifiers from the previous run;
+ * new IDs are assigned by the store on `openSession`.  An `idMap` bridges old →
+ * new so the previously active session can be re-selected at the end.
+ *
+ * @param bundle - Fully wired services bundle.
+ * @param snapshot - Workspace snapshot read from localStorage.
+ * @param dispatch - React dispatch function.
+ */
+const restoreWorkspaceSnapshot = (
+  bundle: ServicesBundle,
+  snapshot: WorkspaceSnapshot,
+  dispatch: Dispatch<AppAction>,
+): void => {
+  // Pass 1: open every saved session; build old-ID → new-ID map.
+  const idMap = new Map<string, string>();
+  for (const snap of snapshot.sessions) {
+    try {
+      const sessionState: GameSessionState =
+        bundle.sessionModel.createSessionFromPgnText(snap.pgnText);
+      sessionState.pgnLayoutMode = (snap.pgnLayoutMode as LayoutMode) || "plain";
+      sessionState.currentPly = snap.currentPly;
+      sessionState.selectedMoveId = snap.selectedMoveId;
+      const opened = bundle.sessionStore.openSession({
+        ownState: sessionState,
+        title: snap.title,
+        sourceRef: snap.sourceRef ?? null,
+        saveMode: snap.saveMode,
+      });
+      if (snap.dirtyState === "dirty" || snap.dirtyState === "error") {
+        bundle.sessionStore.updateActiveSessionMeta({ dirtyState: snap.dirtyState });
+      }
+      idMap.set(snap.sessionId, opened.sessionId);
+    } catch {
+      // Skip sessions with corrupt PGN.
+    }
+  }
+
+  // Pass 2: re-select the session that was active when the snapshot was taken.
+  if (snapshot.activeSessionId) {
+    const restoredId = idMap.get(snapshot.activeSessionId);
+    if (restoredId) bundle.sessionStore.switchToSession(restoredId);
+  }
+
+  // Pass 3: re-open resource viewer tabs.
+  for (const tabSnap of snapshot.resourceTabs) {
+    if (tabSnap.kind && tabSnap.locator) {
+      bundle.resourceViewer.upsertTab({
+        title: tabSnap.title,
+        resourceRef: { kind: tabSnap.kind, locator: tabSnap.locator },
+        select: tabSnap.tabId === snapshot.activeResourceTabId,
+      });
+    }
+  }
+
+  // Sync the active session's layout mode to React (skipped when "plain" because
+  // that is already the reducer default).
+  const activeLayout = bundle.activeSessionRef.current.pgnLayoutMode as LayoutMode;
+  if (activeLayout !== "plain") {
+    dispatch({ type: "set_layout_mode", mode: activeLayout });
+  }
+};
+
+/**
+ * Open a single blank session when no saved workspace exists.
+ *
+ * @param bundle - Fully wired services bundle.
+ * @param pgnLayout - Default layout mode resolved from shell prefs.
+ * @param dispatch - React dispatch function.
+ */
+const openFreshSession = (
+  bundle: ServicesBundle,
+  pgnLayout: LayoutMode,
+  dispatch: Dispatch<AppAction>,
+): void => {
+  try {
+    const initialState: GameSessionState =
+      bundle.sessionModel.createSessionFromPgnText("");
+    initialState.pgnLayoutMode = pgnLayout;
+    bundle.sessionStore.openSession({ ownState: initialState, title: "New Game" });
+    // Sync non-default layout to React; "plain" is the reducer default so no
+    // dispatch is needed in that case.
+    if (pgnLayout !== "plain") {
+      dispatch({ type: "set_layout_mode", mode: pgnLayout });
+    }
+  } catch (err: unknown) {
+    const message: string = err instanceof Error ? err.message : String(err);
+    dispatch({ type: "set_error_message", message });
+  }
+};
+
 // ── Hook ───────────────────────────────────────────────────────────────────────
 
 /**
  * Initialise all application services on mount and return stable service callbacks.
  *
  * Must be called inside the `AppProvider` tree (needs `useAppContext`).
+ *
+ * @returns `AppStartupServices` to pass as the value of `<ServiceContext.Provider>`.
  */
 export const useAppStartup = (): AppStartupServices => {
   const { dispatch, state } = useAppContext();
@@ -98,6 +240,9 @@ export const useAppStartup = (): AppStartupServices => {
   bundleRef.current ??= createAppServicesBundle(dispatchRef, stateRef);
   const bundle: ServicesBundle = bundleRef.current;
 
+  // Guard against double-invocation (React StrictMode re-runs effects on the
+  // same mounted component without resetting refs).
+  const startupRanRef = useRef<boolean>(false);
 
   // ── Workspace persistence effect ─────────────────────────────────────────
   // Watches workspace-relevant React state fields and debounces a snapshot
@@ -122,110 +267,23 @@ export const useAppStartup = (): AppStartupServices => {
 
   // ── Mount effect: load preferences, initialise PGN, open first session ──
   useEffect((): void => {
-    // 1. Consolidate legacy localStorage keys into compound stores (idempotent).
+    if (startupRanRef.current) return;
+    startupRanRef.current = true;
+
     migrateLocalStorage();
     migrateRemoteRulesCache();
 
-    // 2. Load persisted preferences from the compound shell-prefs store.
-    //    In DEV mode, `devPrefsMode` controls whether factory defaults or the
-    //    stored user prefs are applied (see bootstrap_prefs.ts / DIY manual).
     const appMode = resolveBuildAppMode(DEFAULT_APP_MODE);
     const devPrefsMode: DevPrefsMode = appMode === "DEV" ? initDevPrefsMode() : "user";
-    const prefs = readBootstrapUiPrefs(appMode, devPrefsMode);
-    const shellPrefs = readShellPrefsForStartup(devPrefsMode);
-    dispatch({ type: "set_dev_tools_enabled", enabled: prefs.isDeveloperToolsEnabled });
+    const pgnLayout = applyBootstrapPrefs(dispatch, appMode, devPrefsMode);
 
-    // 3. Resolve locale.
-    const locale = resolveInitialLocale(resolveLocale, DEFAULT_LOCALE, devPrefsMode);
-    dispatch({ type: "set_locale", locale });
-
-    // 4. Load persisted sound/speed/preview prefs.
-    if (!shellPrefs.sound) {
-      dispatch({ type: "set_sound_enabled", enabled: false });
-    }
-    if (Number.isFinite(shellPrefs.moveDelayMs) && shellPrefs.moveDelayMs > 0) {
-      dispatch({ type: "set_move_delay_ms", value: shellPrefs.moveDelayMs });
-    }
-    if (!shellPrefs.positionPreviewOnHover) {
-      dispatch({ type: "set_position_preview_on_hover", enabled: false });
-    }
-    const savedShapePrefs: ShapePrefs = readShapePrefs();
-    dispatch({ type: "set_shape_prefs", prefs: savedShapePrefs });
-    const savedEditorStylePrefs: EditorStylePrefs = readEditorStylePrefs();
-    dispatch({ type: "set_editor_style_prefs", prefs: savedEditorStylePrefs });
-    const savedDefaultLayoutPrefs: DefaultLayoutPrefs = readDefaultLayoutPrefs();
-    dispatch({ type: "set_default_layout_prefs", prefs: savedDefaultLayoutPrefs });
-
-    // 5. Restore workspace snapshot (sessions + resource tabs) or fall back to
-    //    a blank default session when no snapshot exists.
-    type LayoutMode = "plain" | "text" | "tree";
     const snapshot = workspaceSnapshotStore.read();
-
     if (snapshot.sessions.length > 0) {
-      // Map old session IDs → new session IDs so we can switch to the right one.
-      const idMap = new Map<string, string>();
-      for (const snap of snapshot.sessions) {
-        try {
-          const sessionState: GameSessionState =
-            bundle.sessionModel.createSessionFromPgnText(snap.pgnText);
-          sessionState.pgnLayoutMode = (snap.pgnLayoutMode as LayoutMode) || "plain";
-          sessionState.currentPly = snap.currentPly;
-          sessionState.selectedMoveId = snap.selectedMoveId;
-          const opened = bundle.sessionStore.openSession({
-            ownState: sessionState,
-            title: snap.title,
-            sourceRef: snap.sourceRef ?? null,
-            saveMode: snap.saveMode,
-          });
-          if (snap.dirtyState === "dirty" || snap.dirtyState === "error") {
-            bundle.sessionStore.updateActiveSessionMeta({ dirtyState: snap.dirtyState });
-          }
-          idMap.set(snap.sessionId, opened.sessionId);
-        } catch {
-          // Skip sessions with corrupt PGN.
-        }
-      }
-
-      // Restore the previously active session.
-      if (snapshot.activeSessionId) {
-        const restoredId = idMap.get(snapshot.activeSessionId);
-        if (restoredId) bundle.sessionStore.switchToSession(restoredId);
-      }
-
-      // Restore resource viewer tabs.
-      for (const tabSnap of snapshot.resourceTabs) {
-        if (tabSnap.kind && tabSnap.locator) {
-          bundle.resourceViewer.upsertTab({
-            title: tabSnap.title,
-            resourceRef: { kind: tabSnap.kind, locator: tabSnap.locator },
-            select: tabSnap.tabId === snapshot.activeResourceTabId,
-          });
-        }
-      }
-
-      // Dispatch active session layout mode to React.
-      const activeLayout = bundle.activeSessionRef.current.pgnLayoutMode as LayoutMode;
-      if (activeLayout !== "plain") {
-        dispatch({ type: "set_layout_mode", mode: activeLayout });
-      }
+      restoreWorkspaceSnapshot(bundle, snapshot, dispatch);
     } else {
-      // No saved workspace — open a blank empty session.
-      const resolvedLayout: LayoutMode = shellPrefs.pgnLayout;
-      try {
-        const initialState: GameSessionState =
-          bundle.sessionModel.createSessionFromPgnText("");
-        initialState.pgnLayoutMode = resolvedLayout;
-        bundle.sessionStore.openSession({ ownState: initialState, title: "New Game" });
-        if (resolvedLayout !== "plain") {
-          dispatch({ type: "set_layout_mode", mode: resolvedLayout });
-        }
-      } catch (err: unknown) {
-        const message: string = err instanceof Error ? err.message : String(err);
-        dispatch({ type: "set_error_message", message });
-      }
+      openFreshSession(bundle, pgnLayout, dispatch);
     }
 
-    // 6. Sync PGN/navigation/undo state to React after session setup.
     dispatchInitialSessionState(bundle.activeSessionRef.current, dispatch);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // intentionally run once on mount

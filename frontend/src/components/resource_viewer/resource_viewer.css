@@ -915,6 +915,16 @@
   box-shadow: var(--focus-ring);
 }
 
+.game-info-editor-field input.field-invalid {
+  border-width: 2px;
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.game-info-editor-field input.field-invalid:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 25%, transparent);
+}
+
 .game-info-player-suggestions {
   position: absolute;
   top: calc(100% + 2px);

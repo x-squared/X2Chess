@@ -18,6 +18,7 @@ export { serializeModelToPgn } from "./pgn_serialize";
 export { ECO_OPENING_CODES, resolveEcoOpeningName } from "./eco_openings";
 export {
   applyDefaultIndentDirectives,
+  applyDefaultLayout,
   findExistingCommentIdAroundMove,
   getFirstCommentMetadata,
   insertCommentAroundMove,

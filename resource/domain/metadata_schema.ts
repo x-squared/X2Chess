@@ -160,6 +160,9 @@ export const KNOWN_PGN_METADATA_KEYS = Object.freeze([
 
 export type MetadataFieldType = "text" | "date" | "select" | "number" | "flag" | "game_link";
 
+/** Whether a metadata field holds at most one value or an ordered list of values. */
+export type MetadataValueCardinality = "one" | "many";
+
 export type MetadataFieldDefinition = {
   key: string;
   label: string;
@@ -167,10 +170,22 @@ export type MetadataFieldDefinition = {
   required: boolean;
   /** Controls column order; gaps allowed; ties sort by key. */
   orderIndex: number;
+  /**
+   * How many values the field may hold.
+   * `"one"` (default) — at most one value, stored as a plain string.
+   * `"many"` — an ordered list of zero or more values of the same type.
+   */
+  cardinality?: MetadataValueCardinality;
   /** Allowed values — only for type = "select". */
   selectValues?: string[];
   /** Tooltip / help text shown in the definition editor. */
   description?: string;
+};
+
+/** Key identity + cardinality descriptor returned by the DB adapter's key registry. */
+export type MetadataKeyInfo = {
+  key: string;
+  cardinality: MetadataValueCardinality;
 };
 
 export type MetadataSchema = {

@@ -9,14 +9,22 @@ See dev/check/00_README.md. These rules must be strictly adhered to when this fi
 ## Key source files
 - `frontend/src/components/shell/GameTabs.tsx` — tab bar rendering
 - `frontend/src/components/resource_viewer/GameSessionsPanel.tsx` — session panel (wires select/close to services)
+- `frontend/src/components/shell/AppShell.tsx` — close-guard `beforeunload` handler (M9)
 - `frontend/src/hooks/useNavigateGuard.ts` — dirty-state guard wrapping switchSession/closeSession
+- `frontend/src/hooks/useAppStartup.ts` — workspace restore on mount
 - `frontend/src/game_sessions/session_model.ts` — session data model
 - `frontend/src/game_sessions/session_store.ts` — session state store
 - `frontend/src/state/app_reducer.ts` — reducer actions for tab open/close/switch
+- `frontend/src/runtime/workspace_snapshot_store.ts` — versioned workspace snapshot store
+- `frontend/src/runtime/workspace_persistence.ts` — snapshot builder + unsaved-sessions check
 - `dev/plans/multi-source_game_refactor_9d9ff012.plan.md` — multi-source game loading design
 
 ## Checklist
 
+- [ ] **SESSION-10** — On app close (browser tab close or Tauri window close), if any session has unsaved edits (`dirtyState === "dirty"`), the platform's "unsaved changes — leave anyway?" dialog appears. Confirming closes; cancelling returns to the app.
+- [ ] **SESSION-11** — On next launch after a clean close, all sessions that were open are restored: their PGN content (including unsaved edits), titles, source references, layout modes, active ply, and save modes are correct. The session that was active when the app was closed is active again.
+- [ ] **SESSION-12** — On next launch, all resource viewer tabs that were open are restored (kind + locator), and the tab that was active is selected.
+- [ ] **SESSION-13** — On first launch (no snapshot), a single blank default session is opened. No leftover resource viewer tabs appear.
 
 - [?] **SESSION-2** — Clicking a different tab switches to that game and restores its board position and PGN.
   > That does not happen as a rule, it may happen, but after changing once, I could not change again.

@@ -27,7 +27,7 @@ export type LegacyListEntry = {
   sourceRef: LegacySourceRef;
   titleHint: string;
   revisionToken: string;
-  metadata?: Record<string, string>;
+  metadata?: Record<string, string | string[]>;
   availableMetadataKeys?: readonly string[];
 };
 

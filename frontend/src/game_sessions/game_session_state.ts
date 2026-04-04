@@ -14,6 +14,10 @@
  * Communication API:
  * - Service modules receive `sessionRef: ActiveSessionRef` and read/write
  *   `sessionRef.current.<field>` directly.
+ *
+ * Fields NOT stored here (owned by their respective service closures):
+ * - `animationRunId`, `isAnimating` → navigation service
+ * - `errorMessage`, `statusMessage` → dispatched directly via service callbacks
  */
 
 import type { MovePositionIndex, PgnModelForMoves } from "../board/move_position";
@@ -37,15 +41,11 @@ export type GameSessionState = {
   currentPly: number;
   selectedMoveId: string | null;
   boardPreview: BoardPreviewLike | null;
-  animationRunId: number;
-  isAnimating: boolean;
 
-  // Editor messages
-  errorMessage: string;
-  statusMessage: string;
+  // Editor state
   pendingFocusCommentId: string | null;
 
-  // Undo / redo
+  // Undo / redo — kept per-session so switching sessions restores the correct stacks.
   undoStack: unknown[];
   redoStack: unknown[];
 };
@@ -71,10 +71,6 @@ export const createEmptyGameSessionState = (): GameSessionState => ({
   currentPly: 0,
   selectedMoveId: null,
   boardPreview: null,
-  animationRunId: 0,
-  isAnimating: false,
-  errorMessage: "",
-  statusMessage: "",
   pendingFocusCommentId: null,
   undoStack: [],
   redoStack: [],

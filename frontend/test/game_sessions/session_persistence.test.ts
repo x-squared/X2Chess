@@ -3,12 +3,6 @@ import assert from "node:assert/strict";
 import { createSessionPersistenceService } from "../../src/game_sessions/session_persistence.js";
 
 test("persistence routes save through active session sourceRef", async () => {
-  const state = {
-    isHydratingGame: false,
-    saveRequestSeq: 0,
-    autosaveTimer: null,
-    defaultSaveMode: "auto",
-  };
   const session = {
     sessionId: "session-1",
     sourceRef: { kind: "file", locator: "root", recordId: "game1.pgn" },
@@ -16,10 +10,9 @@ test("persistence routes save through active session sourceRef", async () => {
     saveMode: "auto",
     dirtyState: "clean",
   };
-  const calls = [];
+  const calls: unknown[] = [];
   const service = createSessionPersistenceService({
-    state,
-    t: (_key, fallback) => fallback,
+    t: (_key, fallback) => fallback ?? "",
     getActiveSession: () => session,
     updateActiveSessionMeta: (patch) => Object.assign(session, patch),
     getPgnText: () => "1. e4 e5 *",
@@ -34,19 +27,13 @@ test("persistence routes save through active session sourceRef", async () => {
   await service.persistActiveSessionNow();
 
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].sourceRef.recordId, "game1.pgn");
-  assert.equal(calls[0].pgnText, "1. e4 e5 *");
+  assert.equal((calls[0] as { sourceRef: { recordId: string } }).sourceRef.recordId, "game1.pgn");
+  assert.equal((calls[0] as { pgnText: string }).pgnText, "1. e4 e5 *");
   assert.equal(session.revisionToken, "rev-2");
   assert.equal(session.dirtyState, "clean");
 });
 
 test("autosave is skipped when active session is manual mode", async () => {
-  const state = {
-    isHydratingGame: false,
-    saveRequestSeq: 0,
-    autosaveTimer: null,
-    defaultSaveMode: "auto",
-  };
   const session = {
     sessionId: "session-1",
     sourceRef: { kind: "file", locator: "root", recordId: "game1.pgn" },
@@ -56,8 +43,7 @@ test("autosave is skipped when active session is manual mode", async () => {
   };
   let called = false;
   const service = createSessionPersistenceService({
-    state,
-    t: (_key, fallback) => fallback,
+    t: (_key, fallback) => fallback ?? "",
     getActiveSession: () => session,
     updateActiveSessionMeta: (patch) => Object.assign(session, patch),
     getPgnText: () => "1. d4 d5 *",
@@ -77,26 +63,19 @@ test("autosave is skipped when active session is manual mode", async () => {
 });
 
 test("missing source is created on first persist for unsaved session", async () => {
-  const state = {
-    isHydratingGame: false,
-    saveRequestSeq: 0,
-    autosaveTimer: null,
-    defaultSaveMode: "auto",
-  };
   const session = {
     sessionId: "session-1",
-    sourceRef: null,
+    sourceRef: null as { kind: string; locator: string; recordId: string } | null,
     pendingResourceRef: { kind: "file", locator: "/tmp/games" },
     revisionToken: "",
     saveMode: "auto",
     dirtyState: "dirty",
     title: "New game",
   };
-  const saveCalls = [];
-  const ensureCalls = [];
+  const saveCalls: unknown[] = [];
+  const ensureCalls: unknown[] = [];
   const service = createSessionPersistenceService({
-    state,
-    t: (_key, fallback) => fallback,
+    t: (_key, fallback) => fallback ?? "",
     getActiveSession: () => session,
     updateActiveSessionMeta: (patch) => Object.assign(session, patch),
     getPgnText: () => "1. e4 *",
@@ -119,11 +98,10 @@ test("missing source is created on first persist for unsaved session", async () 
 
   assert.equal(ensureCalls.length, 1);
   assert.equal(saveCalls.length, 1);
-  assert.equal(saveCalls[0].sourceRef.recordId, "new-game.pgn");
-  assert.equal(saveCalls[0].revisionToken, "rev-created-1");
+  assert.equal((saveCalls[0] as { sourceRef: { recordId: string } }).sourceRef.recordId, "new-game.pgn");
+  assert.equal((saveCalls[0] as { revisionToken: string }).revisionToken, "rev-created-1");
   assert.deepEqual(session.sourceRef, { kind: "file", locator: "/tmp/games", recordId: "new-game.pgn" });
   assert.equal(session.pendingResourceRef, null);
   assert.equal(session.revisionToken, "rev-created-2");
   assert.equal(session.dirtyState, "clean");
 });
-

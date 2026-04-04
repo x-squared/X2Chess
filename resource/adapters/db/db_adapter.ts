@@ -12,13 +12,15 @@
  * Communication API:
  * - All I/O delegated to the injected `DbGateway`; no direct SQLite dependency.
  * - Implements `list`, `load`, `save`, `create` for the canonical `db` kind.
+ * - Implements `searchByMetadataValues` with `"any"` and `"all"` modes.
  */
 
 import { PgnResourceError } from "../../domain/actions";
-import type { PgnResourceAdapter, PgnSaveOptions } from "../../domain/contracts";
+import type { MetadataSearchMode, PgnResourceAdapter, PgnSaveOptions } from "../../domain/contracts";
 import type { PgnGameRef } from "../../domain/game_ref";
 import type { PgnResourceRef } from "../../domain/resource_ref";
 import type { PgnListGamesResult, PgnLoadGameResult, PgnSaveGameResult, PgnCreateGameResult } from "../../domain/actions";
+import type { MetadataKeyInfo, MetadataValueCardinality } from "../../domain/metadata_schema";
 import type { DbGateway } from "../../io/db_gateway";
 import { runMigrations } from "../../database/migrations/runner";
 import type { BuildPositionIndex } from "./position_index";
@@ -36,6 +38,10 @@ const ensureMigrated = async (db: DbGateway, dbPath: string): Promise<void> => {
   migratedPaths.add(dbPath);
 };
 
+// ── Primitive-safe string extraction ──────────────────────────────────────────
+
+const strOf = (v: unknown): string => typeof v === "string" ? v : "";
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const generateId = (): string => {
@@ -49,9 +55,11 @@ const generateRevisionToken = (): string =>
   `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 
 /** Derive display title from PGN metadata for list view. */
-const deriveTitle = (metadata: Record<string, string>, titleHint: string): string => {
-  const white = String(metadata.White || "").trim();
-  const black = String(metadata.Black || "").trim();
+const deriveTitle = (metadata: Record<string, string | string[]>, titleHint: string): string => {
+  const whiteRaw = metadata.White;
+  const blackRaw = metadata.Black;
+  const white = typeof whiteRaw === "string" ? whiteRaw.trim() : "";
+  const black = typeof blackRaw === "string" ? blackRaw.trim() : "";
   if (white && black && white !== "?" && black !== "?") return `${white} \u2013 ${black}`;
   if (titleHint) return titleHint;
   return "";
@@ -71,47 +79,91 @@ type GameRow = {
 const asGameRow = (r: unknown): GameRow => {
   const v = r as Record<string, unknown>;
   return {
-    id: String(v.id ?? ""),
-    title_hint: String(v.title_hint ?? ""),
-    revision_token: String(v.revision_token ?? ""),
-    order_index: Number(v.order_index ?? 0),
-    created_at: Number(v.created_at ?? 0),
-    kind: String(v.kind ?? "game"),
+    id:             strOf(v.id),
+    title_hint:     strOf(v.title_hint),
+    revision_token: strOf(v.revision_token),
+    order_index:    Number(v.order_index ?? 0),
+    created_at:     Number(v.created_at  ?? 0),
+    kind:           strOf(v.kind) || "game",
   };
 };
 
+const asGameRef = (r: unknown, dbPath: string): PgnGameRef => ({
+  kind: "db",
+  locator: dbPath,
+  recordId: strOf((r as Record<string, unknown>).game_id),
+});
+
 // ── Kind detection ─────────────────────────────────────────────────────────────
 
-/** Detect game kind from PGN text: 'position' if [SetUp "1"] is present. */
 const detectKind = (pgnText: string): string =>
   /\[SetUp\s+"1"\]/i.test(pgnText) ? "position" : "game";
 
 // ── Read-side metadata helpers ─────────────────────────────────────────────────
 
+const loadMetadataKeyInfos = async (db: DbGateway): Promise<MetadataKeyInfo[]> => {
+  const rows = await db.query("SELECT key, cardinality FROM metadata_keys ORDER BY key ASC");
+  return rows
+    .map((r) => {
+      const v = r as Record<string, unknown>;
+      const key = strOf(v.key);
+      const cardinality: MetadataValueCardinality = strOf(v.cardinality) === "many" ? "many" : "one";
+      return { key, cardinality };
+    })
+    .filter((info) => info.key !== "");
+};
+
+/** Append val_str into the correct slot of gameRecord depending on cardinality. */
+const applyMetaValue = (
+  gameRecord: Record<string, string | string[]>,
+  metaKey: string,
+  valStr: string,
+  cardinality: MetadataValueCardinality,
+): void => {
+  if (cardinality === "many") {
+    const existing = gameRecord[metaKey];
+    if (Array.isArray(existing)) {
+      existing.push(valStr);
+    } else {
+      gameRecord[metaKey] = [valStr];
+    }
+  } else {
+    // First row wins (ORDER BY ordinal ASC guarantees ordinal 0 arrives first).
+    gameRecord[metaKey] ??= valStr;
+  }
+};
+
 const loadMetadataForGames = async (
   db: DbGateway,
   gameIds: string[],
-): Promise<Map<string, Record<string, string>>> => {
-  const result = new Map<string, Record<string, string>>();
+  cardinalityMap: ReadonlyMap<string, MetadataValueCardinality>,
+): Promise<Map<string, Record<string, string | string[]>>> => {
+  const result = new Map<string, Record<string, string | string[]>>();
   if (gameIds.length === 0) return result;
 
   const placeholders = gameIds.map(() => "?").join(", ");
   const rows = await db.query(
-    `SELECT game_id, meta_key, val_str FROM game_metadata WHERE game_id IN (${placeholders})`,
+    `SELECT game_id, meta_key, ordinal, val_str
+       FROM game_metadata
+      WHERE game_id IN (${placeholders})
+      ORDER BY ordinal ASC`,
     gameIds,
   );
 
   for (const row of rows) {
     const { game_id, meta_key, val_str } = asMetaRow(row);
-    if (!result.has(game_id)) result.set(game_id, {});
-    if (val_str !== null) result.get(game_id)![meta_key] = val_str;
+    if (val_str === null) continue;
+
+    let gameRecord = result.get(game_id);
+    if (gameRecord === undefined) {
+      gameRecord = {};
+      result.set(game_id, gameRecord);
+    }
+
+    const cardinality = cardinalityMap.get(meta_key) ?? "one";
+    applyMetaValue(gameRecord, meta_key, val_str, cardinality);
   }
   return result;
-};
-
-const loadAvailableMetadataKeys = async (db: DbGateway): Promise<string[]> => {
-  const rows = await db.query("SELECT key FROM metadata_keys ORDER BY key ASC");
-  return rows.map((r) => String((r as Record<string, unknown>).key ?? "")).filter(Boolean);
 };
 
 // ── Adapter factory ────────────────────────────────────────────────────────────
@@ -147,8 +199,9 @@ export const createDbAdapter = (
     )).map(asGameRow);
 
     const gameIds = gameRows.map((r) => r.id);
-    const metaByGame = await loadMetadataForGames(db, gameIds);
-    const availableMetadataKeys = await loadAvailableMetadataKeys(db);
+    const keyInfos = await loadMetadataKeyInfos(db);
+    const cardinalityMap = new Map(keyInfos.map((i) => [i.key, i.cardinality]));
+    const metaByGame = await loadMetadataForGames(db, gameIds, cardinalityMap);
 
     return {
       entries: gameRows.map((row) => {
@@ -158,7 +211,8 @@ export const createDbAdapter = (
           title: deriveTitle(metadata, row.title_hint),
           revisionToken: row.revision_token,
           metadata,
-          availableMetadataKeys,
+          availableMetadataKeys: keyInfos.map((i) => i.key),
+          metadataKeyInfos: keyInfos,
           gameKind: row.kind === "position" ? "position" : "game",
         };
       }),
@@ -184,9 +238,9 @@ export const createDbAdapter = (
     const row = rows[0] as Record<string, unknown>;
     return {
       gameRef,
-      pgnText: String(row.pgn_text ?? ""),
-      revisionToken: String(row.revision_token ?? ""),
-      title: String(row.title_hint ?? ""),
+      pgnText:       strOf(row.pgn_text),
+      revisionToken: strOf(row.revision_token),
+      title:         strOf(row.title_hint),
     };
   },
 
@@ -204,14 +258,11 @@ export const createDbAdapter = (
     await ensureMigrated(db, dbPath);
 
     if (options?.expectedRevisionToken) {
-      const rows = await db.query(
-        "SELECT revision_token FROM games WHERE id = ?",
-        [gameId],
-      );
+      const rows = await db.query("SELECT revision_token FROM games WHERE id = ?", [gameId]);
       if (rows.length === 0) {
         throw new PgnResourceError("not_found", `Game ${gameId} not found in ${dbPath}.`);
       }
-      const stored = String((rows[0] as Record<string, unknown>).revision_token ?? "");
+      const stored = strOf((rows[0] as Record<string, unknown>).revision_token);
       if (stored !== options.expectedRevisionToken) {
         throw new PgnResourceError(
           "conflict",
@@ -250,7 +301,7 @@ export const createDbAdapter = (
 
     const maxRows = await db.query("SELECT MAX(order_index) AS max_order FROM games");
     const maxOrder = Number((maxRows[0] as Record<string, unknown>)?.max_order ?? -1);
-    const orderIndex = maxOrder + 1.0;
+    const orderIndex = maxOrder + 1;
 
     const id = generateId();
     const revisionToken = generateRevisionToken();
@@ -283,11 +334,7 @@ export const createDbAdapter = (
       "SELECT DISTINCT game_id FROM position_hashes WHERE hash = ?",
       [positionHash],
     );
-    return rows.map((r) => ({
-      kind: "db" as const,
-      locator: dbPath,
-      recordId: String((r as Record<string, unknown>).game_id ?? ""),
-    })).filter((ref) => ref.recordId !== "");
+    return rows.map((r) => asGameRef(r, dbPath)).filter((ref) => ref.recordId !== "");
   },
 
   explorePosition: async (positionHash: string, resourceRef: PgnResourceRef): Promise<MoveFrequencyEntry[]> => {
@@ -310,12 +357,12 @@ export const createDbAdapter = (
     return rows.map((r) => {
       const v = r as Record<string, unknown>;
       return {
-        san:        String(v.move_san   ?? ""),
-        uci:        String(v.move_uci   ?? ""),
-        count:      Number(v.count      ?? 0),
-        whiteWins:  Number(v.white_wins ?? 0),
-        draws:      Number(v.draws      ?? 0),
-        blackWins:  Number(v.black_wins ?? 0),
+        san:       strOf(v.move_san),
+        uci:       strOf(v.move_uci),
+        count:     Number(v.count      ?? 0),
+        whiteWins: Number(v.white_wins ?? 0),
+        draws:     Number(v.draws      ?? 0),
+        blackWins: Number(v.black_wins ?? 0),
       };
     }).filter((e) => e.san !== "");
   },
@@ -326,18 +373,54 @@ export const createDbAdapter = (
     if (!dbPath || !q) return [];
     const db = gatewayForPath(dbPath);
     await ensureMigrated(db, dbPath);
-    const pattern = `%${q}%`;
     const rows = await db.query(
       `SELECT DISTINCT game_id FROM game_metadata
        WHERE meta_key IN ('White', 'Black', 'Event', 'Site')
          AND LOWER(val_str) LIKE LOWER(?)`,
-      [pattern],
+      [`%${q}%`],
     );
-    return rows.map((r) => ({
-      kind: "db" as const,
-      locator: dbPath,
-      recordId: String((r as Record<string, unknown>).game_id ?? ""),
-    })).filter((ref) => ref.recordId !== "");
+    return rows.map((r) => asGameRef(r, dbPath)).filter((ref) => ref.recordId !== "");
+  },
+
+  /**
+   * Search for games where a metadata key matches one or more values.
+   *
+   * `"any"` mode: game must have at least one of the given values —
+   *   `WHERE meta_key = ? AND val_str IN (…)`.
+   *
+   * `"all"` mode: game must have every one of the given values —
+   *   `WHERE meta_key = ? AND val_str IN (…) GROUP BY game_id HAVING COUNT(DISTINCT val_str) = N`.
+   */
+  searchByMetadataValues: async (
+    key: string,
+    values: string[],
+    mode: MetadataSearchMode,
+    resourceRef: PgnResourceRef,
+  ): Promise<PgnGameRef[]> => {
+    const dbPath = String(resourceRef.locator || "").trim();
+    const cleanKey = String(key || "").trim();
+    if (!dbPath || !cleanKey || values.length === 0) return [];
+
+    const db = gatewayForPath(dbPath);
+    await ensureMigrated(db, dbPath);
+
+    const placeholders = values.map(() => "?").join(", ");
+    const params: unknown[] = [cleanKey, ...values];
+
+    let sql: string;
+    if (mode === "all") {
+      params.push(values.length);
+      sql = `SELECT game_id FROM game_metadata
+             WHERE meta_key = ? AND val_str IN (${placeholders})
+             GROUP BY game_id
+             HAVING COUNT(DISTINCT val_str) = ?`;
+    } else {
+      sql = `SELECT DISTINCT game_id FROM game_metadata
+             WHERE meta_key = ? AND val_str IN (${placeholders})`;
+    }
+
+    const rows = await db.query(sql, params);
+    return rows.map((r) => asGameRef(r, dbPath)).filter((ref) => ref.recordId !== "");
   },
 
   reorder: async (gameRef: PgnGameRef, neighborGameRef: PgnGameRef): Promise<void> => {

@@ -4,7 +4,7 @@ import type {
   PgnLoadGameResult,
   PgnSaveGameResult,
 } from "../domain/actions";
-import type { PgnSaveOptions } from "../domain/contracts";
+import type { MetadataSearchMode, PgnSaveOptions } from "../domain/contracts";
 import type { PgnGameRef } from "../domain/game_ref";
 import type { PgnResourceKind } from "../domain/kinds";
 import type { PgnResourceRef } from "../domain/resource_ref";
@@ -104,4 +104,23 @@ export type ResourceCapabilities = {
    * @param resourceRef Resource to query.
    */
   explorePosition: (positionHash: string, resourceRef: PgnResourceRef) => Promise<MoveFrequencyEntry[]>;
+
+  /**
+   * Search a resource for games where a metadata key matches one or more values.
+   * Returns an empty array when the adapter does not support structured metadata search.
+   *
+   * `mode: "any"` — game must have at least one of the given values for the key.
+   * `mode: "all"` — game must have every one of the given values for the key.
+   *
+   * @param key Metadata key to filter on (e.g. `"Character"`).
+   * @param values Values to match against.
+   * @param mode Whether any or all values must be present.
+   * @param resourceRef Resource to search within.
+   */
+  searchByMetadataValues: (
+    key: string,
+    values: string[],
+    mode: MetadataSearchMode,
+    resourceRef: PgnResourceRef,
+  ) => Promise<PgnGameRef[]>;
 };

@@ -19,4 +19,4 @@ Treat manuals as living specification in line with `.cursor/rules/manuals-as-spe
 ## Governance constraints
 
 - Prefer focused rules per manual over one large combined manual rule.
-- Keep each manual responsible for one concern with minimal overlap.
+- `doc/architecture-manual.qmd` is exempt from the minimal-overlap constraint: it is the one-stop technical reference and may contain all technical explanation for the project, even where topics also appear briefly elsewhere.

@@ -240,6 +240,26 @@ export const MenuPanel = (): ReactElement => {
           >
             {t("controls.webImportRules", "Web Import Rules…")}
           </button>
+
+          {/* Editor style */}
+          <button
+            id="btn-editor-style"
+            className="source-button"
+            type="button"
+            onClick={(): void => { services.setMenuOpen(false); services.openEditorStyleDialog(); }}
+          >
+            {t("controls.editorStyle", "Editor Style…")}
+          </button>
+
+          {/* Default Layout */}
+          <button
+            id="btn-default-layout-config"
+            className="source-button"
+            type="button"
+            onClick={(): void => { services.setMenuOpen(false); services.openDefaultLayoutDialog(); }}
+          >
+            {t("controls.defaultLayout", "Default Layout…")}
+          </button>
         </div>
 
         {webImportRulesOpen && (

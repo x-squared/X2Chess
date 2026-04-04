@@ -104,7 +104,7 @@ the same area) is a violation.
 ## Plan files (`dev/plans/`)
 
 - `state_management_refactor_b4f8a2c1.plan.md` — Tier 1+2 state fixes (shell pref triple-write, stale session metadata, session bypass, resource tab React state) — **implemented**
-- `state_management_tier3_e7c2b1a9.plan.md` — Tier 3: per-session `GameSessionState` objects + `ActiveSessionRef` (eliminates snapshot dance) — **ready to implement**
+- `state_management_tier3_e7c2b1a9.plan.md` — Tier 3: per-session `GameSessionState` objects + `ActiveSessionRef` (eliminates snapshot dance) — **implemented**
 - `codebase_health_7f3a91bc.plan.md` — 10-item health backlog (Items 1–8 done,
   Items 9–10 deferred)
 - `tree_text_editor_convergence_5ac46f02.plan.md` — tree/text/plain editor

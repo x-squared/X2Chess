@@ -569,6 +569,41 @@ fn main() {
     .plugin(tauri_plugin_process::init())
     .manage(DbState { connections: Mutex::new(HashMap::new()) })
     .manage(EngineState { engines: Mutex::new(HashMap::new()) })
+    .setup(|app| {
+      // Build the main window programmatically so we can optionally redirect all
+      // webview storage (localStorage, IndexedDB, cache) to a user-defined path.
+      //
+      // Set X2CHESS_WEBVIEW_DATA to any directory path to isolate storage from
+      // the OS default (~Library/WebKit/com.x2chess.app on macOS).  Useful for
+      // keeping a separate DEV profile that does not pollute the PROD data store.
+      //
+      // Example (from npm script or shell):
+      //   X2CHESS_WEBVIEW_DATA=../run/DEV/webview-data  tauri dev
+      let mut builder = tauri::WebviewWindowBuilder::new(
+        app,
+        "main",
+        tauri::WebviewUrl::App("index.html".into()),
+      )
+      .title("X2Chess")
+      .inner_size(1400.0, 1060.0)
+      .min_inner_size(980.0, 820.0)
+      // Disable Tauri's built-in file-drop interception so the web layer handles
+      // drop events directly (equivalent to dragDropEnabled: false in tauri.conf.json).
+      .disable_drag_drop_handler();
+
+      if let Ok(raw) = env::var("X2CHESS_WEBVIEW_DATA") {
+        let data_dir = PathBuf::from(&raw);
+        if let Err(e) = fs::create_dir_all(&data_dir) {
+          eprintln!("[x2chess] WARNING: could not create X2CHESS_WEBVIEW_DATA directory {raw:?}: {e}");
+        } else {
+          builder = builder.data_directory(data_dir);
+          eprintln!("[x2chess] Webview data directory: {raw}");
+        }
+      }
+
+      builder.build()?;
+      Ok(())
+    })
     .invoke_handler(tauri::generate_handler![
       detect_default_games_directory,
       pick_games_directory,

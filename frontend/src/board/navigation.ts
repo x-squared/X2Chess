@@ -14,11 +14,13 @@ import type { ActiveSessionRef } from "../game_sessions/game_session_state";
  *   (for example `deps`, `sessionRef`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - This module communicates through `sessionRef.current`; interactions are explicit in
- *   exported function signatures and typed callback contracts.
+ * - Navigation state changes are reported via `onNavigationChange` rather than a
+ *   generic `render` callback.  Animation tracking state is internal to this module.
  */
 
 type MoveCommentSide = "before" | "after";
+
+type BoardPreviewValue = { fen: string; lastMove?: [string, string] | null } | null;
 
 type CreateBoardNavigationDeps = {
   sessionRef: ActiveSessionRef;
@@ -32,7 +34,8 @@ type CreateBoardNavigationDeps = {
   findCommentIdAroundMove: (moveId: string, position: MoveCommentSide) => string | null;
   focusCommentById: (commentId: string) => boolean;
   playMoveSound: (soundType: ChessSoundType) => Promise<void>;
-  render: () => void;
+  /** Called after currentPly, selectedMoveId, or boardPreview change. */
+  onNavigationChange: (currentPly: number, selectedMoveId: string | null, boardPreview: BoardPreviewValue) => void;
 };
 
 type BoardNavigationCapabilities = {
@@ -55,8 +58,18 @@ export const createBoardNavigationCapabilities = ({
   findCommentIdAroundMove,
   focusCommentById,
   playMoveSound,
-  render,
+  onNavigationChange,
 }: CreateBoardNavigationDeps): BoardNavigationCapabilities => {
+  // Animation tracking state is internal — not part of session state.
+  let animationRunId = 0;
+  let isAnimating = false;
+
+  const dispatchNavigation = (): void => {
+    const g = sessionRef.current;
+    const bp = g.boardPreview as BoardPreviewValue;
+    onNavigationChange(g.currentPly, g.selectedMoveId, bp);
+  };
+
   /**
    * Resolve sound type for the current stepped move.
    */
@@ -112,25 +125,25 @@ export const createBoardNavigationCapabilities = ({
     if (bounded === g.currentPly) return;
 
     if (!animate) {
-      g.animationRunId += 1;
-      g.isAnimating = false;
+      animationRunId += 1;
+      isAnimating = false;
       g.boardPreview = null;
       g.currentPly = bounded;
-      render();
+      dispatchNavigation();
       return;
     }
 
     const direction = bounded > g.currentPly ? 1 : -1;
-    const runId = ++g.animationRunId;
+    const runId = ++animationRunId;
     g.boardPreview = null;
-    g.isAnimating = true;
-    render();
+    isAnimating = true;
+    dispatchNavigation();
 
     try {
       while (sessionRef.current.currentPly !== bounded) {
-        if (runId !== sessionRef.current.animationRunId) return;
+        if (runId !== animationRunId) return;
         sessionRef.current.currentPly += direction;
-        render();
+        dispatchNavigation();
         const movedSan = direction > 0
           ? sessionRef.current.moves[sessionRef.current.currentPly - 1]
           : sessionRef.current.moves[sessionRef.current.currentPly];
@@ -141,9 +154,9 @@ export const createBoardNavigationCapabilities = ({
         }
       }
     } finally {
-      if (runId === sessionRef.current.animationRunId) {
-        sessionRef.current.isAnimating = false;
-        render();
+      if (runId === animationRunId) {
+        isAnimating = false;
+        dispatchNavigation();
       }
     }
   };
@@ -231,9 +244,13 @@ export const createBoardNavigationCapabilities = ({
     return true;
   };
 
+  // Expose isAnimating as a getter so the host can read it without it being session state.
+  const getIsAnimating = (): boolean => isAnimating;
+
   return {
     gotoPly,
     gotoRelativeStep,
     handleSelectedMoveArrowHotkey,
-  };
+    getIsAnimating,
+  } as BoardNavigationCapabilities & { getIsAnimating: () => boolean };
 };

@@ -124,3 +124,6 @@ The rework-phase is done by the agent.
 | 23 | [23_IMPORT.md](23_IMPORT.md) | IMPORT | Format importers (EPD, ChessBase) |
 | 24 | [24_DEVTOOLS.md](24_DEVTOOLS.md) | DEVTOOLS | Developer tools dock |
 | 25 | [25_KB.md](25_KB.md) | KB | Keyboard shortcuts |
+| 26 | [26_PREFS.md](26_PREFS.md) | PREFS | Startup preferences — defaults vs. user-saved |
+| 27 | [27_EDITORSTYLE.md](27_EDITORSTYLE.md) | EDITORSTYLE | Editor style dialog — font, sidebar, colours, per-mode controls, preview |
+| 28 | [28_DEFAULTLAYOUT.md](28_DEFAULTLAYOUT.md) | DEFAULTLAYOUT | Default Layout — toolbar button, apply behaviour, configuration dialog |

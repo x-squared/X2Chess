@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { appReducer, initialAppStoreState } from "../../src/state/app_reducer.js";
-import type { AppStoreState, SessionItemState, ResourceTabSnapshot } from "../../src/state/app_reducer.js";
+import type { SessionItemState, ResourceTabSnapshot } from "../../src/state/app_reducer.js";
 import { parsePgnToModel } from "../../src/model/pgn_model.js";
 
 const s = initialAppStoreState;
@@ -45,23 +45,6 @@ test("toggle_board_flip — flips board", () => {
   assert.equal(unflipped.boardFlipped, false);
 });
 
-test("set_current_ply — updates ply", () => {
-  const next = appReducer(s, { type: "set_current_ply", ply: 5 });
-  assert.equal(next.currentPly, 5);
-});
-
-test("set_move_count — updates move count", () => {
-  const next = appReducer(s, { type: "set_move_count", count: 40 });
-  assert.equal(next.moveCount, 40);
-});
-
-test("set_selected_move_id — sets and clears selected move", () => {
-  const withMove = appReducer(s, { type: "set_selected_move_id", id: "move_1" });
-  assert.equal(withMove.selectedMoveId, "move_1");
-  const cleared = appReducer(withMove, { type: "set_selected_move_id", id: null });
-  assert.equal(cleared.selectedMoveId, null);
-});
-
 test("set_move_delay_ms — updates delay", () => {
   const next = appReducer(s, { type: "set_move_delay_ms", value: 500 });
   assert.equal(next.moveDelayMs, 500);
@@ -70,11 +53,6 @@ test("set_move_delay_ms — updates delay", () => {
 test("set_sound_enabled — disables sound", () => {
   const next = appReducer(s, { type: "set_sound_enabled", enabled: false });
   assert.equal(next.soundEnabled, false);
-});
-
-test("set_status_message — updates status message", () => {
-  const next = appReducer(s, { type: "set_status_message", message: "Saved" });
-  assert.equal(next.statusMessage, "Saved");
 });
 
 test("set_error_message — updates error message", () => {
@@ -94,93 +72,12 @@ test("set_show_eval_pills — toggles eval pills", () => {
   assert.equal(next.showEvalPills, false);
 });
 
-test("set_pgn — atomically updates pgn text, model, moves, length, and move count", () => {
-  const model = parsePgnToModel("1. e4 e5 2. Nf3");
-  const next = appReducer(s, {
-    type: "set_pgn",
-    pgnText: "1. e4 e5 2. Nf3",
-    pgnModel: model,
-    moves: ["e4", "e5", "Nf3"],
-  });
-  assert.equal(next.pgnText, "1. e4 e5 2. Nf3");
-  assert.equal(next.pgnModel, model);
-  assert.deepEqual(next.moves, ["e4", "e5", "Nf3"]);
-  assert.equal(next.pgnTextLength, "1. e4 e5 2. Nf3".length);
-  assert.equal(next.moveCount, 3);
-});
-
-test("set_pending_focus_comment_id — sets and clears pending focus id", () => {
-  const withId = appReducer(s, { type: "set_pending_focus_comment_id", id: "comment_1" });
-  assert.equal(withId.pendingFocusCommentId, "comment_1");
-  const cleared = appReducer(withId, { type: "set_pending_focus_comment_id", id: null });
-  assert.equal(cleared.pendingFocusCommentId, null);
-});
-
 test("set_game_info_editor_open — opens and closes editor", () => {
   const opened = appReducer(s, { type: "set_game_info_editor_open", open: true });
   assert.equal(opened.isGameInfoEditorOpen, true);
 });
 
-test("set_undo_redo — updates depths", () => {
-  const next = appReducer(s, { type: "set_undo_redo", undoDepth: 3, redoDepth: 1 });
-  assert.equal(next.undoDepth, 3);
-  assert.equal(next.redoDepth, 1);
-});
-
-// ── Sessions ────────────────────────────────────────────────────────────────���──
-
-test("set_sessions — updates sessions, count, titles, and activeSessionId", () => {
-  const sessions: SessionItemState[] = [
-    {
-      sessionId: "s1", title: "Game 1", dirtyState: "clean", saveMode: "auto",
-      isActive: true, isUnsaved: false, white: "", black: "", event: "", date: "",
-      sourceLocator: "", sourceGameRef: "",
-    },
-    {
-      sessionId: "s2", title: "Game 2", dirtyState: "clean", saveMode: "manual",
-      isActive: false, isUnsaved: true, white: "", black: "", event: "", date: "",
-      sourceLocator: "", sourceGameRef: "",
-    },
-  ];
-  const next = appReducer(s, { type: "set_sessions", sessions, activeSessionId: "s1" });
-  assert.equal(next.sessions, sessions);
-  assert.equal(next.sessionCount, 2);
-  assert.deepEqual(next.sessionTitles, ["Game 1", "Game 2"]);
-  assert.equal(next.activeSessionId, "s1");
-});
-
-// ── Resource viewer ────────────────────────────────────────────────────────────
-
-test("set_resource_tabs — updates all tab-related fields", () => {
-  const tabs: ResourceTabSnapshot[] = [
-    { tabId: "tab1", title: "My Games", kind: "directory", locator: "/games" },
-    { tabId: "tab2", title: "DB", kind: "db", locator: "main.db" },
-  ];
-  const next = appReducer(s, { type: "set_resource_tabs", tabs, activeTabId: "tab1" });
-  assert.equal(next.resourceViewerTabSnapshots, tabs);
-  assert.equal(next.resourceTabCount, 2);
-  assert.equal(next.activeResourceTabId, "tab1");
-  assert.equal(next.activeResourceTabTitle, "My Games");
-  assert.equal(next.activeResourceTabKind, "directory");
-  assert.equal(next.activeResourceTabLocator, "/games");
-});
-
-test("set_resource_tabs — active tab not found clears title/kind/locator", () => {
-  const tabs: ResourceTabSnapshot[] = [
-    { tabId: "tab1", title: "Games", kind: "directory", locator: "/g" },
-  ];
-  const next = appReducer(s, { type: "set_resource_tabs", tabs, activeTabId: "no-match" });
-  assert.equal(next.activeResourceTabTitle, "");
-  assert.equal(next.activeResourceTabKind, "");
-  assert.equal(next.activeResourceTabLocator, "");
-});
-
-test("set_active_resource_data — updates row count and error message", () => {
-  const next = appReducer(s, { type: "set_active_resource_data", rowCount: 42, errorMessage: "" });
-  assert.equal(next.activeResourceRowCount, 42);
-});
-
-// ── Board preview ──────────────────────────────────────────────────────────────
+// ── Board preview (direct component dispatch) ──────────────────────────────────
 
 test("set_board_preview — sets and clears board preview", () => {
   const preview = { fen: "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2" };
@@ -188,6 +85,140 @@ test("set_board_preview — sets and clears board preview", () => {
   assert.deepEqual(withPreview.boardPreview, preview);
   const cleared = appReducer(withPreview, { type: "set_board_preview", preview: null });
   assert.equal(cleared.boardPreview, null);
+});
+
+// ── Fine-grained session state actions ────────────────────────────────────────
+
+const makeSessions = (): SessionItemState[] => [
+  {
+    sessionId: "s1", title: "Game 1", dirtyState: "clean", saveMode: "auto",
+    isActive: true, isUnsaved: false, white: "", black: "", event: "", date: "",
+    sourceLocator: "", sourceGameRef: "",
+  },
+  {
+    sessionId: "s2", title: "Game 2", dirtyState: "clean", saveMode: "manual",
+    isActive: false, isUnsaved: true, white: "", black: "", event: "", date: "",
+    sourceLocator: "", sourceGameRef: "",
+  },
+];
+
+const makeTabs = (): ResourceTabSnapshot[] => [
+  { tabId: "tab1", title: "My Games", kind: "directory", locator: "/games" },
+  { tabId: "tab2", title: "DB", kind: "db", locator: "main.db" },
+];
+
+test("set_pgn_state — updates PGN fields", () => {
+  const pgnText = "1. e4 e5 2. Nf3";
+  const next = appReducer(s, {
+    type: "set_pgn_state",
+    pgnText,
+    pgnModel: parsePgnToModel(pgnText),
+    moves: ["e4", "e5", "Nf3"],
+    pgnTextLength: pgnText.length,
+    moveCount: 3,
+  });
+  assert.equal(next.pgnText, pgnText);
+  assert.equal(next.pgnTextLength, pgnText.length);
+  assert.deepEqual(next.moves, ["e4", "e5", "Nf3"]);
+  assert.equal(next.moveCount, 3);
+});
+
+test("set_pgn_state — null pgnModel resets model", () => {
+  const next = appReducer(s, {
+    type: "set_pgn_state",
+    pgnText: "",
+    pgnModel: null,
+    moves: [],
+    pgnTextLength: 0,
+    moveCount: 0,
+  });
+  assert.equal(next.pgnModel, null);
+  assert.equal(next.pgnText, "");
+  assert.equal(next.moveCount, 0);
+});
+
+test("set_navigation — updates ply, selectedMoveId, and boardPreview", () => {
+  const preview = { fen: "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1" };
+  const next = appReducer(s, {
+    type: "set_navigation",
+    currentPly: 2,
+    selectedMoveId: "move_2",
+    boardPreview: preview,
+  });
+  assert.equal(next.currentPly, 2);
+  assert.equal(next.selectedMoveId, "move_2");
+  assert.deepEqual(next.boardPreview, preview);
+});
+
+test("set_navigation — null boardPreview clears preview", () => {
+  const next = appReducer(s, {
+    type: "set_navigation",
+    currentPly: 0,
+    selectedMoveId: null,
+    boardPreview: null,
+  });
+  assert.equal(next.boardPreview, null);
+});
+
+test("set_undo_redo_depth — updates undo and redo depths", () => {
+  const next = appReducer(s, { type: "set_undo_redo_depth", undoDepth: 5, redoDepth: 2 });
+  assert.equal(next.undoDepth, 5);
+  assert.equal(next.redoDepth, 2);
+});
+
+test("set_status_message — updates status message", () => {
+  const next = appReducer(s, { type: "set_status_message", message: "Saved" });
+  assert.equal(next.statusMessage, "Saved");
+});
+
+test("set_pending_focus — sets and clears pending focus comment id", () => {
+  const withFocus = appReducer(s, { type: "set_pending_focus", commentId: "c1" });
+  assert.equal(withFocus.pendingFocusCommentId, "c1");
+  const cleared = appReducer(withFocus, { type: "set_pending_focus", commentId: null });
+  assert.equal(cleared.pendingFocusCommentId, null);
+});
+
+test("set_sessions — updates sessions, count, titles, and activeSessionId", () => {
+  const next = appReducer(s, {
+    type: "set_sessions",
+    sessions: makeSessions(),
+    activeSessionId: "s1",
+  });
+  assert.equal(next.sessionCount, 2);
+  assert.deepEqual(next.sessionTitles, ["Game 1", "Game 2"]);
+  assert.equal(next.activeSessionId, "s1");
+});
+
+test("set_resource_viewer — updates all resource tab fields from active tab", () => {
+  const next = appReducer(s, {
+    type: "set_resource_viewer",
+    resourceTabs: makeTabs(),
+    activeResourceTabId: "tab1",
+    activeResourceRowCount: 42,
+    activeResourceErrorMessage: "",
+    activeSourceKind: "directory",
+  });
+  assert.equal(next.resourceTabCount, 2);
+  assert.equal(next.activeResourceTabId, "tab1");
+  assert.equal(next.activeResourceTabTitle, "My Games");
+  assert.equal(next.activeResourceTabKind, "directory");
+  assert.equal(next.activeResourceTabLocator, "/games");
+  assert.equal(next.activeResourceRowCount, 42);
+  assert.equal(next.activeSourceKind, "directory");
+});
+
+test("set_resource_viewer — active tab not found clears title/kind/locator", () => {
+  const next = appReducer(s, {
+    type: "set_resource_viewer",
+    resourceTabs: makeTabs(),
+    activeResourceTabId: "no-match",
+    activeResourceRowCount: 0,
+    activeResourceErrorMessage: "",
+    activeSourceKind: "directory",
+  });
+  assert.equal(next.activeResourceTabTitle, "");
+  assert.equal(next.activeResourceTabKind, "");
+  assert.equal(next.activeResourceTabLocator, "");
 });
 
 // ── Immutability ───────────────────────────────────────────────────────────────

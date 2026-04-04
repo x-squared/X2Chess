@@ -13,8 +13,23 @@
  *   exported function signatures and typed callback contracts.
  */
 
-const VISUAL_ASSET_STORAGE_PREFIX = "chess-app:visual-asset:v2:";
+import { createVersionedStore } from "../storage";
+
 const VISUAL_ASSET_FETCH_TIMEOUT_MS = 4000;
+
+// ── Asset data-URL cache (versioned localStorage store) ──────────────────────
+// Keys are asset key strings (e.g. "board-image"); values are data: URLs.
+type AssetCacheRecord = Record<string, string>;
+
+const assetCacheStore = createVersionedStore<AssetCacheRecord>({
+  key: "x2chess.visual-assets",
+  version: 1,
+  defaultValue: {},
+  migrations: [
+    // v0→v1: no prior value at this key — start with an empty cache.
+    (): AssetCacheRecord => ({}),
+  ],
+});
 
 type VisualAsset = {
   key: string;
@@ -106,19 +121,14 @@ const VISUAL_ASSETS: VisualAsset[] = [
 
 const toCssUrlValue = (url: string): string => `url("${String(url).replace(/"/g, '\\"')}")`;
 
-const readAssetCache = (cacheKey: string): string | null => {
-  try {
-    return window.localStorage.getItem(`${VISUAL_ASSET_STORAGE_PREFIX}${cacheKey}`);
-  } catch {
-    return null;
-  }
-};
+const readAssetCache = (cacheKey: string): string | null =>
+  assetCacheStore.read()[cacheKey] ?? null;
 
 const writeAssetCache = (cacheKey: string, value: string): void => {
   try {
-    window.localStorage.setItem(`${VISUAL_ASSET_STORAGE_PREFIX}${cacheKey}`, value);
+    assetCacheStore.write({ ...assetCacheStore.read(), [cacheKey]: value });
   } catch {
-    // Ignore quota/private-mode storage errors and keep runtime fallback behavior.
+    // Ignore quota/private-mode storage errors.
   }
 };
 

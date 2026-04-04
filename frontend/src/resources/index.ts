@@ -7,17 +7,9 @@ import type { PgnResourceRef } from "../../../resource/domain/resource_ref";
 import type { PositionSearchHit, TextSearchHit } from "../../../resource/client/search_coordinator";
 import type { MoveFrequencyEntry } from "../../../resource/domain/move_frequency";
 
-type ResourcesState = {
-  gameDirectoryHandle: unknown | null;
-  gameRootPath: string;
-  gameDirectoryPath: string;
-  activeSourceKind: string;
-  appMode: string;
-  playerStore: PlayerRecord[];
-};
-
 type ResourcesDeps = {
-  state: ResourcesState;
+  appMode?: string;
+  initialPlayerStore?: PlayerRecord[];
   t: (key: string, fallback?: string) => string;
   onSetSaveStatus: (message?: string, kind?: string) => void;
   onApplyRuntimeConfig: (config: Record<string, unknown>) => void;
@@ -34,7 +26,8 @@ type CreateResult = Awaited<ReturnType<SourceGateway["createGameInResource"]>>;
 type ChooseResourceResult = Awaited<ReturnType<SourceGateway["chooseResourceByPicker"]>>;
 
 export const createResourcesCapabilities = ({
-  state,
+  appMode = "DEV",
+  initialPlayerStore = [],
   t,
   onSetSaveStatus,
   onApplyRuntimeConfig,
@@ -42,9 +35,20 @@ export const createResourcesCapabilities = ({
   onInitializeWithDefaultPgn,
   pgnInput,
 }: ResourcesDeps) => {
-  const runtimeConfigService = createRuntimeConfigService({ state });
-  const playerStoreService = createPlayerStoreService({ state });
-  const sourceGateway: SourceGateway = createSourceGateway({ state });
+  // ── Internal state (not injected from outside) ────────────────────────────
+  const resourcesState = {
+    gameDirectoryHandle: null as unknown,
+    gameRootPath: "",
+    gameDirectoryPath: "",
+    activeSourceKind: "directory",
+    appMode,
+    appConfig: {} as Record<string, unknown>,
+    playerStore: [...initialPlayerStore] as PlayerRecord[],
+  };
+
+  const runtimeConfigService = createRuntimeConfigService({ state: resourcesState });
+  const playerStoreService = createPlayerStoreService({ state: resourcesState });
+  const sourceGateway: SourceGateway = createSourceGateway({ state: resourcesState });
 
   const listSourceGames = async (kind: string = "file"): Promise<ListEntry[]> => sourceGateway.listGames(kind);
 
@@ -166,10 +170,25 @@ export const createResourcesCapabilities = ({
 
   void onInitializeWithDefaultPgn;
 
+  const getActiveSourceKind = (): string => resourcesState.activeSourceKind;
+  const setAppConfig = (config: Record<string, unknown>): void => { resourcesState.appConfig = config; };
+  const getPlayerStore = (): PlayerRecord[] => [...resourcesState.playerStore];
+  const addPlayerRecord = (record: PlayerRecord): void => {
+    const storeKey = `${record.lastName.toLowerCase()}|${record.firstName.toLowerCase()}`;
+    const exists = resourcesState.playerStore.some(
+      (p: PlayerRecord): boolean =>
+        `${p.lastName.toLowerCase()}|${p.firstName.toLowerCase()}` === storeKey,
+    );
+    if (!exists) resourcesState.playerStore.push(record);
+  };
+
   return {
+    addPlayerRecord,
     chooseClientGamesFolder,
     chooseResourceByPicker,
+    getActiveSourceKind,
     getAvailableSourceKinds: (): string[] => sourceGateway.getAdapterKinds(),
+    getPlayerStore,
     listGamesForResource,
     reorderGameInResource,
     listSourceGames,
@@ -183,5 +202,6 @@ export const createResourcesCapabilities = ({
     searchByPositionAcross,
     searchTextAcross,
     explorePositionAcross,
+    setAppConfig,
   };
 };

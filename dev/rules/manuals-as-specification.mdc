@@ -25,5 +25,6 @@ Project manuals are the living specification for this app.
 
 ## Quality constraints
 
-- Keep manuals concise, actionable, and consistent with actual app behavior.
+- `doc/architecture-manual.qmd` is the single technical reference for this project. Prefer depth and completeness over brevity there — all technical explanation belongs in that file, not spread across separate documents.
+- Other manuals (setup, user-facing) should remain focused and concise.
 - Prefer explicit statements of expected behavior over ambiguous descriptions.

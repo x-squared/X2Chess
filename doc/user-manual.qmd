@@ -141,14 +141,50 @@ The text editor is the primary surface for reading and editing game notation.
 Use the **Plain / Text / Tree** buttons in the toolbar to switch layout:
 
 - **Plain** — compact, literal PGN notation, close to the raw file format.
+  Comments are shown verbatim; no formatting markers are interpreted.
 - **Text** — narrative layout with line breaks and indentation for readability.
-  Uses `[[br]]` and `[[indent]]` markers in comments to control formatting.
-- **Tree** — structured view emphasising variation branching (same rendering as
-  Text for now).
-  The first comment in each branch is shown as the branch introduction before
-  branch moves.
-  Tree branches are visualized with black connector lines: vertical trunks per
-  depth and horizontal branches connecting branch pills to deeper levels.
+  The `[[br]]` marker inside a comment inserts a visible line break; `[[indent]]`
+  nests the comment and its variation into an indented block.
+- **Tree** — structured view emphasising variation branching.  Each variation
+  appears as its own block, opened by a labelled pill button (e.g. **A**, **B.1**).
+  Formatting markers are shown as greyed literal text rather than applied.
+
+### The intro section
+
+In **Text** and **Tree** mode, the comment that appears *before the very first
+move* of a game (or variation) is automatically styled as the **intro section**
+— a visually distinct block with a sidebar accent and a tinted background.
+This makes it easy to write an introductory paragraph about a game or variation:
+just put the comment before the first move and it will be highlighted.
+
+No special markup is needed — the position in the notation is all that matters.
+If the first comment comes *after* the first move it is treated as a normal
+comment.
+
+In Tree mode every variation branch gets its own intro comment independently,
+so you can open each branch with a short description.
+
+**Example PGN** — the opening comment automatically becomes the intro:
+```
+[White "Kasparov"]
+[Black "Deep Blue"]
+
+{ This game was the decisive encounter of the 1997 match. }
+1. e4 e5 2. Nf3 ...
+```
+
+### Formatting markers (`[[br]]` and `[[indent]]`)
+
+These two markers are only processed in **Text** mode; they are stored as plain
+text in the PGN file and are visible but greyed out in Tree mode.
+
+| Marker | Effect in Text mode |
+|---|---|
+| `[[br]]` | Inserts a line break at that point in the comment. |
+| `[[indent]]` | Nests the comment (and the variation it belongs to) one level deeper, adding a left indent guide. |
+
+Multiple `[[indent]]` markers in the same comment increase the nesting level
+further.
 
 ### Adding and editing comments
 

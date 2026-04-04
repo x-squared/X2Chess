@@ -46,6 +46,8 @@ import {
   selectActiveSessionId,
   selectDevToolsEnabled,
   selectShapePrefs,
+  selectEditorStylePrefs,
+  selectDefaultLayoutPrefs,
 } from "../../state/selectors";
 import { useTranslator } from "../../hooks/useTranslator";
 import { useAppStartup } from "../../hooks/useAppStartup";
@@ -53,6 +55,8 @@ import { useEngineAnalysis } from "../../hooks/useEngineAnalysis";
 import { useOpeningExplorer } from "../../hooks/useOpeningExplorer";
 import { useExtDatabaseSettings } from "../../hooks/useExtDatabaseSettings";
 import { ExtDatabaseSettingsDialog } from "../settings/ExtDatabaseSettingsDialog";
+import { EditorStyleDialog } from "../settings/EditorStyleDialog";
+import { DefaultLayoutDialog } from "../settings/DefaultLayoutDialog";
 import { useTablebaseProbe } from "../../hooks/useTablebaseProbe";
 import { useVsEngine } from "../../hooks/useVsEngine";
 import { useGameAnnotation } from "../../hooks/useGameAnnotation";
@@ -149,6 +153,11 @@ export const AppShell = (): ReactElement => {
   // G9: batch game annotation
   const gameAnnotation = useGameAnnotation(findBestMove);
   const [showAnnotateDialog, setShowAnnotateDialog] = useState(false);
+
+  // Editor style dialog
+  const [showEditorStyleDialog, setShowEditorStyleDialog] = useState(false);
+  // Default Layout dialog
+  const [showDefaultLayoutDialog, setShowDefaultLayoutDialog] = useState(false);
 
   // Sync vs-engine board position to boardPreview.
   useEffect((): void => {
@@ -346,6 +355,8 @@ export const AppShell = (): ReactElement => {
   const services: AppStartupServices = {
     ...rawServices,
     openCurriculumPanel: (): void => { training.setShowCurriculumPanel(true); },
+    openEditorStyleDialog: (): void => { setShowEditorStyleDialog(true); },
+    openDefaultLayoutDialog: (): void => { setShowDefaultLayoutDialog(true); },
     switchSession: navigateGuard.switchSession,
     closeSession: navigateGuard.closeSession,
   };
@@ -395,6 +406,26 @@ export const AppShell = (): ReactElement => {
     openPgnText: (pgnText: string, options?: Parameters<typeof services.openPgnText>[1]): void => { services.openPgnText(pgnText, options); },
     resolveUrl,
   });
+
+  // Guard app close when any session has unsaved edits (M9).
+  // A ref carries the current value so the handler registered once always reads
+  // the latest state without needing to re-register.
+  const hasUnsavedRef = useRef(false);
+  useEffect((): void => {
+    hasUnsavedRef.current = sessions.some(
+      (s) => s.dirtyState === "dirty" || s.dirtyState === "error",
+    );
+  }, [sessions]);
+  useEffect((): (() => void) => {
+    const handler = (e: BeforeUnloadEvent): void => {
+      if (!hasUnsavedRef.current) return;
+      e.preventDefault();
+      // returnValue is required for the browser dialog to appear.
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return (): void => { window.removeEventListener("beforeunload", handler); };
+  }, []);
 
   // Ctrl/Cmd+S — save active game.
   // Ctrl/Cmd+Z — undo.  Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y — redo.  (M5)
@@ -582,6 +613,7 @@ export const AppShell = (): ReactElement => {
                   t={t}
                   onSetLayoutMode={(mode): void => { services.setLayoutMode(mode); }}
                   onApplyDefaultIndent={(): void => { services.applyDefaultIndent(); }}
+                  onOpenDefaultLayoutConfig={(): void => { services.openDefaultLayoutDialog(); }}
                   onSave={(): void => { services.saveActiveGameNow(); }}
                   onUndo={(): void => { services.undo(); }}
                   onRedo={(): void => { services.redo(); }}
@@ -734,6 +766,26 @@ export const AppShell = (): ReactElement => {
               </div>
             </div>
           </dialog>
+        )}
+
+        {/* ── Editor style dialog ── */}
+        {showEditorStyleDialog && (
+          <EditorStyleDialog
+            prefs={selectEditorStylePrefs(state)}
+            pgnModel={selectPgnModel(state)}
+            initialLayoutMode={layoutMode}
+            onSave={(prefs): void => { services.setEditorStylePrefs(prefs); }}
+            onClose={(): void => { setShowEditorStyleDialog(false); }}
+          />
+        )}
+
+        {/* ── Default Layout dialog ── */}
+        {showDefaultLayoutDialog && (
+          <DefaultLayoutDialog
+            prefs={selectDefaultLayoutPrefs(state)}
+            onSave={(prefs): void => { services.setDefaultLayoutPrefs(prefs); }}
+            onClose={(): void => { setShowDefaultLayoutDialog(false); }}
+          />
         )}
 
         {/* ── Training dialogs ── */}

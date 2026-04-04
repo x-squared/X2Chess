@@ -26,6 +26,8 @@ import type { MoveFrequencyEntry } from "../../../resource/domain/move_frequency
 import type { PgnResourceRef } from "../../../resource/domain/resource_ref";
 import type { BoardShape } from "../board/board_shapes";
 import type { ShapePrefs } from "../runtime/shape_prefs";
+import type { EditorStylePrefs } from "../runtime/editor_style_prefs";
+import type { DefaultLayoutPrefs } from "../runtime/default_layout_prefs";
 
 /** All service operations available to the component tree. */
 export type AppStartupServices = {
@@ -191,6 +193,10 @@ export type AppStartupServices = {
   /** Open the training curriculum panel (.x2plan). */
   openCurriculumPanel: () => void;
   setMenuOpen: (open: boolean) => void;
+  /** Open the editor style configuration dialog. */
+  openEditorStyleDialog: () => void;
+  /** Open the Default Layout configuration dialog. */
+  openDefaultLayoutDialog: () => void;
   setDevDockOpen: (open: boolean) => void;
   setActiveDevTab: (tab: "ast") => void;
   setLayoutMode: (mode: "plain" | "text" | "tree") => void;
@@ -207,6 +213,18 @@ export type AppStartupServices = {
    * @param prefs - Complete new preferences object.
    */
   setShapePrefs: (prefs: ShapePrefs) => void;
+  /**
+   * Persist updated PGN text editor visual style preferences to localStorage
+   * and propagate into app state.
+   * @param prefs - Complete new preferences object.
+   */
+  setEditorStylePrefs: (prefs: EditorStylePrefs) => void;
+  /**
+   * Persist updated Default Layout behaviour preferences to localStorage
+   * and propagate into app state.
+   * @param prefs - Complete new preferences object.
+   */
+  setDefaultLayoutPrefs: (prefs: DefaultLayoutPrefs) => void;
   setSaveMode: (mode: string) => void;
   saveActiveGameNow: () => void;
   /**
@@ -228,7 +246,7 @@ const defaultServices: AppStartupServices = {
   gotoMoveById: noop,
   handleEditorArrowHotkey: (): boolean => false,
   loadPgnText: noop,
-  insertComment: (): null => null as null,
+  insertComment: (): null => null,
   focusCommentAroundMove: noop,
   saveCommentText: noop,
   applyDefaultIndent: noop,
@@ -252,6 +270,8 @@ const defaultServices: AppStartupServices = {
   closeSession: noop,
   openCurriculumPanel: noop,
   setMenuOpen: noop,
+  openEditorStyleDialog: noop,
+  openDefaultLayoutDialog: noop,
   setDevDockOpen: noop,
   setActiveDevTab: noop,
   setLayoutMode: noop,
@@ -262,6 +282,8 @@ const defaultServices: AppStartupServices = {
   setPositionPreviewOnHover: noop,
   setDeveloperToolsEnabled: noop,
   setShapePrefs: noop,
+  setEditorStylePrefs: noop,
+  setDefaultLayoutPrefs: noop,
   setSaveMode: noop,
   saveActiveGameNow: noop,
   saveSessionById: noop,

@@ -16,7 +16,8 @@
  *
  * Communication API:
  * - `onSetLayoutMode(mode)` — fires when a layout mode button is clicked.
- * - `onApplyDefaultIndent()` — fires when the default-indent button is clicked.
+ * - `onApplyDefaultIndent()` — fires when the Default Layout button is clicked.
+ * - `onOpenDefaultLayoutConfig()` — fires when the Default Layout configure button is clicked.
  * - `onSave()` — fires when the save button is clicked.
  * - `onUndo()` / `onRedo()` — fire when the undo/redo buttons are clicked.
  * - `onOpenBoardSettings()` — fires when the board settings (⚙) button is clicked.
@@ -35,6 +36,7 @@ type TextEditorSidebarProps = {
   t: (key: string, fallback?: string) => string;
   onSetLayoutMode: (mode: "plain" | "text" | "tree") => void;
   onApplyDefaultIndent: () => void;
+  onOpenDefaultLayoutConfig: () => void;
   onSave: () => void;
   onUndo: () => void;
   onRedo: () => void;
@@ -52,6 +54,7 @@ export const TextEditorSidebar = ({
   t,
   onSetLayoutMode,
   onApplyDefaultIndent,
+  onOpenDefaultLayoutConfig,
   onSave,
   onUndo,
   onRedo,
@@ -107,13 +110,27 @@ export const TextEditorSidebar = ({
     <div className="text-editor-sidebar-sep" />
 
     <button
-      id="btn-default-indent"
+      id="btn-default-layout"
       className="icon-button"
       type="button"
-      title={t("pgn.defaultIndent", "Default indent")}
+      title={
+        layoutMode === "tree"
+          ? t("pgn.defaultLayout.unavailable", "Default Layout (unavailable in tree mode)")
+          : t("pgn.defaultLayout", "Default Layout")
+      }
+      disabled={layoutMode === "tree"}
       onClick={onApplyDefaultIndent}
     >
-      <img src="/icons/toolbar/default-indent.svg" alt={t("pgn.defaultIndent", "Default indent")} />
+      <img src="/icons/toolbar/default-indent.svg" alt={t("pgn.defaultLayout", "Default Layout")} />
+    </button>
+    <button
+      id="btn-default-layout-config"
+      className="icon-button"
+      type="button"
+      title={t("pgn.defaultLayout.configure", "Configure Default Layout…")}
+      onClick={onOpenDefaultLayoutConfig}
+    >
+      <span style={{ fontSize: "0.7rem", lineHeight: 1 }}>⚙</span>
     </button>
 
     <div className="text-editor-sidebar-sep" />

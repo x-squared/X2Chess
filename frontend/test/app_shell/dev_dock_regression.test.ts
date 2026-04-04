@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { createInitialAppState } from "../../src/app_shell/app_state.js";
+import {
+  DEFAULT_RESOURCE_VIEWER_HEIGHT_PX,
+  DEFAULT_BOARD_COLUMN_WIDTH_PX,
+} from "../../src/app_shell/app_state.js";
 import { initialAppStoreState } from "../../src/state/app_reducer.js";
 
 /** Read the contents of both the global stylesheet and the main component stylesheet. */
@@ -23,9 +26,8 @@ test("developer dock hidden attribute is enforced by CSS", async () => {
   assert.match(css, /\.developer-dock\[hidden\]\s*\{\s*display:\s*none\s*!important;/m);
 });
 
-test("resource viewer height has stable default in initial state", () => {
-  const state = createInitialAppState();
-  assert.equal(state.resourceViewerHeightPx, 260);
+test("resource viewer height has stable default", () => {
+  assert.equal(DEFAULT_RESOURCE_VIEWER_HEIGHT_PX, 260);
 });
 
 test("resource viewer uses CSS variable height", async () => {
@@ -34,9 +36,8 @@ test("resource viewer uses CSS variable height", async () => {
   assert.match(css, /\.resource-table-wrap\s*\{[\s\S]*height:\s*var\(--resource-viewer-height\);/m);
 });
 
-test("board column width has stable default in initial state", () => {
-  const state = createInitialAppState();
-  assert.equal(state.boardColumnWidthPx, 520);
+test("board column width has stable default", () => {
+  assert.equal(DEFAULT_BOARD_COLUMN_WIDTH_PX, 520);
 });
 
 test("board/editor layout uses configurable board column width", async () => {

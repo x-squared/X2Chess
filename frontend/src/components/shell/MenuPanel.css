@@ -172,3 +172,24 @@
   background: #f3f8ff;
   border-color: #a8bad6;
 }
+
+.source-button {
+  height: 32px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface-1);
+  color: var(--text-primary);
+  padding: 0 0.6rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.source-button:hover {
+  border-color: #9fb2d1;
+  background: #f8fbff;
+}
+
+.source-button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}

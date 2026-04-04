@@ -5,13 +5,8 @@ import { createEmptyGameSessionState } from "../../src/game_sessions/game_sessio
 import type { ActiveSessionRef } from "../../src/game_sessions/game_session_state.js";
 
 test("session store switches sessions without losing active state", () => {
-  const state = {
-    gameSessions: [],
-    activeSessionId: null,
-    nextSessionSeq: 1,
-  };
   const activeSessionRef: ActiveSessionRef = { current: createEmptyGameSessionState() };
-  const store = createGameSessionStore({ state, activeSessionRef });
+  const store = createGameSessionStore({ activeSessionRef });
 
   const stateA = createEmptyGameSessionState();
   stateA.pgnText = "gameA";
@@ -25,26 +20,21 @@ test("session store switches sessions without losing active state", () => {
   const second = store.openSession({ ownState: stateB, title: "B",
     sourceRef: { kind: "file", locator: "root", recordId: "b.pgn" } });
 
-  assert.equal(state.gameSessions.length, 2);
-  assert.equal(state.activeSessionId, second.sessionId);
+  assert.equal(store.listSessions().length, 2);
+  assert.equal(store.getActiveSessionId(), second.sessionId);
   // stateA is still the live object for session A — edits are in-place.
   assert.equal(stateA.pgnText, "gameA-edited");
 
   const switched = store.switchToSession(first.sessionId);
   assert.equal(switched, true);
-  assert.equal(state.activeSessionId, first.sessionId);
+  assert.equal(store.getActiveSessionId(), first.sessionId);
   // After switching, the ref points at stateA.
   assert.equal(activeSessionRef.current.pgnText, "gameA-edited");
 });
 
 test("closing session selects adjacent session and updates ref", () => {
-  const state = {
-    gameSessions: [],
-    activeSessionId: null,
-    nextSessionSeq: 1,
-  };
   const activeSessionRef: ActiveSessionRef = { current: createEmptyGameSessionState() };
-  const store = createGameSessionStore({ state, activeSessionRef });
+  const store = createGameSessionStore({ activeSessionRef });
 
   const stateA = createEmptyGameSessionState();
   stateA.pgnText = "A";
@@ -58,7 +48,7 @@ test("closing session selects adjacent session and updates ref", () => {
 
   assert.equal(result.closed, true);
   assert.equal(result.emptyAfterClose, false);
-  assert.equal(state.activeSessionId, s1.sessionId);
+  assert.equal(store.getActiveSessionId(), s1.sessionId);
   // After closing B, the ref must point at A's state.
   assert.equal(activeSessionRef.current.pgnText, "A");
 });

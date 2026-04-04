@@ -18,6 +18,8 @@ import { findMoveNode } from "../model/pgn_move_ops";
 import { parseShapes } from "../board/shape_parser";
 import type { BoardShape } from "../board/board_shapes";
 import type { ShapePrefs } from "../runtime/shape_prefs";
+import type { EditorStylePrefs } from "../runtime/editor_style_prefs";
+import type { DefaultLayoutPrefs } from "../runtime/default_layout_prefs";
 
 // ── Shell ────────────────────────────────────────────────────────────────────
 export const selectLocale = (state: AppStoreState): string => state.locale;
@@ -46,6 +48,8 @@ export const selectBoardPreview = (
 export const selectPositionPreviewOnHover = (state: AppStoreState): boolean =>
   state.positionPreviewOnHover;
 export const selectShapePrefs = (state: AppStoreState): ShapePrefs => state.shapePrefs;
+export const selectEditorStylePrefs = (state: AppStoreState): EditorStylePrefs => state.editorStylePrefs;
+export const selectDefaultLayoutPrefs = (state: AppStoreState): DefaultLayoutPrefs => state.defaultLayoutPrefs;
 
 // ── Editor / PGN ─────────────────────────────────────────────────────────────
 export const selectLayoutMode = (

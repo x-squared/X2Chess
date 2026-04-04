@@ -8,13 +8,12 @@
  * - `<PgnTextEditor />` — mount inside a sized container; no props required.
  * - Reads: `pgnModel`, `pgnLayoutMode`, `selectedMoveId`, `pendingFocusCommentId`
  *   from `AppStoreState` context.
- * - Writes: dispatches `set_selected_move_id` on move click.
  *
  * Configuration API:
  * - No props required.  All data flows through `AppStoreState` context.
  *
  * Communication API:
- * - Outbound: `dispatch({ type: "set_selected_move_id", id })` on move click.
+ * - Outbound: calls `services.gotoMoveById(id)` on move click.
  * - Inbound: re-renders when `pgnModel`, `pgnLayoutMode`, or `selectedMoveId` change.
  * - Comment saves and insert-comment actions are wired to `useServiceContext()`
  *   callbacks (`insertComment`, `saveCommentText`, `gotoMoveById`).
@@ -23,7 +22,7 @@
  */
 
 import { useMemo, useRef, useEffect, useCallback, useState } from "react";
-import type { ReactElement, KeyboardEvent as ReactKeyboardEvent, FormEvent, MouseEvent } from "react";
+import type { ReactElement, KeyboardEvent as ReactKeyboardEvent, FormEvent, MouseEvent, CSSProperties } from "react";
 import { buildTextEditorPlan } from "../../editor/text_editor_plan";
 import type { PlanBlock, PlanToken, InlineToken, CommentToken } from "../../editor/text_editor_plan";
 import { useAppContext } from "../../state/app_context";
@@ -34,7 +33,9 @@ import {
   selectPendingFocusCommentId,
   selectPositionPreviewOnHover,
   selectShowEvalPills,
+  selectEditorStylePrefs,
 } from "../../state/selectors";
+import { editorStyleToCssVars } from "../../runtime/editor_style_prefs";
 import { useHoverPreview } from "../board/HoverPreviewContext";
 import { resolveMovePositionById, type PgnModelForMoves } from "../../board/move_position";
 import { useServiceContext } from "../../state/ServiceContext";
@@ -841,6 +842,8 @@ export const PgnTextEditor = (): ReactElement => {
   const pendingFocusCommentId: string | null = selectPendingFocusCommentId(state);
   const positionPreviewOnHover: boolean = selectPositionPreviewOnHover(state);
   const showEvalPills: boolean = selectShowEvalPills(state);
+  const editorStylePrefs = selectEditorStylePrefs(state);
+  const editorStyleVars = editorStyleToCssVars(editorStylePrefs);
   const [consumedFocusCommentId, setConsumedFocusCommentId] = useState<string | null>(null);
   const t: (key: string, fallback?: string) => string = useTranslator();
   const { showPreview, hidePreview } = useHoverPreview();
@@ -1142,7 +1145,7 @@ export const PgnTextEditor = (): ReactElement => {
 
   if (!pgnModel) {
     return (
-      <div className="text-editor text-editor-empty">
+      <div className="text-editor text-editor-empty" style={editorStyleVars as CSSProperties}>
         <p className="text-editor-hint">
           {t("editor.hint", "Open a PGN game to start annotating.")}
         </p>
@@ -1151,7 +1154,7 @@ export const PgnTextEditor = (): ReactElement => {
   }
 
   return (
-    <div className="text-editor" data-layout-mode={layoutMode}>
+    <div className="text-editor" data-layout-mode={layoutMode} style={editorStyleVars as CSSProperties}>
       {selectedMoveId !== null && (
         <NagPicker
           moveId={selectedMoveId}

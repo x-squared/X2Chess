@@ -1,0 +1,42 @@
+.ast-view {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.ast-root,
+.ast-item {
+  margin: 0.2rem 0;
+}
+
+.ast-node {
+  color: var(--text-primary);
+}
+
+.ast-children {
+  margin-left: 0.9rem;
+  padding-left: 0.55rem;
+  border-left: 1px solid var(--border-subtle);
+}
+
+.ast-game {
+  font-weight: 700;
+}
+
+.ast-variation {
+  color: #1d4ed8;
+}
+
+.ast-move {
+  color: #065f46;
+}
+
+.ast-comment {
+  color: #7c2d12;
+}
+
+.ast-meta,
+.ast-header-item,
+.ast-headers {
+  color: var(--text-secondary);
+}

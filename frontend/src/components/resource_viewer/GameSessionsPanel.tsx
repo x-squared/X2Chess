@@ -11,10 +11,10 @@
  *
  * Configuration API:
  * - Session data flows through `AppStoreState` context (populated by
- *   `useAppStartup` via `set_sessions` action).
+ *   `syncToReact()` via `sync_session_snapshot`).
  *
  * Communication API:
- * - Receives: `set_sessions` action dispatched by `useAppStartup` render callback.
+ * - Receives: session data from `sync_session_snapshot` dispatched by `syncToReact()`.
  * - Emits: `switchSession` and `closeSession` via `useServiceContext()`.
  */
 

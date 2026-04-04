@@ -154,8 +154,8 @@
 }
 
 .text-editor {
-  font-family: inherit;
-  font-size: var(--text-editor-font-size);
+  font-family: var(--editor-font-family, inherit);
+  font-size: var(--editor-font-size, var(--text-editor-font-size, 14px));
   line-height: var(--text-editor-line-height);
   color: var(--text-primary);
   background: var(--surface-1);
@@ -207,9 +207,9 @@
   pointer-events: auto;
 }
 
-/* Plain mode — monospace/technical appearance */
+/* Plain mode — monospace by default, but still respects EditorStylePrefs font override. */
 .text-editor[data-layout-mode="plain"] {
-  font-family: "Courier New", Courier, monospace;
+  font-family: var(--editor-font-family, "Courier New", Courier, monospace);
 }
 
 /* ── Tree mode ───────────────────────────────────────────────────────────── */
@@ -261,41 +261,32 @@
   padding: 0.1em 0.55em 0.1em 0.4em;
   margin-right: 0.4em;
   border-radius: 999px;
-  border: 1px solid rgba(17, 17, 17, 0.40);
-  background: rgba(17, 17, 17, 0.08);
+  border: 1px solid var(--tree-pill-border, rgba(17, 17, 17, 0.40));
+  background: var(--tree-pill-bg, rgba(17, 17, 17, 0.08));
   font-family: ui-sans-serif, system-ui, sans-serif;
   font-size: 0.82em;
   font-weight: 700;
-  color: #111;
+  color: var(--tree-pill-text, #111);
   cursor: pointer;
   user-select: none;
   line-height: 1.5;
 }
 
 .tree-collapse-toggle:hover {
-  background: rgba(17, 17, 17, 0.09);
-  border-color: rgba(17, 17, 17, 0.60);
+  background: color-mix(in srgb, var(--tree-pill-bg, rgba(17, 17, 17, 0.08)) 80%, #000 20%);
+  border-color: var(--tree-pill-border, rgba(17, 17, 17, 0.40));
+  filter: brightness(0.94);
 }
 
 /* Progressively lighter badges at deeper nesting */
 .tree-depth-3 .tree-collapse-toggle {
-  border-color: rgba(17, 17, 17, 0.32);
-  background: rgba(17, 17, 17, 0.03);
-}
-
-.tree-depth-3 .tree-collapse-toggle:hover {
-  background: rgba(17, 17, 17, 0.07);
-  border-color: rgba(17, 17, 17, 0.50);
+  border-color: var(--tree-pill-border, rgba(17, 17, 17, 0.32));
+  opacity: 0.80;
 }
 
 .tree-depth-4plus .tree-collapse-toggle {
-  border-color: rgba(17, 17, 17, 0.26);
-  background: rgba(17, 17, 17, 0.02);
-}
-
-.tree-depth-4plus .tree-collapse-toggle:hover {
-  background: rgba(17, 17, 17, 0.06);
-  border-color: rgba(17, 17, 17, 0.44);
+  border-color: var(--tree-pill-border, rgba(17, 17, 17, 0.26));
+  opacity: 0.65;
 }
 
 .tree-collapse-glyph {
@@ -520,49 +511,58 @@ span[data-kind="branch_header"] {
   margin-top: 0.22rem;
 }
 
+/* Text mode indent blocks — driven by EditorStylePrefs CSS custom properties.
+   Level 1 = depth 1, level 2 = depth 2, level 3+ = depth 3 and deeper. */
+
 .text-editor-block[data-indent-depth="1"] {
-  margin-left: 1rem;
+  margin-left: var(--editor-text-indent-step, 0.9rem);
   padding-left: 0.55rem;
-  border-left: 3px solid rgba(71, 85, 105, 0.52);
-  background: linear-gradient(90deg, rgba(100, 116, 139, 0.06), rgba(100, 116, 139, 0));
+  font-size: var(--editor-text-l1-font-size, 1em);
+  border-left: var(--editor-text-l1-sidebar-width, 3px) solid var(--editor-text-l1-sidebar-color, rgba(71, 85, 105, 0.52));
+  background: var(--editor-text-l1-bg, rgba(100, 116, 139, 0.08));
 }
 
 .text-editor-block[data-indent-depth="2"] {
-  margin-left: 1.8rem;
+  margin-left: calc(2 * var(--editor-text-indent-step, 0.9rem));
   padding-left: 0.6rem;
-  border-left: 2px solid rgba(100, 116, 139, 0.44);
-  background: linear-gradient(90deg, rgba(71, 85, 105, 0.1), rgba(71, 85, 105, 0));
+  font-size: var(--editor-text-l2-font-size, 1em);
+  border-left: var(--editor-text-l2-sidebar-width, 2px) solid var(--editor-text-l2-sidebar-color, rgba(100, 116, 139, 0.44));
+  background: var(--editor-text-l2-bg, rgba(71, 85, 105, 0.1));
 }
 
 .text-editor-block[data-indent-depth="3"] {
-  margin-left: 2.5rem;
+  margin-left: calc(3 * var(--editor-text-indent-step, 0.9rem));
   padding-left: 0.62rem;
-  border-left: 2px solid rgba(100, 116, 139, 0.34);
-  background: linear-gradient(90deg, rgba(51, 65, 85, 0.16), rgba(51, 65, 85, 0));
+  font-size: var(--editor-text-l3plus-font-size, 0.95em);
+  border-left: var(--editor-text-l3plus-sidebar-width, 2px) solid var(--editor-text-l3plus-sidebar-color, rgba(100, 116, 139, 0.34));
+  background: var(--editor-text-l3plus-bg, rgba(51, 65, 85, 0.12));
 }
 
 .text-editor-block[data-indent-depth="4"] {
-  margin-left: 3.2rem;
+  margin-left: calc(4 * var(--editor-text-indent-step, 0.9rem));
   padding-left: 0.64rem;
-  border-left: 1px solid rgba(100, 116, 139, 0.32);
-  background: linear-gradient(90deg, rgba(30, 41, 59, 0.22), rgba(30, 41, 59, 0));
+  font-size: var(--editor-text-l3plus-font-size, 0.95em);
+  border-left: var(--editor-text-l3plus-sidebar-width, 2px) solid var(--editor-text-l3plus-sidebar-color, rgba(100, 116, 139, 0.34));
+  background: var(--editor-text-l3plus-bg, rgba(51, 65, 85, 0.12));
 }
 
 .text-editor-block[data-indent-depth="5"] {
-  margin-left: 3.9rem;
+  margin-left: calc(5 * var(--editor-text-indent-step, 0.9rem));
   padding-left: 0.66rem;
-  border-left: 1px solid rgba(148, 163, 184, 0.28);
-  background: linear-gradient(90deg, rgba(15, 23, 42, 0.3), rgba(15, 23, 42, 0));
+  font-size: var(--editor-text-l3plus-font-size, 0.95em);
+  border-left: var(--editor-text-l3plus-sidebar-width, 2px) solid var(--editor-text-l3plus-sidebar-color, rgba(100, 116, 139, 0.34));
+  background: var(--editor-text-l3plus-bg, rgba(51, 65, 85, 0.12));
 }
 
 .text-editor-block[data-indent-depth="6"],
 .text-editor-block[data-indent-depth="7"],
 .text-editor-block[data-indent-depth="8"],
 .text-editor-block[data-indent-depth="9"] {
-  margin-left: 4.4rem;
+  margin-left: calc(6 * var(--editor-text-indent-step, 0.9rem));
   padding-left: 0.68rem;
-  border-left: 1px solid rgba(148, 163, 184, 0.2);
-  background: linear-gradient(90deg, rgba(2, 6, 23, 0.38), rgba(2, 6, 23, 0));
+  font-size: var(--editor-text-l3plus-font-size, 0.95em);
+  border-left: var(--editor-text-l3plus-sidebar-width, 2px) solid var(--editor-text-l3plus-sidebar-color, rgba(100, 116, 139, 0.34));
+  background: var(--editor-text-l3plus-bg, rgba(51, 65, 85, 0.12));
 }
 
 .text-editor-mainline {
@@ -571,7 +571,7 @@ span[data-kind="branch_header"] {
 }
 
 .text-editor-main-move {
-  font-weight: 700;
+  font-weight: var(--editor-mainline-font-weight, 700);
   position: relative;
   margin: 0 0.2rem;
   padding: 0 0.16rem;
@@ -586,14 +586,15 @@ span[data-kind="branch_header"] {
   text-indent: 0;
 }
 
-/* Intro comments are visually emphasized in text/tree mode. */
+/* Intro comments are visually emphasized in text/tree mode.
+   Appearance is driven by CSS custom properties set from EditorStylePrefs. */
 .text-editor .text-editor-comment-intro {
   display: inline-block;
-  margin: 0 0.55rem 0.45rem 0;
+  margin: 0 0.55rem var(--editor-intro-padding-bottom, 0.45rem) 0;
   padding: 0.2rem 0.38rem;
   border-radius: 4px;
-  background: #f4f8ff;
-  border-left: 3px solid #7c98c8;
+  background: var(--editor-intro-bg, #f4f8ff);
+  border-left: var(--editor-intro-sidebar-width, 3px) solid var(--editor-intro-sidebar-color, #7c98c8);
 }
 
 .text-editor-variation-move {

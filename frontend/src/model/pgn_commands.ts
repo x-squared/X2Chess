@@ -5,7 +5,7 @@
  * - Primary exports from this module: `setCommentTextById`, `removeCommentById`,
  *   `getFirstCommentMetadata`, `setFirstCommentIntroRole`, `toggleFirstCommentIntroRole`,
  *   `resolveOwningMoveIdForCommentId`, `findExistingCommentIdAroundMove`,
- *   `applyDefaultIndentDirectives`, `insertCommentAroundMove`,
+ *   `applyDefaultIndentDirectives`, `applyDefaultLayout`, `insertCommentAroundMove`,
  *   `toggleMoveNag`.
  *
  * Configuration API:
@@ -503,6 +503,79 @@ export const applyDefaultIndentDirectives = (model: unknown): PgnModel => {
   };
 
   walkVariation(next.root);
+  return next;
+};
+
+/**
+ * Apply a configurable default structural layout to the game.
+ *
+ * Operations (each individually togglable via `prefs`):
+ * 1. Insert an intro comment at the start when none exists.
+ * 2. Prepend `[[br]]` to every main-line comment (intro excluded) so text
+ *    begins on its own visual line in plain and text modes.
+ *    Comments inside variations are not touched.
+ *
+ * @param model - Source PGN model.
+ * @param prefs - Which operations to apply and with what parameters.
+ * @returns Updated model clone, or original when no changes are needed.
+ */
+export const applyDefaultLayout = (
+  model: unknown,
+  prefs: { addIntroIfMissing: boolean; introText: string; addBrToMainLineComments: boolean },
+): PgnModel => {
+  const typedModel = model as PgnModel;
+  const next = cloneModel(typedModel);
+  if (!next.root) return typedModel;
+
+  // Compute the current maximum comment numeric ID so new IDs don't collide.
+  let maxId = 0;
+  visitVariation(
+    next.root,
+    (): void => {},
+    (comment: PgnComment): void => {
+      const match = String(comment.id || "").match(/^comment_(\d+)$/);
+      if (!match) return;
+      const numeric = Number(match[1]);
+      if (Number.isFinite(numeric)) maxId = Math.max(maxId, numeric);
+    },
+  );
+
+  // Step 1: Optionally insert an intro comment if there is no comment before the first move.
+  let introCommentId: string | null = findFirstCommentInVariation(next.root)?.id ?? null;
+  if (prefs.addIntroIfMissing && !introCommentId) {
+    const introComment = makeComment(`comment_${++maxId}`, prefs.introText);
+    (next.root.entries as PgnEntry[]).unshift(introComment as PgnEntry);
+    introCommentId = introComment.id;
+  }
+
+  // Step 2: Optionally prepend [[br]] to main-line comments (skip the intro).
+  if (prefs.addBrToMainLineComments) {
+    const addBr = (comment: PgnComment): void => {
+      if (comment.id === introCommentId) return;
+      if (comment.raw.startsWith("[[br]]")) return;
+      comment.raw = `[[br]]${comment.raw}`;
+      comment.runs = parseCommentRuns(comment.raw);
+    };
+
+    for (const entry of next.root.entries) {
+      if (entry.type === "comment") {
+        addBr(entry);
+        continue;
+      }
+      if (entry.type !== "move") continue;
+      entry.commentsBefore.forEach(addBr);
+      if (Array.isArray(entry.postItems) && entry.postItems.length > 0) {
+        for (const item of entry.postItems) {
+          // Only process inline comments; do NOT recurse into RAVs.
+          if (item.type === "comment" && item.comment) addBr(item.comment);
+        }
+      } else {
+        entry.commentsAfter.forEach(addBr);
+      }
+    }
+    (next.root.trailingComments ?? []).forEach(addBr);
+  }
+
   return next;
 };
 

@@ -32,7 +32,7 @@ export const setResourceLoaderService = (fn: ListGamesForResourceFn): void => {
 };
 
 /**
- * Retrieve the registered `listGamesForResource` function, or `null` if the
- * legacy runtime has not started yet.
+ * Retrieve the registered `listGamesForResource` function, or `null` if
+ * services have not been initialised yet.
  */
 export const getResourceLoaderService = (): ListGamesForResourceFn | null => _service;

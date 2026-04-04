@@ -19,11 +19,12 @@ import type { PgnModel } from "../model/pgn_model";
 import type { AppAction } from "./actions";
 import { DEFAULT_SHAPE_PREFS } from "../runtime/shape_prefs";
 import type { ShapePrefs } from "../runtime/shape_prefs";
+import { DEFAULT_EDITOR_STYLE_PREFS } from "../runtime/editor_style_prefs";
+import type { EditorStylePrefs } from "../runtime/editor_style_prefs";
+import { DEFAULT_DEFAULT_LAYOUT_PREFS } from "../runtime/default_layout_prefs";
+import type { DefaultLayoutPrefs } from "../runtime/default_layout_prefs";
 
-/**
- * Per-tab identity snapshot held in React state.
- * Populated directly by `useAppStartup` via `set_resource_tabs` action.
- */
+/** Per-tab identity snapshot held in React state. */
 export type ResourceTabSnapshot = {
   tabId: string;
   title: string;
@@ -31,10 +32,7 @@ export type ResourceTabSnapshot = {
   locator: string;
 };
 
-/**
- * Per-session snapshot held in React state.
- * Populated directly by `useAppStartup` via `set_sessions` action.
- */
+/** Per-session snapshot held in React state. */
 export type SessionItemState = {
   sessionId: string;
   title: string;
@@ -150,8 +148,8 @@ export type AppStoreState = {
   // ── Board preview ───────────────────────────────────────────────────────
   /**
    * When set, `ChessBoard` shows this FEN instead of replaying from `currentPly`.
-   * Used for variation moves that are off the main line.  Cleared when the user
-   * navigates to any mainline position.
+   * Used for variation moves that are off the main line, engine overlays, and
+   * training position display.  Cleared when the user navigates to any mainline position.
    */
   boardPreview: { fen: string; lastMove?: [string, string] | null } | null;
 
@@ -162,6 +160,14 @@ export type AppStoreState = {
   // ── Board decoration preferences ────────────────────────────────────────
   /** Persisted preferences for board shapes, move hints, and square style. */
   shapePrefs: ShapePrefs;
+
+  // ── Editor style preferences ────────────────────────────────────────────
+  /** Persisted visual style preferences for the PGN text editor. */
+  editorStylePrefs: EditorStylePrefs;
+
+  // ── Default Layout preferences ───────────────────────────────────────────
+  /** Persisted behaviour preferences for the "Default Layout" toolbar action. */
+  defaultLayoutPrefs: DefaultLayoutPrefs;
 };
 
 /** Initial state — all fields start empty/false/zero before startup completes. */
@@ -213,6 +219,10 @@ export const initialAppStoreState: AppStoreState = {
   positionPreviewOnHover: true,
   // Board decoration preferences
   shapePrefs: DEFAULT_SHAPE_PREFS,
+  // Editor style preferences
+  editorStylePrefs: DEFAULT_EDITOR_STYLE_PREFS,
+  // Default Layout preferences
+  defaultLayoutPrefs: DEFAULT_DEFAULT_LAYOUT_PREFS,
 };
 
 /** Pure reducer — never mutates state, always returns a new object. */
@@ -233,77 +243,22 @@ export const appReducer = (state: AppStoreState, action: AppAction): AppStoreSta
     // ── Board ────────────────────────────────────────────────────────────
     case "toggle_board_flip":
       return { ...state, boardFlipped: !state.boardFlipped };
-    case "set_current_ply":
-      return { ...state, currentPly: action.ply };
-    case "set_move_count":
-      return { ...state, moveCount: action.count };
-    case "set_selected_move_id":
-      return { ...state, selectedMoveId: action.id };
     case "set_move_delay_ms":
       return { ...state, moveDelayMs: action.value };
     case "set_sound_enabled":
       return { ...state, soundEnabled: action.enabled };
-    case "set_status_message":
-      return { ...state, statusMessage: action.message };
     case "set_error_message":
       return { ...state, errorMessage: action.message };
-    case "set_active_source_kind":
-      return { ...state, activeSourceKind: action.kind };
 
     // ── Editor ───────────────────────────────────────────────────────────
     case "set_layout_mode":
       return { ...state, pgnLayoutMode: action.mode };
     case "set_show_eval_pills":
       return { ...state, showEvalPills: action.show };
-    case "set_pgn":
-      return {
-        ...state,
-        pgnText: action.pgnText,
-        pgnModel: action.pgnModel,
-        moves: action.moves,
-        pgnTextLength: action.pgnText.length,
-        moveCount: action.moves.length,
-      };
-    case "set_pending_focus_comment_id":
-      return { ...state, pendingFocusCommentId: action.id };
     case "set_game_info_editor_open":
       return { ...state, isGameInfoEditorOpen: action.open };
-    case "set_undo_redo":
-      return { ...state, undoDepth: action.undoDepth, redoDepth: action.redoDepth };
 
-    // ── Sessions ─────────────────────────────────────────────────────────
-    case "set_sessions":
-      return {
-        ...state,
-        sessions: action.sessions,
-        sessionCount: action.sessions.length,
-        sessionTitles: action.sessions.map((s: SessionItemState): string => s.title),
-        activeSessionId: action.activeSessionId,
-      };
-
-    // ── Resource viewer ───────────────────────────────────────────────────
-    case "set_resource_tabs": {
-      const active: ResourceTabSnapshot | undefined = action.tabs.find(
-        (tab: ResourceTabSnapshot): boolean => tab.tabId === action.activeTabId,
-      );
-      return {
-        ...state,
-        resourceViewerTabSnapshots: action.tabs,
-        resourceTabCount: action.tabs.length,
-        activeResourceTabId: action.activeTabId,
-        activeResourceTabTitle: active?.title ?? "",
-        activeResourceTabKind: active?.kind ?? "",
-        activeResourceTabLocator: active?.locator ?? "",
-      };
-    }
-
-    case "set_active_resource_data":
-      return {
-        ...state,
-        activeResourceRowCount: action.rowCount,
-        activeResourceErrorMessage: action.errorMessage,
-      };
-
+    // ── Board preview (direct component dispatch) ─────────────────────────
     case "set_board_preview":
       return { ...state, boardPreview: action.preview };
 
@@ -312,6 +267,71 @@ export const appReducer = (state: AppStoreState, action: AppAction): AppStoreSta
 
     case "set_shape_prefs":
       return { ...state, shapePrefs: action.prefs };
+
+    case "set_editor_style_prefs":
+      return { ...state, editorStylePrefs: action.prefs };
+
+    case "set_default_layout_prefs":
+      return { ...state, defaultLayoutPrefs: action.prefs };
+
+    // ── Fine-grained session state actions ───────────────────────────────
+    case "set_pgn_state":
+      return {
+        ...state,
+        pgnText: action.pgnText,
+        pgnModel: action.pgnModel,
+        moves: action.moves,
+        pgnTextLength: action.pgnTextLength,
+        moveCount: action.moveCount,
+      };
+
+    case "set_navigation":
+      return {
+        ...state,
+        currentPly: action.currentPly,
+        selectedMoveId: action.selectedMoveId,
+        boardPreview: action.boardPreview,
+      };
+
+    case "set_undo_redo_depth":
+      return { ...state, undoDepth: action.undoDepth, redoDepth: action.redoDepth };
+
+    case "set_status_message":
+      return { ...state, statusMessage: action.message };
+
+    case "set_pending_focus":
+      return { ...state, pendingFocusCommentId: action.commentId };
+
+    case "set_sessions": {
+      const { sessions, activeSessionId } = action;
+      return {
+        ...state,
+        sessions,
+        sessionCount: sessions.length,
+        sessionTitles: sessions.map((s: SessionItemState): string => s.title),
+        activeSessionId,
+      };
+    }
+
+    case "set_resource_viewer": {
+      const { resourceTabs, activeResourceTabId, activeResourceRowCount,
+              activeResourceErrorMessage, activeSourceKind } = action;
+      const activeTab: ResourceTabSnapshot | undefined = resourceTabs.find(
+        (tab: ResourceTabSnapshot): boolean => tab.tabId === activeResourceTabId,
+      );
+      return {
+        ...state,
+        resourceViewerTabSnapshots: resourceTabs,
+        resourceTabCount: resourceTabs.length,
+        activeResourceTabId,
+        activeResourceTabTitle: activeTab?.title ?? "",
+        activeResourceTabKind: activeTab?.kind ?? "",
+        activeResourceTabLocator: activeTab?.locator ?? "",
+        activeResourceRowCount,
+        activeResourceErrorMessage,
+        activeSourceKind,
+      };
+    }
 
     default:
       return state;

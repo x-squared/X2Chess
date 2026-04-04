@@ -14,6 +14,8 @@
 import type { PgnModel } from "../model/pgn_model";
 import type { SessionItemState, ResourceTabSnapshot } from "./app_reducer";
 import type { ShapePrefs } from "../runtime/shape_prefs";
+import type { EditorStylePrefs } from "../runtime/editor_style_prefs";
+import type { DefaultLayoutPrefs } from "../runtime/default_layout_prefs";
 
 export type AppAction =
   // ── Shell actions ──────────────────────────────────────────────────────
@@ -24,64 +26,76 @@ export type AppAction =
   | { type: "set_is_menu_open"; open: boolean }
   // ── Board / navigation actions ─────────────────────────────────────────
   | { type: "toggle_board_flip" }
-  | { type: "set_current_ply"; ply: number }
-  | { type: "set_move_count"; count: number }
-  | { type: "set_selected_move_id"; id: string | null }
   | { type: "set_move_delay_ms"; value: number }
   | { type: "set_sound_enabled"; enabled: boolean }
-  | { type: "set_status_message"; message: string }
   | { type: "set_error_message"; message: string }
   // ── Editor / PGN actions ───────────────────────────────────────────────
   | { type: "set_layout_mode"; mode: "plain" | "text" | "tree" }
   | { type: "set_show_eval_pills"; show: boolean }
-  /**
-   * Full PGN load or edit commit.
-   * Replaces `pgnText`, `pgnModel`, `moves`, and `pgnTextLength` atomically.
-   */
-  | { type: "set_pgn"; pgnText: string; pgnModel: PgnModel; moves: string[] }
-  | { type: "set_pending_focus_comment_id"; id: string | null }
   | { type: "set_game_info_editor_open"; open: boolean }
-  /** Undo/redo stack depths for enabling/disabling toolbar buttons. */
-  | { type: "set_undo_redo"; undoDepth: number; redoDepth: number }
-  // ── Session actions ────────────────────────────────────────────────────
-  | { type: "set_active_source_kind"; kind: string }
+  // ── Board preview (direct React dispatch — used for engine/training overlays) ──
   /**
-   * Replace the full session list.  Dispatched by `useAppStartup` whenever the
-   * session store changes (open / switch / close).
-   */
-  | {
-      type: "set_sessions";
-      sessions: SessionItemState[];
-      activeSessionId: string | null;
-    }
-  // ── Resource viewer actions ────────────────────────────────────────────
-  /**
-   * Replace the resource tab list.  Dispatched by `useAppStartup` after each
-   * `render()` cycle when the legacy resource viewer updates its tab state.
-   */
-  | {
-      type: "set_resource_tabs";
-      tabs: ResourceTabSnapshot[];
-      activeTabId: string | null;
-    }
-  /**
-   * Update the active resource tab's row count and error message.
-   * Dispatched by `render()` after reading the active tab from legacy state.
-   */
-  | {
-      type: "set_active_resource_data";
-      rowCount: number;
-      errorMessage: string;
-    }
-  // ── Board preview ──────────────────────────────────────────────────────
-  /**
-   * Variation move preview position.  When non-null, `ChessBoard` shows this
-   * FEN instead of replaying from `currentPly`.  Cleared on any mainline
-   * navigation.
+   * Override the board position shown in `ChessBoard`.  Dispatched directly by
+   * components when an engine or training overlay needs to display a position
+   * that is not derived from the active session's mainline ply.
    */
   | { type: "set_board_preview"; preview: { fen: string; lastMove?: [string, string] | null } | null }
   // ── Hover position preview ─────────────────────────────────────────────
   /** Enable or disable the floating position popup when hovering over move tokens. */
   | { type: "set_position_preview_on_hover"; enabled: boolean }
   /** Update board shape / decoration preferences (persisted separately to localStorage). */
-  | { type: "set_shape_prefs"; prefs: ShapePrefs };
+  | { type: "set_shape_prefs"; prefs: ShapePrefs }
+  /** Update PGN text editor visual style preferences (persisted separately to localStorage). */
+  | { type: "set_editor_style_prefs"; prefs: EditorStylePrefs }
+  /** Update Default Layout behaviour preferences (persisted separately to localStorage). */
+  | { type: "set_default_layout_prefs"; prefs: DefaultLayoutPrefs }
+  // ── Fine-grained session state actions ────────────────────────────────
+  /**
+   * Full PGN/model state for the active session — dispatched whenever the PGN
+   * text or model changes (load, edit, undo/redo).
+   */
+  | {
+      type: "set_pgn_state";
+      pgnText: string;
+      pgnModel: PgnModel | null;
+      moves: string[];
+      pgnTextLength: number;
+      moveCount: number;
+    }
+  /**
+   * Board navigation state — dispatched on every ply step, move selection, or
+   * board-preview change.
+   */
+  | {
+      type: "set_navigation";
+      currentPly: number;
+      selectedMoveId: string | null;
+      boardPreview: { fen: string; lastMove?: [string, string] | null } | null;
+    }
+  /** Undo/redo stack depths — drives button enabled state. */
+  | { type: "set_undo_redo_depth"; undoDepth: number; redoDepth: number }
+  /** Status bar message (e.g. "Saved", "Error saving"). */
+  | { type: "set_status_message"; message: string }
+  /** Comment node ID that should receive focus after next render, or null. */
+  | { type: "set_pending_focus"; commentId: string | null }
+  /**
+   * Full session-list snapshot — dispatched whenever sessions are opened,
+   * closed, switched, or their metadata changes.
+   */
+  | {
+      type: "set_sessions";
+      sessions: SessionItemState[];
+      activeSessionId: string | null;
+    }
+  /**
+   * Resource-viewer state — dispatched whenever tabs are opened, closed,
+   * reloaded, or the active tab changes.
+   */
+  | {
+      type: "set_resource_viewer";
+      resourceTabs: ResourceTabSnapshot[];
+      activeResourceTabId: string | null;
+      activeResourceRowCount: number;
+      activeResourceErrorMessage: string;
+      activeSourceKind: string;
+    };

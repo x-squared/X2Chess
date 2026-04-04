@@ -104,4 +104,29 @@ export const MIGRATIONS: readonly Migration[] = [
       `CREATE INDEX IF NOT EXISTS idx_move_edges_hash ON move_edges(position_hash)`,
     ],
   },
+  {
+    version: 8,
+    statements: [
+      // Recreate game_metadata with an ordinal column so a single key can hold
+      // multiple values (cardinality: "many" fields). The composite primary key
+      // (game_id, meta_key, ordinal) replaces the old (game_id, meta_key) PK.
+      // SQLite does not support DROP CONSTRAINT, so we rename → copy → drop.
+      `CREATE TABLE IF NOT EXISTS game_metadata_v8 (
+        game_id  TEXT    NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+        meta_key TEXT    NOT NULL,
+        ordinal  INTEGER NOT NULL DEFAULT 0,
+        val_str  TEXT,
+        PRIMARY KEY (game_id, meta_key, ordinal)
+      )`,
+      `INSERT INTO game_metadata_v8 (game_id, meta_key, ordinal, val_str)
+         SELECT game_id, meta_key, 0, val_str FROM game_metadata`,
+      `DROP TABLE game_metadata`,
+      `ALTER TABLE game_metadata_v8 RENAME TO game_metadata`,
+      `CREATE INDEX IF NOT EXISTS idx_game_metadata_key     ON game_metadata(meta_key)`,
+      `CREATE INDEX IF NOT EXISTS idx_game_metadata_key_val ON game_metadata(meta_key, val_str)`,
+      // Add cardinality column to the key registry so the adapter can return
+      // correct types without consulting an external schema.
+      `ALTER TABLE metadata_keys ADD COLUMN cardinality TEXT NOT NULL DEFAULT 'one'`,
+    ],
+  },
 ] as const;

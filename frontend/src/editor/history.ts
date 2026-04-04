@@ -9,8 +9,9 @@
  *   (for example `deps`, `sessionRef`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - This module communicates through `sessionRef.current`; interactions are explicit in
- *   exported function signatures and typed callback contracts.
+ * - State changes are reported via typed callbacks rather than a generic `onRender`.
+ * - Undo/redo stacks live in `sessionRef.current` so each session retains its own
+ *   history when the active session is switched.
  */
 
 import type { ActiveSessionRef } from "../game_sessions/game_session_state";
@@ -23,11 +24,18 @@ type EditorSnapshot = {
   pgnLayoutMode: string;
 };
 
+type BoardPreviewValue = { fen: string; lastMove?: [string, string] | null } | null;
+
 type EditorHistoryDeps = {
   sessionRef: ActiveSessionRef;
   pgnInput: Element | null;
   onSyncChessParseState: (source: string) => void;
-  onRender: () => void;
+  /** Called after undo/redo restores PGN model and text. */
+  onPgnChange: (pgnText: string, pgnModel: unknown, moves: string[]) => void;
+  /** Called after undo/redo restores navigation state. */
+  onNavigationChange: (currentPly: number, selectedMoveId: string | null, boardPreview: BoardPreviewValue) => void;
+  /** Called whenever the undo or redo stack depth changes. */
+  onUndoRedoDepthChange: (undoDepth: number, redoDepth: number) => void;
   historyLimit?: number;
 };
 
@@ -35,10 +43,15 @@ export const createEditorHistoryCapabilities = ({
   sessionRef,
   pgnInput,
   onSyncChessParseState,
-  onRender,
+  onPgnChange,
+  onNavigationChange,
+  onUndoRedoDepthChange,
   historyLimit = 200,
 }: EditorHistoryDeps) => {
   const cloneModelState = <TValue>(model: TValue): TValue => structuredClone(model);
+
+  const getUndoStack = (): EditorSnapshot[] => sessionRef.current.undoStack as EditorSnapshot[];
+  const getRedoStack = (): EditorSnapshot[] => sessionRef.current.redoStack as EditorSnapshot[];
 
   const captureEditorSnapshot = (): EditorSnapshot => {
     const g = sessionRef.current;
@@ -52,16 +65,21 @@ export const createEditorHistoryCapabilities = ({
   };
 
   const pushUndoSnapshot = (snapshot: EditorSnapshot): void => {
-    const undoStack = sessionRef.current.undoStack as EditorSnapshot[];
+    const undoStack = getUndoStack();
     undoStack.push(snapshot);
     if (undoStack.length > historyLimit) undoStack.shift();
+    onUndoRedoDepthChange(undoStack.length, getRedoStack().length);
+  };
+
+  /** Clear the redo stack — call when a new edit is recorded so redo is no longer valid. */
+  const clearRedoStack = (): void => {
+    getRedoStack().length = 0;
+    onUndoRedoDepthChange(getUndoStack().length, 0);
   };
 
   const applyEditorSnapshot = (snapshot: EditorSnapshot | null | undefined): void => {
     if (!snapshot) return;
     const g = sessionRef.current;
-    g.animationRunId += 1;
-    g.isAnimating = false;
     g.boardPreview = null;
     g.pgnModel = cloneModelState(snapshot.pgnModel) as typeof g.pgnModel;
     g.pgnText = snapshot.pgnText;
@@ -70,29 +88,34 @@ export const createEditorHistoryCapabilities = ({
     g.pgnLayoutMode = snapshot.pgnLayoutMode;
     if (pgnInput instanceof HTMLTextAreaElement) pgnInput.value = g.pgnText;
     onSyncChessParseState(g.pgnText);
-    onRender();
+    onPgnChange(g.pgnText, g.pgnModel, g.moves);
+    onNavigationChange(g.currentPly, g.selectedMoveId, null);
   };
 
   const performUndo = (): void => {
-    const g = sessionRef.current;
-    const undoStack = g.undoStack as EditorSnapshot[];
+    const undoStack = getUndoStack();
+    const redoStack = getRedoStack();
     if (undoStack.length === 0) return;
     const previous: EditorSnapshot | undefined = undoStack.pop();
-    (g.redoStack as EditorSnapshot[]).push(captureEditorSnapshot());
+    redoStack.push(captureEditorSnapshot());
     applyEditorSnapshot(previous);
+    onUndoRedoDepthChange(undoStack.length, redoStack.length);
   };
 
   const performRedo = (): void => {
-    const g = sessionRef.current;
-    const redoStack = g.redoStack as EditorSnapshot[];
+    const undoStack = getUndoStack();
+    const redoStack = getRedoStack();
     if (redoStack.length === 0) return;
     const next: EditorSnapshot | undefined = redoStack.pop();
-    pushUndoSnapshot(captureEditorSnapshot());
+    undoStack.push(captureEditorSnapshot());
+    if (undoStack.length > historyLimit) undoStack.shift();
     applyEditorSnapshot(next);
+    onUndoRedoDepthChange(undoStack.length, redoStack.length);
   };
 
   return {
     captureEditorSnapshot,
+    clearRedoStack,
     performRedo,
     performUndo,
     pushUndoSnapshot,

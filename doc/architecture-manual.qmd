@@ -1,6 +1,6 @@
 # X2Chess Architecture Manual
 
-Last updated: 2026-04-03
+Last updated: 2026-04-04
 
 ## 1) Goals
 
@@ -19,7 +19,11 @@ Architecture decisions are maintained in `doc/architecture-adr-manual.qmd`.
 - Technology: Vite + React 18 + TypeScript (ES modules).
 - Main entrypoint: `frontend/src/main.tsx`.
 - React state: single `useReducer` store (`AppStoreState`) owned by `AppProvider`; all mutations via `dispatch(action)`.
-- Service layer: `useAppStartup` hook initialises all pure-logic services on mount and exposes stable callbacks via `ServiceContext`; components consume them with `useServiceContext()`.
+- Service layer: `useAppStartup` hook initialises all pure-logic services on mount,
+  wraps them in a `SessionOrchestrator`, and exposes stable callbacks via `ServiceContext`;
+  components consume them with `useServiceContext()`. Each service owns its internal
+  state as closure variables; services communicate state changes to React via typed
+  callbacks that dispatch fine-grained actions (see §7.3).
 - Responsibilities:
   - Render the Game-Viewer (board + PGN editor UI) as React components.
   - Parse PGN into an internal model and serialize back to text.
@@ -164,10 +168,66 @@ upgraded automatically on startup. Three layers are covered:
 | Training badges | `x2chess.training-badges` | `training/transcript_storage.ts` |
 | Training sessions | `x2chess.training-sessions` | `training/transcript_storage.ts` |
 | Curriculum plan | `x2chess.curriculum-plan` | `training/curriculum/curriculum_storage.ts` |
+| Workspace snapshot | `x2chess.workspaceSnapshot` | `runtime/workspace_snapshot_store.ts` |
 
 Dynamic per-tab group-by state (`x2chess.groupby.<tabId>`) and the visual-asset cache
 (`chess-app:visual-asset:v2:<key>`) are intentionally excluded — they are ephemeral UI state
 and asset caches respectively, not user configuration.
+
+#### Physical storage location
+
+X2Chess is a Tauri v2 desktop app (bundle ID `com.x2chess.app`).  Each platform's
+webview engine stores localStorage as opaque binary files — they are **not** standard
+SQLite databases and are not intended to be edited directly.
+
+**Default paths** (used when `X2CHESS_WEBVIEW_DATA` is not set):
+
+| Platform | Webview | Path |
+|---|---|---|
+| macOS | WKWebView | `~/Library/WebKit/com.x2chess.app/WebsiteData/LocalStorage/` |
+| Windows | WebView2 (Chromium) | `%APPDATA%\X2Chess\EBWebView\Default\Local Storage\leveldb\` |
+| Linux | WebView2 (Chromium) | `$HOME/.local/share/X2Chess/EBWebView/Default/Local Storage/leveldb\` |
+
+On **macOS** each origin maps to one file named `<scheme>_<host>_<port>_0.localstorage`
+(WebKit binary format).  The Tauri custom protocol origin is `tauri://localhost`, so all
+`x2chess.*` keys share the single file `tauri_localhost_0.localstorage`.
+
+On **Windows / Linux** (WebView2) the storage is a LevelDB directory; individual keys are
+not addressable as separate files.
+
+#### Redirecting storage via `X2CHESS_WEBVIEW_DATA`
+
+The Tauri main window is created programmatically in `main.rs` using
+`WebviewWindowBuilder::data_directory()`.  Setting the environment variable
+`X2CHESS_WEBVIEW_DATA` to any directory path redirects **all** webview storage
+(localStorage, IndexedDB, cache, cookies) to that directory.  The directory is created
+automatically on first launch if it does not exist.
+
+```bash
+# Isolated dev profile — data written to run/DEV/webview-data/ (relative to repo root)
+X2CHESS_WEBVIEW_DATA=../run/DEV/webview-data  tauri dev
+
+# Packaged as npm scripts:
+npm run desktop:dev:isolated    # isolated (recommended for development)
+npm run desktop:dev             # OS default path (shared with any installed PROD build)
+```
+
+The directory layout inside a redirected path mirrors the platform default:
+
+| Platform | Sub-path under `X2CHESS_WEBVIEW_DATA` |
+|---|---|
+| macOS | `WebsiteData/LocalStorage/tauri_localhost_0.localstorage` |
+| Windows / Linux | `EBWebView/Default/Local Storage/leveldb/` |
+
+**Full reset of isolated dev storage:**
+
+```bash
+rm -rf run/DEV/webview-data   # directory is recreated on next launch
+```
+
+> Note: The `x2chess.devPrefsMode` key documented in §4 (dev prefs mode switch) lives in
+> the same storage location.  A full reset also clears this flag, so the next launch
+> re-initialises it to `"defaults"`.
 
 ### 3.5.4 Legacy key consolidation (one-shot migration)
 
@@ -196,7 +256,44 @@ useAppStartup mount effect
        runMigrations(db)                  ← idempotent DB schema migration
 ```
 
-### 3.5.6 Version-gating (future)
+### 3.5.6 Workspace snapshot
+
+The full workspace — all open game sessions and all open resource viewer tabs — is
+persisted automatically so it can be restored on the next launch.
+
+**Store:** `x2chess.workspaceSnapshot` (versioned, managed by
+`runtime/workspace_snapshot_store.ts`).
+
+**Shape:** `WorkspaceSnapshot` contains:
+
+- `sessions[]` — one `SessionSnap` per open tab: session ID, title, full PGN text
+  (including any unsaved edits), `sourceRef`, save mode, dirty state, current ply,
+  selected move ID, and PGN layout mode.
+- `activeSessionId` — the session that was focused when the snapshot was written.
+- `resourceTabs[]` — one `ResourceTabSnap` per open resource viewer tab: kind, locator,
+  title.
+- `activeResourceTabId` — the active resource tab.
+
+**Write path:** A `useEffect` in `useAppStartup` watches
+`state.sessions`, `state.activeSessionId`, `state.resourceViewerTabSnapshots`, and
+`state.activeResourceTabId`. Any change schedules a debounced write (500 ms). When
+the timer fires, the current snapshots are assembled by calling
+`bundle.sessionStore.buildSessionSnapshots()` and `bundle.resourceViewer.buildTabSnapshots()`
+and written atomically to the store. Rapid successive changes collapse into a
+single write.
+
+**Restore path:** `useAppStartup` reads the snapshot synchronously before opening any
+session. When `snapshot.sessions` is non-empty it reconstructs each session from the
+stored PGN text and restores the active session pointer and all resource viewer tabs.
+When the snapshot is empty (first launch, or after a reset) a blank default session is
+opened instead.
+
+**Close-guard:** `AppShell` registers a `beforeunload` handler that calls
+`e.preventDefault()` / sets `e.returnValue` whenever any session has `dirtyState ===
+"dirty"`. This causes the browser (or Tauri webview) to show the platform's
+"unsaved changes — leave anyway?" dialog before the window closes.
+
+### 3.5.7 Version-gating (future)
 
 Neither localStorage nor DB migrations currently require app-version gating (all steps
 are additive). If a future migration must only run on a specific version transition, use
@@ -258,11 +355,13 @@ For the complete list of all managed stores see the table in §3.5.3.
 
 #### Preference lifecycle
 
-1. **Startup** — `useAppStartup` reads all stores synchronously; the values initialise
-   `AppStoreState` and service-layer state via `syncStateToReact()`.
-2. **Change** — a user action dispatches through `ServiceContext`. The setter writes the
-   store synchronously (`store.write(value)`) and updates the service-layer state.
-   Shell-pref setters dispatch directly to React and bypass `render()` (see §6.3).
+1. **Startup** — `useAppStartup` reads all stores synchronously; the values are
+   dispatched to `AppStoreState` in the mount effect. Service-layer getters
+   (`isSoundEnabled()`, `getDelayMs()`, etc.) close over `stateRef`, so they pick up
+   the current React state on every call without a separate sync step.
+2. **Change** — a user action dispatches through `ServiceContext`. The setter dispatches
+   the new value to React and writes the store synchronously (`store.write(value)`).
+   Service getters automatically see the new value on the next call via `stateRef`.
 3. **Future build** — if a newer build already wrote a higher-versioned envelope, the
    current build returns `defaultValue` without overwriting. The newer data is preserved
    for when that build runs again.
@@ -275,7 +374,194 @@ For the complete list of all managed stores see the table in §3.5.3.
 3. Expose a setter callback in `ServiceContext` and wire it in `createAppServices.ts`.
 4. Register the store in the table in §3.5.3 of this manual.
 
-## 5) Testing
+## 5) Resource Formats
+
+X2Chess handles PGN content through three canonical resource kinds (`file`, `directory`,
+`db`) plus a set of import-time converters for external formats. All kinds share the same
+adapter interface defined in `resource/domain/contracts.ts`; the resource client in
+`resource/client/` routes every operation to the correct adapter by `kind`.
+
+A resource is addressed by a `PgnResourceRef` (`kind` + `locator`). A single game within
+a resource is addressed by a `PgnGameRef` (`kind` + `locator` + `recordId`).
+
+### 5.1 PGN file (`file` kind)
+
+- **Locator:** absolute filesystem path to a `.pgn` file.
+- **recordId:** 1-based integer position of the game within the file (as a string).
+- **Layout:** a single text file containing one or more PGN games concatenated in sequence.
+  Games are split on `[Event "…"]` header boundaries.
+- **Title derivation:** `Event: White - Black` → `White - Black` → `Event` → `Game N`.
+- **Capabilities:** `list` and `load` are implemented. `save` and `create` are deferred
+  (the file format does not support partial writes without rewriting the whole file).
+- **Implementation:** `resource/adapters/file/file_adapter.ts`.
+
+### 5.2 PGN directory (`directory` kind)
+
+- **Locator:** absolute filesystem path to a folder.
+- **recordId:** filename of the individual `.pgn` file within the folder (one game per
+  file convention).
+- **Layout:** each file in the directory contains exactly one game. The display order and
+  any extra metadata that PGN headers cannot carry are stored in a JSON sidecar file
+  (`.x2chess-meta.json`) placed next to the directory. The sidecar schema is:
+
+  ```json
+  { "version": 1, "games": { "<filename>": { "orderIndex": 0, "extra": {} } } }
+  ```
+
+  The sidecar is read on every `list` call and written whenever order or metadata changes.
+  A missing or corrupt sidecar is silently treated as empty.
+- **Capabilities:** `list`, `load`, `save`, `create`, and `reorder` are all delegated to
+  injected callbacks wired by `source_gateway.ts`.
+- **Implementation:** `resource/adapters/directory/directory_adapter.ts` +
+  `resource/adapters/directory/sidecar.ts`.
+
+### 5.3 X2Chess database (`db` kind)
+
+The `db` kind is the primary editable resource format. It is a SQLite file with a
+`.x2chess` extension. One file is one self-contained game library; multiple libraries can
+be open simultaneously (one `DbGateway` per file path).
+
+#### 5.3.1 File identity and location
+
+- **Locator:** absolute filesystem path to a `.x2chess` SQLite file.
+- **recordId:** UUID string assigned at game creation time.
+- New databases are created as empty SQLite files; schema migrations run automatically on
+  first access (idempotent runner in `resource/database/migrations/runner.ts`).
+
+#### 5.3.2 Schema
+
+The schema is managed by an ordered migration manifest
+(`resource/database/schema/schema_manifest.ts`). Each migration is a version number plus
+a list of SQL statements executed in order. Migrations are never modified after shipping;
+new steps are always appended.
+
+**`schema_version`** (created by the migration runner itself):
+
+| Column | Type | Description |
+|---|---|---|
+| `version` | INTEGER PK | Applied migration version number |
+| `applied_at` | INTEGER | Unix timestamp (ms) when the migration ran |
+
+**`games`** — one row per stored game or position:
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | TEXT PK | UUID assigned at creation |
+| `pgn_text` | TEXT | Full PGN text including headers and move tree |
+| `title_hint` | TEXT | Fallback display title when PGN headers are absent |
+| `created_at` | INTEGER | Unix timestamp (ms) of first insert |
+| `updated_at` | INTEGER | Unix timestamp (ms) of last save |
+| `order_index` | REAL | Display order; swap-reorder exchanges two values |
+| `revision_token` | TEXT | Opaque token updated on every save for conflict detection |
+| `kind` | TEXT | `"game"` (default) or `"position"` (detected from `[SetUp "1"]`) |
+
+**`game_metadata`** — denormalized header values for fast search and display:
+
+| Column | Type | Description |
+|---|---|---|
+| `game_id` | TEXT FK → games.id | Parent game (cascades on delete) |
+| `meta_key` | TEXT | PGN header key (e.g. `White`, `Black`, `Event`, `Result`) |
+| `val_str` | TEXT | String value extracted from the PGN header |
+
+Indexed on `(meta_key)` and `(meta_key, val_str)` for text-search queries.
+
+**`metadata_keys`** — registry of user-defined metadata key names:
+
+| Column | Type | Description |
+|---|---|---|
+| `key` | TEXT PK | Metadata key name |
+| `value_type` | TEXT | Value type hint (`"string"` default) |
+
+**`position_hashes`** — position search index (one row per reachable position per game):
+
+| Column | Type | Description |
+|---|---|---|
+| `hash` | TEXT | 16-char hex FNV-1a hash of the normalized FEN (first 4 fields) |
+| `game_id` | TEXT FK → games.id | Parent game (cascades on delete) |
+| `ply` | INTEGER | Half-move number where this position occurs (0 = start) |
+
+Indexed on `hash` for position-lookup queries. The hash function strips half-move and
+full-move counters so transpositions hash identically. The index is rebuilt in full on
+every save; the builder is injectable (`BuildPositionIndex`) so the `resource/` package
+stays free of chess-engine dependencies.
+
+**`move_edges`** — move frequency index for opening explorer:
+
+| Column | Type | Description |
+|---|---|---|
+| `position_hash` | TEXT | Position hash (same scheme as `position_hashes.hash`) |
+| `move_san` | TEXT | Move in SAN notation |
+| `move_uci` | TEXT | Move in UCI notation |
+| `result` | TEXT | Game result (`1-0`, `0-1`, `1/2-1/2`, `*`) |
+| `game_id` | TEXT FK → games.id | Parent game (cascades on delete) |
+
+Indexed on `position_hash`. Used by `explorePosition` to return per-move
+frequency/result aggregates for any reachable position across the whole library.
+
+**`training_transcripts`** — per-training-session records (owned by the training module):
+
+| Column | Type | Description |
+|---|---|---|
+| `session_id` | TEXT PK | UUID for the training session |
+| `source_game_id` | TEXT | The game being trained against |
+| `protocol` | TEXT | Training protocol identifier |
+| `started_at` | INTEGER | Unix timestamp (ms) |
+| `completed_at` | INTEGER | Unix timestamp (ms), nullable |
+| `aborted` | INTEGER | 0 = not aborted, 1 = aborted |
+| `config_json` | TEXT | JSON-serialized training configuration |
+| `ply_records` | TEXT | JSON array of per-ply training results |
+| `annotations` | TEXT | JSON array of post-session annotations |
+
+Indexed on `source_game_id` for per-game transcript queries.
+
+#### 5.3.3 Write path and revision safety
+
+Every `save` call:
+1. Optionally checks `revision_token` against the stored value; throws `conflict` on
+   mismatch (optimistic concurrency guard).
+2. Updates `pgn_text`, `revision_token`, `updated_at`, and `kind` in `games`.
+3. Deletes and rebuilds `game_metadata`, `position_hashes`, and `move_edges` for the
+   affected game.
+
+Every `create` call assigns a UUID, timestamps the row, appends `order_index` after the
+current maximum, and builds all three indexes.
+
+#### 5.3.4 Capabilities
+
+| Operation | Supported |
+|---|---|
+| `list` | Yes — ordered by `order_index ASC, created_at ASC` |
+| `load` | Yes |
+| `save` | Yes — with optional revision-token conflict detection |
+| `create` | Yes |
+| `reorder` | Yes — swaps `order_index` values between two rows |
+| `searchByPositionHash` | Yes — queries `position_hashes` |
+| `searchByText` | Yes — substring match on `White`, `Black`, `Event`, `Site` |
+| `explorePosition` | Yes — aggregated move frequency from `move_edges` |
+
+### 5.4 Import-time format converters
+
+Import converters are one-shot adapters that translate a foreign file format into PGN
+strings. They implement `FormatImporter` (`resource/adapters/import/format_import_types.ts`)
+and are not resource adapters — they do not implement `list`/`load`/`save`. Converted
+games are handed to the caller as PGN text ready to be stored in a `db` or other resource.
+
+| Format | Extensions | Mechanism |
+|---|---|---|
+| EPD (Extended Position Description) | `.epd` | Pure TypeScript parser; each line becomes a position-only PGN game with `[SetUp "1"]` and `[FEN "…"]` headers. Opcodes `id`, `bm`, `c0`–`c9`, and `ce` are mapped to PGN headers and comments. |
+| ChessBase | `.cbh`, `.cbv` | Delegates binary parsing to the Tauri backend command `import_chessbase_file`; Rust returns an array of PGN strings. The TypeScript layer is complete; the Rust command is deferred. |
+
+**EPD opcode mapping:**
+
+| Opcode | PGN mapping |
+|---|---|
+| `id` | `[Event "…"]` header |
+| `bm` | `[Annotator "bm: …"]` header |
+| `c0`–`c9` | Comment block `{ … }` in move text |
+| `ce` | Centipawn eval appended to comment: `eval: <value>` |
+| All others | Ignored |
+
+## 6) Testing
 
 ### 5.1 Test runner and location
 
@@ -331,20 +617,27 @@ belong to the integration layer and are validated through manual QA.
   production logic in stubs.
 - One test file per source module — do not mix multiple modules into one file.
 
-## 6) Key Concepts
+## 7) Key Concepts
 
-### 6.1 GameSessionState and ActiveSessionRef
+### 7.1 GameSessionState and ActiveSessionRef
 
 Each open game tab is backed by a dedicated `GameSessionState` object
 (`frontend/src/game_sessions/game_session_state.ts`). This object is the
-single source of truth for all game-specific mutable state for one session:
+**working store** for all game-specific mutable state for one session:
 
 - **PGN / model**: `pgnModel`, `pgnText`, `moves`, `verboseMoves`,
   `movePositionById`, `pgnLayoutMode`
-- **Navigation**: `currentPly`, `selectedMoveId`, `boardPreview`,
-  `animationRunId`, `isAnimating`
-- **Editor messages**: `errorMessage`, `statusMessage`, `pendingFocusCommentId`
+- **Navigation**: `currentPly`, `selectedMoveId`, `boardPreview`
+- **Editor messages**: `pendingFocusCommentId`
 - **Edit history**: `undoStack`, `redoStack`
+
+Fields that are internal to a specific service and never need to cross service
+boundaries live as closure-private variables instead of being stored on
+`GameSessionState`:
+
+- `animationRunId`, `isAnimating` — owned by the `navigation` closure
+- `errorMessage`, `statusMessage` — dispatched directly as `set_error_message`
+  / `set_status_message` actions; not stored on the session object
 
 Service modules (`pgn_runtime`, `history`, `move_lookup`, `navigation`,
 `pgn_model_update`) never receive a global state object. They receive an
@@ -355,40 +648,325 @@ copying data: a session switch is a single pointer assignment
 session store holds its live `GameSessionState` in an `ownState` field —
 there is no freeze/thaw snapshot cycle.
 
-### 6.2 Shared Application State
+### 7.2 Service-Owned State
 
-Non-game state lives in `AppState` (`app_shell/app_state.ts`): resource
-viewer tabs, player store, file system handles, save mode defaults, app
-config, and a few service-read fields (locale, sound, moveDelayMs). This is
-a shared mutable object referenced directly by service modules. It holds no
-game-specific fields.
+Each service manages its own internal state as closure-private variables.
+There is no shared mutable `AppState` object.
+
+| Service | Owns |
+|---|---|
+| `session_store` | `gameSessions[]`, `activeSessionId`, `nextSessionSeq` |
+| `resources_viewer` | `resourceViewerTabs[]`, `activeResourceTabId`, metadata-key prefs |
+| `session_persistence` | `autosaveTimer`, `saveRequestSeq`, `isHydratingGame`, `defaultSaveMode` |
+| `resources` | `gameDirectoryHandle`, paths, `activeSourceKind`, `appConfig`, `playerStore` |
+| `navigation` | `animationRunId`, `isAnimating` |
+| `history` | (undo/redo stacks are on `GameSessionState` so they survive session switches) |
+
+Services that need to read shell-preference values (sound, locale, move delay)
+receive a getter function injected at bundle-creation time: `isSoundEnabled()`,
+`getDelayMs()`, etc. These getters close over a `stateRef` maintained in
+`useAppStartup` that is updated on every React render, so services always read
+the current preference without coupling to React directly.
 
 Shell preferences (sound, locale, move delay, layout mode, position preview,
 developer tools) are the authoritative province of the React store
 (`AppStoreState`) and are persisted via `shellPrefsStore` — a versioned
 localStorage store (`frontend/src/runtime/shell_prefs_store.ts`). Shell
-preference setters dispatch to React directly and do not go through
-`render()`.
+preference setters dispatch to React directly.
 
-### 6.3 The React State Bridge
+### 7.3 The React State Bridge
 
 The React `useReducer` store (`AppStoreState` / `appReducer`) is the
-authoritative state for all rendering. The bridge between the service layer
-and React is the `render()` function assembled in `createAppServices.ts`:
+authoritative state for **rendering**. State reaches it through two channels:
 
-1. Any service mutation calls `render()` (or `syncStateToReact()` in
-   `useAppStartup`).
-2. `render()` reads `activeSessionRef.current` (game state) and `sharedState`
-   (shared state), then dispatches typed actions to the React store.
-3. React components read state exclusively through selectors
-   (`state/selectors.ts`).
-4. Components trigger mutations exclusively via `ServiceContext` callbacks —
-   never `dispatch` for game logic.
+#### Service callbacks (automatic)
 
-Shell preference setters are the only exception: they dispatch to React
-directly and bypass `render()`.
+Services wired in `createAppServices.ts` call typed dispatch callbacks when
+their state changes:
 
-## 7) Constraints for Ongoing Work
+| Callback | Action dispatched |
+|---|---|
+| `onPgnChange` | `set_pgn_state` |
+| `onNavigationChange` | `set_navigation` |
+| `onUndoRedoDepthChange` | `set_undo_redo_depth` |
+| `onStatusChange` | `set_status_message` |
+| `onErrorChange` | `set_error_message` |
+| `onPendingFocusChange` | `set_pending_focus` |
+| `onSessionsChanged` | `set_sessions` |
+| `onTabsChanged` | `set_resource_viewer` |
+
+Callbacks close over `dispatchRef` (a mutable ref updated on every render) so
+they always use the current React dispatch without recreating service instances.
+
+#### flushSessionState (explicit, for direct mutations)
+
+Operations in `SessionOrchestrator` that mutate `activeSessionRef.current`
+directly (e.g. `loadPgnText`, `switchSession`, `openPgnText`) call
+`flushSessionState()` afterwards. This helper reads the active session and
+dispatches `set_pgn_state`, `set_navigation`, `set_undo_redo_depth`, and
+`set_pending_focus` in one call.
+
+#### The mutable working store
+
+`activeSessionRef.current` (`GameSessionState`) is a **deliberate mutable
+working store** — not a React anti-pattern. Operations mutate it in-place
+during a single logical step (e.g. parse PGN, update ply, update selection),
+then flush to React once the step is complete. This avoids mid-operation
+renders and keeps animation, undo, and board preview coherent.
+
+The pattern is intentional:
+- Components **read** from the React store (always consistent).
+- Services **write** to `activeSessionRef.current` and flush when done.
+- The React store is the display layer; `activeSessionRef.current` is the
+  editing scratch pad for the active session.
+
+#### Component contract
+
+React components read state exclusively through selectors (`state/selectors.ts`).
+Components trigger mutations exclusively via `ServiceContext` callbacks — they
+never call `dispatch` for game logic.
+
+### 7.4 The PGN Text Editor
+
+The PGN text editor is the annotation-aware view of the active game session's PGN
+model. It is structured as a pure-logic **render-plan pipeline** that converts the
+in-memory PGN model into a flat list of `PlanBlock[]`, which the React render layer
+then maps to DOM elements.
+
+#### Layout modes
+
+The editor operates in one of three layout modes, stored per session in
+`GameSessionState.pgnLayoutMode`:
+
+| Mode | Behaviour |
+|---|---|
+| `plain` | Raw PGN text; comment content is shown verbatim, no marker processing. |
+| `text` | `[[indent]]` drives block indentation; `[[br]]` becomes a visible line break in the `contentEditable`; the first comment before the first move receives *intro styling*. |
+| `tree` | One block per variation in DFS order; each non-mainline block opens with a labelled `branch_header` token; markers survive as greyed literal text; each variation's first comment receives intro styling independently. |
+
+#### Intro section (implicit detection)
+
+When the editor is in **text** or **tree** mode, the *first comment appearing
+before the first move of a variation* automatically receives **intro styling** —
+a visually distinct block with a configurable left sidebar and tinted
+background.  No PGN marker is required: position in the model is the sole
+criterion.
+
+Detection inside `buildVariationWalker` (`plan/types.ts`):
+
+```typescript
+const applyIntroStyling: boolean = isFirstComment && !state.firstMoveEmitted;
+```
+
+- `firstCommentId` — set on the first comment seen in the current scope; a
+  later comment in the same variation cannot be the intro.
+- `firstMoveEmitted` — set to `true` once any move token has been emitted; a
+  comment appearing after the first move is never styled as intro.
+
+In **tree mode** `buildTreeEditorPlan` saves and resets both fields before
+processing each variation block, so **each variation's first comment gets intro
+styling independently** of the main-line intro.
+
+In **plain mode** `applyIntroStyling` is always `false`; the detection is
+skipped entirely and all comments render as plain literal text.
+
+**CSS**: the class `text-editor-comment-intro` is added when
+`CommentToken.introStyling === true`.  Visual appearance is driven by the CSS
+custom properties `--editor-intro-bg`, `--editor-intro-sidebar-color`, and
+`--editor-intro-sidebar-width`, which are set from `EditorStylePrefs` and
+default to the shipped design.
+
+> **Note:** The legacy `\intro` PGN marker is gone.  Intro styling is fully
+> implicit — no markup is needed in the PGN source.
+
+#### Render-plan pipeline (`editor/plan/`)
+
+`buildTextEditorPlan(pgnModel, { layoutMode, numberingStrategy })` is the single
+entry point (re-exported from `editor/text_editor_plan.ts`). It:
+
+1. Allocates a `PlanState` — a cursor over a growing `PlanBlock[]` plus tracking
+   fields (`indentDepth`, `firstCommentId`, `firstMoveEmitted`).
+2. Delegates to the mode-specific builder:
+   - `buildPlainEditorPlan` (`plan/plain_mode.ts`) — uses `buildVariationWalker` with
+     a pass-through comment emitter that sets `plainLiteralComment = true`.
+   - `buildTextModeEditorPlan` (`plan/text_mode.ts`) — uses `buildVariationWalker` with
+     a comment emitter that strips `[[indent]]` directives, converts `[[br]]` to
+     `\n`, and calls `nextBlock()` after intro comments.
+   - `buildTreeEditorPlan` (`plan/tree_mode.ts`) — has its own DFS traversal;
+     collects child RAVs inline and emits them as new blocks after the parent
+     block's content.
+3. Trims leading and trailing empty blocks before returning.
+
+**`buildVariationWalker`** (`plan/types.ts`) — a factory used by plain and text mode.
+It returns a mutually-recursive `emitVariation` / `emitMove` pair bound to a
+mode-specific `CommentEmitter`. The walker handles comment hoisting (a comment
+immediately before a move number is hoisted before that move's token), `[[indent]]`-
+gated RAV indentation, and `postItems` ordering from the parsed PGN model.
+
+**Token types** emitted into blocks:
+
+| `tokenType` | Description |
+|---|---|
+| `move` | A SAN move token; carries `nodeId`, `variationDepth`, `moveSide`. |
+| `move_number` | A move-number token (simplified to digit only). |
+| `nag` | A NAG glyph (e.g. `!`, `?`, `±`). |
+| `result` | The game result (`1-0`, `0-1`, `½-½`, `*`). |
+| `space` | A whitespace spacer between tokens. |
+| `branch_header` | Tree-mode only; carries the variation label (e.g. `A`, `B.1`). |
+| `comment` (kind) | A `CommentToken`; carries `commentId`, `rawText`, display `text`, indent flags, `introStyling`, and `focusFirstCommentAtStart`. |
+
+**Tree variation numbering** (`plan/tree_mode.ts`): each non-mainline block is labelled
+by a `VariationNumberingStrategy` — a function from a path array to a string.
+The default `alphaNumericPathStrategy` maps the first segment to an uppercase letter
+(`A`, `B`, …) and deeper segments to 1-based integers joined by `.` (e.g. `A.1.2`).
+
+#### PGN runtime (`editor/pgn_runtime.ts`)
+
+`createPgnRuntimeCapabilities` owns the lifecycle of the in-session PGN text:
+
+- **`loadPgn()`** — reads the raw PGN text from the editor input element, parses it
+  into a model, runs `syncChessParseState`, and calls `onPgnChange` +
+  `onNavigationChange`.
+- **`applyPgnModelUpdate(nextModel, focusCommentId?)`** — the primary mutation path
+  for model-level edits (commands, move entry). Serializes the new model to text,
+  pushes an undo snapshot if the text changed, syncs chess parse state, schedules
+  autosave, and calls `onPgnChange` + `onNavigationChange` + (if applicable)
+  `onPendingFocusChange`.
+- **`syncChessParseState(source)`** — feeds the PGN text to `chess.js` to populate
+  `moves`, `verboseMoves`, and `movePositionById`. Falls back to a stripped
+  (annotation-free) copy when annotations cause `chess.js` to reject the input.
+  Does not fire any callbacks; callers dispatch state separately.
+
+#### Undo / redo (`editor/history.ts`)
+
+`createEditorHistoryCapabilities` maintains per-session `undoStack` / `redoStack`
+(capped at 200 entries) stored on `GameSessionState`. Each entry is an
+`EditorSnapshot` — a `structuredClone` of `pgnModel`, `pgnText`, `currentPly`,
+`selectedMoveId`, and `pgnLayoutMode`. Undo and redo restore the snapshot and call
+`onSyncChessParseState` + `onPgnChange` + `onNavigationChange` +
+`onUndoRedoDepthChange`; they do not go through `applyPgnModelUpdate` so they do
+not push further history entries.
+
+### 7.5 The Metadata System
+
+Metadata in X2Chess is a multi-layer system that begins with the PGN text and ends at
+search-capable, typed, user-extensible field definitions.
+
+#### PGN headers as source of truth
+
+Every game carries its metadata inside its own PGN text as bracket header lines:
+
+```
+[White "Kasparov, G."]
+[Result "1-0"]
+[WhiteElo "2812"]
+[Date "1997.05.11"]
+```
+
+The PGN text is always the authoritative record. Derived representations (the DB index,
+the viewer display) are computed from it and can be rebuilt at any time.
+
+#### Two extraction modes
+
+`resource/domain/metadata.ts` exposes two extraction functions that parse headers from
+raw PGN text:
+
+- **`extractPgnMetadata(pgnText, keys?)`** — projects the requested header keys as plain
+  strings. Used where only display or storage is needed (listing, file/directory adapters).
+- **`extractHybridPgnMetadata(pgnText, keys?)`** — projects known keys through typed
+  parsers from `PGN_METADATA_SCHEMA`, yielding `HybridPgnMetadata`. Known types:
+
+  | Key | Parsed type |
+  |---|---|
+  | `Date` | `PgnDateValue` (`{ raw, year, month, day }`) — `?` fields become `null` |
+  | `WhiteElo`, `BlackElo` | `number` (via `parseInt`; non-numeric → `undefined`) |
+  | `Result` | `PgnResultValue` union (`"1-0" \| "0-1" \| "1/2-1/2" \| "*"`) |
+  | `X2Style` | `X2StyleValue` union (`"plain" \| "text" \| "tree"`) |
+  | All other known keys | `string` |
+  | Unknown keys | `string` (pass-through) |
+
+  Unknown keys are preserved as strings; the `HybridPgnMetadata` type is the intersection
+  of `PgnMetadataKnownValues` and `Record<string, PgnMetadataScalar | undefined>`.
+
+#### Key lists
+
+Three ordered key lists define projection scopes:
+
+| Constant | Content |
+|---|---|
+| `PGN_STANDARD_METADATA_KEYS` | 14 keys — the Seven Tag Roster plus ECO, Opening, WhiteElo, BlackElo, TimeControl, Termination, Annotator |
+| `KNOWN_PGN_METADATA_KEYS` | Standard keys plus `X2Style` and `Material` |
+| `DEFAULT_RESOURCE_VIEWER_METADATA_KEYS` | 7-key default column set for the resource viewer: White, Black, Date, Event, ECO, Opening, Result |
+
+The `METADATA_KEY` const object mirrors `PgnMetadataKnownValues` as string constants so
+that renaming a key in the type produces a compile error at every call site.
+
+#### DB-level metadata index
+
+When a game is created or saved in a `db` resource, `writeMetadata` in
+`resource/adapters/db/db_indexer.ts` denormalizes header values into the `game_metadata`
+table (one row per key–value pair, keyed by `(game_id, meta_key)`). This index drives:
+
+- **List display** — `db_adapter.ts` batch-loads metadata for all games in a single
+  query at list time, avoiding per-game reads.
+- **Text search** — `searchByText` queries `game_metadata` for substring matches on
+  `White`, `Black`, `Event`, and `Site`.
+
+The `metadata_keys` table records which keys are present in a given database; the adapter
+returns this list alongside each `list` result so the viewer knows which columns to offer.
+
+Every save deletes and rebuilds the metadata rows for the affected game — the index is
+always derived from the current PGN text.
+
+#### Derived `Material` key
+
+For position games (`[SetUp "1"]` present), `writeMetadata` also derives a `Material`
+key by passing the `[FEN]` header value through `materialKeyFromFen` in
+`resource/domain/material_key.ts`. The key has the form `K<white-pieces>vK<black-pieces>`
+with pieces sorted by descending value, e.g. `KQPPPvKRP`, `KBNvK`, `KvK`. It enables
+substring search for endgame material configurations.
+
+#### User-defined schemas
+
+Beyond the standard PGN keys, users can define custom metadata schemas. A
+`MetadataSchema` contains:
+
+- A stable UUID `id` and a display `name`.
+- A monotonically incrementing `version` (bumped on each save).
+- An ordered list of `MetadataFieldDefinition` entries, each with a `key`, `label`,
+  `type`, `required` flag, `orderIndex` (10, 20, 30, … with gaps for future insertions),
+  and optional `selectValues` and `description`.
+
+**Field types:** `text`, `date`, `select`, `number`, `flag`, `game_link`.
+
+Schemas are persisted in localStorage under `x2chess.metadata-schemas` via the versioned
+store in `frontend/src/resources_viewer/schema_storage.ts`. They can be exported and
+imported as JSON files (format marker: `"x2chess-schema": "1"`).
+
+The built-in `BUILT_IN_SCHEMA` (id `"builtin"`) is a read-only schema for the standard
+PGN Seven Tag Roster plus common extensions. It is used when no user-defined schema is
+associated with a resource.
+
+#### Relationship between layers
+
+```
+PGN text (source of truth)
+  │
+  ├─ extractPgnMetadata()       → plain string map
+  │    used by: file/directory adapters, db list display, db indexer
+  │
+  ├─ extractHybridPgnMetadata() → typed HybridPgnMetadata
+  │    used by: resource viewer columns, typed field rendering
+  │
+  └─ writeMetadata() [db only]  → game_metadata + metadata_keys rows
+       used by: text search, batch list loading
+
+MetadataSchema (localStorage)
+  └─ maps field keys to types and labels
+       used by: resource viewer column configuration, metadata editor dialog
+```
+
+## 8) Constraints for Ongoing Work
 
 - Keep browser fat-client as primary source of feature truth.
 - Keep reduced app-profile differences explicit and documented.
@@ -406,7 +984,13 @@ directly and bypass `render()`.
 - Keep production runtime data outside repository paths (explicit prod root or OS app-data default).
 - Keep scenario game libraries under `run/<SCENARIO>/games` for local scenarios.
 - Keep runtime configuration layered: default app config + partial user override in data area.
-- Keep all UI state in the React `useReducer` store (`AppStoreState`); never mutate state outside `dispatch`.
+- React `useReducer` (`AppStoreState`) is the authoritative state for rendering; all
+  component reads go through selectors, all component writes go through `ServiceContext`.
+- `activeSessionRef.current` (`GameSessionState`) is a deliberate mutable working
+  store for the active session — services write to it during operations and flush to
+  React via callbacks or `flushSessionState()` when the operation completes (see §7.3).
+  This is an intentional performance trade-off, not a violation.
+- Services own their internal state as closure variables; no shared mutable `AppState` object.
 - Keep service initialisation in `useAppStartup`; expose service callbacks exclusively via `ServiceContext`.
 - Pure-logic modules (`model/`, `editor/`, `board/`, `game_sessions/`, `resources/`) must remain framework-free.
 - Update this manual when architecture decisions, boundaries, or delivery paths change.

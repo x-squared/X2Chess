@@ -6,11 +6,11 @@
  *
  * Configuration API:
  * - Configuration is provided via typed function parameters/options in these exports
- *   (for example `deps`, `state`, callbacks, and option objects declared in this file).
+ *   (for example `deps`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - This module communicates through shared `state`; interactions are explicit in
- *   exported function signatures and typed callback contracts.
+ * - State changes are reported via `onSetSaveStatus`; this module holds its own
+ *   runtime state in a closure (no injected mutable state object).
  */
 
 import type { SourceRefLike } from "../runtime/bootstrap_shared";
@@ -35,15 +35,8 @@ type EnsureSourceResult = {
   revisionToken?: string;
 } | null;
 
-type SessionPersistenceState = {
-  saveRequestSeq: number;
-  isHydratingGame: boolean;
-  defaultSaveMode: SaveMode;
-  autosaveTimer: ReturnType<typeof setTimeout> | null;
-};
-
 type SessionPersistenceDeps = {
-  state: Record<string, unknown>;
+  defaultSaveMode?: SaveMode;
   t: (key: string, fallback?: string) => string;
   getActiveSession: () => SessionLike | null;
   updateActiveSessionMeta: (patch: {
@@ -66,7 +59,7 @@ type SessionPersistenceDeps = {
 };
 
 export const createSessionPersistenceService = ({
-  state,
+  defaultSaveMode: initialDefaultSaveMode = "auto",
   t,
   getActiveSession,
   updateActiveSessionMeta,
@@ -76,7 +69,11 @@ export const createSessionPersistenceService = ({
   onSetSaveStatus,
   autosaveDebounceMs = 700,
 }: SessionPersistenceDeps) => {
-  const runtimeState: SessionPersistenceState = state as SessionPersistenceState;
+  let saveRequestSeq = 0;
+  let isHydratingGame = false;
+  let defaultSaveMode: SaveMode = initialDefaultSaveMode;
+  let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
+
   const persistActiveSessionNow = async (): Promise<void> => {
     const session: SessionLike | null = getActiveSession();
     if (!session) return;
@@ -103,7 +100,7 @@ export const createSessionPersistenceService = ({
       }
     }
     if (!activeSourceRef) return;
-    const requestId: number = ++runtimeState.saveRequestSeq;
+    const requestId: number = ++saveRequestSeq;
     updateActiveSessionMeta({ dirtyState: "saving" });
     onSetSaveStatus(t("pgn.save.saving", "Saving..."), "saving");
     try {
@@ -113,7 +110,7 @@ export const createSessionPersistenceService = ({
         String(session.revisionToken || ""),
         { sessionId: session.sessionId },
       );
-      if (requestId !== runtimeState.saveRequestSeq) return;
+      if (requestId !== saveRequestSeq) return;
       updateActiveSessionMeta({
         dirtyState: "clean",
         revisionToken: String(saveResult.revisionToken || Date.now()),
@@ -121,7 +118,7 @@ export const createSessionPersistenceService = ({
       onSetSaveStatus(t("pgn.save.saved", "Saved"), "saved");
       return;
     } catch (error: unknown) {
-      if (requestId !== runtimeState.saveRequestSeq) return;
+      if (requestId !== saveRequestSeq) return;
       updateActiveSessionMeta({ dirtyState: "error" });
       const detail: string = error instanceof Error ? error.message : String(error);
       onSetSaveStatus(
@@ -133,18 +130,18 @@ export const createSessionPersistenceService = ({
   };
 
   const scheduleAutosaveForActiveSession = (): void => {
-    if (runtimeState.isHydratingGame) return;
+    if (isHydratingGame) return;
     const session: SessionLike | null = getActiveSession();
     if (!session) return;
-    const sessionMode: SaveMode = session.saveMode || runtimeState.defaultSaveMode;
+    const sessionMode: SaveMode = session.saveMode || defaultSaveMode;
     if (sessionMode !== "auto") return;
     updateActiveSessionMeta({ dirtyState: "dirty" });
-    if (runtimeState.autosaveTimer) {
-      window.clearTimeout(runtimeState.autosaveTimer);
-      runtimeState.autosaveTimer = null;
+    if (autosaveTimer) {
+      window.clearTimeout(autosaveTimer);
+      autosaveTimer = null;
     }
-    runtimeState.autosaveTimer = window.setTimeout((): void => {
-      runtimeState.autosaveTimer = null;
+    autosaveTimer = window.setTimeout((): void => {
+      autosaveTimer = null;
       void persistActiveSessionNow();
     }, autosaveDebounceMs);
   };
@@ -152,12 +149,17 @@ export const createSessionPersistenceService = ({
   const setActiveSessionSaveMode = (mode: string): void => {
     const nextMode: SaveMode = mode === "manual" ? "manual" : "auto";
     updateActiveSessionMeta({ saveMode: nextMode });
-    runtimeState.defaultSaveMode = nextMode;
+    defaultSaveMode = nextMode;
+  };
+
+  const setIsHydratingGame = (value: boolean): void => {
+    isHydratingGame = value;
   };
 
   return {
     persistActiveSessionNow,
     scheduleAutosaveForActiveSession,
     setActiveSessionSaveMode,
+    setIsHydratingGame,
   };
 };

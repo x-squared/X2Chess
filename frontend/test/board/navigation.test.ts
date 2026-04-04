@@ -16,10 +16,6 @@ const makeSession = (overrides: Partial<GameSessionState> = {}): GameSessionStat
   currentPly: 0,
   selectedMoveId: null,
   boardPreview: null,
-  animationRunId: 0,
-  isAnimating: false,
-  errorMessage: "",
-  statusMessage: "",
   pendingFocusCommentId: null,
   undoStack: [],
   redoStack: [],
@@ -53,7 +49,7 @@ test("gotoPly animate=false — advances ply directly", async () => {
     findCommentIdAroundMove: () => null,
     focusCommentById: () => false,
     playMoveSound: noop,
-    render: () => { rendered++; },
+    onNavigationChange: () => { rendered++; },
   });
   await gotoPly(2, { animate: false });
   assert.equal(session.currentPly, 2);
@@ -71,7 +67,7 @@ test("gotoPly animate=false — clamps to move count upper bound", async () => {
     findCommentIdAroundMove: () => null,
     focusCommentById: () => false,
     playMoveSound: noop,
-    render: () => {},
+    onNavigationChange: () => {},
   });
   await gotoPly(999, { animate: false });
   assert.equal(session.currentPly, 2);
@@ -88,7 +84,7 @@ test("gotoPly animate=false — clamps to 0 lower bound", async () => {
     findCommentIdAroundMove: () => null,
     focusCommentById: () => false,
     playMoveSound: noop,
-    render: () => {},
+    onNavigationChange: () => {},
   });
   await gotoPly(-5, { animate: false });
   assert.equal(session.currentPly, 0);
@@ -106,7 +102,7 @@ test("gotoPly animate=false — no-op when already at target", async () => {
     findCommentIdAroundMove: () => null,
     focusCommentById: () => false,
     playMoveSound: noop,
-    render: () => { rendered++; },
+    onNavigationChange: () => { rendered++; },
   });
   await gotoPly(1, { animate: false });
   assert.equal(rendered, 0);
@@ -135,7 +131,7 @@ test("gotoRelativeStep backward in variation — selects previousMoveId", async 
     findCommentIdAroundMove: () => null,
     focusCommentById: () => false,
     playMoveSound: noop,
-    render: () => {},
+    onNavigationChange: () => {},
   });
   await gotoRelativeStep(-1);
   assert.equal(selectedId, "move_v0");
@@ -162,7 +158,7 @@ test("gotoRelativeStep backward in variation at start — selects parentMoveId",
     findCommentIdAroundMove: () => null,
     focusCommentById: () => false,
     playMoveSound: noop,
-    render: () => {},
+    onNavigationChange: () => {},
   });
   await gotoRelativeStep(-1);
   assert.equal(selectedId, "move_parent");
@@ -181,7 +177,7 @@ test("handleSelectedMoveArrowHotkey — returns false when no selected move", ()
     findCommentIdAroundMove: () => null,
     focusCommentById: () => false,
     playMoveSound: noop,
-    render: () => {},
+    onNavigationChange: () => {},
   });
   assert.equal(handleSelectedMoveArrowHotkey(makeKey("ArrowLeft")), false);
 });
@@ -197,7 +193,7 @@ test("handleSelectedMoveArrowHotkey — returns false when no move position foun
     findCommentIdAroundMove: () => null,
     focusCommentById: () => false,
     playMoveSound: noop,
-    render: () => {},
+    onNavigationChange: () => {},
   });
   assert.equal(handleSelectedMoveArrowHotkey(makeKey("ArrowLeft")), false);
 });
@@ -216,7 +212,7 @@ test("handleSelectedMoveArrowHotkey — returns false for non-arrow keys", () =>
     findCommentIdAroundMove: () => null,
     focusCommentById: () => false,
     playMoveSound: noop,
-    render: () => {},
+    onNavigationChange: () => {},
   });
   assert.equal(handleSelectedMoveArrowHotkey(makeKey("Enter")), false);
   assert.equal(handleSelectedMoveArrowHotkey(makeKey("Space")), false);
@@ -236,7 +232,7 @@ test("handleSelectedMoveArrowHotkey — returns false with modifier key", () => 
     findCommentIdAroundMove: () => null,
     focusCommentById: () => false,
     playMoveSound: noop,
-    render: () => {},
+    onNavigationChange: () => {},
   });
   assert.equal(handleSelectedMoveArrowHotkey(makeKey("ArrowLeft", { metaKey: true } as Partial<KeyboardEvent>)), false);
 });
@@ -258,7 +254,7 @@ test("handleSelectedMoveArrowHotkey — ArrowDown selects first variation", () =
     findCommentIdAroundMove: () => null,
     focusCommentById: () => false,
     playMoveSound: noop,
-    render: () => {},
+    onNavigationChange: () => {},
   });
   const result = handleSelectedMoveArrowHotkey(makeKey("ArrowDown", {
     preventDefault: () => { prevented = true; },
@@ -282,7 +278,7 @@ test("handleSelectedMoveArrowHotkey — ArrowDown returns false when no variatio
     findCommentIdAroundMove: () => null,
     focusCommentById: () => false,
     playMoveSound: noop,
-    render: () => {},
+    onNavigationChange: () => {},
   });
   assert.equal(handleSelectedMoveArrowHotkey(makeKey("ArrowDown")), false);
 });
@@ -302,7 +298,7 @@ test("handleSelectedMoveArrowHotkey — Shift+Left focuses before-comment", () =
     findCommentIdAroundMove: (_, pos) => pos === "before" ? "comment_before" : null,
     focusCommentById: (id) => { focusedId = id; return true; },
     playMoveSound: noop,
-    render: () => {},
+    onNavigationChange: () => {},
   });
   const result = handleSelectedMoveArrowHotkey(makeKey("ArrowLeft", {
     shiftKey: true,
@@ -327,7 +323,7 @@ test("handleSelectedMoveArrowHotkey — Shift+Right focuses after-comment", () =
     findCommentIdAroundMove: (_, pos) => pos === "after" ? "comment_after" : null,
     focusCommentById: (id) => { focusedId = id; return true; },
     playMoveSound: noop,
-    render: () => {},
+    onNavigationChange: () => {},
   });
   const result = handleSelectedMoveArrowHotkey(makeKey("ArrowRight", {
     shiftKey: true,
@@ -358,7 +354,7 @@ test("handleSelectedMoveArrowHotkey — ArrowLeft at variation start selects par
     findCommentIdAroundMove: () => null,
     focusCommentById: () => false,
     playMoveSound: noop,
-    render: () => {},
+    onNavigationChange: () => {},
   });
   const result = handleSelectedMoveArrowHotkey(makeKey("ArrowLeft", {
     preventDefault: () => { prevented = true; },
@@ -399,7 +395,7 @@ test("handleSelectedMoveArrowHotkey — Shift+Down navigates to next sibling var
     findCommentIdAroundMove: () => null,
     focusCommentById: () => false,
     playMoveSound: noop,
-    render: () => {},
+    onNavigationChange: () => {},
   });
   const result = handleSelectedMoveArrowHotkey(makeKey("ArrowDown", {
     shiftKey: true,

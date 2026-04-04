@@ -1,7 +1,7 @@
 import "chessground/assets/chessground.base.css";
 import "./board/styles.css";
 import "./editor/styles.css";
-import "./panels/styles.css";
+import "./components/game_editor/ast_panel.css";
 import "./styles.css";
 import "./components/shell/AppShell.css";
 import "./components/shell/MenuPanel.css";

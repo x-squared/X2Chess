@@ -5,6 +5,14 @@ import type { PgnResourceRef } from "./resource_ref";
 import type { MoveFrequencyEntry } from "./move_frequency";
 
 /**
+ * Controls how multiple values are matched in `searchByMetadataValues`.
+ *
+ * `"any"` — return games that have at least one of the given values for the key.
+ * `"all"` — return games that have every one of the given values for the key.
+ */
+export type MetadataSearchMode = "any" | "all";
+
+/**
  * Canonical adapter contracts.
  *
  * Integration API:
@@ -96,4 +104,28 @@ export interface PgnResourceAdapter {
    * @param resourceRef Resource to query.
    */
   explorePosition?(positionHash: string, resourceRef: PgnResourceRef): Promise<MoveFrequencyEntry[]>;
+
+  /**
+   * Search for games where a specific metadata key matches one or more values.
+   *
+   * `mode: "any"` — game must have at least one of the given values for the key
+   *   (SQL: `val_str IN (…)`).
+   * `mode: "all"` — game must have every one of the given values for the key
+   *   (SQL: `IN (…) GROUP BY game_id HAVING COUNT(DISTINCT val_str) = N`).
+   *
+   * Designed for multi-valued fields such as user-defined "character" tags where a
+   * user selects several values from a controlled vocabulary.
+   * Optional: only adapters with a structured metadata index need to implement this.
+   *
+   * @param key Metadata key to filter on (e.g. `"Character"`).
+   * @param values Values to match against.
+   * @param mode Whether any or all values must be present.
+   * @param resourceRef Resource to search within.
+   */
+  searchByMetadataValues?(
+    key: string,
+    values: string[],
+    mode: MetadataSearchMode,
+    resourceRef: PgnResourceRef,
+  ): Promise<PgnGameRef[]>;
 }

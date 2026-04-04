@@ -23,6 +23,7 @@ export {
 } from "../model";
 export {
   applyDefaultIndentDirectives,
+  applyDefaultLayout,
   findExistingCommentIdAroundMove,
   getFirstCommentMetadata,
   getHeaderValue,

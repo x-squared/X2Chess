@@ -23,7 +23,7 @@ const STORAGE_KEY = "x2chess.metadata-schemas";
 
 const schemasStore = createVersionedStore<MetadataSchema[]>({
   key: STORAGE_KEY,
-  version: 1,
+  version: 2,
   defaultValue: [],
   migrations: [
     // v0→v1: legacy payload was `{ schemas: MetadataSchema[] }` (container object).
@@ -35,6 +35,17 @@ const schemasStore = createVersionedStore<MetadataSchema[]>({
         if (Array.isArray(container["schemas"])) return container["schemas"];
       }
       return [];
+    },
+    // v1→v2: add `cardinality: "one"` to every existing field definition that
+    // lacks the property. Introduced when multi-valued fields were added.
+    (raw): unknown => {
+      if (!Array.isArray(raw)) return raw;
+      return (raw as MetadataSchema[]).map((schema) => ({
+        ...schema,
+        fields: Array.isArray(schema.fields)
+          ? schema.fields.map((f) => ({ cardinality: "one" as const, ...f }))
+          : schema.fields,
+      }));
     },
   ],
 });

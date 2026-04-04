@@ -1,5 +1,5 @@
 import type { ResourceCapabilities } from "./capabilities";
-import type { PgnResourceAdapter } from "../domain/contracts";
+import type { MetadataSearchMode, PgnResourceAdapter } from "../domain/contracts";
 import { PGN_RESOURCE_KINDS, type PgnResourceKind } from "../domain/kinds";
 import type { PgnGameRef } from "../domain/game_ref";
 import type { PgnResourceRef } from "../domain/resource_ref";
@@ -80,5 +80,15 @@ export const createResourceClient = (
     const adapter: PgnResourceAdapter = resolveAdapter(adapters, resourceRef.kind);
     if (typeof adapter.explorePosition !== "function") return [];
     return adapter.explorePosition(positionHash, resourceRef);
+  },
+  searchByMetadataValues: async (
+    key: string,
+    values: string[],
+    mode: MetadataSearchMode,
+    resourceRef: PgnResourceRef,
+  ): Promise<PgnGameRef[]> => {
+    const adapter: PgnResourceAdapter = resolveAdapter(adapters, resourceRef.kind);
+    if (typeof adapter.searchByMetadataValues !== "function") return [];
+    return adapter.searchByMetadataValues(key, values, mode, resourceRef);
   },
 });

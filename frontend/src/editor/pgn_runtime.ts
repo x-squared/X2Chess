@@ -13,8 +13,8 @@ import type { MovePositionIndex } from "../board/move_position";
  *   (for example `deps`, `sessionRef`, callbacks, and option objects declared in this file).
  *
  * Communication API:
- * - This module communicates through `sessionRef.current`; interactions are explicit in
- *   exported function signatures and typed callback contracts.
+ * - State changes are reported via typed callbacks rather than a generic `onRender`.
+ *   The host wires these to the appropriate dispatch calls.
  */
 
 type SyncChessOptions = {
@@ -25,6 +25,8 @@ type ApplyPgnModelUpdateOptions = {
   recordHistory?: boolean;
 };
 
+type BoardPreviewValue = { fen: string; lastMove?: [string, string] | null } | null;
+
 type PgnRuntimeDeps = {
   sessionRef: ActiveSessionRef;
   pgnInput: Element | null;
@@ -34,7 +36,16 @@ type PgnRuntimeDeps = {
   serializeModelToPgnFn: (model: unknown) => string;
   buildMovePositionByIdFn: (model: unknown) => Record<string, unknown>;
   stripAnnotationsForBoardParserFn: (source: string) => string;
-  onRender: () => void;
+  /** Called after pgnText, pgnModel, or moves change. */
+  onPgnChange: (pgnText: string, pgnModel: unknown, moves: string[]) => void;
+  /** Called after currentPly, selectedMoveId, or boardPreview change. */
+  onNavigationChange: (currentPly: number, selectedMoveId: string | null, boardPreview: BoardPreviewValue) => void;
+  /** Called to set the status bar message (success/informational). */
+  onStatusChange: (message: string) => void;
+  /** Called to set the error bar message (parse errors). */
+  onErrorChange: (message: string) => void;
+  /** Called after pendingFocusCommentId changes. */
+  onPendingFocusChange: (commentId: string | null) => void;
   onRecordHistory: () => void;
   onScheduleAutosave: () => void;
 };
@@ -48,7 +59,11 @@ export const createPgnRuntimeCapabilities = ({
   serializeModelToPgnFn,
   buildMovePositionByIdFn,
   stripAnnotationsForBoardParserFn,
-  onRender,
+  onPgnChange,
+  onNavigationChange,
+  onStatusChange,
+  onErrorChange,
+  onPendingFocusChange,
   onRecordHistory,
   onScheduleAutosave,
 }: PgnRuntimeDeps) => {
@@ -62,7 +77,8 @@ export const createPgnRuntimeCapabilities = ({
     }
   };
 
-  const syncChessParseState = (source: string, { clearOnFailure = false }: SyncChessOptions = {}): void => {
+  /** Parse chess moves from PGN source into session state. Returns whether parsing succeeded. */
+  const syncChessParseState = (source: string, { clearOnFailure = false }: SyncChessOptions = {}): boolean => {
     const g = sessionRef.current;
     if (!source) {
       g.moves = [];
@@ -71,8 +87,8 @@ export const createPgnRuntimeCapabilities = ({
       g.movePositionById = {};
       g.boardPreview = null;
       g.selectedMoveId = null;
-      g.errorMessage = "";
-      return;
+      onErrorChange("");
+      return true;
     }
     try {
       const parser: Chess = new Chess();
@@ -83,7 +99,8 @@ export const createPgnRuntimeCapabilities = ({
       g.movePositionById = buildMovePositionByIdFn(g.pgnModel) as MovePositionIndex;
       if (g.selectedMoveId && !g.movePositionById[g.selectedMoveId]) g.selectedMoveId = null;
       g.boardPreview = null;
-      g.errorMessage = "";
+      onErrorChange("");
+      return true;
     } catch {
       try {
         const fallbackParser: Chess = new Chess();
@@ -94,12 +111,13 @@ export const createPgnRuntimeCapabilities = ({
         g.movePositionById = buildMovePositionByIdFn(g.pgnModel) as MovePositionIndex;
         if (g.selectedMoveId && !g.movePositionById[g.selectedMoveId]) g.selectedMoveId = null;
         g.boardPreview = null;
-        g.errorMessage = "";
+        onErrorChange("");
+        return true;
       } catch {
         if (clearOnFailure) {
-          g.errorMessage = "";
+          onErrorChange("");
         } else {
-          g.errorMessage = t("pgn.error", "Unable to parse PGN.");
+          onErrorChange(t("pgn.error", "Unable to parse PGN."));
           g.moves = [];
           g.verboseMoves = [];
           g.currentPly = 0;
@@ -107,6 +125,7 @@ export const createPgnRuntimeCapabilities = ({
           g.boardPreview = null;
           g.selectedMoveId = null;
         }
+        return false;
       }
     }
   };
@@ -124,35 +143,37 @@ export const createPgnRuntimeCapabilities = ({
     g.pgnModel = nextModel as typeof g.pgnModel;
     g.pgnText = nextPgnText;
     setInputValue(g.pgnText);
-    if (focusCommentId) g.pendingFocusCommentId = focusCommentId;
+    if (focusCommentId) {
+      g.pendingFocusCommentId = focusCommentId;
+      onPendingFocusChange(focusCommentId);
+    }
     syncChessParseState(g.pgnText);
+    onPgnChange(g.pgnText, g.pgnModel, g.moves);
+    onNavigationChange(g.currentPly, g.selectedMoveId, g.boardPreview as BoardPreviewValue);
     onScheduleAutosave();
-    onRender();
   };
 
   const loadPgn = (): void => {
     const g = sessionRef.current;
-    g.animationRunId += 1;
-    g.isAnimating = false;
     const source: string = getInputValue().trim();
     g.pgnText = source;
     g.pgnModel = parsePgnToModelFn(source) as typeof g.pgnModel;
-    syncChessParseState(source);
-    g.statusMessage = g.errorMessage ? "" : t("pgn.loaded", "PGN loaded.");
-    onRender();
+    const ok = syncChessParseState(source);
+    onPgnChange(g.pgnText, g.pgnModel, g.moves);
+    onNavigationChange(g.currentPly, g.selectedMoveId, g.boardPreview as BoardPreviewValue);
+    if (ok) onStatusChange(t("pgn.loaded", "PGN loaded."));
   };
 
   const initializeWithDefaultPgn = (): void => {
     const g = sessionRef.current;
     setInputValue(defaultPgn);
-    g.animationRunId += 1;
-    g.isAnimating = false;
     g.pgnText = defaultPgn;
     g.pgnModel = parsePgnToModelFn(defaultPgn) as typeof g.pgnModel;
     syncChessParseState(defaultPgn);
-    g.errorMessage = "";
-    g.statusMessage = "";
-    onRender();
+    onPgnChange(g.pgnText, g.pgnModel, g.moves);
+    onNavigationChange(g.currentPly, g.selectedMoveId, g.boardPreview as BoardPreviewValue);
+    onStatusChange("");
+    onErrorChange("");
   };
 
   return {

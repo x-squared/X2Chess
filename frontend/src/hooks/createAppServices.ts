@@ -3,16 +3,21 @@
  * instances once.
  *
  * Integration API:
- * - `createAppServicesBundle(dispatchRef)` — call once from `useAppStartup`.
- *   Uses closure over `dispatchRef` so every `render()` call dispatches through
- *   the latest `dispatch` without needing to recreate service instances.
+ * - `createAppServicesBundle(dispatchRef, stateRef)` — call once from `useAppStartup`.
+ *   Uses closure over `dispatchRef`/`stateRef` so callbacks always use the latest
+ *   React dispatch and state without recreating service instances.
  *
  * Configuration API:
  * - All configuration comes from `localStorage` and compile-time constants.
  *
  * Communication API:
  * - Inbound: `dispatchRef.current` is updated by `useAppStartup` on every render.
- * - Outbound: `ServicesBundle.render()` dispatches the full current state to React.
+ * - Outbound: Service callbacks dispatch fine-grained actions directly.
+ *   Session-list changes are dispatched by `onSessionsChanged`.
+ *   Resource-viewer changes are dispatched by `onTabsChanged`.
+ *   PGN/navigation/undo/focus state is dispatched by `onPgnChange`,
+ *   `onNavigationChange`, `onUndoRedoDepthChange`, `onPendingFocusChange`.
+ *   Workspace persistence is handled by a `useEffect` in `useAppStartup`.
  */
 
 import bundledPlayers from "../../data/players.json";
@@ -41,22 +46,16 @@ import { createGameSessionModel } from "../game_sessions/session_model";
 import { createGameSessionStore } from "../game_sessions/session_store";
 import { createSessionPersistenceService } from "../game_sessions/session_persistence";
 import { createTranslator } from "../app_shell/i18n";
-import {
-  DEFAULT_LOCALE,
-  createInitialAppState,
-  type PlayerRecord,
-  type AppState,
-} from "../app_shell/app_state";
+import { DEFAULT_LOCALE, DEFAULT_APP_MODE, type PlayerRecord } from "../app_shell/app_state";
+import { resolveBuildAppMode } from "../runtime/bootstrap_prefs";
 import {
   createEmptyGameSessionState,
   type ActiveSessionRef,
-  type GameSessionState,
 } from "../game_sessions/game_session_state";
 import { setResourceLoaderService } from "../services/resource_loader";
-import { saveWorkspaceSnapshot } from "../runtime/workspace_persistence";
 import type { AppAction } from "../state/actions";
+import type { AppStoreState, SessionItemState, ResourceTabSnapshot } from "../state/app_reducer";
 import type { PgnModel } from "../model/pgn_model";
-import type { SessionItemState, ResourceTabSnapshot } from "../state/app_reducer";
 import type { Dispatch } from "react";
 import type { MovePositionRecord } from "../board/move_position";
 
@@ -73,12 +72,13 @@ type Navigation = ReturnType<typeof createBoardNavigationCapabilities>;
 type MoveLookup = ReturnType<typeof createMoveLookupCapabilities>;
 type ResourceViewer = ReturnType<typeof createResourceViewerCapabilities>;
 
+type BoardPreviewValue = { fen: string; lastMove?: [string, string] | null } | null;
+
 // ── State-to-React sync helpers ────────────────────────────────────────────────
 
 /** Normalise a raw devTab string into the accepted union. */
 export const toDevTab = (_raw: unknown): "ast" => "ast";
 
-/** Map a raw session object (from session_store.listSessions) to `SessionItemState`. */
 type RawSession = {
   sessionId?: unknown;
   title?: unknown;
@@ -103,8 +103,6 @@ export const toSessionItem = (
   const session: RawSession = (raw as RawSession) ?? {};
   const sessionId: string = typeof session.sessionId === "string" ? session.sessionId : "";
   const isActive: boolean = sessionId !== "" && sessionId === activeSessionId;
-  // For the active session use the live model so PGN header changes appear immediately.
-  // For inactive sessions use the model from their own ownState.
   const ownState = session.ownState as { pgnModel?: unknown } | null | undefined;
   const pgnModel: unknown = (isActive && liveModel != null)
     ? liveModel
@@ -135,7 +133,6 @@ export const toSessionItem = (
   };
 };
 
-/** Map a raw resource tab to `ResourceTabSnapshot`. */
 type RawResourceTab = {
   tabId?: unknown;
   title?: unknown;
@@ -163,9 +160,6 @@ export const toResourceTab = (raw: unknown): ResourceTabSnapshot | null => {
 // ── Services bundle ─────────────────────────────────────────────────────────────
 
 export type ServicesBundle = {
-  /** Dispatch all current state into the React store. */
-  render: () => void;
-  sharedState: AppState;
   activeSessionRef: ActiveSessionRef;
   pgnRuntime: PgnRuntime;
   history: HistoryCapabilities;
@@ -185,135 +179,82 @@ export type ServicesBundle = {
  * Create and wire all service instances once.
  *
  * @param dispatchRef Mutable ref carrying the latest React dispatch function.
+ * @param stateRef Mutable ref mirroring the latest React state (updated on every render).
  * @returns Fully wired services bundle.
  */
 export function createAppServicesBundle(
   dispatchRef: { current: Dispatch<AppAction> },
+  stateRef: { current: AppStoreState },
 ): ServicesBundle {
-  // ── Shared (non-session) state ───────────────────────────────────────────
-  const sharedState: AppState = createInitialAppState();
-  sharedState.playerStore = bundledPlayers as PlayerRecord[];
-
   // ── Active session ref ────────────────────────────────────────────────────
-  // Starts pointing at a blank object; replaced by openSession / switchToSession.
   const activeSessionRef: ActiveSessionRef = {
     current: createEmptyGameSessionState(),
   };
-
-  // ── Workspace snapshot debounce ───────────────────────────────────────────
-  let workspaceSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
   // ── Forward references ────────────────────────────────────────────────────
   let historyRef: HistoryCapabilities | null = null;
   let sessionStoreRef: SessionStore | null = null;
   let sessionPersistenceRef: SessionPersistence | null = null;
   let moveLookupRef: MoveLookup | null = null;
+  let resourcesRef: ResourcesCapabilities | null = null;
 
-  // ── Translator (lazy: uses sharedState.locale) ───────────────────────────
+  // ── Translator (lazy: uses latest locale from React state) ──────────────
   const getTranslator = (): ((key: string, fallback?: string) => string) =>
-    createTranslator(sharedState.locale || DEFAULT_LOCALE);
+    createTranslator(stateRef.current.locale || DEFAULT_LOCALE);
 
-  // ── Stable render: syncs active session + shared state into React ─────────
-  const render = (): void => {
-    const g: GameSessionState = activeSessionRef.current;
-    const s: AppState = sharedState;
-    const d: Dispatch<AppAction> = dispatchRef.current;
+  // ── Shared typed dispatch callbacks ──────────────────────────────────────
 
-    // PGN / game state
-    if (g.pgnModel) {
-      d({
-        type: "set_pgn",
-        pgnText: g.pgnText,
-        pgnModel: g.pgnModel as PgnModel,
-        moves: Array.isArray(g.moves) ? g.moves : [],
-      });
-    }
-    d({ type: "set_current_ply", ply: Number(g.currentPly) || 0 });
-    d({ type: "set_move_count", count: Array.isArray(g.moves) ? g.moves.length : 0 });
+  const onPgnChange = (pgnText: string, pgnModel: unknown, moves: string[]): void => {
+    dispatchRef.current({
+      type: "set_pgn_state",
+      pgnText,
+      pgnModel: pgnModel as PgnModel | null,
+      moves,
+      pgnTextLength: pgnText.length,
+      moveCount: moves.length,
+    });
+  };
 
-    // For mainline navigation (no boardPreview active), sync selectedMoveId with
-    // currentPly so the text editor highlights the current board position.
-    let effectiveSelectedMoveId: string | null = g.selectedMoveId;
-    const bpCheck = g.boardPreview as { fen?: string } | null;
-    if (!bpCheck?.fen) {
-      const ply: number = Number(g.currentPly) || 0;
-      if (ply === 0) {
-        effectiveSelectedMoveId = null;
+  const onNavigationChange = (
+    currentPly: number,
+    selectedMoveId: string | null,
+    boardPreview: BoardPreviewValue,
+  ): void => {
+    let resolvedMoveId = selectedMoveId;
+    if (!boardPreview?.fen) {
+      if (currentPly === 0) {
+        resolvedMoveId = null;
       } else {
-        const positions = g.movePositionById as Record<string, { mainlinePly?: unknown }> | null;
+        const positions = activeSessionRef.current.movePositionById as
+          | Record<string, { mainlinePly?: unknown }>
+          | null;
         if (positions) {
           for (const [moveId, record] of Object.entries(positions)) {
-            if (record.mainlinePly === ply) {
-              effectiveSelectedMoveId = moveId;
+            if (record.mainlinePly === currentPly) {
+              resolvedMoveId = moveId;
               break;
             }
           }
         }
       }
     }
-    d({ type: "set_selected_move_id", id: effectiveSelectedMoveId });
-    d({
-      type: "set_undo_redo",
-      undoDepth: Array.isArray(g.undoStack) ? g.undoStack.length : 0,
-      redoDepth: Array.isArray(g.redoStack) ? g.redoStack.length : 0,
-    });
-    d({ type: "set_status_message", message: String(g.statusMessage || "") });
-    d({ type: "set_error_message", message: String(g.errorMessage || "") });
-    d({ type: "set_pending_focus_comment_id", id: g.pendingFocusCommentId });
+    dispatchRef.current({ type: "set_navigation", currentPly, selectedMoveId: resolvedMoveId, boardPreview });
+  };
 
-    // Session list
-    const store: SessionStore | null = sessionStoreRef;
-    if (store) {
-      const rawSessions: unknown[] = store.listSessions() as unknown[];
-      const sessions: SessionItemState[] = rawSessions
-        .map((raw: unknown): SessionItemState =>
-          toSessionItem(raw, s.activeSessionId, g.pgnModel ?? null))
-        .filter((item: SessionItemState): boolean => item.sessionId !== "");
-      d({ type: "set_sessions", sessions, activeSessionId: s.activeSessionId });
-    }
+  const onUndoRedoDepthChange = (undoDepth: number, redoDepth: number): void => {
+    dispatchRef.current({ type: "set_undo_redo_depth", undoDepth, redoDepth });
+  };
 
-    // Resource tabs
-    const resourceTabs: unknown[] = Array.isArray(s.resourceViewerTabs)
-      ? s.resourceViewerTabs
-      : [];
-    const tabs: ResourceTabSnapshot[] = resourceTabs
-      .map(toResourceTab)
-      .filter((t: ResourceTabSnapshot | null): t is ResourceTabSnapshot => t !== null);
-    d({
-      type: "set_resource_tabs",
-      tabs,
-      activeTabId: typeof s.activeResourceTabId === "string" ? s.activeResourceTabId : null,
-    });
+  const onStatusChange = (message: string): void => {
+    dispatchRef.current({ type: "set_status_message", message });
+  };
 
-    // Active resource tab data (row count + error).
-    const activeTab: unknown = resourceTabs
-      .find((t: unknown): boolean => (t as { tabId?: string }).tabId === s.activeResourceTabId);
-    const activeRowCount: number = Array.isArray((activeTab as { rows?: unknown } | undefined)?.rows)
-      ? (activeTab as { rows: unknown[] }).rows.length
-      : 0;
-    const activeTabError: string =
-      typeof (activeTab as { errorMessage?: unknown } | undefined)?.errorMessage === "string"
-        ? (activeTab as { errorMessage: string }).errorMessage
-        : "";
-    d({ type: "set_active_resource_data", rowCount: activeRowCount, errorMessage: activeTabError });
+  const onErrorChange = (message: string): void => {
+    dispatchRef.current({ type: "set_error_message", message });
+  };
 
-    // Active source kind
-    d({ type: "set_active_source_kind", kind: String(s.activeSourceKind || "directory") });
-
-    // Board preview (variation move FEN override)
-    const bp = g.boardPreview as { fen?: string; lastMove?: [string, string] | null } | null;
-    d({
-      type: "set_board_preview",
-      preview: bp?.fen ? { fen: String(bp.fen), lastMove: bp.lastMove ?? null } : null,
-    });
-
-    // Persist workspace snapshot with a short debounce so rapid successive
-    // renders (e.g. during animation) collapse into a single write.
-    if (workspaceSaveTimer !== null) clearTimeout(workspaceSaveTimer);
-    workspaceSaveTimer = setTimeout((): void => {
-      workspaceSaveTimer = null;
-      saveWorkspaceSnapshot(sharedState);
-    }, 500);
+  const onPendingFocusChange = (commentId: string | null): void => {
+    dispatchRef.current({ type: "set_pending_focus", commentId });
   };
 
   // ── PGN runtime ──────────────────────────────────────────────────────────
@@ -330,12 +271,16 @@ export function createAppServicesBundle(
         model as Parameters<typeof buildMovePositionById>[0],
       ) as Record<string, unknown>,
     stripAnnotationsForBoardParserFn: stripAnnotationsForBoardParser,
-    onRender: render,
+    onPgnChange,
+    onNavigationChange,
+    onStatusChange,
+    onErrorChange,
+    onPendingFocusChange,
     onRecordHistory: (): void => {
       const h: HistoryCapabilities | null = historyRef;
       if (!h) return;
       h.pushUndoSnapshot(h.captureEditorSnapshot());
-      activeSessionRef.current.redoStack = [];
+      h.clearRedoStack();
       sessionStoreRef?.updateActiveSessionMeta({ dirtyState: "dirty" });
     },
     onScheduleAutosave: (): void => {
@@ -355,36 +300,50 @@ export function createAppServicesBundle(
     sessionRef: activeSessionRef,
     pgnInput: null,
     onSyncChessParseState: pgnRuntime.syncChessParseState,
-    onRender: render,
+    onPgnChange,
+    onNavigationChange,
+    onUndoRedoDepthChange,
   });
   historyRef = history;
 
   // ── Resources ─────────────────────────────────────────────────────────────
   const resources: ResourcesCapabilities = createResourcesCapabilities({
-    state: sharedState as Parameters<typeof createResourcesCapabilities>[0]["state"],
+    appMode: resolveBuildAppMode(DEFAULT_APP_MODE),
+    initialPlayerStore: bundledPlayers as PlayerRecord[],
     t: getTranslator(),
     onSetSaveStatus: (status?: string, _kind?: string): void => {
-      activeSessionRef.current.statusMessage = status ?? "";
-      render();
+      onStatusChange(status ?? "");
     },
     onApplyRuntimeConfig: (config: Record<string, unknown>): void => {
-      sharedState.appConfig = config;
+      resources.setAppConfig(config);
     },
     onLoadPgn: pgnRuntime.loadPgn,
     onInitializeWithDefaultPgn: pgnRuntime.initializeWithDefaultPgn,
     pgnInput: null,
   });
+  resourcesRef = resources;
 
-  // Register the listGamesForResource service for ResourceViewer.tsx.
   setResourceLoaderService(
     resources.listGamesForResource as Parameters<typeof setResourceLoaderService>[0],
   );
 
   // ── Resource viewer ───────────────────────────────────────────────────────
   const resourceViewer: ResourceViewer = createResourceViewerCapabilities({
-    state: sharedState as Parameters<typeof createResourceViewerCapabilities>[0]["state"],
     t: getTranslator(),
     listGamesForResource: resources.listGamesForResource,
+    onTabsChanged: (rawTabs, activeTabId, activeRowCount, activeTabError): void => {
+      const tabs: ResourceTabSnapshot[] = rawTabs
+        .map(toResourceTab)
+        .filter((t: ResourceTabSnapshot | null): t is ResourceTabSnapshot => t !== null);
+      dispatchRef.current({
+        type: "set_resource_viewer",
+        resourceTabs: tabs,
+        activeResourceTabId: activeTabId,
+        activeResourceRowCount: activeRowCount,
+        activeResourceErrorMessage: activeTabError,
+        activeSourceKind: resourcesRef?.getActiveSourceKind() ?? "directory",
+      });
+    },
   });
 
   // ── Session model ─────────────────────────────────────────────────────────
@@ -404,14 +363,21 @@ export function createAppServicesBundle(
 
   // ── Session store ─────────────────────────────────────────────────────────
   const sessionStore: SessionStore = createGameSessionStore({
-    state: sharedState as Parameters<typeof createGameSessionStore>[0]["state"],
     activeSessionRef,
+    onSessionsChanged: (sessions, activeSessionId): void => {
+      const g = activeSessionRef.current;
+      const sessionItems: SessionItemState[] = sessions
+        .map((raw: unknown): SessionItemState =>
+          toSessionItem(raw, activeSessionId, g.pgnModel ?? null),
+        )
+        .filter((item: SessionItemState): boolean => item.sessionId !== "");
+      dispatchRef.current({ type: "set_sessions", sessions: sessionItems, activeSessionId });
+    },
   });
   sessionStoreRef = sessionStore;
 
   // ── Session persistence ───────────────────────────────────────────────────
   const sessionPersistence: SessionPersistence = createSessionPersistenceService({
-    state: sharedState as Parameters<typeof createSessionPersistenceService>[0]["state"],
     t: getTranslator(),
     getActiveSession: sessionStore.getActiveSession as Parameters<
       typeof createSessionPersistenceService
@@ -423,22 +389,21 @@ export function createAppServicesBundle(
     saveBySourceRef: resources.saveGameBySourceRef as Parameters<
       typeof createSessionPersistenceService
     >[0]["saveBySourceRef"],
-    ensureSourceForActiveSession: async (_session: unknown, pgnText: string): Promise<{ sourceRef?: unknown; revisionToken?: string } | null> => {
-      const rawTabs = Array.isArray(sharedState.resourceViewerTabs) ? sharedState.resourceViewerTabs : [];
-      const activeTab = rawTabs.find(
-        (t: unknown) => (t as { tabId?: string }).tabId === sharedState.activeResourceTabId,
-      );
-      const resourceRef = (activeTab as { resourceRef?: { kind?: string; locator?: string } } | undefined)?.resourceRef;
-      if (!resourceRef?.locator) return null;
+    ensureSourceForActiveSession: async (
+      _session: unknown,
+      pgnText: string,
+    ): Promise<{ sourceRef?: unknown; revisionToken?: string } | null> => {
+      const activeTabId = resourceViewer.getActiveTabId();
+      const activeRef = resourceViewer.getActiveResourceRef();
+      if (!activeTabId || !activeRef?.locator) return null;
       const created = await resources.createGameInResource(
-        { kind: resourceRef.kind, locator: resourceRef.locator },
+        { kind: activeRef.kind, locator: activeRef.locator },
         pgnText,
       );
       return { sourceRef: created.sourceRef, revisionToken: String(created.revisionToken || "") };
     },
     onSetSaveStatus: (status?: string, _kind?: string): void => {
-      activeSessionRef.current.statusMessage = status ?? "";
-      render();
+      onStatusChange(status ?? "");
     },
   });
   sessionPersistenceRef = sessionPersistence;
@@ -453,23 +418,18 @@ export function createAppServicesBundle(
 
   // ── Board capabilities (sound) ────────────────────────────────────────────
   const moveSoundPlayer = createMoveSoundPlayer({
-    isSoundEnabled: (): boolean => Boolean(sharedState.soundEnabled),
+    isSoundEnabled: (): boolean => Boolean(stateRef.current.soundEnabled),
   });
 
   // ── Navigation ────────────────────────────────────────────────────────────
   const navigation: Navigation = createBoardNavigationCapabilities({
     sessionRef: activeSessionRef,
-    getDelayMs: (): number => Number(sharedState.moveDelayMs) || 220,
+    getDelayMs: (): number => Number(stateRef.current.moveDelayMs) || 220,
     getMovePositionById: (
       moveId: string | null,
       options: { allowResolve: boolean },
-    ): MovePositionRecord | null => {
-      const result: MovePositionRecord | null = moveLookupRef?.getMovePositionById(
-        moveId,
-        options,
-      ) as MovePositionRecord | null;
-      return result;
-    },
+    ): MovePositionRecord | null =>
+      (moveLookupRef?.getMovePositionById(moveId, options) as MovePositionRecord | null) ?? null,
     selectMoveById: (moveId: string): boolean => {
       const g = activeSessionRef.current;
       const pos = g.movePositionById?.[moveId] as
@@ -484,22 +444,22 @@ export function createAppServicesBundle(
           ? ({ fen: pos.fen, lastMove: pos.lastMove ?? null } as unknown as import("../board/runtime").BoardPreviewLike)
           : null;
       }
-      render();
+      const bp = g.boardPreview as BoardPreviewValue;
+      onNavigationChange(g.currentPly, g.selectedMoveId, bp);
       return true;
     },
     findCommentIdAroundMove: (moveId: string, position: "before" | "after"): string | null =>
       findExistingCommentIdAroundMove(activeSessionRef.current.pgnModel, moveId, position),
     focusCommentById: (commentId: string): boolean => {
       activeSessionRef.current.pendingFocusCommentId = commentId;
+      onPendingFocusChange(commentId);
       return true;
     },
     playMoveSound: moveSoundPlayer.playMoveSound,
-    render,
+    onNavigationChange,
   });
 
   return {
-    render,
-    sharedState,
     activeSessionRef,
     pgnRuntime,
     history,

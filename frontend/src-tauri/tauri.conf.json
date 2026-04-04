@@ -11,17 +11,7 @@
   },
   "app": {
     "withGlobalTauri": false,
-    "windows": [
-      {
-        "label": "main",
-        "title": "X2Chess",
-        "width": 1400,
-        "height": 1060,
-        "minWidth": 980,
-        "minHeight": 820,
-        "dragDropEnabled": false
-      }
-    ],
+    "windows": [],
     "security": {
       "csp": null
     }

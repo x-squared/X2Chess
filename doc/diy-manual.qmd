@@ -33,20 +33,78 @@ lsof -i tcp:8011 || true
 lsof -i tcp:5287 || true
 ```
 
-### 2) Start Tauri desktop client (Terminal A)
+### 2) Set startup preferences mode (optional, DEV only)
+
+In DEV mode the app can start with either factory defaults or your last saved
+preferences.  A **dev prefs mode** flag stored in the app's localStorage
+controls this.  The flag is initialised to `"defaults"` the very first time you
+launch the app (no stored value → factory defaults).
+
+Switch to **factory defaults** (useful for testing first-run behaviour):
+
+```{js}
+// Run in the Developer Dock console, then restart the app.
+localStorage.setItem("x2chess.devPrefsMode", "defaults")
+```
+
+Switch to **your last saved preferences**:
+
+```{js}
+// Run in the Developer Dock console, then restart the app.
+localStorage.setItem("x2chess.devPrefsMode", "user")
+```
+
+Check the current setting:
+
+```{js}
+localStorage.getItem("x2chess.devPrefsMode")   // "defaults" | "user" | null
+```
+
+> Note: This flag is only read in DEV builds.  PROD builds always restore saved
+> user preferences and ignore this key.
+
+### 3) Start Tauri desktop client (Terminal A)
+
+Two launch modes are available.  Choose the one that fits your session:
+
+**Isolated mode** — webview storage lives in `run/DEV/webview-data/` (separate from any
+installed PROD build).  Recommended for normal development.
 
 ```{bash}
 cd frontend
+npm run desktop:dev:isolated
+```
 
-# Optional: first-time setup
-# npm install
+**Shared mode** — webview storage uses the OS default path (same location a packaged
+PROD build of the same bundle ID would use).  Use this when you need to test against
+real accumulated user data, or to verify a migration on an existing install.
 
+```{bash}
+cd frontend
 npm run desktop:dev
 ```
 
-> Note: `desktop:dev` starts its own frontend dev server.
+> Note: Both scripts start their own frontend dev server on port `5287`.
+> Note: `run/DEV/webview-data/` is created automatically on first launch if it does not exist.
 > Tip: Use the menu toggle **Developer Tools** and then **Open Developer Dock** to access AST/DOM/Raw PGN tabs.
 > Tip: Use menu controls **Save mode** (`Autosave`/`Manual`) and **Save now** for the active game tab.
+
+#### Resetting isolated dev storage
+
+Delete the directory — the app recreates it with factory defaults on the next launch:
+
+```{bash}
+rm -rf run/DEV/webview-data
+```
+
+#### Using a custom storage path
+
+Pass `X2CHESS_WEBVIEW_DATA` directly to redirect storage anywhere:
+
+```{bash}
+cd frontend
+X2CHESS_WEBVIEW_DATA=/path/to/my/profile tauri dev
+```
 
 ## Useful Scripts
 

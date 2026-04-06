@@ -62,6 +62,7 @@ import {
   resolveSelectedMoveId,
 } from "./session_orchestrator";
 import { useTauriMenu } from "./useTauriMenu";
+import { log } from "../logger";
 
 // ── Shared types ──────────────────────────────────────────────────────────────
 
@@ -212,6 +213,7 @@ const openFreshSession = (
     }
   } catch (err: unknown) {
     const message: string = err instanceof Error ? err.message : String(err);
+    log.error("useAppStartup", message);
     dispatch({ type: "set_error_message", message });
   }
 };
@@ -271,21 +273,28 @@ export const useAppStartup = (): AppStartupServices => {
     if (startupRanRef.current) return;
     startupRanRef.current = true;
 
+    log.debug("useAppStartup", "Hello — debug logging is active");
+
     migrateLocalStorage();
     migrateRemoteRulesCache();
 
     const appMode = resolveBuildAppMode(DEFAULT_APP_MODE);
     const devPrefsMode: DevPrefsMode = appMode === "DEV" ? initDevPrefsMode() : "user";
+    log.info("useAppStartup", `Starting in ${appMode} mode (devPrefsMode=${devPrefsMode})`);
+
     const pgnLayout = applyBootstrapPrefs(dispatch, appMode, devPrefsMode);
 
     const snapshot = workspaceSnapshotStore.read();
     if (snapshot.sessions.length > 0) {
+      log.info("useAppStartup", `Restoring workspace: ${snapshot.sessions.length} session(s), ${snapshot.resourceTabs.length} resource tab(s)`);
       restoreWorkspaceSnapshot(bundle, snapshot, dispatch);
     } else {
+      log.debug("useAppStartup", "No snapshot found — opening fresh session");
       openFreshSession(bundle, pgnLayout, dispatch);
     }
 
     dispatchInitialSessionState(bundle.activeSessionRef.current, dispatch);
+    log.info("useAppStartup", "App ready");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // intentionally run once on mount
 

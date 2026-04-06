@@ -395,6 +395,33 @@ fn create_pgn_file(suggested_name: String) -> Option<String> {
     .map(|path| path.to_string_lossy().to_string())
 }
 
+// ── Webview storage export / import dialogs ───────────────────────────────────
+
+/// Open a save-file dialog for the storage export JSON file.
+///
+/// Returns the chosen path, or `None` when the user cancels.
+#[tauri::command]
+fn pick_storage_export_file() -> Option<String> {
+  rfd::FileDialog::new()
+    .add_filter("JSON", &["json"])
+    .set_file_name("x2chess-storage.json")
+    .set_title("Export Webview Storage")
+    .save_file()
+    .map(|path| path.to_string_lossy().to_string())
+}
+
+/// Open an open-file dialog for importing a storage JSON file.
+///
+/// Returns the chosen path, or `None` when the user cancels.
+#[tauri::command]
+fn pick_storage_import_file() -> Option<String> {
+  rfd::FileDialog::new()
+    .add_filter("JSON", &["json"])
+    .set_title("Import Webview Storage")
+    .pick_file()
+    .map(|path| path.to_string_lossy().to_string())
+}
+
 // ── Browser panel WebviewWindow (W4 — Tier 3 web import) ─────────────────────
 
 const BROWSER_WINDOW_LABEL: &str = "browser";
@@ -594,6 +621,15 @@ async fn native_http_get(
 
 fn main() {
   tauri::Builder::default()
+    .plugin(
+      tauri_plugin_log::Builder::new()
+        .level(if cfg!(debug_assertions) {
+          log::LevelFilter::Debug
+        } else {
+          log::LevelFilter::Info
+        })
+        .build(),
+    )
     .plugin(tauri_plugin_updater::Builder::new().build())
     .plugin(tauri_plugin_process::init())
     .manage(DbState { connections: Mutex::new(HashMap::new()) })
@@ -625,8 +661,18 @@ fn main() {
         if let Err(e) = fs::create_dir_all(&data_dir) {
           eprintln!("[x2chess] WARNING: could not create X2CHESS_WEBVIEW_DATA directory {raw:?}: {e}");
         } else {
-          builder = builder.data_directory(data_dir);
-          eprintln!("[x2chess] Webview data directory: {raw}");
+          // WebKit on macOS requires an *absolute* path; canonicalize resolves
+          // relative segments (e.g. "../../run/DEV/webview-data") so storage is
+          // actually redirected instead of silently falling back to the OS default.
+          match fs::canonicalize(&data_dir) {
+            Ok(abs_dir) => {
+              eprintln!("[x2chess] Webview data directory: {}", abs_dir.display());
+              builder = builder.data_directory(abs_dir);
+            }
+            Err(e) => {
+              eprintln!("[x2chess] WARNING: could not canonicalize X2CHESS_WEBVIEW_DATA {raw:?}: {e}");
+            }
+          }
         }
       }
 
@@ -650,6 +696,8 @@ fn main() {
       pick_x2chess_file,
       create_x2chess_file,
       create_pgn_file,
+      pick_storage_export_file,
+      pick_storage_import_file,
       spawn_engine,
       send_to_engine,
       kill_engine,

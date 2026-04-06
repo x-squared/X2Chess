@@ -2,6 +2,7 @@ import { Chess } from "chess.js";
 import type { MovePositionRecord } from "./move_position";
 import type { ChessSoundType } from "./move_sound";
 import type { ActiveSessionRef } from "../game_sessions/game_session_state";
+import { log } from "../logger";
 
 /**
  * Navigation module.
@@ -122,6 +123,7 @@ export const createBoardNavigationCapabilities = ({
   ): Promise<void> => {
     const g = sessionRef.current;
     const bounded = Math.max(0, Math.min(nextPly, g.moves.length));
+    log.debug("navigation", `gotoPly: nextPly=${nextPly} g.moves.length=${g.moves.length} bounded=${bounded} g.currentPly=${g.currentPly} → ${bounded === g.currentPly ? "EARLY RETURN" : "advance"}`);
     if (bounded === g.currentPly) return;
 
     if (!animate) {

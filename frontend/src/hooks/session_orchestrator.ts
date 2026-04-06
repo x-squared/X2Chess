@@ -36,6 +36,8 @@ import { writeEditorStylePrefs } from "../runtime/editor_style_prefs";
 import type { EditorStylePrefs } from "../runtime/editor_style_prefs";
 import { writeDefaultLayoutPrefs } from "../runtime/default_layout_prefs";
 import type { DefaultLayoutPrefs } from "../runtime/default_layout_prefs";
+import { invoke } from "@tauri-apps/api/core";
+import { isTauriRuntime } from "../resources/tauri_gateways";
 import type { AppStartupServices } from "../state/ServiceContext";
 import type { AppAction } from "../state/actions";
 import type { PgnModel } from "../model/pgn_model";
@@ -46,6 +48,7 @@ import type { MoveFrequencyEntry } from "../../../resource/domain/move_frequency
 import type { AppStoreState } from "../state/app_reducer";
 import type { Dispatch } from "react";
 import type { ServicesBundle } from "./createAppServices";
+import { log } from "../logger";
 
 // ── Module-level helpers ──────────────────────────────────────────────────────
 
@@ -281,8 +284,12 @@ export const createSessionOrchestrator = (
         recordHistory: true,
         preferredLayoutMode: g.pgnLayoutMode,
       });
+      log.debug("session_orchestrator", `applyPgnModelEdit: targetMoveId=${targetMoveId ?? "null"} g.moves.length=${g.moves.length} g.currentPly=${g.currentPly}`);
       if (targetMoveId) {
         const pos = (g.movePositionById as Record<string, { mainlinePly?: number | null; fen?: string; lastMove?: [string, string] | null } | undefined> | undefined)?.[targetMoveId];
+        const posDesc = pos ? `mainlinePly=${String(pos.mainlinePly)} hasFen=${Boolean(pos.fen)}` : "NOT FOUND";
+        const posKeys = Object.keys(g.movePositionById as Record<string, unknown> ?? {}).slice(0, 5).join(",");
+        log.debug("session_orchestrator", `applyPgnModelEdit: pos=${posDesc} movePositionById keys=${posKeys}`);;
         if (pos && typeof pos.mainlinePly === "number") {
           g.selectedMoveId = targetMoveId;
           g.boardPreview = null;
@@ -335,6 +342,7 @@ export const createSessionOrchestrator = (
           flushSessionState();
         } catch (err: unknown) {
           const message: string = err instanceof Error ? err.message : String(err);
+          log.error("session_orchestrator", message);
           dispatchRef.current({ type: "set_error_message", message });
         }
       })();
@@ -350,6 +358,7 @@ export const createSessionOrchestrator = (
           flushSessionState();
         } catch (err: unknown) {
           const message: string = err instanceof Error ? err.message : String(err);
+          log.error("session_orchestrator", message);
           dispatchRef.current({ type: "set_error_message", message });
         }
       })();
@@ -365,6 +374,7 @@ export const createSessionOrchestrator = (
           flushSessionState();
         } catch (err: unknown) {
           const message: string = err instanceof Error ? err.message : String(err);
+          log.error("session_orchestrator", message);
           dispatchRef.current({ type: "set_error_message", message });
         }
       })();
@@ -384,6 +394,7 @@ export const createSessionOrchestrator = (
           flushSessionState();
         } catch (err: unknown) {
           const message: string = err instanceof Error ? err.message : String(err);
+          log.error("session_orchestrator", message);
           dispatchRef.current({ type: "set_error_message", message });
         }
       })();
@@ -437,6 +448,7 @@ export const createSessionOrchestrator = (
           dispatchRef.current({ type: "set_board_flipped", flipped: deriveInitialBoardFlipped(g.pgnModel) });
         } catch (err: unknown) {
           const message: string = err instanceof Error ? err.message : String(err);
+          log.error("session_orchestrator", message);
           dispatchRef.current({ type: "set_error_message", message });
         }
       })();
@@ -464,6 +476,7 @@ export const createSessionOrchestrator = (
         dispatchRef.current({ type: "set_board_flipped", flipped: deriveInitialBoardFlipped(newState.pgnModel) });
       } catch (err: unknown) {
         const message: string = err instanceof Error ? err.message : String(err);
+        log.error("session_orchestrator", message);
         dispatchRef.current({ type: "set_error_message", message });
       }
     },
@@ -570,11 +583,69 @@ export const createSessionOrchestrator = (
     getPlayerNameSuggestions: (query: string): string[] =>
       buildPlayerNameSuggestions(bundle.resources.getPlayerStore(), query),
 
+    getPlayers: (): PlayerRecord[] => bundle.resources.getPlayerStore(),
+
+    addPlayer: async (record: PlayerRecord): Promise<void> => {
+      bundle.resources.addPlayerRecord(record);
+      await bundle.resources.savePlayerStoreToClientData(bundle.resources.getPlayerStore());
+    },
+
+    deletePlayer: async (record: PlayerRecord): Promise<void> => {
+      bundle.resources.deletePlayerRecord(record);
+      await bundle.resources.savePlayerStoreToClientData(bundle.resources.getPlayerStore());
+    },
+
+    updatePlayer: async (oldRecord: PlayerRecord, updatedRecord: PlayerRecord): Promise<void> => {
+      bundle.resources.updatePlayerRecord(oldRecord, updatedRecord);
+      await bundle.resources.savePlayerStoreToClientData(bundle.resources.getPlayerStore());
+    },
+
     // Overridden by AppShell to open the curriculum panel.
     openCurriculumPanel: (): void => {},
     // Overridden by AppShell to open the editor style dialog.
     openEditorStyleDialog: (): void => {},
     // Overridden by AppShell to open the default layout dialog.
     openDefaultLayoutDialog: (): void => {},
+
+    // ── Webview storage ────────────────────────────────────────────────────
+    exportWebviewStorage: (): void => {
+      if (!isTauriRuntime()) return;
+      const snapshot: Record<string, string> = {};
+      for (let i: number = 0; i < localStorage.length; i += 1) {
+        const key: string | null = localStorage.key(i);
+        if (key !== null) {
+          const value: string | null = localStorage.getItem(key);
+          if (value !== null) snapshot[key] = value;
+        }
+      }
+      invoke<string | null>("pick_storage_export_file")
+        .then((filePath: string | null): Promise<void> | void => {
+          if (!filePath) return;
+          const content: string = JSON.stringify(snapshot, null, 2);
+          return invoke<void>("write_text_file", { filePath, content });
+        })
+        .catch(() => {});
+    },
+
+    importWebviewStorage: (): void => {
+      if (!isTauriRuntime()) return;
+      invoke<string | null>("pick_storage_import_file")
+        .then((filePath: string | null): Promise<void> | void => {
+          if (!filePath) return;
+          return invoke<string>("load_text_file", { filePath })
+            .then((content: string): void => {
+              let parsed: unknown;
+              try { parsed = JSON.parse(content); } catch { return; }
+              if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return;
+              const data: Record<string, string> = {};
+              for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+                if (typeof v === "string") data[k] = v;
+              }
+              if (Object.keys(data).length === 0) return;
+              dispatchRef.current({ type: "set_storage_import_pending", data });
+            });
+        })
+        .catch(() => {});
+    },
   };
 };

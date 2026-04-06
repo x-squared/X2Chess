@@ -21,7 +21,7 @@
 import { useState, useCallback } from "react";
 import { Chess } from "chess.js";
 import { useAppContext } from "../state/app_context";
-import { useServiceContext } from "../state/ServiceContext";
+import type { AppStartupServices } from "../state/ServiceContext";
 import {
   selectCurrentPly,
   selectMoves,
@@ -104,11 +104,13 @@ const buildCursor = (model: PgnModel, selectedMoveId: string | null): PgnCursor 
 /**
  * Board move entry hook: manages fork and promotion dialog state.
  *
+ * @param servicesRef - Ref to the service callbacks.  Must be populated from `useAppStartup`
+ *   in the host render before any user interaction; avoids a context read that would return
+ *   the default noop services because `useMoveEntry` is called outside `ServiceContextProvider`.
  * @returns `MoveEntryState` with move callbacks, `pendingFork`, and `pendingPromotion`.
  */
-export const useMoveEntry = (): MoveEntryState => {
+export const useMoveEntry = (servicesRef: { current: AppStartupServices | null }): MoveEntryState => {
   const { state } = useAppContext();
-  const services = useServiceContext();
 
   const currentPly = selectCurrentPly(state);
   const moves = selectMoves(state);
@@ -122,9 +124,9 @@ export const useMoveEntry = (): MoveEntryState => {
   const commitOp = useCallback(
     (opResult: [PgnModel, PgnCursor | null]): void => {
       const [newModel, newCursor] = opResult;
-      services.applyPgnModelEdit(newModel, newCursor?.moveId ?? null);
+      servicesRef.current?.applyPgnModelEdit(newModel, newCursor?.moveId ?? null);
     },
-    [services],
+    [servicesRef],
   );
 
   /** Commit a move by choosing the right model op based on `choice`. */
@@ -165,10 +167,10 @@ export const useMoveEntry = (): MoveEntryState => {
 
       switch (resolution.kind) {
         case "advance":
-          services.gotoMoveById(resolution.nextMoveId);
+          servicesRef.current?.gotoMoveById(resolution.nextMoveId);
           break;
         case "enter_variation":
-          services.gotoMoveById(resolution.firstMoveId);
+          servicesRef.current?.gotoMoveById(resolution.firstMoveId);
           break;
         case "append":
           commitMove(resolution.san, model, cursor, "append");
@@ -183,7 +185,7 @@ export const useMoveEntry = (): MoveEntryState => {
           break;
       }
     },
-    [services, commitMove],
+    [servicesRef, commitMove],
   );
 
   const onMovePlayed = useCallback(

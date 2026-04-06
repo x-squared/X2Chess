@@ -215,17 +215,48 @@ export const createResourcesCapabilities = ({
   const getActiveSourceKind = (): string => resourcesState.activeSourceKind;
   const setAppConfig = (config: Record<string, unknown>): void => { resourcesState.appConfig = config; };
   const getPlayerStore = (): PlayerRecord[] => [...resourcesState.playerStore];
+
+  const playerStoreKey = (r: PlayerRecord): string =>
+    `${r.lastName.toLowerCase()}|${r.firstName.toLowerCase()}`;
+
   const addPlayerRecord = (record: PlayerRecord): void => {
-    const storeKey = `${record.lastName.toLowerCase()}|${record.firstName.toLowerCase()}`;
+    const key = playerStoreKey(record);
     const exists = resourcesState.playerStore.some(
-      (p: PlayerRecord): boolean =>
-        `${p.lastName.toLowerCase()}|${p.firstName.toLowerCase()}` === storeKey,
+      (p: PlayerRecord): boolean => playerStoreKey(p) === key,
     );
     if (!exists) resourcesState.playerStore.push(record);
   };
 
+  const deletePlayerRecord = (record: PlayerRecord): void => {
+    const key = playerStoreKey(record);
+    resourcesState.playerStore = resourcesState.playerStore.filter(
+      (p: PlayerRecord): boolean => playerStoreKey(p) !== key,
+    );
+  };
+
+  const updatePlayerRecord = (oldRecord: PlayerRecord, updatedRecord: PlayerRecord): void => {
+    const oldKey = playerStoreKey(oldRecord);
+    const newKey = playerStoreKey(updatedRecord);
+    const idx = resourcesState.playerStore.findIndex(
+      (p: PlayerRecord): boolean => playerStoreKey(p) === oldKey,
+    );
+    if (idx === -1) return;
+    // Prevent duplicate key (if the new name already exists as a different entry).
+    const duplicateIdx = resourcesState.playerStore.findIndex(
+      (p: PlayerRecord, i: number): boolean => i !== idx && playerStoreKey(p) === newKey,
+    );
+    if (duplicateIdx !== -1) {
+      // New name is already present; just remove the old entry.
+      resourcesState.playerStore.splice(idx, 1);
+      return;
+    }
+    resourcesState.playerStore[idx] = updatedRecord;
+  };
+
   return {
     addPlayerRecord,
+    deletePlayerRecord,
+    updatePlayerRecord,
     chooseClientGamesFolder,
     chooseFileResource,
     chooseFolderResource,

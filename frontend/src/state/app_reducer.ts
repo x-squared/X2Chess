@@ -168,6 +168,13 @@ export type AppStoreState = {
   // ── Default Layout preferences ───────────────────────────────────────────
   /** Persisted behaviour preferences for the "Default Layout" toolbar action. */
   defaultLayoutPrefs: DefaultLayoutPrefs;
+
+  // ── Storage import ─────────────────────────────────────────────────────
+  /**
+   * Parsed localStorage snapshot waiting to be selectively imported.
+   * Non-null while the import dialog is open; null when closed.
+   */
+  storageImportPending: Record<string, string> | null;
 };
 
 /** Initial state — all fields start empty/false/zero before startup completes. */
@@ -223,6 +230,8 @@ export const initialAppStoreState: AppStoreState = {
   editorStylePrefs: DEFAULT_EDITOR_STYLE_PREFS,
   // Default Layout preferences
   defaultLayoutPrefs: DEFAULT_DEFAULT_LAYOUT_PREFS,
+  // Storage import
+  storageImportPending: null,
 };
 
 /** Pure reducer — never mutates state, always returns a new object. */
@@ -275,6 +284,9 @@ export const appReducer = (state: AppStoreState, action: AppAction): AppStoreSta
 
     case "set_default_layout_prefs":
       return { ...state, defaultLayoutPrefs: action.prefs };
+
+    case "set_storage_import_pending":
+      return { ...state, storageImportPending: action.data };
 
     // ── Fine-grained session state actions ───────────────────────────────
     case "set_pgn_state":

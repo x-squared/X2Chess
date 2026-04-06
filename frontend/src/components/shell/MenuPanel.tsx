@@ -32,11 +32,13 @@ import {
   selectDevToolsEnabled,
   selectSessions,
   selectPositionPreviewOnHover,
+  selectStorageImportPending,
 } from "../../state/selectors";
 import { useServiceContext } from "../../state/ServiceContext";
 import { useTranslator } from "../../hooks/useTranslator";
 import { useUpdateCheck } from "../../hooks/useUpdateCheck";
 import { UpdateBanner } from "./UpdateBanner";
+import { StorageImportDialog } from "./StorageImportDialog";
 import { WebImportRulesPanel } from "../web_import/WebImportRulesPanel";
 import type { SessionItemState } from "../../state/app_reducer";
 
@@ -54,7 +56,7 @@ const resolveBuildLabel = (): string => {
 /** Renders the application menu backdrop and sidebar panel. */
 export const MenuPanel = (): ReactElement => {
   const services = useServiceContext();
-  const { state } = useAppContext();
+  const { state, dispatch } = useAppContext();
   const isMenuOpen: boolean = selectIsMenuOpen(state);
   const locale: string = selectLocale(state);
   const moveDelayMs: number = selectMoveDelayMs(state);
@@ -62,6 +64,7 @@ export const MenuPanel = (): ReactElement => {
   const positionPreviewOnHover: boolean = selectPositionPreviewOnHover(state);
   const isDeveloperToolsEnabled: boolean = selectDevToolsEnabled(state);
   const sessions: SessionItemState[] = selectSessions(state);
+  const storageImportPending: Record<string, string> | null = selectStorageImportPending(state);
   const t: (key: string, fallback?: string) => string = useTranslator();
 
   const buildLabel: string = resolveBuildLabel();
@@ -260,10 +263,39 @@ export const MenuPanel = (): ReactElement => {
           >
             {t("controls.defaultLayout", "Default Layout…")}
           </button>
+
+          {/* Export webview storage */}
+          <button
+            id="btn-export-storage"
+            className="source-button"
+            type="button"
+            onClick={(): void => { services.exportWebviewStorage(); }}
+          >
+            {t("controls.exportStorage", "Export Storage…")}
+          </button>
+
+          {/* Import webview storage */}
+          <button
+            id="btn-import-storage"
+            className="source-button"
+            type="button"
+            onClick={(): void => { services.importWebviewStorage(); }}
+          >
+            {t("controls.importStorage", "Import Storage…")}
+          </button>
         </div>
 
         {webImportRulesOpen && (
           <WebImportRulesPanel onClose={(): void => { setWebImportRulesOpen(false); }} />
+        )}
+
+        {storageImportPending !== null && (
+          <StorageImportDialog
+            data={storageImportPending}
+            onClose={(): void => {
+              dispatch({ type: "set_storage_import_pending", data: null });
+            }}
+          />
         )}
 
         <div className="app-menu-footer">

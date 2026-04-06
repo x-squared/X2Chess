@@ -202,6 +202,7 @@ export const AppShell = (): ReactElement => {
 
   // Right panel — active tab controlled here so other UI can navigate to it.
   const [activeRightPanel, setActiveRightPanel] = useState<PanelId>("resources");
+  const [textSearchTrigger, setTextSearchTrigger] = useState<{ query: string } | undefined>(undefined);
   const [boardResetKey, setBoardResetKey] = useState<number>(0);
 
   // NG7: edit starting position dialog
@@ -244,6 +245,12 @@ export const AppShell = (): ReactElement => {
     }
   }, [variations, currentFen, startAnalysis]);
 
+  // useMoveEntry is called outside ServiceContextProvider, so services cannot be read
+  // from context.  A ref is used as a bridge: the ref is populated later in the same
+  // render (after useAppStartup returns), and is always current by the time any user
+  // interaction triggers the callbacks.
+  const moveEntryServicesRef = useRef<AppStartupServices | null>(null);
+
   const {
     pendingFork,
     pendingPromotion,
@@ -251,7 +258,7 @@ export const AppShell = (): ReactElement => {
     handleForkDecide,
     handlePromotionPick,
     handleCancel: handleCancelMove,
-  } = useMoveEntry();
+  } = useMoveEntry(moveEntryServicesRef);
 
   /** Cancel a pending fork / promotion and revert the board to the current position. */
   const handleCancel = useCallback((): void => {
@@ -264,6 +271,11 @@ export const AppShell = (): ReactElement => {
     if (uci.length < 4) return;
     onMovePlayed(uci.slice(0, 2), uci.slice(2, 4));
   }, [onMovePlayed]);
+
+  const handleSearchPlayer = useCallback((query: string): void => {
+    setActiveRightPanel("text-search");
+    setTextSearchTrigger({ query });
+  }, []);
 
   const handlePvMoveHover = useCallback(
     (pvSans: string[], upToIndex: number, rect: DOMRect): void => {
@@ -329,6 +341,7 @@ export const AppShell = (): ReactElement => {
 
   // ── M8: navigate-away guard ───────────────────────────────────────────────
   const rawServices: AppStartupServices = useAppStartup();
+  moveEntryServicesRef.current = rawServices;
 
   const navigateGuard = useNavigateGuard(rawServices, sessions, activeSession);
   const confirmDialogRef = useRef<HTMLDialogElement>(null);
@@ -650,6 +663,8 @@ export const AppShell = (): ReactElement => {
             onShapePrefsChange={services.setShapePrefs}
             activePanel={activeRightPanel}
             onActivePanelChange={setActiveRightPanel}
+            onSearchPlayer={handleSearchPlayer}
+            textSearchTrigger={textSearchTrigger}
             t={t}
             onMoveClick={handlePanelMoveClick}
             onImportPgn={services.openPgnText}

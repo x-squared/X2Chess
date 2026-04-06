@@ -24,6 +24,7 @@ import { CollectionExplorerPanel } from "../resource_viewer/CollectionExplorerPa
 import { GameSearchPanel } from "../search/GameSearchPanel";
 import { PositionSearchPanel } from "../search/PositionSearchPanel";
 import { TextSearchPanel } from "../search/TextSearchPanel";
+import { PlayersPanel } from "./PlayersPanel";
 import { ResourceViewer } from "../resource_viewer/ResourceViewer";
 import { SettingsPanel } from "../settings/SettingsPanel";
 import type { ShapePrefs } from "../../runtime/shape_prefs";
@@ -38,6 +39,7 @@ export type PanelId =
   | "game-search"
   | "position-search"
   | "text-search"
+  | "players"
   | "settings";
 
 type RightPanelStackProps = {
@@ -69,6 +71,9 @@ type RightPanelStackProps = {
   // Panel navigation — controlled from outside
   activePanel: PanelId;
   onActivePanelChange: (panel: PanelId) => void;
+  // Players panel
+  onSearchPlayer: (query: string) => void;
+  textSearchTrigger?: { query: string };
   // Common
   t: (key: string, fallback?: string) => string;
   onMoveClick: (uci: string) => void;
@@ -85,6 +90,7 @@ const PANEL_TABS: Array<{ id: PanelId; label: string; labelKey: string; tabGuide
   { id: "game-search",     label: "Games",        labelKey: "panel.gameSearch",     tabGuideId: GUIDE_IDS.RIGHT_PANEL_TAB_GAME_SEARCH },
   { id: "position-search", label: "Position",     labelKey: "panel.positionSearch", tabGuideId: GUIDE_IDS.RIGHT_PANEL_TAB_POSITION_SEARCH },
   { id: "text-search",     label: "Text",         labelKey: "panel.textSearch",     tabGuideId: GUIDE_IDS.RIGHT_PANEL_TAB_TEXT_SEARCH },
+  { id: "players",         label: "Players",      labelKey: "panel.players",        tabGuideId: GUIDE_IDS.RIGHT_PANEL_TAB_PLAYERS },
   { id: "settings",        label: "Settings",     labelKey: "panel.settings",       tabGuideId: GUIDE_IDS.RIGHT_PANEL_TAB_SETTINGS },
 ];
 
@@ -97,6 +103,7 @@ export const RightPanelStack = ({
   tbResult, tbIsLoading, tbEnabled, onTbToggle,
   shapePrefs, onShapePrefsChange,
   activePanel, onActivePanelChange,
+  onSearchPlayer, textSearchTrigger,
   t, onMoveClick, onImportPgn, onOpenGame,
 }: RightPanelStackProps): ReactElement => {
   const setActivePanel = onActivePanelChange;
@@ -226,7 +233,17 @@ export const RightPanelStack = ({
           className="right-panel-content"
           data-guide-id={GUIDE_IDS.RIGHT_PANEL_TEXT_SEARCH}
         >
-          <TextSearchPanel t={t} onOpenGame={onOpenGame} />
+          <TextSearchPanel t={t} onOpenGame={onOpenGame} externalSearch={textSearchTrigger} />
+        </div>
+
+        <div
+          id="right-panel-players"
+          role="tabpanel"
+          hidden={activePanel !== "players"}
+          className="right-panel-content"
+          data-guide-id={GUIDE_IDS.RIGHT_PANEL_PLAYERS}
+        >
+          <PlayersPanel t={t} onSearchPlayer={onSearchPlayer} />
         </div>
 
         <div

@@ -42,6 +42,8 @@ const MENU_ACTIONS: Record<MenuActionId, (s: AppStartupServices) => void> = {
   "file.new-directory":          (s) => { s.createResource("directory"); },
   "file.open-resource-file":      (s) => { s.openResourceFile(); },
   "file.open-resource-directory": (s) => { s.openResourceDirectory(); },
+  "help.export-storage":          (s) => { s.exportWebviewStorage(); },
+  "help.import-storage":          (s) => { s.importWebviewStorage(); },
 };
 
 // ── Menu builder ──────────────────────────────────────────────────────────────

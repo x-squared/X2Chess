@@ -49,6 +49,51 @@ const makeMoveNode = (san: string): PgnMoveNode => ({
   postItems: [],
 });
 
+/**
+ * Count move nodes in `entries` before `upToIdx`.
+ * Used to determine the ply of a new move being inserted.
+ */
+const countMovesBeforeIdx = (entries: PgnEntryNode[], upToIdx: number): number => {
+  let count = 0;
+  for (let i = 0; i < upToIdx && i < entries.length; i += 1) {
+    if (entries[i].type === "move") count += 1;
+  }
+  return count;
+};
+
+/**
+ * Insert a move_number node before `insertIdx` when the move about to be
+ * inserted is a white move and no move_number is already immediately
+ * preceding.  Only applied to the root mainline variation.
+ *
+ * Returns the adjusted insertIdx (incremented when a node was inserted).
+ */
+const maybeInsertMoveNumber = (
+  model: PgnModel,
+  variation: PgnVariationNode,
+  entries: PgnEntryNode[],
+  insertIdx: number,
+): number => {
+  if (variation.parentMoveId !== null) return insertIdx; // sub-variations: skip
+  const fenHeader = model.headers.find((h) => h.key === "FEN");
+  const startsWhite = fenHeader
+    ? (fenHeader.value.trim().split(/\s+/)[1] ?? "w") !== "b"
+    : true;
+  const preceding = countMovesBeforeIdx(entries, insertIdx);
+  const isWhiteTurn = startsWhite ? preceding % 2 === 0 : preceding % 2 !== 0;
+  const prevEntry = insertIdx > 0 ? entries[insertIdx - 1] : undefined;
+  if (isWhiteTurn && prevEntry?.type !== "move_number") {
+    const moveNum = Math.floor(preceding / 2) + 1;
+    entries.splice(insertIdx, 0, {
+      id: nextId("move_number"),
+      type: "move_number",
+      text: `${moveNum}.`,
+    });
+    return insertIdx + 1;
+  }
+  return insertIdx;
+};
+
 const makeVariationNode = (
   depth: number,
   parentMoveId: string | null,
@@ -174,12 +219,19 @@ export const appendMove = (
       (e) => e.type === "move" && e.id === cursor.moveId,
     );
     if (idx !== -1) {
-      variation.entries.splice(idx + 1, 0, newMove);
+      let insertIdx = idx + 1;
+      insertIdx = maybeInsertMoveNumber(cloned, variation, variation.entries, insertIdx);
+      variation.entries.splice(insertIdx, 0, newMove);
     } else {
       variation.entries.push(newMove);
     }
   } else {
-    variation.entries.push(newMove);
+    // Insert before any trailing result token so the serialised PGN stays
+    // parseable (a freshly-created game has a result node as the only entry).
+    const resultIdx = variation.entries.findIndex((e) => e.type === "result");
+    let insertIdx = resultIdx !== -1 ? resultIdx : variation.entries.length;
+    insertIdx = maybeInsertMoveNumber(cloned, variation, variation.entries, insertIdx);
+    variation.entries.splice(insertIdx, 0, newMove);
   }
 
   return [cloned, { moveId: newMove.id, variationId: variation.id }];

@@ -69,6 +69,7 @@ export const GUIDE_IDS = {
   RIGHT_PANEL_TAB_GAME_SEARCH: "panel.tab.game-search",
   RIGHT_PANEL_TAB_POSITION_SEARCH: "panel.tab.position-search",
   RIGHT_PANEL_TAB_TEXT_SEARCH: "panel.tab.text-search",
+  RIGHT_PANEL_TAB_PLAYERS: "panel.tab.players",
   RIGHT_PANEL_TAB_SETTINGS: "panel.tab.settings",
   RIGHT_PANEL_BODY: "panel.body",
   RIGHT_PANEL_RESOURCES: "panel.resources",
@@ -79,6 +80,7 @@ export const GUIDE_IDS = {
   RIGHT_PANEL_GAME_SEARCH: "panel.game-search",
   RIGHT_PANEL_POSITION_SEARCH: "panel.position-search",
   RIGHT_PANEL_TEXT_SEARCH: "panel.text-search",
+  RIGHT_PANEL_PLAYERS: "panel.players",
   RIGHT_PANEL_SETTINGS: "panel.settings",
 
   // ── Editor annotations ──────────────────────────────────────────────────
@@ -104,6 +106,8 @@ export const GUIDE_IDS = {
   POSITION_SEARCH_HEADER: "position-search.panel.header",
   TEXT_SEARCH_PANEL: "text-search.panel",
   TEXT_SEARCH_HEADER: "text-search.panel.header",
+  PLAYERS_PANEL: "players.panel",
+  PLAYERS_PANEL_LIST: "players.panel.list",
   SETTINGS_PANEL: "settings.panel",
   RESOURCE_VIEWER_PANEL: "resources.panel",
 

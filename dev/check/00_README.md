@@ -127,3 +127,4 @@ The rework-phase is done by the agent.
 | 26 | [26_PREFS.md](26_PREFS.md) | PREFS | Startup preferences — defaults vs. user-saved |
 | 27 | [27_EDITORSTYLE.md](27_EDITORSTYLE.md) | EDITORSTYLE | Editor style dialog — font, sidebar, colours, per-mode controls, preview |
 | 28 | [28_DEFAULTLAYOUT.md](28_DEFAULTLAYOUT.md) | DEFAULTLAYOUT | Default Layout — toolbar button, apply behaviour, configuration dialog |
+| 29 | [29_WEBVIEW-STORAGE.md](29_WEBVIEW-STORAGE.md) | WEBVIEW-STORAGE | Webview storage export and import |

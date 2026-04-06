@@ -114,3 +114,7 @@ export const selectActiveResourceErrorMessage = (state: AppStoreState): string =
   state.activeResourceErrorMessage;
 export const selectResourceViewerTabs = (state: AppStoreState): ResourceTabSnapshot[] =>
   state.resourceViewerTabSnapshots;
+
+// ── Storage import ───────────────────────────────────────────────────────────
+export const selectStorageImportPending = (state: AppStoreState): Record<string, string> | null =>
+  state.storageImportPending;

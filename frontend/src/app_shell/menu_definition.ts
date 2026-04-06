@@ -40,7 +40,9 @@ export type MenuActionId =
   | "file.new-database"
   | "file.new-directory"
   | "file.open-resource-file"
-  | "file.open-resource-directory";
+  | "file.open-resource-directory"
+  | "help.export-storage"
+  | "help.import-storage";
 
 // ── Node types ────────────────────────────────────────────────────────────────
 
@@ -158,6 +160,16 @@ export const APP_MENU_DEFINITION: MenuDefinition = [
       { kind: "predefined", item: "Maximize" },
       { kind: "separator" },
       { kind: "predefined", item: "CloseWindow" },
+    ],
+  },
+
+  // ── Help ──────────────────────────────────────────────────────────────────
+  {
+    kind: "submenu",
+    label: "Help",
+    items: [
+      { kind: "action", id: "help.export-storage", label: "Export Webview Storage\u2026" },
+      { kind: "action", id: "help.import-storage", label: "Import Webview Storage\u2026" },
     ],
   },
 ];

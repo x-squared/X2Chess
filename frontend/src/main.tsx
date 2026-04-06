@@ -19,6 +19,9 @@ import "./training/styles.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
+import { initLogger } from "./logger";
+
+void initLogger();
 
 const rootEl = document.getElementById("root");
 if (!rootEl) {

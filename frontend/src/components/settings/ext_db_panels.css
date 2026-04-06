@@ -1044,6 +1044,119 @@
 }
 .text-search-panel-open-btn:hover { background: var(--surface-2); }
 
+/* ── PlayersPanel ───────────────────────────────────────────────────────────── */
+
+.players-panel {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-panel);
+  overflow: hidden;
+  font-size: 0.8125rem;
+}
+.players-panel-header {
+  display: flex;
+  align-items: center;
+  padding: 0.4rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-input, #1e293b);
+  gap: 0.5rem;
+}
+.players-panel-title {
+  font-weight: 600;
+  flex: 1;
+}
+.players-panel-add-btn {
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-1);
+  color: var(--text-primary);
+  font-size: 1rem;
+  cursor: pointer;
+  line-height: 1;
+}
+.players-panel-add-btn:disabled { opacity: 0.4; cursor: default; }
+.players-panel-add-btn:hover:not(:disabled) { background: var(--surface-2); }
+
+/* Column layout — shared by heading row, list rows, and add form */
+.players-panel-col-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+}
+.players-panel-col-last  { flex: 3; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.players-panel-col-first { flex: 2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.players-panel-col-actions { display: flex; gap: 0.25rem; flex-shrink: 0; }
+
+.players-panel-col-heading {
+  padding: 0.25rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary, #94a3b8);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.players-panel-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  flex: 1;
+}
+.players-panel-empty {
+  padding: 0.75rem;
+  color: var(--text-secondary, #94a3b8);
+}
+.players-panel-row {
+  padding: 0.3rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+.players-panel-row:last-child { border-bottom: none; }
+.players-panel-row:hover:not(.editing) { background: var(--bg-hover, rgba(255,255,255,0.04)); }
+.players-panel-row.editing { background: var(--bg-input, #1e293b); }
+
+.players-panel-name {
+  color: var(--text);
+}
+
+.players-panel-action-btn {
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-1);
+  color: var(--text-primary);
+  font-size: 0.75rem;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+.players-panel-action-btn:hover { background: var(--surface-2); }
+.players-panel-action-btn:disabled { opacity: 0.4; cursor: default; }
+
+.players-panel-delete-btn { color: var(--color-danger, #f87171); }
+.players-panel-delete-btn:hover { background: var(--surface-danger, rgba(248,113,113,0.12)); }
+
+.players-panel-input {
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg-input, #1e293b);
+  color: var(--text);
+  font-size: 0.8125rem;
+  min-width: 0;
+}
+
+.players-panel-add-form {
+  padding: 0.4rem 0.75rem;
+  border-top: 1px solid var(--border);
+  background: var(--bg-input, #1e293b);
+}
+
 /* ── CollectionExplorerPanel ────────────────────────────────────────────────── */
 
 .ce-panel {

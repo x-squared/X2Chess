@@ -1,6 +1,7 @@
 import { Chess } from "chess.js";
 import type { ActiveSessionRef } from "../game_sessions/game_session_state";
 import type { MovePositionIndex } from "../board/move_position";
+import { log } from "../logger";
 
 /**
  * Pgn Runtime module.
@@ -147,7 +148,9 @@ export const createPgnRuntimeCapabilities = ({
       g.pendingFocusCommentId = focusCommentId;
       onPendingFocusChange(focusCommentId);
     }
-    syncChessParseState(g.pgnText);
+    const parseOk = syncChessParseState(g.pgnText);
+    const movetextSnippet = g.pgnText.split("\n\n").slice(1).join("\n\n").trim().slice(0, 80);
+    log.debug("pgn_runtime", `applyPgnModelUpdate: parseOk=${String(parseOk)} moves.length=${g.moves.length} movetext="${movetextSnippet}"`);
     onPgnChange(g.pgnText, g.pgnModel, g.moves);
     onNavigationChange(g.currentPly, g.selectedMoveId, g.boardPreview as BoardPreviewValue);
     onScheduleAutosave();

@@ -1,0 +1,64 @@
+---
+description: Structured debug logging requirements for all application code
+alwaysApply: true
+---
+
+# Logging Rule
+
+All application code must carry structured debug-level logging via the `log`
+facade in `frontend/src/logger.ts`.  Logging is not optional or cosmetic — it
+is the primary tool for diagnosing problems in the desktop app where a
+browser DevTools session may not be available.
+
+## Requirements for new code
+
+- **Every function that performs I/O, state mutation, or a non-trivial
+  computation** must emit at least one `log.debug` call that identifies the
+  operation and its key parameters.
+- **Every error path** (catch block, rejected promise, unexpected `null`)
+  must emit `log.error` with the module name and the error message before
+  any UI dispatch or rethrow.
+- **Every significant lifecycle event** (app startup steps, session
+  open/close/switch, resource load/save, navigation, service init) must
+  emit `log.info`.
+- Use `log.warn` for recoverable anomalies: missing optional data,
+  fallback behaviour engaged, deprecated path taken.
+
+## Call convention
+
+```typescript
+import { log } from "../logger"; // adjust relative path as needed
+
+log.debug("myModule", `loadGame: recordId=${recordId}`);
+log.info("myModule", `Session opened: title="${title}"`);
+log.warn("myModule", "sourceRef missing — falling back to active session");
+log.error("myModule", `Failed to load game: ${message}`);
+```
+
+- First argument: the module or hook name as a plain string literal (no
+  dynamic values).  This makes log output grep-friendly.
+- Second argument: a short, human-readable message.  Include the key
+  variable values inline so a single log line is self-contained.
+- Never log sensitive user data (passwords, PII).  File paths and game
+  content are acceptable.
+
+## Requirement when touching existing code
+
+When you modify any existing function or module, audit it for missing log
+calls and add them before finishing the task.  Specifically:
+
+1. Add `log.error` to every catch block that did not already have one.
+2. Add `log.info` or `log.debug` to lifecycle entry points that are silent.
+3. Do not remove or downgrade existing log calls.
+
+This rule applies to all layers: hooks, components, pure-logic modules,
+resource adapters, and the Rust backend (`eprintln!` / `log::info!` etc.).
+
+## Infrastructure
+
+- Logger module: `frontend/src/logger.ts`
+- Tauri plugin: `tauri-plugin-log` (configured in `src-tauri/src/main.rs`)
+- Log file location (macOS): `~/Library/Logs/com.x2chess.app/`
+- Log level: `Debug` in dev builds, `Info` in release builds
+- `attachConsole()` is called at startup, so all `console.*` calls are also
+  captured in the file — but prefer explicit `log.*` calls in new code.

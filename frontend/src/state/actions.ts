@@ -99,4 +99,9 @@ export type AppAction =
       activeResourceRowCount: number;
       activeResourceErrorMessage: string;
       activeSourceKind: string;
-    };
+    }
+  /**
+   * Pending webview-storage import snapshot.  `null` closes the import dialog;
+   * a non-null value opens it with the parsed storage entries for selection.
+   */
+  | { type: "set_storage_import_pending"; data: Record<string, string> | null };

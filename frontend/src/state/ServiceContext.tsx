@@ -21,6 +21,7 @@
 import { createContext, useContext } from "react";
 import type { ReactNode, ReactElement } from "react";
 import type { PgnModel } from "../model/pgn_model";
+import type { PlayerRecord } from "../app_shell/app_state";
 import type { PositionSearchHit, TextSearchHit } from "../../../resource/client/search_coordinator";
 import type { MoveFrequencyEntry } from "../../../resource/domain/move_frequency";
 import type { PgnResourceRef } from "../../../resource/domain/resource_ref";
@@ -188,6 +189,42 @@ export type AppStartupServices = {
    * @returns Up to 8 matching `"Last-name, First-name"` strings, ranked by relevance.
    */
   getPlayerNameSuggestions: (query: string) => string[];
+  /**
+   * Return all players currently in the player store, sorted by last name then first name.
+   */
+  getPlayers: () => PlayerRecord[];
+  /**
+   * Add a new player to the store and persist the updated list.
+   * No-op when a player with the same (normalized) last+first name already exists.
+   * @param record - Player record to add.
+   */
+  addPlayer: (record: PlayerRecord) => Promise<void>;
+  /**
+   * Remove a player from the store and persist the updated list.
+   * @param record - Player record to remove (matched by normalized last+first name).
+   */
+  deletePlayer: (record: PlayerRecord) => Promise<void>;
+  /**
+   * Replace `oldRecord` with `updatedRecord` in the store and persist.
+   * When the updated name already exists as a different entry the old entry is simply removed.
+   * @param oldRecord - Player record to replace.
+   * @param updatedRecord - New values.
+   */
+  updatePlayer: (oldRecord: PlayerRecord, updatedRecord: PlayerRecord) => Promise<void>;
+
+  // ── Webview storage ────────────────────────────────────────────────────
+  /**
+   * Serialize all current `localStorage` entries to a JSON file chosen by the
+   * user via a native save dialog.  No-op in the browser runtime.
+   */
+  exportWebviewStorage: () => void;
+  /**
+   * Open a JSON file chosen by the user via a native open dialog, parse it as
+   * a `Record<string, string>` snapshot, and dispatch `set_storage_import_pending`
+   * to open the selective-import dialog.  No-op in the browser runtime or when
+   * the user cancels.
+   */
+  importWebviewStorage: () => void;
 
   // ── Session management ─────────────────────────────────────────────────
   /**
@@ -283,6 +320,8 @@ const defaultServices: AppStartupServices = {
   openResourceDirectory: noop,
   createResource: noop,
   openPgnText: noop,
+  exportWebviewStorage: noop,
+  importWebviewStorage: noop,
   openGameFromRecordId: async (): Promise<void> => {},
   fetchGameMetadataByRecordId: async (): Promise<Record<string, string> | null> => null,
   getActiveSessionResourceRef: (): null => null,
@@ -313,6 +352,10 @@ const defaultServices: AppStartupServices = {
   saveActiveGameNow: noop,
   saveSessionById: noop,
   getPlayerNameSuggestions: (): string[] => [],
+  getPlayers: (): PlayerRecord[] => [],
+  addPlayer: async (): Promise<void> => {},
+  deletePlayer: async (): Promise<void> => {},
+  updatePlayer: async (): Promise<void> => {},
 };
 
 /** React context carrying the startup-initialised service callbacks. */

@@ -15,3 +15,4 @@ run/DEV/*
 !run/DEV/.gitkeep
 run/TEST/*
 !run/TEST/.gitkeep
+X2Chess.code-workspace

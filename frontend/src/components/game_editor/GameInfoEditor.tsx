@@ -95,8 +95,11 @@ type FieldInputProps = {
  * Renders a single form control (select or text/number input) for non-player fields.
  * Text and number inputs are controlled: value is committed and normalized on blur.
  * Select inputs commit immediately on change (discrete values are always valid).
+ *
+ * Reusable outside `GameInfoEditor` wherever a game-info field input is needed
+ * (e.g. `NewGameDialog` metadata tab).
  */
-const FieldInput = ({ field, defaultVal, onCommit }: FieldInputProps): ReactElement => {
+export const FieldInput = ({ field, defaultVal, onCommit }: FieldInputProps): ReactElement => {
   const id: string = `game-info-${field.key.toLowerCase()}`;
   const [value, setValue] = useState<string>(defaultVal);
   const [isInvalid, setIsInvalid] = useState<boolean>(false);

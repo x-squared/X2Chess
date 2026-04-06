@@ -43,6 +43,7 @@ before working on frontend or resource code.** Key files:
 | `component-contract.mdc` | Adding or editing a React component |
 | `dual-target-architecture.mdc` | Resource, adapter, or build changes |
 | `public-code-documentation.mdc` | Adding exported functions or modules |
+| `logging.mdc` | Any code change — new or existing code being touched |
 | `regression-tests.mdc` | Bug fixes |
 | `ui-style-and-theming.mdc` | CSS or UI changes |
 | `i18n-gui-alignment.mdc` | Any user-facing string change |

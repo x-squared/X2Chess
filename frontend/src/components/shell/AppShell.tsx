@@ -578,7 +578,7 @@ export const AppShell = (): ReactElement => {
                 onGotoPrev={(): void => { services.gotoPrev(); }}
                 onGotoNext={(): void => { services.gotoNext(); }}
                 onGotoLast={(): void => { services.gotoLast(); }}
-                onFlipBoard={(): void => { dispatch({ type: "toggle_board_flip" }); }}
+                onFlipBoard={(): void => { services.flipBoard(); }}
                 onShowEditStartPos={(): void => { setShowEditStartPos(true); }}
                 onShowExtractDialog={(): void => { setShowExtractDialog(true); }}
                 onShowHint={handleShowHint}

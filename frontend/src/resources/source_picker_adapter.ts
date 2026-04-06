@@ -119,7 +119,10 @@ export const createSourcePickerAdapter = ({ state }: SourcePickerDeps): SourceAd
   pickSourceRoot: () => Promise<SourceRoot | null>;
   applySourceRoot: (sourceRoot: SourceRoot | null) => void;
   pickResourceTarget: () => Promise<ResourceTarget | null>;
+  pickFileOnlyTarget: () => Promise<ResourceTargetFileOrDb | null>;
   detectDefaultSourceRoot: () => Promise<SourceRoot | null>;
+  createNewDatabase: (suggestedName: string) => Promise<ResourceTargetFileOrDb | null>;
+  createNewPgnFile: (suggestedName: string) => Promise<ResourceTargetFileOrDb | null>;
 } => {
   const isPlaceholderLocator = (value: string): boolean => {
     const normalized: string = String(value || "").trim().toLowerCase();
@@ -365,6 +368,15 @@ export const createSourcePickerAdapter = ({ state }: SourcePickerDeps): SourceAd
     throw new Error("Local folder access is not supported in this browser runtime.");
   };
 
+  const createNewDatabase = async (suggestedName: string): Promise<ResourceTargetFileOrDb | null> => {
+    if (!isTauriRuntime()) throw new Error("Database resources require the desktop application.");
+    const pathRaw: unknown = await tauriInvoke("create_x2chess_file", { suggestedName });
+    const filePath: string = (typeof pathRaw === "string" ? pathRaw : "").trim();
+    if (!filePath) return null;
+    const baseName: string = pathBaseUnix(filePath);
+    return { type: "db", title: baseName.replace(/\.[^.]+$/, ""), locator: filePath };
+  };
+
   const createInResource = async (
     resourceRef: SourceRef | null,
     pgnText: string,
@@ -385,13 +397,43 @@ export const createSourcePickerAdapter = ({ state }: SourcePickerDeps): SourceAd
     };
   };
 
+  const pickFileOnlyTarget = async (): Promise<{ type: "file" | "db"; title: string; locator: string } | null> => {
+    if (isTauriRuntime()) {
+      const selectedFilePathRaw: unknown = await tauriInvoke("pick_resource_file");
+      const filePath: string = (typeof selectedFilePathRaw === "string" ? selectedFilePathRaw : "").trim();
+      if (!filePath) return null;
+      const baseName: string = pathBaseUnix(filePath);
+      const extension: string = baseName.includes(".") ? (baseName.split(".").pop() || "").toLowerCase() : "";
+      if (extension === "pgn") {
+        return { type: "file", title: baseName.replace(/\.[^.]+$/, ""), locator: filePath };
+      }
+      if (extension === "x2chess") {
+        return { type: "db", title: baseName.replace(/\.[^.]+$/, ""), locator: filePath };
+      }
+      throw new Error("Unsupported resource file. Choose a .pgn file or an .x2chess database.");
+    }
+    throw new Error("File picker is only available in the desktop application.");
+  };
+
+  const createNewPgnFile = async (suggestedName: string): Promise<{ type: "file"; title: string; locator: string } | null> => {
+    if (!isTauriRuntime()) throw new Error("PGN file creation requires the desktop application.");
+    const pathRaw: unknown = await tauriInvoke("create_pgn_file", { suggestedName });
+    const filePath: string = (typeof pathRaw === "string" ? pathRaw : "").trim();
+    if (!filePath) return null;
+    const baseName: string = pathBaseUnix(filePath);
+    return { type: "file", title: baseName.replace(/\.[^.]+$/, ""), locator: filePath };
+  };
+
   return {
     kind: "file",
     applySourceRoot,
+    createNewDatabase,
+    createNewPgnFile,
     detectDefaultSourceRoot,
     list,
     load,
     createInResource,
+    pickFileOnlyTarget,
     pickResourceTarget,
     pickSourceRoot,
     save,

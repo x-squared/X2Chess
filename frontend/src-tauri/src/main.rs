@@ -378,6 +378,23 @@ fn create_x2chess_file(suggested_name: String) -> Option<String> {
     .map(|path| path.to_string_lossy().to_string())
 }
 
+#[tauri::command]
+fn create_pgn_file(suggested_name: String) -> Option<String> {
+  let name = if suggested_name.is_empty() {
+    "games.pgn".to_string()
+  } else if suggested_name.ends_with(".pgn") {
+    suggested_name
+  } else {
+    format!("{}.pgn", suggested_name)
+  };
+  rfd::FileDialog::new()
+    .add_filter("PGN file", &["pgn"])
+    .set_file_name(&name)
+    .set_title("Create PGN file")
+    .save_file()
+    .map(|path| path.to_string_lossy().to_string())
+}
+
 // ── Browser panel WebviewWindow (W4 — Tier 3 web import) ─────────────────────
 
 const BROWSER_WINDOW_LABEL: &str = "browser";
@@ -407,6 +424,18 @@ fn open_browser_window(app: tauri::AppHandle, url: String) -> Result<(), String>
     .build()
     .map(|_| ())
     .map_err(|e| format!("Failed to open browser window: {e}"))
+  }
+}
+
+/// Open the WebKit Web Inspector for the main window.
+///
+/// Active only in debug builds (or when the `devtools` feature is enabled).
+/// No-op in release builds without that feature.
+#[tauri::command]
+fn open_devtools(app: tauri::AppHandle) {
+  #[cfg(any(debug_assertions, feature = "devtools"))]
+  if let Some(window) = app.get_webview_window("main") {
+    window.open_devtools();
   }
 }
 
@@ -620,10 +649,12 @@ fn main() {
       execute_db,
       pick_x2chess_file,
       create_x2chess_file,
+      create_pgn_file,
       spawn_engine,
       send_to_engine,
       kill_engine,
       native_http_get,
+      open_devtools,
       open_browser_window,
       close_browser_window,
       browser_window_navigate,

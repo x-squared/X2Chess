@@ -61,6 +61,7 @@ import {
   createSessionOrchestrator,
   resolveSelectedMoveId,
 } from "./session_orchestrator";
+import { useTauriMenu } from "./useTauriMenu";
 
 // ── Shared types ──────────────────────────────────────────────────────────────
 
@@ -290,5 +291,10 @@ export const useAppStartup = (): AppStartupServices => {
 
   // ── Return stable orchestrator ─────────────────────────────────────────
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  return useMemo(() => createSessionOrchestrator(bundle, dispatchRef, stateRef), [bundle]);
+  const services = useMemo(() => createSessionOrchestrator(bundle, dispatchRef, stateRef), [bundle]);
+
+  // Build the native desktop menu bar from the declarative definition.
+  useTauriMenu(services);
+
+  return services;
 };

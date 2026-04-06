@@ -24,6 +24,9 @@ type LoadResult = Awaited<ReturnType<SourceGateway["loadBySourceRef"]>>;
 type SaveResult = Awaited<ReturnType<SourceGateway["saveBySourceRef"]>>;
 type CreateResult = Awaited<ReturnType<SourceGateway["createGameInResource"]>>;
 type ChooseResourceResult = Awaited<ReturnType<SourceGateway["chooseResourceByPicker"]>>;
+type ChooseFileResult = Awaited<ReturnType<SourceGateway["chooseFileByPicker"]>>;
+type ChooseFolderResult = Awaited<ReturnType<SourceGateway["chooseFolderByPicker"]>>;
+type CreateResourceByKindResult = Awaited<ReturnType<SourceGateway["createResourceByKind"]>>;
 
 export const createResourcesCapabilities = ({
   appMode = "DEV",
@@ -75,6 +78,45 @@ export const createResourcesCapabilities = ({
       const msg: string = error instanceof Error ? error.message : String(error);
       onSetSaveStatus(msg || t("pgn.save.error", "Autosave failed"), "error");
       return [];
+    }
+  };
+
+  const createResourceByKind = async (kind: "db" | "directory" | "file"): Promise<CreateResourceByKindResult> => {
+    try {
+      const selected: CreateResourceByKindResult = await sourceGateway.createResourceByKind(kind);
+      if (!selected) return null;
+      onSetSaveStatus("", "");
+      return selected;
+    } catch (error: unknown) {
+      const msg: string = error instanceof Error ? error.message : String(error);
+      onSetSaveStatus(msg || t("resources.error", "Unable to create resource."), "error");
+      return null;
+    }
+  };
+
+  const chooseFileResource = async (): Promise<ChooseFileResult> => {
+    try {
+      const selected: ChooseFileResult = await sourceGateway.chooseFileByPicker();
+      if (!selected) return null;
+      onSetSaveStatus("", "");
+      return selected;
+    } catch (error: unknown) {
+      const msg: string = error instanceof Error ? error.message : String(error);
+      onSetSaveStatus(msg || t("resources.error", "Unable to open resource file."), "error");
+      return null;
+    }
+  };
+
+  const chooseFolderResource = async (): Promise<ChooseFolderResult> => {
+    try {
+      const selected: ChooseFolderResult = await sourceGateway.chooseFolderByPicker();
+      if (!selected) return null;
+      onSetSaveStatus("", "");
+      return selected;
+    } catch (error: unknown) {
+      const msg: string = error instanceof Error ? error.message : String(error);
+      onSetSaveStatus(msg || t("resources.error", "Unable to open resource folder."), "error");
+      return null;
     }
   };
 
@@ -185,7 +227,10 @@ export const createResourcesCapabilities = ({
   return {
     addPlayerRecord,
     chooseClientGamesFolder,
+    chooseFileResource,
+    chooseFolderResource,
     chooseResourceByPicker,
+    createResourceByKind,
     getActiveSourceKind,
     getAvailableSourceKinds: (): string[] => sourceGateway.getAdapterKinds(),
     getPlayerStore,

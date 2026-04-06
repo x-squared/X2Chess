@@ -243,6 +243,8 @@ export const appReducer = (state: AppStoreState, action: AppAction): AppStoreSta
     // ── Board ────────────────────────────────────────────────────────────
     case "toggle_board_flip":
       return { ...state, boardFlipped: !state.boardFlipped };
+    case "set_board_flipped":
+      return { ...state, boardFlipped: action.flipped };
     case "set_move_delay_ms":
       return { ...state, moveDelayMs: action.value };
     case "set_sound_enabled":

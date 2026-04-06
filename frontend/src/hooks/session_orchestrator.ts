@@ -22,7 +22,7 @@ import {
   setCommentTextById,
   applyDefaultLayout,
 } from "../editor";
-import { setHeaderValue, findMoveNode, toggleMoveNag } from "../model";
+import { setHeaderValue, getHeaderValue, X2_BOARD_ORIENTATION_HEADER_KEY, findMoveNode, toggleMoveNag, deriveInitialBoardFlipped } from "../model";
 import { serializeShapes, stripShapeAnnotations } from "../board/shape_serializer";
 import type { BoardShape } from "../board/board_shapes";
 import type { BoardPreviewLike } from "../board/runtime";
@@ -142,6 +142,26 @@ export const createSessionOrchestrator = (
     handleEditorArrowHotkey: (event: KeyboardEvent): boolean =>
       bundle.navigation.handleSelectedMoveArrowHotkey(event),
 
+    // ── Board orientation ──────────────────────────────────────────────────
+    flipBoard: (): void => {
+      const newFlipped: boolean = !stateRef.current.boardFlipped;
+      dispatchRef.current({ type: "set_board_flipped", flipped: newFlipped });
+      const g: GameSessionState = bundle.activeSessionRef.current;
+      const isSetUp: boolean = getHeaderValue(g.pgnModel, "SetUp", "") === "1";
+      const isChess960: boolean =
+        getHeaderValue(g.pgnModel, "Variant", "").trim().toLowerCase() === "chess960";
+      if (!isSetUp || isChess960) {
+        // Default / Chess960: persist as X2BoardOrientation header.
+        // Empty value removes the header (= white, the default).
+        const newModel = setHeaderValue(
+          g.pgnModel as PgnModel,
+          X2_BOARD_ORIENTATION_HEADER_KEY,
+          newFlipped ? "black" : "",
+        );
+        bundle.applyModelUpdate(newModel, null, { recordHistory: true });
+      }
+    },
+
     // ── PGN editing ────────────────────────────────────────────────────────
     loadPgnText: (pgnText: string): void => {
       const g: GameSessionState = bundle.activeSessionRef.current;
@@ -246,6 +266,11 @@ export const createSessionOrchestrator = (
         const record: PlayerRecord | null = parsePlayerRecord(normalizedValue);
         if (record) bundle.resources.addPlayerRecord(record);
       }
+      if (key === X2_BOARD_ORIENTATION_HEADER_KEY) {
+        // Reflect the explicit orientation change on the board immediately.
+        const flipped: boolean = normalizedValue.trim().toLowerCase() === "black";
+        dispatchRef.current({ type: "set_board_flipped", flipped });
+      }
       bundle.applyModelUpdate(newModel, null, { recordHistory: true });
     },
 
@@ -314,12 +339,62 @@ export const createSessionOrchestrator = (
         }
       })();
     },
+    openResourceFile: (): void => {
+      void (async (): Promise<void> => {
+        try {
+          const selected = await bundle.resources.chooseFileResource();
+          if (!selected) return;
+          const ref = selected.resourceRef;
+          const locatorLastSegment: string = lastLocatorSegment(ref.locator, String(ref.kind ?? "Resource"));
+          bundle.resourceViewer.upsertTab({ title: locatorLastSegment, resourceRef: ref, select: true });
+          flushSessionState();
+        } catch (err: unknown) {
+          const message: string = err instanceof Error ? err.message : String(err);
+          dispatchRef.current({ type: "set_error_message", message });
+        }
+      })();
+    },
+    openResourceDirectory: (): void => {
+      void (async (): Promise<void> => {
+        try {
+          const selected = await bundle.resources.chooseFolderResource();
+          if (!selected) return;
+          const ref = selected.resourceRef;
+          const locatorLastSegment: string = lastLocatorSegment(ref.locator, String(ref.kind ?? "Resource"));
+          bundle.resourceViewer.upsertTab({ title: locatorLastSegment, resourceRef: ref, select: true });
+          flushSessionState();
+        } catch (err: unknown) {
+          const message: string = err instanceof Error ? err.message : String(err);
+          dispatchRef.current({ type: "set_error_message", message });
+        }
+      })();
+    },
+    createResource: (kind: "db" | "directory" | "file"): void => {
+      void (async (): Promise<void> => {
+        try {
+          const selected = await bundle.resources.createResourceByKind(kind);
+          if (!selected) return;
+          const ref = selected.resourceRef;
+          const locatorLastSegment: string = lastLocatorSegment(ref.locator, String(ref.kind ?? "Resource"));
+          bundle.resourceViewer.upsertTab({
+            title: locatorLastSegment,
+            resourceRef: ref,
+            select: true,
+          });
+          flushSessionState();
+        } catch (err: unknown) {
+          const message: string = err instanceof Error ? err.message : String(err);
+          dispatchRef.current({ type: "set_error_message", message });
+        }
+      })();
+    },
     openPgnText: (pgnText: string, options?: { preferredTitle?: string; sourceRef?: { kind: string; locator: string; recordId?: string } | null }): void => {
       const newState: GameSessionState = bundle.sessionModel.createSessionFromPgnText(pgnText);
       const derivedTitle: string = bundle.sessionModel.deriveSessionTitle(newState.pgnModel, "New Game");
       const title: string = options?.preferredTitle || derivedTitle;
       bundle.sessionStore.openSession({ ownState: newState, title, sourceRef: options?.sourceRef ?? null });
       flushSessionState();
+      dispatchRef.current({ type: "set_board_flipped", flipped: deriveInitialBoardFlipped(newState.pgnModel) });
     },
     reorderGameInResource: async (sourceRef: unknown, neighborSourceRef: unknown): Promise<void> => {
       const ref = sourceRef as { kind?: string; locator?: string; recordId?: unknown } | null;
@@ -359,6 +434,7 @@ export const createSessionOrchestrator = (
             dirtyState: "clean",
           });
           flushSessionState();
+          dispatchRef.current({ type: "set_board_flipped", flipped: deriveInitialBoardFlipped(g.pgnModel) });
         } catch (err: unknown) {
           const message: string = err instanceof Error ? err.message : String(err);
           dispatchRef.current({ type: "set_error_message", message });
@@ -385,6 +461,7 @@ export const createSessionOrchestrator = (
           sourceRef: { kind: String(sourceRef.kind), locator: String(sourceRef.locator), recordId },
         });
         flushSessionState();
+        dispatchRef.current({ type: "set_board_flipped", flipped: deriveInitialBoardFlipped(newState.pgnModel) });
       } catch (err: unknown) {
         const message: string = err instanceof Error ? err.message : String(err);
         dispatchRef.current({ type: "set_error_message", message });

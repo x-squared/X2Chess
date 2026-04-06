@@ -56,10 +56,12 @@
   flex-direction: column;
   transform: translateX(102%);
   transition: transform 170ms ease;
+  pointer-events: none;
 }
 
 .app-menu-panel.open {
   transform: translateX(0);
+  pointer-events: auto;
 }
 
 .app-menu-header {

@@ -121,6 +121,18 @@ export type AppStartupServices = {
   openGameFromRef: (sourceRef: unknown) => void;
   /** Open the resource picker and add the chosen resource as a viewer tab. */
   openResource: () => void;
+  /** Open a file-only picker (`.pgn` / `.x2chess`) and add the chosen file as a viewer tab. */
+  openResourceFile: () => void;
+  /** Open a folder picker and add the chosen folder as a viewer tab. */
+  openResourceDirectory: () => void;
+  /**
+   * Open a creation dialog for a new resource of the given kind and add it as
+   * a viewer tab.  For `"db"` a save-as dialog creates the `.x2chess` file;
+   * for `"file"` a save-as dialog creates a `.pgn` file; for `"directory"` the
+   * standard folder picker is shown (the user may create a new folder inside the OS dialog).
+   * @param kind `"db"` for a new database, `"file"` for a new PGN file, `"directory"` for a new game folder.
+   */
+  createResource: (kind: "db" | "directory" | "file") => void;
   /** Open the drop/paste ingress with a raw PGN text string and optional source hints. */
   openPgnText: (pgnText: string, options?: { preferredTitle?: string; sourceRef?: { kind: string; locator: string; recordId?: string } | null }) => void;
   /**
@@ -188,6 +200,15 @@ export type AppStartupServices = {
    * @param sessionId - Session ID to close.
    */
   closeSession: (sessionId: string) => void;
+
+  // ── Board orientation ───────────────────────────────────────────────────
+  /**
+   * Toggle the board orientation and persist it to the `X2BoardOrientation`
+   * PGN header for default-position and Chess960 games.  For games that start
+   * from a custom position the header is not written (orientation is always
+   * derived from the FEN's side-to-move).
+   */
+  flipBoard: () => void;
 
   // ── Shell state ────────────────────────────────────────────────────────
   /** Open the training curriculum panel (.x2plan). */
@@ -258,6 +279,9 @@ const defaultServices: AppStartupServices = {
   redo: noop,
   openGameFromRef: noop,
   openResource: noop,
+  openResourceFile: noop,
+  openResourceDirectory: noop,
+  createResource: noop,
   openPgnText: noop,
   openGameFromRecordId: async (): Promise<void> => {},
   fetchGameMetadataByRecordId: async (): Promise<Record<string, string> | null> => null,
@@ -266,6 +290,7 @@ const defaultServices: AppStartupServices = {
   searchByPosition: async () => [],
   searchByText: async () => [],
   explorePosition: async () => [],
+  flipBoard: noop,
   switchSession: noop,
   closeSession: noop,
   openCurriculumPanel: noop,

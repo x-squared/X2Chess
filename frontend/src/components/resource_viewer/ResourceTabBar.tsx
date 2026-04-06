@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import { useRef, type ReactElement } from "react";
 import type { TabState } from "../../resources_viewer/viewer_utils";
 
 // ── Local helpers ─────────────────────────────────────────────────────────────
@@ -29,7 +29,11 @@ type ResourceTabBarProps = {
   onTabClose: (tabId: string) => void;
   onNewGame: () => void;
   onMetadataOpen: () => void;
-  onOpenResource: () => void;
+  onOpenResourceFile: () => void;
+  onOpenResourceDirectory: () => void;
+  onNewPgnFile: () => void;
+  onNewDatabase: () => void;
+  onNewDirectory: () => void;
   t: (key: string, fallback?: string) => string;
 };
 
@@ -43,9 +47,25 @@ export const ResourceTabBar = ({
   onTabClose,
   onNewGame,
   onMetadataOpen,
-  onOpenResource,
+  onOpenResourceFile,
+  onOpenResourceDirectory,
+  onNewPgnFile,
+  onNewDatabase,
+  onNewDirectory,
   t,
-}: ResourceTabBarProps): ReactElement => (
+}: ResourceTabBarProps): ReactElement => {
+  const newDropdownRef = useRef<HTMLDetailsElement>(null);
+  const openDropdownRef = useRef<HTMLDetailsElement>(null);
+
+  const closeNewDropdown = (): void => {
+    if (newDropdownRef.current) newDropdownRef.current.open = false;
+  };
+
+  const closeOpenDropdown = (): void => {
+    if (openDropdownRef.current) openDropdownRef.current.open = false;
+  };
+
+  return (
   <>
     {/* Header row: title + actions */}
     <div className="resource-viewer-header">
@@ -59,18 +79,55 @@ export const ResourceTabBar = ({
           type="button"
           aria-label={t("resources.metadata.button", "Choose metadata columns")}
           title={t("resources.metadata.button", "Choose metadata columns")}
+          disabled={activeTabId === null}
           onClick={onMetadataOpen}
         >
           <img src="/icons/toolbar/metadata-columns.svg" alt="" aria-hidden="true" />
         </button>
-        <button
-          id="btn-open-resource"
-          className="resource-action-button"
-          type="button"
-          onClick={onOpenResource}
-        >
-          {t("resources.open", "Open resource")}
-        </button>
+        <details className="resource-new-dropdown" ref={newDropdownRef} onMouseLeave={closeNewDropdown}>
+          <summary className="resource-action-button">
+            {t("resources.new", "New resource")}
+          </summary>
+          <div className="resource-new-dropdown-menu">
+            <button
+              type="button"
+              onClick={(): void => { closeNewDropdown(); onNewPgnFile(); }}
+            >
+              {t("resources.new.pgn", "New PGN file\u2026")}
+            </button>
+            <button
+              type="button"
+              onClick={(): void => { closeNewDropdown(); onNewDatabase(); }}
+            >
+              {t("resources.new.database", "New database\u2026")}
+            </button>
+            <button
+              type="button"
+              onClick={(): void => { closeNewDropdown(); onNewDirectory(); }}
+            >
+              {t("resources.new.directory", "New game folder\u2026")}
+            </button>
+          </div>
+        </details>
+        <details className="resource-new-dropdown" ref={openDropdownRef} onMouseLeave={closeOpenDropdown}>
+          <summary className="resource-action-button">
+            {t("resources.open", "Open resource")}
+          </summary>
+          <div className="resource-new-dropdown-menu">
+            <button
+              type="button"
+              onClick={(): void => { closeOpenDropdown(); onOpenResourceFile(); }}
+            >
+              {t("resources.open.file", "Open file\u2026")}
+            </button>
+            <button
+              type="button"
+              onClick={(): void => { closeOpenDropdown(); onOpenResourceDirectory(); }}
+            >
+              {t("resources.open.directory", "Open folder\u2026")}
+            </button>
+          </div>
+        </details>
       </div>
     </div>
 
@@ -119,4 +176,5 @@ export const ResourceTabBar = ({
       </div>
     )}
   </>
-);
+  );
+};

@@ -722,7 +722,11 @@ export const ResourceViewer = (): ReactElement => {
         onTabClose={handleTabClose}
         onNewGame={handleNewGame}
         onMetadataOpen={handleMetadataOpen}
-        onOpenResource={(): void => { services.openResource(); }}
+        onOpenResourceFile={(): void => { services.openResourceFile(); }}
+        onOpenResourceDirectory={(): void => { services.openResourceDirectory(); }}
+        onNewPgnFile={(): void => { services.createResource("file"); }}
+        onNewDatabase={(): void => { services.createResource("db"); }}
+        onNewDirectory={(): void => { services.createResource("directory"); }}
         t={t}
       />
 

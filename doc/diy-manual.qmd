@@ -9,7 +9,7 @@ Use this from repository root unless a section says otherwise.
 > Note: Browser mode is not used in this project. X2Chess runs as a Tauri desktop client.
 > Note: X2Chess frontend uses port `5287`.
 > Note: Developer-Tools defaults ON in `desktop:dev` and OFF in packaged PROD builds.
-> Note: The Developer Dock starts closed in all modes and must be opened by the user.
+> Note: The Developer Tools panel (AST view) starts closed in all modes and must be opened via the app sidebar.
 
 ### 1) Check and remove stale dev processes (recommended before start)
 
@@ -40,6 +40,10 @@ preferences.  A **dev prefs mode** flag stored in the app's localStorage
 controls this.  The flag is initialised to `"defaults"` the very first time you
 launch the app (no stored value → factory defaults).
 
+Tip: To run JavaScript (e.g. `localStorage` commands): press **Cmd+Option+I** (macOS) or
+**F12** to open the WebKit Web Inspector, then use its Console tab.
+This keyboard shortcut is available in `desktop:dev` builds only.
+
 Switch to **factory defaults** (useful for testing first-run behaviour):
 
 ```{js}
@@ -67,7 +71,7 @@ localStorage.getItem("x2chess.devPrefsMode")   // "defaults" | "user" | null
 
 Two launch modes are available.  Choose the one that fits your session:
 
-**Isolated mode** — webview storage lives in `run/DEV/webview-data/` (separate from any
+**Isolated mode** — webview storage lives in `run/DEV/webview-data/` (under the repository root, separate from any
 installed PROD build).  Recommended for normal development.
 
 ```{bash}
@@ -85,8 +89,8 @@ npm run desktop:dev
 ```
 
 > Note: Both scripts start their own frontend dev server on port `5287`.
-> Note: `run/DEV/webview-data/` is created automatically on first launch if it does not exist.
-> Tip: Use the menu toggle **Developer Tools** and then **Open Developer Dock** to access AST/DOM/Raw PGN tabs.
+> Note: `run/DEV/webview-data/` (under the repository root) is created automatically on first launch if it does not exist.
+> Tip: To open the AST panel: open the app sidebar, enable the **Developer Tools** checkbox, then click **Open Developer Dock**.
 > Tip: Use menu controls **Save mode** (`Autosave`/`Manual`) and **Save now** for the active game tab.
 
 #### Resetting isolated dev storage

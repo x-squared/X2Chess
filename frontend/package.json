@@ -10,7 +10,7 @@
     "test": "node --test --import tsx \"test/**/*.test.ts\"",
     "preview": "vite preview --port 5287 --strictPort",
     "desktop:dev": "tauri dev",
-    "desktop:dev:isolated": "X2CHESS_WEBVIEW_DATA=../run/DEV/webview-data tauri dev",
+    "desktop:dev:isolated": "X2CHESS_WEBVIEW_DATA=../../run/DEV/webview-data tauri dev",
     "desktop:pack": "tauri build --ci false"
   },
   "dependencies": {

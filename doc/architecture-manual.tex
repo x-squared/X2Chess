@@ -1,0 +1,2224 @@
+\documentclass[]{article}
+\usepackage{lmodern}
+\usepackage{amssymb,amsmath}
+\usepackage{ifxetex,ifluatex}
+\usepackage{fixltx2e} % provides \textsubscript
+\ifnum 0\ifxetex 1\fi\ifluatex 1\fi=0 % if pdftex
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+\else % if luatex or xelatex
+  \ifxetex
+    \usepackage{mathspec}
+  \else
+    \usepackage{fontspec}
+  \fi
+  \defaultfontfeatures{Ligatures=TeX,Scale=MatchLowercase}
+\fi
+% use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+% use microtype if available
+\IfFileExists{microtype.sty}{%
+\usepackage{microtype}
+\UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\usepackage[margin=1in]{geometry}
+\usepackage[unicode=true]{hyperref}
+\hypersetup{
+            pdfborder={0 0 0},
+            breaklinks=true}
+\urlstyle{same}  % don't use monospace font for urls
+\usepackage{color}
+\usepackage{fancyvrb}
+\newcommand{\VerbBar}{|}
+\newcommand{\VERB}{\Verb[commandchars=\\\{\}]}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{commandchars=\\\{\}}
+% Add ',fontsize=\small' for more characters per line
+\usepackage{framed}
+\definecolor{shadecolor}{RGB}{248,248,248}
+\newenvironment{Shaded}{\begin{snugshade}}{\end{snugshade}}
+\newcommand{\KeywordTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{{#1}}}}
+\newcommand{\DataTypeTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{{#1}}}
+\newcommand{\DecValTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{{#1}}}
+\newcommand{\BaseNTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{{#1}}}
+\newcommand{\FloatTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{{#1}}}
+\newcommand{\ConstantTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{{#1}}}
+\newcommand{\CharTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{{#1}}}
+\newcommand{\SpecialCharTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{{#1}}}
+\newcommand{\StringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{{#1}}}
+\newcommand{\VerbatimStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{{#1}}}
+\newcommand{\SpecialStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{{#1}}}
+\newcommand{\ImportTok}[1]{{#1}}
+\newcommand{\CommentTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{{#1}}}}
+\newcommand{\DocumentationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{{#1}}}}}
+\newcommand{\AnnotationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{{#1}}}}}
+\newcommand{\CommentVarTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{{#1}}}}}
+\newcommand{\OtherTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{{#1}}}
+\newcommand{\FunctionTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{{#1}}}
+\newcommand{\VariableTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{{#1}}}
+\newcommand{\ControlFlowTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{{#1}}}}
+\newcommand{\OperatorTok}[1]{\textcolor[rgb]{0.81,0.36,0.00}{\textbf{{#1}}}}
+\newcommand{\BuiltInTok}[1]{{#1}}
+\newcommand{\ExtensionTok}[1]{{#1}}
+\newcommand{\PreprocessorTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{{#1}}}}
+\newcommand{\AttributeTok}[1]{\textcolor[rgb]{0.77,0.63,0.00}{{#1}}}
+\newcommand{\RegionMarkerTok}[1]{{#1}}
+\newcommand{\InformationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{{#1}}}}}
+\newcommand{\WarningTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{{#1}}}}}
+\newcommand{\AlertTok}[1]{\textcolor[rgb]{0.94,0.16,0.16}{{#1}}}
+\newcommand{\ErrorTok}[1]{\textcolor[rgb]{0.64,0.00,0.00}{\textbf{{#1}}}}
+\newcommand{\NormalTok}[1]{{#1}}
+\usepackage{longtable,booktabs}
+\usepackage{graphicx,grffile}
+\makeatletter
+\def\maxwidth{\ifdim\Gin@nat@width>\linewidth\linewidth\else\Gin@nat@width\fi}
+\def\maxheight{\ifdim\Gin@nat@height>\textheight\textheight\else\Gin@nat@height\fi}
+\makeatother
+% Scale images if necessary, so that they will not overflow the page
+% margins by default, and it is still possible to overwrite the defaults
+% using explicit options in \includegraphics[width, height, ...]{}
+\setkeys{Gin}{width=\maxwidth,height=\maxheight,keepaspectratio}
+\IfFileExists{parskip.sty}{%
+\usepackage{parskip}
+}{% else
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt plus 2pt minus 1pt}
+}
+\setlength{\emergencystretch}{3em}  % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\setcounter{secnumdepth}{0}
+% Redefines (sub)paragraphs to behave more like sections
+\ifx\paragraph\undefined\else
+\let\oldparagraph\paragraph
+\renewcommand{\paragraph}[1]{\oldparagraph{#1}\mbox{}}
+\fi
+\ifx\subparagraph\undefined\else
+\let\oldsubparagraph\subparagraph
+\renewcommand{\subparagraph}[1]{\oldsubparagraph{#1}\mbox{}}
+\fi
+
+\author{}
+\date{\vspace{-2.5em}}
+
+\begin{document}
+
+\section{X2Chess Architecture Manual}\label{x2chess-architecture-manual}
+
+Last updated: 2026-04-04
+
+\subsection{1) Goals}\label{goals}
+
+\begin{itemize}
+\tightlist
+\item
+  Make the browser fat client the primary/full product runtime.
+\item
+  Allow remote launch (server-hosted assets) while preserving local
+  client execution.
+\item
+  Combine local resource usage with remote resource integration in one
+  client architecture.
+\item
+  Provide an app-profile variant as a reduced version of the full fat
+  client.
+\item
+  Keep architecture decisions explicit and traceable.
+\end{itemize}
+
+Architecture decisions are maintained in
+\texttt{doc/architecture-adr-manual.qmd}.
+
+\subsection{2) System Overview}\label{system-overview}
+
+\subsection{\texorpdfstring{2.1 Frontend
+(\texttt{frontend/})}{2.1 Frontend (frontend/)}}\label{frontend-frontend}
+
+\begin{itemize}
+\tightlist
+\item
+  Technology: Vite + React 18 + TypeScript (ES modules).
+\item
+  Main entrypoint: \texttt{frontend/src/main.tsx}.
+\item
+  React state: single \texttt{useReducer} store (\texttt{AppStoreState})
+  owned by \texttt{AppProvider}; all mutations via
+  \texttt{dispatch(action)}.
+\item
+  Service layer: \texttt{useAppStartup} hook initialises all pure-logic
+  services on mount, wraps them in a \texttt{SessionOrchestrator}, and
+  exposes stable callbacks via \texttt{ServiceContext}; components
+  consume them with \texttt{useServiceContext()}. Each service owns its
+  internal state as closure variables; services communicate state
+  changes to React via typed callbacks that dispatch fine-grained
+  actions (see §7.3).
+\item
+  Responsibilities:
+\item
+  Render the Game-Viewer (board + PGN editor UI) as React components.
+\item
+  Parse PGN into an internal model and serialize back to text.
+\item
+  Keep replay/navigation state in React \texttt{useReducer}.
+\item
+  Manage chess move playback and UI interactions via
+  \texttt{ServiceContext} callbacks.
+\item
+  Manage multiple open game sessions in parallel tabs.
+\item
+  Route load/save through a uniform source adapter contract.
+\end{itemize}
+
+\subsection{\texorpdfstring{2.2 Backend
+(\texttt{backend/})}{2.2 Backend (backend/)}}\label{backend-backend}
+
+\begin{itemize}
+\tightlist
+\item
+  Technology: FastAPI.
+\item
+  Scope in current architecture:
+\item
+  Optional static serving and optional future remote services.
+\item
+  Not part of client-local resource loading/saving.
+\item
+  Constraint:
+\item
+  Local runtime resources are owned and handled only by the client
+  runtime.
+\end{itemize}
+
+\subsection{\texorpdfstring{2.3 App Profile Shell
+(\texttt{frontend/src-tauri/})}{2.3 App Profile Shell (frontend/src-tauri/)}}\label{app-profile-shell-frontendsrc-tauri}
+
+\begin{itemize}
+\tightlist
+\item
+  Technology: Tauri 2 (Rust host + web frontend).
+\item
+  Configuration: \texttt{frontend/src-tauri/tauri.conf.json}.
+\item
+  Runtime entrypoint: \texttt{frontend/src-tauri/src/main.rs}.
+\item
+  Capability model:
+\item
+  \texttt{frontend/src-tauri/capabilities/default.json} with
+  \texttt{core:default}, \texttt{core:menu:default}.
+\item
+  Build wiring:
+\item
+  Dev URL \texttt{http://localhost:5287}.
+\item
+  Production frontend assets from \texttt{frontend/dist}.
+\end{itemize}
+
+\subsubsection{Desktop menu bar}\label{desktop-menu-bar}
+
+The native desktop menu bar is defined declaratively in a single
+TypeScript file:
+
+\begin{itemize}
+\item
+  \textbf{Definition:}
+  \texttt{frontend/src/app\_shell/menu\_definition.ts} --- a plain,
+  framework-free data structure (\texttt{APP\_MENU\_DEFINITION}) that
+  lists every top-level menu and its items (actions, predefined OS
+  items, separators, submenus). Adding, removing, or reordering menu
+  items only requires editing this file.
+\item
+  \textbf{Action ids} (\texttt{MenuActionId}) name the application-level
+  operations (e.g. \texttt{"file.open-resource"},
+  \texttt{"file.new-database"}). Each id is handled by a matching entry
+  in the \texttt{MENU\_ACTIONS} map inside \texttt{useTauriMenu.ts}.
+\item
+  \textbf{Build hook:} \texttt{frontend/src/hooks/useTauriMenu.ts} --- a
+  React hook called once by \texttt{useAppStartup}. It reads
+  \texttt{APP\_MENU\_DEFINITION}, constructs the Tauri 2 \texttt{Menu}
+  via \texttt{@tauri-apps/api/menu}, wires action callbacks to
+  \texttt{AppStartupServices}, and installs the result with
+  \texttt{menu.setAsAppMenu()}. The hook is a no-op in browser runtime
+  (\texttt{isTauriRuntime()} guard).
+\end{itemize}
+
+\textbf{To add a new menu action:} 1. Add a new id to
+\texttt{MenuActionId} in \texttt{menu\_definition.ts}. 2. Insert a
+\texttt{\{\ kind:\ "action",\ id:\ "\ldots{}",\ label:\ "\ldots{}",\ accelerator?:\ "\ldots{}"\ \}}
+node at the desired position in \texttt{APP\_MENU\_DEFINITION}. 3. Add
+the handler
+\texttt{"new.id":\ (services)\ =\textgreater{}\ \{\ \ldots{}\ \}} in
+\texttt{MENU\_ACTIONS} inside \texttt{useTauriMenu.ts}.
+
+\subsection{\texorpdfstring{2.4 Resource Library
+(\texttt{resource/})}{2.4 Resource Library (resource/)}}\label{resource-library-resource}
+
+\begin{itemize}
+\tightlist
+\item
+  Technology: TypeScript library consumed by frontend runtime
+  boundaries.
+\item
+  Scope in current architecture:
+\item
+  Defines canonical PGN resource contracts (\texttt{PgnResourceRef},
+  \texttt{PgnGameRef}, \texttt{PgnGameEntry}).
+\item
+  Provides canonical kind model: \texttt{file}, \texttt{directory},
+  \texttt{db}.
+\item
+  Owns metadata schema/constants and extraction contracts.
+\item
+  Owns database schema and migrations under \texttt{resource/database/}.
+\item
+  Boundary constraints:
+\item
+  Frontend modules consume \texttt{resource/client} and
+  \texttt{resource/domain} contracts.
+\item
+  Frontend must not own DB schema/migration internals.
+\end{itemize}
+
+\subsection{3) Build and Delivery Paths}\label{build-and-delivery-paths}
+
+Environment and toolchain setup is documented in
+\texttt{doc/setup-manual.qmd}.
+
+\subsection{3.1 Full browser fat-client
+profile}\label{full-browser-fat-client-profile}
+
+\begin{itemize}
+\tightlist
+\item
+  Dev (local): \texttt{cd\ frontend\ \&\&\ npm\ run\ dev}
+\item
+  Build (deployable from remote host or local static host):
+  \texttt{cd\ frontend\ \&\&\ npm\ run\ build}
+\end{itemize}
+
+\subsection{3.2 Reduced app profile
+(Tauri)}\label{reduced-app-profile-tauri}
+
+\begin{itemize}
+\tightlist
+\item
+  Dev shell + hot reload:
+  \texttt{cd\ frontend\ \&\&\ npm\ run\ desktop:dev}
+\item
+  Packaged app profile:
+  \texttt{cd\ frontend\ \&\&\ npm\ run\ desktop:pack}
+\item
+  Artifact directory: \texttt{frontend/src-tauri/target/release/bundle/}
+\end{itemize}
+
+\subsection{3.3 Runtime modes and
+Developer-Tools}\label{runtime-modes-and-developer-tools}
+
+\begin{itemize}
+\tightlist
+\item
+  Build mode is injected as \texttt{\_\_X2CHESS\_MODE\_\_} (\texttt{DEV}
+  or \texttt{PROD}).
+\item
+  Default behavior:
+\item
+  \texttt{DEV}: Developer-Tools starts ON.
+\item
+  \texttt{PROD}: Developer-Tools starts OFF.
+\item
+  Developer-Tools can be toggled in the app menu and persists per user.
+\item
+  Developer-Tools exposes a bottom fixed dock with tabs:
+\item
+  \texttt{AST}
+\item
+  \texttt{DOM}
+\item
+  \texttt{Raw\ PGN}
+\item
+  The dock is user-opened and user-closed; enabling Developer-Tools does
+  not force the dock open.
+\item
+  Dock views always reflect the same in-memory game/model state as the
+  main Game-Viewer.
+\item
+  DEV-only convenience:
+\item
+  Automatic preload attempt from \texttt{run/DEV/games} (when
+  available).
+\end{itemize}
+
+\subsection{3.4 Game sessions and source
+adapters}\label{game-sessions-and-source-adapters}
+
+\begin{itemize}
+\tightlist
+\item
+  Open games are modeled as in-memory \texttt{GameSession} entries:
+\item
+  \texttt{sessionId}
+\item
+  \texttt{sourceRef}
+\item
+  \texttt{revisionToken}
+\item
+  snapshot of editor/board runtime
+\item
+  dirty/save mode metadata
+\item
+  Session identity is independent from source identity; source
+  references are attached metadata.
+\item
+  Source interactions are routed through canonical resource boundaries:
+\item
+  \texttt{file} kind: single file containing multiple games
+\item
+  \texttt{directory} kind: folder of one-game-per-file entries
+\item
+  \texttt{db} kind: database-backed resources (schema/migrations owned
+  in \texttt{resource/database/}; implementation may be deferred by
+  profile)
+\item
+  Supported open flows are:
+\item
+  Drag/drop PGN text/files
+\item
+  Paste PGN text
+\item
+  Source-root preload (DEV convenience)
+\item
+  Save path is uniform:
+\item
+  Active session + source reference + revision token -\textgreater{}
+  source adapter \texttt{save(...)}.
+\item
+  Save policy:
+\item
+  Default mode is autosave.
+\item
+  User can switch active-session mode between autosave and manual from
+  the app menu.
+\item
+  Naming convention:
+\item
+  The conjunction of board and text editor is called
+  \textbf{Game-Viewer}.
+\end{itemize}
+
+\subsection{3.5 App-Version and Data-Migration
+Strategy}\label{app-version-and-data-migration-strategy}
+
+All persistent data in X2Chess is versioned so that older instances can
+be detected and upgraded automatically on startup. Three layers are
+covered:
+
+\subsubsection{3.5.1 App version constant}\label{app-version-constant}
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{Source of truth:} \texttt{frontend/src-tauri/tauri.conf.json}
+  → injected as \texttt{\_\_X2CHESS\_APP\_VERSION\_\_} by Vite.
+\item
+  \textbf{Access point:} \texttt{frontend/src/runtime/app\_version.ts}
+  exports \texttt{CURRENT\_APP\_VERSION:\ string}, \texttt{parseSemver},
+  and \texttt{isNewerVersion}. All code that needs the version reads
+  from this module; no other file duplicates the inline
+  \texttt{typeof\ \_\_X2CHESS\_APP\_VERSION\_\_} guard.
+\end{itemize}
+
+\subsubsection{3.5.2 SQLite database schema
+migrations}\label{sqlite-database-schema-migrations}
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{Owner:} \texttt{resource/database/migrations/} (runner + steps
+  + manifest).
+\item
+  \textbf{Mechanism:} \texttt{schema\_version} table records applied
+  versions. \texttt{runMigrations(db)} is idempotent --- safe to call on
+  every DB open; it skips already-applied steps.
+\item
+  \textbf{Naming convention:} migration files are prefixed
+  \texttt{NNNN\_} (e.g. \texttt{0001\_init.ts}).
+\item
+  \textbf{Rule:} Never modify a migration step after it has been
+  shipped. Add a new step instead.
+\end{itemize}
+
+\subsubsection{3.5.3 localStorage versioned
+stores}\label{localstorage-versioned-stores}
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{Primitive:} \texttt{frontend/src/storage/versioned\_store.ts}
+  --- \texttt{createVersionedStore\textless{}T\textgreater{}(config)}.
+\item
+  \textbf{Envelope format:} every managed key stores
+  \texttt{\{\ "v":\ \textless{}number\textgreater{},\ "data":\ \textless{}T\textgreater{}\ \}}
+  JSON.
+\item
+  \textbf{On read:}
+\item
+  Absent key → return default (no write-back).
+\item
+  Current version → return data directly.
+\item
+  Older version → apply migration chain in-place; write upgraded
+  envelope back.
+\item
+  Future version (data from a newer build) → return default
+  \emph{without overwriting}.
+\item
+  Corrupt JSON → reset key to default; log a warning.
+\item
+  \textbf{Adding a store:} call \texttt{createVersionedStore} with
+  \texttt{version:\ 1} and \texttt{migrations:\ {[}{]}}. Increment
+  \texttt{version} and add a migration step whenever the stored shape
+  changes incompatibly.
+\item
+  \textbf{Migration step indexing:} \texttt{migrations{[}i{]}} upgrades
+  data from version \texttt{i} to version \texttt{i+1}. Array length
+  must equal \texttt{version\ -\ 1}. A step returning \texttt{null}
+  signals unrecoverable data and triggers a reset to
+  \texttt{defaultValue}.
+\end{itemize}
+
+\paragraph{Managed stores (version 1
+baseline)}\label{managed-stores-version-1-baseline}
+
+\begin{longtable}[]{@{}lll@{}}
+\toprule
+\begin{minipage}[b]{0.05\columnwidth}\raggedright\strut
+Store\strut
+\end{minipage} & \begin{minipage}[b]{0.05\columnwidth}\raggedright\strut
+Key\strut
+\end{minipage} & \begin{minipage}[b]{0.05\columnwidth}\raggedright\strut
+File\strut
+\end{minipage}\tabularnewline
+\midrule
+\endhead
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Shell prefs (compound)\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{x2chess.shellPrefs}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{runtime/shell\_prefs\_store.ts}\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Shape / board decoration prefs\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{x2chess.shapePrefs.v1}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{runtime/shape\_prefs.ts}\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Resource viewer column prefs\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{x2chess.resourceViewerColumnPrefs.v1}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{resources\_viewer/viewer\_utils.ts}\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Metadata schemas\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{x2chess.metadata-schemas}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{resources\_viewer/schema\_storage.ts}\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+External DB settings\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{x2chess.ext-db-settings}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{runtime/ext\_database\_settings\_store.ts}\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Remote rules cache\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{x2chess.webImportRules}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{runtime/remote\_rules\_store.ts}\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+User web-import rules\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{x2chess.webImport.userRules}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{resources/web\_import/user\_rules\_storage.ts}\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Training badges\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{x2chess.training-badges}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{training/transcript\_storage.ts}\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Training sessions\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{x2chess.training-sessions}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{training/transcript\_storage.ts}\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Curriculum plan\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{x2chess.curriculum-plan}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{training/curriculum/curriculum\_storage.ts}\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Workspace snapshot\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{x2chess.workspaceSnapshot}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{runtime/workspace\_snapshot\_store.ts}\strut
+\end{minipage}\tabularnewline
+\bottomrule
+\end{longtable}
+
+Dynamic per-tab group-by state
+(\texttt{x2chess.groupby.\textless{}tabId\textgreater{}}) and the
+visual-asset cache
+(\texttt{chess-app:visual-asset:v2:\textless{}key\textgreater{}}) are
+intentionally excluded --- they are ephemeral UI state and asset caches
+respectively, not user configuration.
+
+\paragraph{Physical storage location}\label{physical-storage-location}
+
+X2Chess is a Tauri v2 desktop app (bundle ID \texttt{com.x2chess.app}).
+Each platform's webview engine stores localStorage as opaque binary
+files --- they are \textbf{not} standard SQLite databases and are not
+intended to be edited directly.
+
+\textbf{Default paths} (used when \texttt{X2CHESS\_WEBVIEW\_DATA} is not
+set):
+
+\begin{longtable}[]{@{}lll@{}}
+\toprule
+\begin{minipage}[b]{0.05\columnwidth}\raggedright\strut
+Platform\strut
+\end{minipage} & \begin{minipage}[b]{0.05\columnwidth}\raggedright\strut
+Webview\strut
+\end{minipage} & \begin{minipage}[b]{0.05\columnwidth}\raggedright\strut
+Path\strut
+\end{minipage}\tabularnewline
+\midrule
+\endhead
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+macOS\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+WKWebView\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{\textasciitilde{}/Library/WebKit/com.x2chess.app/WebsiteData/LocalStorage/}\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Windows\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+WebView2 (Chromium)\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{\%APPDATA\%\textbackslash{}X2Chess\textbackslash{}EBWebView\textbackslash{}Default\textbackslash{}Local\ Storage\textbackslash{}leveldb\textbackslash{}}\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Linux\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+WebView2 (Chromium)\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{\$HOME/.local/share/X2Chess/EBWebView/Default/Local\ Storage/leveldb\textbackslash{}}\strut
+\end{minipage}\tabularnewline
+\bottomrule
+\end{longtable}
+
+On \textbf{macOS} each origin maps to one file named
+\texttt{\textless{}scheme\textgreater{}\_\textless{}host\textgreater{}\_\textless{}port\textgreater{}\_0.localstorage}
+(WebKit binary format). The Tauri custom protocol origin is
+\texttt{tauri://localhost}, so all \texttt{x2chess.*} keys share the
+single file \texttt{tauri\_localhost\_0.localstorage}.
+
+On \textbf{Windows / Linux} (WebView2) the storage is a LevelDB
+directory; individual keys are not addressable as separate files.
+
+\paragraph{\texorpdfstring{Redirecting storage via
+\texttt{X2CHESS\_WEBVIEW\_DATA}}{Redirecting storage via X2CHESS\_WEBVIEW\_DATA}}\label{redirecting-storage-via-x2chess_webview_data}
+
+The Tauri main window is created programmatically in \texttt{main.rs}
+using \texttt{WebviewWindowBuilder::data\_directory()}. Setting the
+environment variable \texttt{X2CHESS\_WEBVIEW\_DATA} to any directory
+path redirects \textbf{all} webview storage (localStorage, IndexedDB,
+cache, cookies) to that directory. The directory is created
+automatically on first launch if it does not exist.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{# Isolated dev profile — data written to run/DEV/webview-data/ (relative to repo root)}
+\OtherTok{X2CHESS_WEBVIEW_DATA=}\NormalTok{../run/DEV/webview-data  }\KeywordTok{tauri} \NormalTok{dev}
+
+\CommentTok{# Packaged as npm scripts:}
+\KeywordTok{npm} \NormalTok{run desktop:dev:isolated    }\CommentTok{# isolated (recommended for development)}
+\KeywordTok{npm} \NormalTok{run desktop:dev             }\CommentTok{# OS default path (shared with any installed PROD build)}
+\end{Highlighting}
+\end{Shaded}
+
+The directory layout inside a redirected path mirrors the platform
+default:
+
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+Platform & Sub-path under \texttt{X2CHESS\_WEBVIEW\_DATA}\tabularnewline
+\midrule
+\endhead
+macOS &
+\texttt{WebsiteData/LocalStorage/tauri\_localhost\_0.localstorage}\tabularnewline
+Windows / Linux &
+\texttt{EBWebView/Default/Local\ Storage/leveldb/}\tabularnewline
+\bottomrule
+\end{longtable}
+
+\textbf{Full reset of isolated dev storage:}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{rm} \NormalTok{-rf run/DEV/webview-data   }\CommentTok{# directory is recreated on next launch}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{quote}
+Note: The \texttt{x2chess.devPrefsMode} key documented in §4 (dev prefs
+mode switch) lives in the same storage location. A full reset also
+clears this flag, so the next launch re-initialises it to
+\texttt{"defaults"}.
+\end{quote}
+
+\subsubsection{3.5.4 Legacy key consolidation (one-shot
+migration)}\label{legacy-key-consolidation-one-shot-migration}
+
+Individual shell-preference keys written by earlier builds
+(\texttt{x2chess.sound}, \texttt{x2chess.moveDelayMs},
+\texttt{x2chess.locale}, \texttt{x2chess.pgnLayout},
+\texttt{x2chess.developerTools},
+\texttt{x2chess.positionPreviewOnHover},
+\texttt{x2chess.resourceViewerHeightPx},
+\texttt{x2chess.boardColumnWidthPx}) are merged into the compound
+\texttt{x2chess.shellPrefs} key on the \textbf{first startup after
+upgrade} by \texttt{migrateLocalStorage()} in
+\texttt{frontend/src/storage/migrate\_local\_storage.ts}. The function
+is idempotent: if the compound key already exists it returns
+immediately. Legacy keys are deleted after consolidation.
+
+Similarly, \texttt{migrateRemoteRulesCache()} in
+\texttt{runtime/remote\_rules\_store.ts} merges the legacy two-key
+remote rules cache (\texttt{x2chess.webImportRules.v1} +
+\texttt{x2chess.webImportRules.version}) into the compound
+\texttt{x2chess.webImportRules} key.
+
+\subsubsection{3.5.5 Startup sequence}\label{startup-sequence}
+
+\begin{verbatim}
+useAppStartup mount effect
+  │
+  ├─ [SYNC] migrateLocalStorage()         ← consolidate legacy shell-pref keys
+  ├─ [SYNC] migrateRemoteRulesCache()     ← consolidate legacy rules-cache keys
+  ├─ [SYNC] versioned store reads         ← auto-migrate on first access
+  │
+  └─ [ASYNC, inside Tauri gateway open]
+       runMigrations(db)                  ← idempotent DB schema migration
+\end{verbatim}
+
+\subsubsection{3.5.6 Workspace snapshot}\label{workspace-snapshot}
+
+The full workspace --- all open game sessions and all open resource
+viewer tabs --- is persisted automatically so it can be restored on the
+next launch.
+
+\textbf{Store:} \texttt{x2chess.workspaceSnapshot} (versioned, managed
+by \texttt{runtime/workspace\_snapshot\_store.ts}).
+
+\textbf{Shape:} \texttt{WorkspaceSnapshot} contains:
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{sessions{[}{]}} --- one \texttt{SessionSnap} per open tab:
+  session ID, title, full PGN text (including any unsaved edits),
+  \texttt{sourceRef}, save mode, dirty state, current ply, selected move
+  ID, and PGN layout mode.
+\item
+  \texttt{activeSessionId} --- the session that was focused when the
+  snapshot was written.
+\item
+  \texttt{resourceTabs{[}{]}} --- one \texttt{ResourceTabSnap} per open
+  resource viewer tab: kind, locator, title.
+\item
+  \texttt{activeResourceTabId} --- the active resource tab.
+\end{itemize}
+
+\textbf{Write path:} A \texttt{useEffect} in \texttt{useAppStartup}
+watches \texttt{state.sessions}, \texttt{state.activeSessionId},
+\texttt{state.resourceViewerTabSnapshots}, and
+\texttt{state.activeResourceTabId}. Any change schedules a debounced
+write (500 ms). When the timer fires, the current snapshots are
+assembled by calling
+\texttt{bundle.sessionStore.buildSessionSnapshots()} and
+\texttt{bundle.resourceViewer.buildTabSnapshots()} and written
+atomically to the store. Rapid successive changes collapse into a single
+write.
+
+\textbf{Restore path:} \texttt{useAppStartup} reads the snapshot
+synchronously before opening any session. When
+\texttt{snapshot.sessions} is non-empty it reconstructs each session
+from the stored PGN text and restores the active session pointer and all
+resource viewer tabs. When the snapshot is empty (first launch, or after
+a reset) a blank default session is opened instead.
+
+\textbf{Close-guard:} \texttt{AppShell} registers a
+\texttt{beforeunload} handler that calls \texttt{e.preventDefault()} /
+sets \texttt{e.returnValue} whenever any session has
+\texttt{dirtyState\ ===\ "dirty"}. This causes the browser (or Tauri
+webview) to show the platform's ``unsaved changes --- leave anyway?''
+dialog before the window closes.
+
+\subsubsection{3.5.7 Version-gating
+(future)}\label{version-gating-future}
+
+Neither localStorage nor DB migrations currently require app-version
+gating (all steps are additive). If a future migration must only run on
+a specific version transition, use \texttt{CURRENT\_APP\_VERSION} /
+\texttt{parseSemver} from \texttt{runtime/app\_version.ts} as the guard
+inside the migration step or \texttt{migrateLocalStorage}.
+
+\subsection{4) Configuration}\label{configuration}
+
+Configuration in X2Chess splits into two distinct categories:
+\textbf{build-time configuration} embedded at compile time and
+\textbf{user preferences} persisted at runtime.
+
+\subsubsection{4.1 Build-time
+configuration}\label{build-time-configuration}
+
+Build-time values are fixed when the application is compiled. They
+cannot be changed at runtime.
+
+\textbf{Source of truth:} \texttt{frontend/src-tauri/tauri.conf.json}
+
+This file owns:
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{version} --- the application semver string (canonical source
+  for \texttt{CURRENT\_APP\_VERSION}; see §3.5.1).
+\item
+  \texttt{productName}, \texttt{identifier} --- product and bundle
+  identity.
+\item
+  Window dimensions and minimum constraints (\texttt{width},
+  \texttt{height}, \texttt{minWidth}, \texttt{minHeight}).
+\item
+  Updater endpoint and signing public key.
+\end{itemize}
+
+\textbf{Vite build globals}
+
+Vite reads \texttt{tauri.conf.json} at build time
+(\texttt{frontend/vite.config.ts}) and injects three compile-time
+constants into every bundle:
+
+\begin{longtable}[]{@{}lll@{}}
+\toprule
+\begin{minipage}[b]{0.05\columnwidth}\raggedright\strut
+Global\strut
+\end{minipage} & \begin{minipage}[b]{0.05\columnwidth}\raggedright\strut
+Value\strut
+\end{minipage} & \begin{minipage}[b]{0.05\columnwidth}\raggedright\strut
+Usage\strut
+\end{minipage}\tabularnewline
+\midrule
+\endhead
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{\_\_X2CHESS\_MODE\_\_}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{"DEV"} or \texttt{"PROD"}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Controls developer-tools default; consumed by
+\texttt{runtime/bootstrap\_prefs.ts}.\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{\_\_X2CHESS\_APP\_VERSION\_\_}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Semver string from \texttt{tauri.conf.json}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Re-exported exclusively from \texttt{runtime/app\_version.ts}; used for
+version-gated migrations.\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{\_\_X2CHESS\_BUILD\_TIMESTAMP\_\_}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+ISO-8601 string set at build time\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Available for diagnostic display.\strut
+\end{minipage}\tabularnewline
+\bottomrule
+\end{longtable}
+
+All code that needs the version reads it from
+\texttt{runtime/app\_version.ts}. No other file reads
+\texttt{\_\_X2CHESS\_APP\_VERSION\_\_} directly.
+
+\subsubsection{4.2 User preferences}\label{user-preferences}
+
+User preferences are values the user can change within the application.
+They persist across sessions via the versioned localStorage mechanism
+described in §3.5.3.
+
+Each preference group is a named versioned store backed by a single
+localStorage key. Stores are read once on startup (after legacy key
+consolidation; see §3.5.5) and written back whenever a preference
+changes.
+
+\paragraph{Preference stores}\label{preference-stores}
+
+\begin{longtable}[]{@{}llll@{}}
+\toprule
+\begin{minipage}[b]{0.05\columnwidth}\raggedright\strut
+Store\strut
+\end{minipage} & \begin{minipage}[b]{0.05\columnwidth}\raggedright\strut
+Key\strut
+\end{minipage} & \begin{minipage}[b]{0.05\columnwidth}\raggedright\strut
+File\strut
+\end{minipage} & \begin{minipage}[b]{0.05\columnwidth}\raggedright\strut
+Contents\strut
+\end{minipage}\tabularnewline
+\midrule
+\endhead
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Shell prefs\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{x2chess.shellPrefs}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{runtime/shell\_prefs\_store.ts}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Sound, locale, move delay, PGN layout mode, position preview, developer
+tools, panel sizes\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Shape / board prefs\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{x2chess.shapePrefs.v1}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{runtime/shape\_prefs.ts}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Annotation colors, square highlight style, move-hint dots\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+External DB settings\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{x2chess.ext-db-settings}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{runtime/ext\_database\_settings\_store.ts}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Opening explorer speed/rating filters\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Resource viewer column prefs\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{x2chess.resourceViewerColumnPrefs.v1}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{resources\_viewer/viewer\_utils.ts}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Column widths and visibility\strut
+\end{minipage}\tabularnewline
+\bottomrule
+\end{longtable}
+
+For the complete list of all managed stores see the table in §3.5.3.
+
+\paragraph{Preference lifecycle}\label{preference-lifecycle}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  \textbf{Startup} --- \texttt{useAppStartup} reads all stores
+  synchronously; the values are dispatched to \texttt{AppStoreState} in
+  the mount effect. Service-layer getters (\texttt{isSoundEnabled()},
+  \texttt{getDelayMs()}, etc.) close over \texttt{stateRef}, so they
+  pick up the current React state on every call without a separate sync
+  step.
+\item
+  \textbf{Change} --- a user action dispatches through
+  \texttt{ServiceContext}. The setter dispatches the new value to React
+  and writes the store synchronously (\texttt{store.write(value)}).
+  Service getters automatically see the new value on the next call via
+  \texttt{stateRef}.
+\item
+  \textbf{Future build} --- if a newer build already wrote a
+  higher-versioned envelope, the current build returns
+  \texttt{defaultValue} without overwriting. The newer data is preserved
+  for when that build runs again.
+\end{enumerate}
+
+\paragraph{Adding a preference}\label{adding-a-preference}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  Add the field to the relevant \texttt{*Prefs} type and to
+  \texttt{DEFAULT\_*\_PREFS}.
+\item
+  If the stored shape changes incompatibly, increment \texttt{version}
+  and append a \texttt{MigrationStep} to \texttt{migrations}.
+\item
+  Expose a setter callback in \texttt{ServiceContext} and wire it in
+  \texttt{createAppServices.ts}.
+\item
+  Register the store in the table in §3.5.3 of this manual.
+\end{enumerate}
+
+\subsection{5) Resource Formats}\label{resource-formats}
+
+X2Chess handles PGN content through three canonical resource kinds
+(\texttt{file}, \texttt{directory}, \texttt{db}) plus a set of
+import-time converters for external formats. All kinds share the same
+adapter interface defined in \texttt{resource/domain/contracts.ts}; the
+resource client in \texttt{resource/client/} routes every operation to
+the correct adapter by \texttt{kind}.
+
+The resource fomat \texttt{file} is a single PGN file with multiple
+games. In this app this format is treated as read only as writing
+requires a rewrite of the entire file. Writing ability may be
+implemented in the future.
+
+The resource fomat \texttt{directory} is a directory of PGN files. It is
+implemented mainly for testing purposes, but it may also serve practical
+use in situations where a user wishes to work with games in a storage
+structure that is independent of database technology.
+
+The resource fomat \texttt{db} is an X2Chess database. This type of
+database is built using SQLite and is the primary editable resource
+format. It is a self-contained file that contains all the data for a
+single game library. It is the only format that supports the full range
+of capabilities of the resource system, including search, filtering, and
+sorting.
+
+A resource is addressed by a \texttt{PgnResourceRef} (\texttt{kind} +
+\texttt{locator}). A single game within a resource is addressed by a
+\texttt{PgnGameRef} (\texttt{kind} + \texttt{locator} +
+\texttt{recordId}).
+
+\subsubsection{\texorpdfstring{5.1 PGN file (\texttt{file}
+kind)}{5.1 PGN file (file kind)}}\label{pgn-file-file-kind}
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{Locator:} absolute filesystem path to a \texttt{.pgn} file.
+\item
+  \textbf{recordId:} 1-based integer position of the game within the
+  file (as a string).
+\item
+  \textbf{Layout:} a single text file containing one or more PGN games
+  concatenated in sequence. Games are split on
+  \texttt{{[}Event\ "\ldots{}"{]}} header boundaries.
+\item
+  \textbf{Title derivation:} \texttt{Event:\ White\ -\ Black} →
+  \texttt{White\ -\ Black} → \texttt{Event} → \texttt{Game\ N}.
+\item
+  \textbf{Capabilities:} \texttt{list} and \texttt{load} are
+  implemented. \texttt{save} and \texttt{create} are deferred (the file
+  format does not support partial writes without rewriting the whole
+  file).
+\item
+  \textbf{Implementation:}
+  \texttt{resource/adapters/file/file\_adapter.ts}.
+\end{itemize}
+
+\subsubsection{\texorpdfstring{5.2 PGN directory (\texttt{directory}
+kind)}{5.2 PGN directory (directory kind)}}\label{pgn-directory-directory-kind}
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{Locator:} absolute filesystem path to a folder.
+\item
+  \textbf{recordId:} filename of the individual \texttt{.pgn} file
+  within the folder (one game per file convention).
+\item
+  \textbf{Layout:} each file in the directory contains exactly one game.
+  The display order and any extra metadata that PGN headers cannot carry
+  are stored in a JSON sidecar file (\texttt{.x2chess-meta.json}) placed
+  next to the directory. The sidecar schema is:
+\end{itemize}
+
+\texttt{json\ \ \ \{\ "version":\ 1,\ "games":\ \{\ "\textless{}filename\textgreater{}":\ \{\ "orderIndex":\ 0,\ "extra":\ \{\}\ \}\ \}\ \}}
+
+The sidecar is read on every \texttt{list} call and written whenever
+order or metadata changes. A missing or corrupt sidecar is silently
+treated as empty. - \textbf{Capabilities:} \texttt{list}, \texttt{load},
+\texttt{save}, \texttt{create}, and \texttt{reorder} are all delegated
+to injected callbacks wired by \texttt{source\_gateway.ts}. -
+\textbf{Implementation:}
+\texttt{resource/adapters/directory/directory\_adapter.ts} +
+\texttt{resource/adapters/directory/sidecar.ts}.
+
+\subsubsection{\texorpdfstring{5.3 X2Chess database (\texttt{db}
+kind)}{5.3 X2Chess database (db kind)}}\label{x2chess-database-db-kind}
+
+The \texttt{db} kind is the primary editable resource format. It is a
+SQLite file with a \texttt{.x2chess} extension. One file is one
+self-contained game library; multiple libraries can be open
+simultaneously (one \texttt{DbGateway} per file path).
+
+\paragraph{5.3.1 File identity and
+location}\label{file-identity-and-location}
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{Locator:} absolute filesystem path to a \texttt{.x2chess}
+  SQLite file.
+\item
+  \textbf{recordId:} UUID string assigned at game creation time.
+\item
+  New databases are created as empty SQLite files; schema migrations run
+  automatically on first access (idempotent runner in
+  \texttt{resource/database/migrations/runner.ts}).
+\end{itemize}
+
+\paragraph{5.3.2 Schema}\label{schema}
+
+The schema is managed by an ordered migration manifest
+(\texttt{resource/database/schema/schema\_manifest.ts}). Each migration
+is a version number plus a list of SQL statements executed in order.
+Migrations are never modified after shipping; new steps are always
+appended.
+
+\textbf{\texttt{schema\_version}} (created by the migration runner
+itself):
+
+\begin{longtable}[]{@{}lll@{}}
+\toprule
+Column & Type & Description\tabularnewline
+\midrule
+\endhead
+\texttt{version} & INTEGER PK & Applied migration version
+number\tabularnewline
+\texttt{applied\_at} & INTEGER & Unix timestamp (ms) when the migration
+ran\tabularnewline
+\bottomrule
+\end{longtable}
+
+\textbf{\texttt{games}} --- one row per stored game or position:
+
+\begin{longtable}[]{@{}lll@{}}
+\toprule
+\begin{minipage}[b]{0.05\columnwidth}\raggedright\strut
+Column\strut
+\end{minipage} & \begin{minipage}[b]{0.05\columnwidth}\raggedright\strut
+Type\strut
+\end{minipage} & \begin{minipage}[b]{0.05\columnwidth}\raggedright\strut
+Description\strut
+\end{minipage}\tabularnewline
+\midrule
+\endhead
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{id}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+TEXT PK\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+UUID assigned at creation\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{pgn\_text}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+TEXT\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Full PGN text including headers and move tree\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{title\_hint}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+TEXT\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Fallback display title when PGN headers are absent\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{created\_at}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+INTEGER\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Unix timestamp (ms) of first insert\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{updated\_at}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+INTEGER\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Unix timestamp (ms) of last save\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{order\_index}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+REAL\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Display order; swap-reorder exchanges two values\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{revision\_token}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+TEXT\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Opaque token updated on every save for conflict detection\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{kind}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+TEXT\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{"game"} (default) or \texttt{"position"} (detected from
+\texttt{{[}SetUp\ "1"{]}})\strut
+\end{minipage}\tabularnewline
+\bottomrule
+\end{longtable}
+
+\textbf{\texttt{game\_metadata}} --- denormalized header values for fast
+search and display:
+
+\begin{longtable}[]{@{}lll@{}}
+\toprule
+Column & Type & Description\tabularnewline
+\midrule
+\endhead
+\texttt{game\_id} & TEXT FK → games.id & Parent game (cascades on
+delete)\tabularnewline
+\texttt{meta\_key} & TEXT & PGN header key (e.g. \texttt{White},
+\texttt{Black}, \texttt{Event}, \texttt{Result})\tabularnewline
+\texttt{val\_str} & TEXT & String value extracted from the PGN
+header\tabularnewline
+\bottomrule
+\end{longtable}
+
+Indexed on \texttt{(meta\_key)} and \texttt{(meta\_key,\ val\_str)} for
+text-search queries.
+
+\textbf{\texttt{metadata\_keys}} --- registry of user-defined metadata
+key names:
+
+\begin{longtable}[]{@{}lll@{}}
+\toprule
+Column & Type & Description\tabularnewline
+\midrule
+\endhead
+\texttt{key} & TEXT PK & Metadata key name\tabularnewline
+\texttt{value\_type} & TEXT & Value type hint (\texttt{"string"}
+default)\tabularnewline
+\bottomrule
+\end{longtable}
+
+\textbf{\texttt{position\_hashes}} --- position search index (one row
+per reachable position per game):
+
+\begin{longtable}[]{@{}lll@{}}
+\toprule
+Column & Type & Description\tabularnewline
+\midrule
+\endhead
+\texttt{hash} & TEXT & 16-char hex FNV-1a hash of the normalized FEN
+(first 4 fields)\tabularnewline
+\texttt{game\_id} & TEXT FK → games.id & Parent game (cascades on
+delete)\tabularnewline
+\texttt{ply} & INTEGER & Half-move number where this position occurs (0
+= start)\tabularnewline
+\bottomrule
+\end{longtable}
+
+Indexed on \texttt{hash} for position-lookup queries. The hash function
+strips half-move and full-move counters so transpositions hash
+identically. The index is rebuilt in full on every save; the builder is
+injectable (\texttt{BuildPositionIndex}) so the \texttt{resource/}
+package stays free of chess-engine dependencies.
+
+\textbf{\texttt{move\_edges}} --- move frequency index for opening
+explorer:
+
+\begin{longtable}[]{@{}lll@{}}
+\toprule
+Column & Type & Description\tabularnewline
+\midrule
+\endhead
+\texttt{position\_hash} & TEXT & Position hash (same scheme as
+\texttt{position\_hashes.hash})\tabularnewline
+\texttt{move\_san} & TEXT & Move in SAN notation\tabularnewline
+\texttt{move\_uci} & TEXT & Move in UCI notation\tabularnewline
+\texttt{result} & TEXT & Game result (\texttt{1-0}, \texttt{0-1},
+\texttt{1/2-1/2}, \texttt{*})\tabularnewline
+\texttt{game\_id} & TEXT FK → games.id & Parent game (cascades on
+delete)\tabularnewline
+\bottomrule
+\end{longtable}
+
+Indexed on \texttt{position\_hash}. Used by \texttt{explorePosition} to
+return per-move frequency/result aggregates for any reachable position
+across the whole library.
+
+\textbf{\texttt{training\_transcripts}} --- per-training-session records
+(owned by the training module):
+
+\begin{longtable}[]{@{}lll@{}}
+\toprule
+Column & Type & Description\tabularnewline
+\midrule
+\endhead
+\texttt{session\_id} & TEXT PK & UUID for the training
+session\tabularnewline
+\texttt{source\_game\_id} & TEXT & The game being trained
+against\tabularnewline
+\texttt{protocol} & TEXT & Training protocol identifier\tabularnewline
+\texttt{started\_at} & INTEGER & Unix timestamp (ms)\tabularnewline
+\texttt{completed\_at} & INTEGER & Unix timestamp (ms),
+nullable\tabularnewline
+\texttt{aborted} & INTEGER & 0 = not aborted, 1 = aborted\tabularnewline
+\texttt{config\_json} & TEXT & JSON-serialized training
+configuration\tabularnewline
+\texttt{ply\_records} & TEXT & JSON array of per-ply training
+results\tabularnewline
+\texttt{annotations} & TEXT & JSON array of post-session
+annotations\tabularnewline
+\bottomrule
+\end{longtable}
+
+Indexed on \texttt{source\_game\_id} for per-game transcript queries.
+
+\paragraph{5.3.3 Write path and revision
+safety}\label{write-path-and-revision-safety}
+
+Every \texttt{save} call: 1. Optionally checks \texttt{revision\_token}
+against the stored value; throws \texttt{conflict} on mismatch
+(optimistic concurrency guard). 2. Updates \texttt{pgn\_text},
+\texttt{revision\_token}, \texttt{updated\_at}, and \texttt{kind} in
+\texttt{games}. 3. Deletes and rebuilds \texttt{game\_metadata},
+\texttt{position\_hashes}, and \texttt{move\_edges} for the affected
+game.
+
+Every \texttt{create} call assigns a UUID, timestamps the row, appends
+\texttt{order\_index} after the current maximum, and builds all three
+indexes.
+
+\paragraph{5.3.4 Capabilities}\label{capabilities}
+
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+Operation & Supported\tabularnewline
+\midrule
+\endhead
+\texttt{list} & Yes --- ordered by
+\texttt{order\_index\ ASC,\ created\_at\ ASC}\tabularnewline
+\texttt{load} & Yes\tabularnewline
+\texttt{save} & Yes --- with optional revision-token conflict
+detection\tabularnewline
+\texttt{create} & Yes\tabularnewline
+\texttt{reorder} & Yes --- swaps \texttt{order\_index} values between
+two rows\tabularnewline
+\texttt{searchByPositionHash} & Yes --- queries
+\texttt{position\_hashes}\tabularnewline
+\texttt{searchByText} & Yes --- substring match on \texttt{White},
+\texttt{Black}, \texttt{Event}, \texttt{Site}\tabularnewline
+\texttt{explorePosition} & Yes --- aggregated move frequency from
+\texttt{move\_edges}\tabularnewline
+\bottomrule
+\end{longtable}
+
+\subsubsection{5.4 Import-time format
+converters}\label{import-time-format-converters}
+
+Import converters are one-shot adapters that translate a foreign file
+format into PGN strings. They implement \texttt{FormatImporter}
+(\texttt{resource/adapters/import/format\_import\_types.ts}) and are not
+resource adapters --- they do not implement
+\texttt{list}/\texttt{load}/\texttt{save}. Converted games are handed to
+the caller as PGN text ready to be stored in a \texttt{db} or other
+resource.
+
+\begin{longtable}[]{@{}lll@{}}
+\toprule
+\begin{minipage}[b]{0.05\columnwidth}\raggedright\strut
+Format\strut
+\end{minipage} & \begin{minipage}[b]{0.05\columnwidth}\raggedright\strut
+Extensions\strut
+\end{minipage} & \begin{minipage}[b]{0.05\columnwidth}\raggedright\strut
+Mechanism\strut
+\end{minipage}\tabularnewline
+\midrule
+\endhead
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+EPD (Extended Position Description)\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{.epd}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Pure TypeScript parser; each line becomes a position-only PGN game with
+\texttt{{[}SetUp\ "1"{]}} and \texttt{{[}FEN\ "\ldots{}"{]}} headers.
+Opcodes \texttt{id}, \texttt{bm}, \texttt{c0}--\texttt{c9}, and
+\texttt{ce} are mapped to PGN headers and comments.\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+ChessBase\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{.cbh}, \texttt{.cbv}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Delegates binary parsing to the Tauri backend command
+\texttt{import\_chessbase\_file}; Rust returns an array of PGN strings.
+The TypeScript layer is complete; the Rust command is deferred.\strut
+\end{minipage}\tabularnewline
+\bottomrule
+\end{longtable}
+
+\textbf{EPD opcode mapping:}
+
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+Opcode & PGN mapping\tabularnewline
+\midrule
+\endhead
+\texttt{id} & \texttt{{[}Event\ "\ldots{}"{]}} header\tabularnewline
+\texttt{bm} & \texttt{{[}Annotator\ "bm:\ \ldots{}"{]}}
+header\tabularnewline
+\texttt{c0}--\texttt{c9} & Comment block \texttt{\{\ \ldots{}\ \}} in
+move text\tabularnewline
+\texttt{ce} & Centipawn eval appended to comment:
+\texttt{eval:\ \textless{}value\textgreater{}}\tabularnewline
+All others & Ignored\tabularnewline
+\bottomrule
+\end{longtable}
+
+\subsection{6) Testing}\label{testing}
+
+\subsubsection{5.1 Test runner and
+location}\label{test-runner-and-location}
+
+Tests use Node's built-in test runner (\texttt{node:test}) invoked
+through \texttt{tsx} for TypeScript support. No third-party test
+framework or mocking library is used; tests rely on real implementations
+or hand-written stubs.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{# from frontend/}
+\KeywordTok{npm} \NormalTok{test                                       }\CommentTok{# run all tests}
+\KeywordTok{tsx} \NormalTok{--test }\StringTok{"test/foo/**/*.test.ts"}             \CommentTok{# run a subset}
+\end{Highlighting}
+\end{Shaded}
+
+Test files live under \texttt{frontend/test/}, mirroring the
+\texttt{src/} structure exactly --- for example
+\texttt{src/board/shape\_serializer.ts} →
+\texttt{test/board/shape\_serializer.test.ts}.
+
+\subsubsection{5.2 What to test}\label{what-to-test}
+
+\textbf{Pure-logic modules are the primary test target.} Any module
+under \texttt{model/}, \texttt{editor/}, \texttt{board/},
+\texttt{game\_sessions/}, \texttt{resources/},
+\texttt{resources\_viewer/}, \texttt{runtime/}, or \texttt{training/}
+that exports non-trivial logic should have a corresponding test file.
+
+The \texttt{state/app\_reducer.ts} reducer and
+\texttt{state/selectors.ts} are pure functions and are tested like any
+other pure-logic module, despite living in \texttt{state/}.
+
+\textbf{React components, hooks, and Tauri gateways are not
+unit-tested.} They belong to the integration layer and are validated
+through manual QA.
+
+\subsubsection{5.3 Coverage map}\label{coverage-map}
+
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+\begin{minipage}[b]{0.05\columnwidth}\raggedright\strut
+Test directory\strut
+\end{minipage} & \begin{minipage}[b]{0.05\columnwidth}\raggedright\strut
+Source coverage\strut
+\end{minipage}\tabularnewline
+\midrule
+\endhead
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{test/board/}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{src/board/} --- move lookup, navigation, shape
+parser/serializer, physical board protocols\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{test/editor/}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{src/editor/} --- FEN utils, tree numbering, collapse, editor
+plan, anchor resolver\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{test/engines/}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Engine manager, UCI parser/writer/session\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{test/game\_sessions/}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Session store, persistence, ingress handlers\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{test/model/}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+PGN model parser, serializer, commands, move ops, undo/redo,
+x2-style\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{test/resources/}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Material key, PGN DB adapter, PGN metadata, web-import rules\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{test/resources\_viewer/}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Annotation parsers: anchor, eval, link, QA, schema storage, todo, train
+tag\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{test/runtime/}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Resource ref utilities\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{test/state/}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+App reducer, selectors\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{test/training/}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Move acceptance, replay protocol, transcript, merge, train-tag parser,
+curriculum I/O\strut
+\end{minipage}\tabularnewline
+\bottomrule
+\end{longtable}
+
+\subsubsection{5.4 Writing new tests}\label{writing-new-tests}
+
+\begin{itemize}
+\tightlist
+\item
+  Import source files with the \texttt{.js} extension (required by the
+  ESM/tsx loader):
+  \texttt{import\ \{\ foo\ \}\ from\ "../../src/bar.js"}.
+\item
+  Use \texttt{String.raw\textbackslash{}}\ldots{}`` for strings
+  containing backslash sequences (PGN escape characters, regex literals)
+  to avoid double-escaping noise.
+\item
+  Stub external dependencies with minimal inline objects; never
+  duplicate production logic in stubs.
+\item
+  One test file per source module --- do not mix multiple modules into
+  one file.
+\end{itemize}
+
+\subsection{7) Key Concepts}\label{key-concepts}
+
+\subsubsection{7.1 GameSessionState and
+ActiveSessionRef}\label{gamesessionstate-and-activesessionref}
+
+Each open game tab is backed by a dedicated \texttt{GameSessionState}
+object (\texttt{frontend/src/game\_sessions/game\_session\_state.ts}).
+This object is the \textbf{working store} for all game-specific mutable
+state for one session:
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{PGN / model}: \texttt{pgnModel}, \texttt{pgnText},
+  \texttt{moves}, \texttt{verboseMoves}, \texttt{movePositionById},
+  \texttt{pgnLayoutMode}
+\item
+  \textbf{Navigation}: \texttt{currentPly}, \texttt{selectedMoveId},
+  \texttt{boardPreview}
+\item
+  \textbf{Editor messages}: \texttt{pendingFocusCommentId}
+\item
+  \textbf{Edit history}: \texttt{undoStack}, \texttt{redoStack}
+\end{itemize}
+
+Fields that are internal to a specific service and never need to cross
+service boundaries live as closure-private variables instead of being
+stored on \texttt{GameSessionState}:
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{animationRunId}, \texttt{isAnimating} --- owned by the
+  \texttt{navigation} closure
+\item
+  \texttt{errorMessage}, \texttt{statusMessage} --- dispatched directly
+  as \texttt{set\_error\_message} / \texttt{set\_status\_message}
+  actions; not stored on the session object
+\end{itemize}
+
+Service modules (\texttt{pgn\_runtime}, \texttt{history},
+\texttt{move\_lookup}, \texttt{navigation}, \texttt{pgn\_model\_update})
+never receive a global state object. They receive an
+\texttt{ActiveSessionRef\ =\ \{\ current:\ GameSessionState\ \}} and
+read/write only \texttt{sessionRef.current.*}. This makes the active
+session swappable without copying data: a session switch is a single
+pointer assignment
+\texttt{activeSessionRef.current\ =\ target.ownState}. Each
+\texttt{GameSession} in the session store holds its live
+\texttt{GameSessionState} in an \texttt{ownState} field --- there is no
+freeze/thaw snapshot cycle.
+
+\subsubsection{7.2 Service-Owned State}\label{service-owned-state}
+
+Each service manages its own internal state as closure-private
+variables. There is no shared mutable \texttt{AppState} object.
+
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+\begin{minipage}[b]{0.05\columnwidth}\raggedright\strut
+Service\strut
+\end{minipage} & \begin{minipage}[b]{0.05\columnwidth}\raggedright\strut
+Owns\strut
+\end{minipage}\tabularnewline
+\midrule
+\endhead
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{session\_store}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{gameSessions{[}{]}}, \texttt{activeSessionId},
+\texttt{nextSessionSeq}\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{resources\_viewer}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{resourceViewerTabs{[}{]}}, \texttt{activeResourceTabId},
+metadata-key prefs\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{session\_persistence}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{autosaveTimer}, \texttt{saveRequestSeq},
+\texttt{isHydratingGame}, \texttt{defaultSaveMode}\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{resources}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{gameDirectoryHandle}, paths, \texttt{activeSourceKind},
+\texttt{appConfig}, \texttt{playerStore}\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{navigation}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{animationRunId}, \texttt{isAnimating}\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{history}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+(undo/redo stacks are on \texttt{GameSessionState} so they survive
+session switches)\strut
+\end{minipage}\tabularnewline
+\bottomrule
+\end{longtable}
+
+Services that need to read shell-preference values (sound, locale, move
+delay) receive a getter function injected at bundle-creation time:
+\texttt{isSoundEnabled()}, \texttt{getDelayMs()}, etc. These getters
+close over a \texttt{stateRef} maintained in \texttt{useAppStartup} that
+is updated on every React render, so services always read the current
+preference without coupling to React directly.
+
+Shell preferences (sound, locale, move delay, layout mode, position
+preview, developer tools) are the authoritative province of the React
+store (\texttt{AppStoreState}) and are persisted via
+\texttt{shellPrefsStore} --- a versioned localStorage store
+(\texttt{frontend/src/runtime/shell\_prefs\_store.ts}). Shell preference
+setters dispatch to React directly.
+
+\subsubsection{7.3 The React State Bridge}\label{the-react-state-bridge}
+
+The React \texttt{useReducer} store (\texttt{AppStoreState} /
+\texttt{appReducer}) is the authoritative state for \textbf{rendering}.
+State reaches it through two channels:
+
+\paragraph{Service callbacks
+(automatic)}\label{service-callbacks-automatic}
+
+Services wired in \texttt{createAppServices.ts} call typed dispatch
+callbacks when their state changes:
+
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+Callback & Action dispatched\tabularnewline
+\midrule
+\endhead
+\texttt{onPgnChange} & \texttt{set\_pgn\_state}\tabularnewline
+\texttt{onNavigationChange} & \texttt{set\_navigation}\tabularnewline
+\texttt{onUndoRedoDepthChange} &
+\texttt{set\_undo\_redo\_depth}\tabularnewline
+\texttt{onStatusChange} & \texttt{set\_status\_message}\tabularnewline
+\texttt{onErrorChange} & \texttt{set\_error\_message}\tabularnewline
+\texttt{onPendingFocusChange} &
+\texttt{set\_pending\_focus}\tabularnewline
+\texttt{onSessionsChanged} & \texttt{set\_sessions}\tabularnewline
+\texttt{onTabsChanged} & \texttt{set\_resource\_viewer}\tabularnewline
+\bottomrule
+\end{longtable}
+
+Callbacks close over \texttt{dispatchRef} (a mutable ref updated on
+every render) so they always use the current React dispatch without
+recreating service instances.
+
+\paragraph{flushSessionState (explicit, for direct
+mutations)}\label{flushsessionstate-explicit-for-direct-mutations}
+
+Operations in \texttt{SessionOrchestrator} that mutate
+\texttt{activeSessionRef.current} directly (e.g. \texttt{loadPgnText},
+\texttt{switchSession}, \texttt{openPgnText}) call
+\texttt{flushSessionState()} afterwards. This helper reads the active
+session and dispatches \texttt{set\_pgn\_state},
+\texttt{set\_navigation}, \texttt{set\_undo\_redo\_depth}, and
+\texttt{set\_pending\_focus} in one call.
+
+\paragraph{The mutable working store}\label{the-mutable-working-store}
+
+\texttt{activeSessionRef.current} (\texttt{GameSessionState}) is a
+\textbf{deliberate mutable working store} --- not a React anti-pattern.
+Operations mutate it in-place during a single logical step (e.g.~parse
+PGN, update ply, update selection), then flush to React once the step is
+complete. This avoids mid-operation renders and keeps animation, undo,
+and board preview coherent.
+
+The pattern is intentional: - Components \textbf{read} from the React
+store (always consistent). - Services \textbf{write} to
+\texttt{activeSessionRef.current} and flush when done. - The React store
+is the display layer; \texttt{activeSessionRef.current} is the editing
+scratch pad for the active session.
+
+\paragraph{Component contract}\label{component-contract}
+
+React components read state exclusively through selectors
+(\texttt{state/selectors.ts}). Components trigger mutations exclusively
+via \texttt{ServiceContext} callbacks --- they never call
+\texttt{dispatch} for game logic.
+
+\subsubsection{7.4 The PGN Text Editor}\label{the-pgn-text-editor}
+
+The PGN text editor is the annotation-aware view of the active game
+session's PGN model. It is structured as a pure-logic
+\textbf{render-plan pipeline} that converts the in-memory PGN model into
+a flat list of \texttt{PlanBlock{[}{]}}, which the React render layer
+then maps to DOM elements.
+
+\paragraph{Layout modes}\label{layout-modes}
+
+The editor operates in one of three layout modes, stored per session in
+\texttt{GameSessionState.pgnLayoutMode}:
+
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+\begin{minipage}[b]{0.05\columnwidth}\raggedright\strut
+Mode\strut
+\end{minipage} & \begin{minipage}[b]{0.05\columnwidth}\raggedright\strut
+Behaviour\strut
+\end{minipage}\tabularnewline
+\midrule
+\endhead
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{plain}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Raw PGN text; comment content is shown verbatim, no marker
+processing.\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{text}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{{[}{[}indent{]}{]}} drives block indentation;
+\texttt{{[}{[}br{]}{]}} becomes a visible line break in the
+\texttt{contentEditable}; the first comment before the first move
+receives \emph{intro styling}.\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{tree}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+One block per variation in DFS order; each non-mainline block opens with
+a labelled \texttt{branch\_header} token; markers survive as greyed
+literal text; each variation's first comment receives intro styling
+independently.\strut
+\end{minipage}\tabularnewline
+\bottomrule
+\end{longtable}
+
+\paragraph{Intro section (implicit
+detection)}\label{intro-section-implicit-detection}
+
+When the editor is in \textbf{text} or \textbf{tree} mode, the
+\emph{first comment appearing before the first move of a variation}
+automatically receives \textbf{intro styling} --- a visually distinct
+block with a configurable left sidebar and tinted background. No PGN
+marker is required: position in the model is the sole criterion.
+
+Detection inside \texttt{buildVariationWalker} (\texttt{plan/types.ts}):
+
+\begin{verbatim}
+const applyIntroStyling: boolean = isFirstComment && !state.firstMoveEmitted;
+\end{verbatim}
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{firstCommentId} --- set on the first comment seen in the
+  current scope; a later comment in the same variation cannot be the
+  intro.
+\item
+  \texttt{firstMoveEmitted} --- set to \texttt{true} once any move token
+  has been emitted; a comment appearing after the first move is never
+  styled as intro.
+\end{itemize}
+
+In \textbf{tree mode} \texttt{buildTreeEditorPlan} saves and resets both
+fields before processing each variation block, so \textbf{each
+variation's first comment gets intro styling independently} of the
+main-line intro.
+
+In \textbf{plain mode} \texttt{applyIntroStyling} is always
+\texttt{false}; the detection is skipped entirely and all comments
+render as plain literal text.
+
+\textbf{CSS}: the class \texttt{text-editor-comment-intro} is added when
+\texttt{CommentToken.introStyling\ ===\ true}. Visual appearance is
+driven by the CSS custom properties \texttt{-\/-editor-intro-bg},
+\texttt{-\/-editor-intro-sidebar-color}, and
+\texttt{-\/-editor-intro-sidebar-width}, which are set from
+\texttt{EditorStylePrefs} and default to the shipped design.
+
+\begin{quote}
+\textbf{Note:} The legacy \texttt{\textbackslash{}intro} PGN marker is
+gone. Intro styling is fully implicit --- no markup is needed in the PGN
+source.
+\end{quote}
+
+\paragraph{\texorpdfstring{Render-plan pipeline
+(\texttt{editor/plan/})}{Render-plan pipeline (editor/plan/)}}\label{render-plan-pipeline-editorplan}
+
+\texttt{buildTextEditorPlan(pgnModel,\ \{\ layoutMode,\ numberingStrategy\ \})}
+is the single entry point (re-exported from
+\texttt{editor/text\_editor\_plan.ts}). It:
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  Allocates a \texttt{PlanState} --- a cursor over a growing
+  \texttt{PlanBlock{[}{]}} plus tracking fields (\texttt{indentDepth},
+  \texttt{firstCommentId}, \texttt{firstMoveEmitted}).
+\item
+  Delegates to the mode-specific builder:
+\end{enumerate}
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{buildPlainEditorPlan} (\texttt{plan/plain\_mode.ts}) --- uses
+  \texttt{buildVariationWalker} with a pass-through comment emitter that
+  sets \texttt{plainLiteralComment\ =\ true}.
+\item
+  \texttt{buildTextModeEditorPlan} (\texttt{plan/text\_mode.ts}) ---
+  uses \texttt{buildVariationWalker} with a comment emitter that strips
+  \texttt{{[}{[}indent{]}{]}} directives, converts
+  \texttt{{[}{[}br{]}{]}} to \texttt{\textbackslash{}n}, and calls
+  \texttt{nextBlock()} after intro comments.
+\item
+  \texttt{buildTreeEditorPlan} (\texttt{plan/tree\_mode.ts}) --- has its
+  own DFS traversal; collects child RAVs inline and emits them as new
+  blocks after the parent block's content.
+\end{itemize}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\setcounter{enumi}{2}
+\tightlist
+\item
+  Trims leading and trailing empty blocks before returning.
+\end{enumerate}
+
+\textbf{\texttt{buildVariationWalker}} (\texttt{plan/types.ts}) --- a
+factory used by plain and text mode. It returns a mutually-recursive
+\texttt{emitVariation} / \texttt{emitMove} pair bound to a mode-specific
+\texttt{CommentEmitter}. The walker handles comment hoisting (a comment
+immediately before a move number is hoisted before that move's token),
+\texttt{{[}{[}indent{]}{]}}- gated RAV indentation, and
+\texttt{postItems} ordering from the parsed PGN model.
+
+\textbf{Token types} emitted into blocks:
+
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+\begin{minipage}[b]{0.05\columnwidth}\raggedright\strut
+\texttt{tokenType}\strut
+\end{minipage} & \begin{minipage}[b]{0.05\columnwidth}\raggedright\strut
+Description\strut
+\end{minipage}\tabularnewline
+\midrule
+\endhead
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{move}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+A SAN move token; carries \texttt{nodeId}, \texttt{variationDepth},
+\texttt{moveSide}.\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{move\_number}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+A move-number token (simplified to digit only).\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{nag}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+A NAG glyph (e.g. \texttt{!}, \texttt{?}, \texttt{±}).\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{result}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+The game result (\texttt{1-0}, \texttt{0-1}, \texttt{½-½},
+\texttt{*}).\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{space}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+A whitespace spacer between tokens.\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{branch\_header}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Tree-mode only; carries the variation label (e.g. \texttt{A},
+\texttt{B.1}).\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{comment} (kind)\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+A \texttt{CommentToken}; carries \texttt{commentId}, \texttt{rawText},
+display \texttt{text}, indent flags, \texttt{introStyling}, and
+\texttt{focusFirstCommentAtStart}.\strut
+\end{minipage}\tabularnewline
+\bottomrule
+\end{longtable}
+
+\textbf{Tree variation numbering} (\texttt{plan/tree\_mode.ts}): each
+non-mainline block is labelled by a \texttt{VariationNumberingStrategy}
+--- a function from a path array to a string. The default
+\texttt{alphaNumericPathStrategy} maps the first segment to an uppercase
+letter (\texttt{A}, \texttt{B}, \ldots{}) and deeper segments to 1-based
+integers joined by \texttt{.} (e.g. \texttt{A.1.2}).
+
+\paragraph{\texorpdfstring{PGN runtime
+(\texttt{editor/pgn\_runtime.ts})}{PGN runtime (editor/pgn\_runtime.ts)}}\label{pgn-runtime-editorpgn_runtime.ts}
+
+\texttt{createPgnRuntimeCapabilities} owns the lifecycle of the
+in-session PGN text:
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{\texttt{loadPgn()}} --- reads the raw PGN text from the editor
+  input element, parses it into a model, runs
+  \texttt{syncChessParseState}, and calls \texttt{onPgnChange} +
+  \texttt{onNavigationChange}.
+\item
+  \textbf{\texttt{applyPgnModelUpdate(nextModel,\ focusCommentId?)}} ---
+  the primary mutation path for model-level edits (commands, move
+  entry). Serializes the new model to text, pushes an undo snapshot if
+  the text changed, syncs chess parse state, schedules autosave, and
+  calls \texttt{onPgnChange} + \texttt{onNavigationChange} + (if
+  applicable) \texttt{onPendingFocusChange}.
+\item
+  \textbf{\texttt{syncChessParseState(source)}} --- feeds the PGN text
+  to \texttt{chess.js} to populate \texttt{moves},
+  \texttt{verboseMoves}, and \texttt{movePositionById}. Falls back to a
+  stripped (annotation-free) copy when annotations cause
+  \texttt{chess.js} to reject the input. Does not fire any callbacks;
+  callers dispatch state separately.
+\end{itemize}
+
+\paragraph{\texorpdfstring{Undo / redo
+(\texttt{editor/history.ts})}{Undo / redo (editor/history.ts)}}\label{undo-redo-editorhistory.ts}
+
+\texttt{createEditorHistoryCapabilities} maintains per-session
+\texttt{undoStack} / \texttt{redoStack} (capped at 200 entries) stored
+on \texttt{GameSessionState}. Each entry is an \texttt{EditorSnapshot}
+--- a \texttt{structuredClone} of \texttt{pgnModel}, \texttt{pgnText},
+\texttt{currentPly}, \texttt{selectedMoveId}, and
+\texttt{pgnLayoutMode}. Undo and redo restore the snapshot and call
+\texttt{onSyncChessParseState} + \texttt{onPgnChange} +
+\texttt{onNavigationChange} + \texttt{onUndoRedoDepthChange}; they do
+not go through \texttt{applyPgnModelUpdate} so they do not push further
+history entries.
+
+\subsubsection{7.5 The Metadata System}\label{the-metadata-system}
+
+Metadata in X2Chess is a multi-layer system that begins with the PGN
+text and ends at search-capable, typed, user-extensible field
+definitions.
+
+\paragraph{PGN headers as source of
+truth}\label{pgn-headers-as-source-of-truth}
+
+Every game carries its metadata inside its own PGN text as bracket
+header lines:
+
+\begin{verbatim}
+[White "Kasparov, G."]
+[Result "1-0"]
+[WhiteElo "2812"]
+[Date "1997.05.11"]
+\end{verbatim}
+
+The PGN text is always the authoritative record. Derived representations
+(the DB index, the viewer display) are computed from it and can be
+rebuilt at any time.
+
+\paragraph{Two extraction modes}\label{two-extraction-modes}
+
+\texttt{resource/domain/metadata.ts} exposes two extraction functions
+that parse headers from raw PGN text:
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{\texttt{extractPgnMetadata(pgnText,\ keys?)}} --- projects the
+  requested header keys as plain strings. Used where only display or
+  storage is needed (listing, file/directory adapters).
+\item
+  \textbf{\texttt{extractHybridPgnMetadata(pgnText,\ keys?)}} ---
+  projects known keys through typed parsers from
+  \texttt{PGN\_METADATA\_SCHEMA}, yielding \texttt{HybridPgnMetadata}.
+  Known types:
+\end{itemize}
+
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+Key & Parsed type\tabularnewline
+\midrule
+\endhead
+\texttt{Date} & \texttt{PgnDateValue}
+(\texttt{\{\ raw,\ year,\ month,\ day\ \}}) --- \texttt{?} fields become
+\texttt{null}\tabularnewline
+\texttt{WhiteElo}, \texttt{BlackElo} & \texttt{number} (via
+\texttt{parseInt}; non-numeric → \texttt{undefined})\tabularnewline
+\texttt{Result} & \texttt{PgnResultValue} union
+(\texttt{"1-0"\ \textbackslash{}\textbar{}\ "0-1"\ \textbackslash{}\textbar{}\ "1/2-1/2"\ \textbackslash{}\textbar{}\ "*"})\tabularnewline
+\texttt{X2Style} & \texttt{X2StyleValue} union
+(\texttt{"plain"\ \textbackslash{}\textbar{}\ "text"\ \textbackslash{}\textbar{}\ "tree"})\tabularnewline
+All other known keys & \texttt{string}\tabularnewline
+Unknown keys & \texttt{string} (pass-through)\tabularnewline
+\bottomrule
+\end{longtable}
+
+Unknown keys are preserved as strings; the \texttt{HybridPgnMetadata}
+type is the intersection of \texttt{PgnMetadataKnownValues} and
+\texttt{Record\textless{}string,\ PgnMetadataScalar\ \textbar{}\ undefined\textgreater{}}.
+
+\paragraph{Key lists}\label{key-lists}
+
+Three ordered key lists define projection scopes:
+
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+\begin{minipage}[b]{0.05\columnwidth}\raggedright\strut
+Constant\strut
+\end{minipage} & \begin{minipage}[b]{0.05\columnwidth}\raggedright\strut
+Content\strut
+\end{minipage}\tabularnewline
+\midrule
+\endhead
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{PGN\_STANDARD\_METADATA\_KEYS}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+14 keys --- the Seven Tag Roster plus ECO, Opening, WhiteElo, BlackElo,
+TimeControl, Termination, Annotator\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{KNOWN\_PGN\_METADATA\_KEYS}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+Standard keys plus \texttt{X2Style} and \texttt{Material}\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+\texttt{DEFAULT\_RESOURCE\_VIEWER\_METADATA\_KEYS}\strut
+\end{minipage} & \begin{minipage}[t]{0.05\columnwidth}\raggedright\strut
+7-key default column set for the resource viewer: White, Black, Date,
+Event, ECO, Opening, Result\strut
+\end{minipage}\tabularnewline
+\bottomrule
+\end{longtable}
+
+The \texttt{METADATA\_KEY} const object mirrors
+\texttt{PgnMetadataKnownValues} as string constants so that renaming a
+key in the type produces a compile error at every call site.
+
+\paragraph{DB-level metadata index}\label{db-level-metadata-index}
+
+When a game is created or saved in a \texttt{db} resource,
+\texttt{writeMetadata} in \texttt{resource/adapters/db/db\_indexer.ts}
+denormalizes header values into the \texttt{game\_metadata} table (one
+row per key--value pair, keyed by \texttt{(game\_id,\ meta\_key)}). This
+index drives:
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{List display} --- \texttt{db\_adapter.ts} batch-loads metadata
+  for all games in a single query at list time, avoiding per-game reads.
+\item
+  \textbf{Text search} --- \texttt{searchByText} queries
+  \texttt{game\_metadata} for substring matches on \texttt{White},
+  \texttt{Black}, \texttt{Event}, and \texttt{Site}.
+\end{itemize}
+
+The \texttt{metadata\_keys} table records which keys are present in a
+given database; the adapter returns this list alongside each
+\texttt{list} result so the viewer knows which columns to offer.
+
+Every save deletes and rebuilds the metadata rows for the affected game
+--- the index is always derived from the current PGN text.
+
+\paragraph{\texorpdfstring{Derived \texttt{Material}
+key}{Derived Material key}}\label{derived-material-key}
+
+For position games (\texttt{{[}SetUp\ "1"{]}} present),
+\texttt{writeMetadata} also derives a \texttt{Material} key by passing
+the \texttt{{[}FEN{]}} header value through \texttt{materialKeyFromFen}
+in \texttt{resource/domain/material\_key.ts}. The key has the form
+\texttt{K\textless{}white-pieces\textgreater{}vK\textless{}black-pieces\textgreater{}}
+with pieces sorted by descending value, e.g. \texttt{KQPPPvKRP},
+\texttt{KBNvK}, \texttt{KvK}. It enables substring search for endgame
+material configurations.
+
+\paragraph{User-defined schemas}\label{user-defined-schemas}
+
+Beyond the standard PGN keys, users can define custom metadata schemas.
+A \texttt{MetadataSchema} contains:
+
+\begin{itemize}
+\tightlist
+\item
+  A stable UUID \texttt{id} and a display \texttt{name}.
+\item
+  A monotonically incrementing \texttt{version} (bumped on each save).
+\item
+  An ordered list of \texttt{MetadataFieldDefinition} entries, each with
+  a \texttt{key}, \texttt{label}, \texttt{type}, \texttt{required} flag,
+  \texttt{orderIndex} (10, 20, 30, \ldots{} with gaps for future
+  insertions), and optional \texttt{selectValues} and
+  \texttt{description}.
+\end{itemize}
+
+\textbf{Field types:} \texttt{text}, \texttt{date}, \texttt{select},
+\texttt{number}, \texttt{flag}, \texttt{game\_link}.
+
+Schemas are persisted in localStorage under
+\texttt{x2chess.metadata-schemas} via the versioned store in
+\texttt{frontend/src/resources\_viewer/schema\_storage.ts}. They can be
+exported and imported as JSON files (format marker:
+\texttt{"x2chess-schema":\ "1"}).
+
+The built-in \texttt{BUILT\_IN\_SCHEMA} (id \texttt{"builtin"}) is a
+read-only schema for the standard PGN Seven Tag Roster plus common
+extensions. It is used when no user-defined schema is associated with a
+resource.
+
+\paragraph{Relationship between
+layers}\label{relationship-between-layers}
+
+\begin{verbatim}
+PGN text (source of truth)
+  │
+  ├─ extractPgnMetadata()       → plain string map
+  │    used by: file/directory adapters, db list display, db indexer
+  │
+  ├─ extractHybridPgnMetadata() → typed HybridPgnMetadata
+  │    used by: resource viewer columns, typed field rendering
+  │
+  └─ writeMetadata() [db only]  → game_metadata + metadata_keys rows
+       used by: text search, batch list loading
+
+MetadataSchema (localStorage)
+  └─ maps field keys to types and labels
+       used by: resource viewer column configuration, metadata editor dialog
+\end{verbatim}
+
+\subsection{8) Constraints for Ongoing
+Work}\label{constraints-for-ongoing-work}
+
+\begin{itemize}
+\tightlist
+\item
+  Keep browser fat-client as primary source of feature truth.
+\item
+  Keep reduced app-profile differences explicit and documented.
+\item
+  Keep Tauri as reduced app shell, not a replacement for frontend domain
+  logic.
+\item
+  Keep local resource APIs explicit and maintainable.
+\item
+  Keep local resource read/write in client code only (no backend
+  mediation).
+\item
+  Keep remote integrations behind adapter boundaries and contracts.
+\item
+  Keep top-level \texttt{resource/} as canonical home for PGN resource
+  contracts, kind routing, and metadata schema.
+\item
+  Keep canonical resource kinds explicit as \texttt{file},
+  \texttt{directory}, and \texttt{db}.
+\item
+  Keep SQL schema/migration ownership in \texttt{resource/database/}
+  (never under frontend domain modules).
+\item
+  Keep backend optional and decoupled from local resource workflows.
+\item
+  Enforce Component-Contract on components (integration + configuration
+  + communication APIs, documented publicly in code).
+\item
+  Enforce clean/professional CSS defaults and maintain explicit theming
+  extension points for future user adaptation.
+\item
+  Keep local runtime data scenario-separated under \texttt{run/}.
+\item
+  Keep production runtime data outside repository paths (explicit prod
+  root or OS app-data default).
+\item
+  Keep scenario game libraries under
+  \texttt{run/\textless{}SCENARIO\textgreater{}/games} for local
+  scenarios.
+\item
+  Keep runtime configuration layered: default app config + partial user
+  override in data area.
+\item
+  React \texttt{useReducer} (\texttt{AppStoreState}) is the
+  authoritative state for rendering; all component reads go through
+  selectors, all component writes go through \texttt{ServiceContext}.
+\item
+  \texttt{activeSessionRef.current} (\texttt{GameSessionState}) is a
+  deliberate mutable working store for the active session --- services
+  write to it during operations and flush to React via callbacks or
+  \texttt{flushSessionState()} when the operation completes (see §7.3).
+  This is an intentional performance trade-off, not a violation.
+\item
+  Services own their internal state as closure variables; no shared
+  mutable \texttt{AppState} object.
+\item
+  Keep service initialisation in \texttt{useAppStartup}; expose service
+  callbacks exclusively via \texttt{ServiceContext}.
+\item
+  Pure-logic modules (\texttt{model/}, \texttt{editor/},
+  \texttt{board/}, \texttt{game\_sessions/}, \texttt{resources/}) must
+  remain framework-free.
+\item
+  Update this manual when architecture decisions, boundaries, or
+  delivery paths change.
+\end{itemize}
+
+\end{document}

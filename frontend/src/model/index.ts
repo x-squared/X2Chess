@@ -44,9 +44,11 @@ export {
 export {
   REQUIRED_PGN_TAG_DEFAULTS,
   X2_STYLE_HEADER_KEY,
+  X2_BOARD_ORIENTATION_HEADER_KEY,
   ensureRequiredPgnHeaders,
   getHeaderValue,
   getX2StyleFromModel,
   normalizeX2StyleValue,
   setHeaderValue,
+  deriveInitialBoardFlipped,
 } from "./pgn_headers";

@@ -24,9 +24,9 @@
 import { useMemo, useState } from "react";
 import type { ReactElement, ChangeEvent } from "react";
 import { GAME_INFO_HEADER_FIELDS, PLAYER_NAME_HEADER_KEYS, normalizeGameInfoHeaderValue } from "../../app_shell/game_info";
-import { getHeaderValue, REQUIRED_PGN_TAG_DEFAULTS, resolveEcoOpeningName, normalizeX2StyleValue } from "../../model";
+import { getHeaderValue, REQUIRED_PGN_TAG_DEFAULTS, X2_BOARD_ORIENTATION_HEADER_KEY, resolveEcoOpeningName, normalizeX2StyleValue } from "../../model";
 import { useAppContext } from "../../state/app_context";
-import { selectIsGameInfoEditorOpen, selectPgnModel } from "../../state/selectors";
+import { selectIsGameInfoEditorOpen, selectPgnModel, selectBoardFlipped } from "../../state/selectors";
 import { useServiceContext } from "../../state/ServiceContext";
 import { useTranslator } from "../../hooks/useTranslator";
 import { PlayerAutocomplete } from "./PlayerAutocomplete";
@@ -129,7 +129,7 @@ const FieldInput = ({ field, defaultVal, onCommit }: FieldInputProps): ReactElem
       >
         {(field.options ?? []).map((opt: string): ReactElement => (
           <option key={opt} value={opt}>
-            {opt || "-"}
+            {field.optionLabels?.[opt] ?? (opt || "-")}
           </option>
         ))}
       </select>
@@ -161,6 +161,7 @@ export const GameInfoEditor = (): ReactElement => {
   const { state, dispatch } = useAppContext();
   const pgnModel: PgnModel | null = selectPgnModel(state);
   const isOpen: boolean = selectIsGameInfoEditorOpen(state);
+  const boardFlipped: boolean = selectBoardFlipped(state);
   const t: (key: string, fallback?: string) => string = useTranslator();
 
   const playersSummary: string = useMemo((): string => {
@@ -257,10 +258,20 @@ export const GameInfoEditor = (): ReactElement => {
             const id: string = `game-info-${field.key.toLowerCase()}`;
             const isPlayer: boolean =
               (PLAYER_NAME_HEADER_KEYS as readonly string[]).includes(field.key);
-            const defaultVal: string = resolveFieldValue(pgnModel, field);
+            // X2BoardOrientation is derived from the live boardFlipped state so
+            // that the select always reflects the current board orientation, and
+            // remounts (via key) whenever the board is flipped programmatically.
+            let defaultVal: string = resolveFieldValue(pgnModel, field);
+            if (field.key === X2_BOARD_ORIENTATION_HEADER_KEY) {
+              defaultVal = boardFlipped ? "black" : "";
+            }
+            const fieldKey: string =
+              field.key === X2_BOARD_ORIENTATION_HEADER_KEY
+                ? `${field.key}-${String(boardFlipped)}`
+                : field.key;
 
             return (
-              <label key={field.key} className="game-info-editor-field" htmlFor={id}>
+              <label key={fieldKey} className="game-info-editor-field" htmlFor={id}>
                 <span>{field.label}</span>
                 {isPlayer ? (
                   <PlayerAutocomplete

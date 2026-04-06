@@ -72,7 +72,10 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
       | { type: "file" | "db"; title: string; locator: string }
       | null
     >;
+    pickFileOnlyTarget: () => Promise<{ type: "file" | "db"; title: string; locator: string } | null>;
     detectDefaultSourceRoot: () => Promise<unknown>;
+    createNewDatabase: (suggestedName: string) => Promise<{ type: "db"; title: string; locator: string } | null>;
+    createNewPgnFile: (suggestedName: string) => Promise<{ type: "file"; title: string; locator: string } | null>;
   };
   const dbAdapter = isTauriRuntime()
     ? createDbAdapter(buildTauriDbGateway, { buildPositionIndex, buildMoveEdgeIndex })
@@ -257,6 +260,83 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
   };
 
   /**
+   * Open a file-only picker (no folder fallback) and return the canonical resource reference.
+   *
+   * @returns Selected canonical resource reference or `null` when canceled.
+   * @throws Error when the runtime does not support file picking.
+   */
+  const chooseFileByPicker = async (): Promise<{ resourceRef: PgnResourceRef } | null> => {
+    const selected = await sourcePickerAdapter.pickFileOnlyTarget();
+    if (!selected) return null;
+    if (!supportsFileKind) throw new Error("File resources require the desktop application.");
+    if (selected.type === "file") {
+      state.activeSourceKind = "file";
+      return { resourceRef: { kind: "file", locator: selected.locator } };
+    }
+    if (selected.type === "db") {
+      state.activeSourceKind = "db";
+      return { resourceRef: { kind: "db", locator: selected.locator } };
+    }
+    throw new Error("Unknown resource type selected.");
+  };
+
+  /**
+   * Open a folder picker and return the canonical resource reference.
+   *
+   * @returns Selected canonical resource reference or `null` when canceled.
+   */
+  const chooseFolderByPicker = async (): Promise<{ resourceRef: PgnResourceRef } | null> => {
+    const root = await sourcePickerAdapter.pickSourceRoot();
+    if (!root) return null;
+    sourcePickerAdapter.applySourceRoot(root);
+    state.activeSourceKind = "directory";
+    return {
+      resourceRef: {
+        kind: "directory",
+        locator: state.gameDirectoryPath || state.gameRootPath || "local-files",
+      },
+    };
+  };
+
+  /**
+   * Open a creation dialog for a new resource of the given kind and return its
+   * canonical reference.  For `"db"` a save-as dialog creates an `.x2chess` file;
+   * for `"file"` a save-as dialog creates a `.pgn` file; for `"directory"` the
+   * standard folder picker is shown (the user can create a new folder inside the OS dialog).
+   *
+   * @param kind `"db"`, `"file"`, or `"directory"`.
+   * @returns Canonical resource reference, or `null` when the user cancels.
+   * @throws Error when the runtime cannot support the requested kind.
+   */
+  const createResourceByKind = async (kind: "db" | "directory" | "file"): Promise<{ resourceRef: PgnResourceRef } | null> => {
+    if (kind === "file") {
+      if (!supportsFileKind) throw new Error("PGN file creation requires the desktop application.");
+      const selected = await sourcePickerAdapter.createNewPgnFile("");
+      if (!selected) return null;
+      state.activeSourceKind = "file";
+      return { resourceRef: { kind: "file", locator: selected.locator } };
+    }
+    if (kind === "db") {
+      if (!supportsFileKind) throw new Error("Database resources require the desktop application.");
+      const selected = await sourcePickerAdapter.createNewDatabase("");
+      if (!selected) return null;
+      state.activeSourceKind = "db";
+      return { resourceRef: { kind: "db", locator: selected.locator } };
+    }
+    // directory — go straight to folder picker so the user can create a new folder
+    const root = await sourcePickerAdapter.pickSourceRoot();
+    if (!root) return null;
+    sourcePickerAdapter.applySourceRoot(root);
+    state.activeSourceKind = "directory";
+    return {
+      resourceRef: {
+        kind: "directory",
+        locator: state.gameDirectoryPath || state.gameRootPath || "local-files",
+      },
+    };
+  };
+
+  /**
    * Try to preload default DEV source root.
    *
    * @returns True when preload succeeded and source root was applied.
@@ -425,6 +505,9 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
   return {
     chooseFileSourceRoot,
     chooseResourceByPicker,
+    chooseFileByPicker,
+    chooseFolderByPicker,
+    createResourceByKind,
     createGameInResource,
     getAdapterKinds: (): string[] => (supportsFileKind ? ["file", "directory", "db"] : ["directory"]),
     listGames,

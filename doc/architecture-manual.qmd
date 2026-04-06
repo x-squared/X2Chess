@@ -47,10 +47,38 @@ Architecture decisions are maintained in `doc/architecture-adr-manual.qmd`.
 - Configuration: `frontend/src-tauri/tauri.conf.json`.
 - Runtime entrypoint: `frontend/src-tauri/src/main.rs`.
 - Capability model:
-  - `frontend/src-tauri/capabilities/default.json` with `core:default`.
+  - `frontend/src-tauri/capabilities/default.json` with `core:default`, `core:menu:default`.
 - Build wiring:
   - Dev URL `http://localhost:5287`.
   - Production frontend assets from `frontend/dist`.
+
+### Desktop menu bar
+
+The native desktop menu bar is defined declaratively in a single TypeScript file:
+
+- **Definition:** `frontend/src/app_shell/menu_definition.ts`
+  — a plain, framework-free data structure (`APP_MENU_DEFINITION`) that lists
+  every top-level menu and its items (actions, predefined OS items, separators,
+  submenus).  Adding, removing, or reordering menu items only requires editing
+  this file.
+
+- **Action ids** (`MenuActionId`) name the application-level operations
+  (e.g. `"file.open-resource"`, `"file.new-database"`).  Each id is handled by
+  a matching entry in the `MENU_ACTIONS` map inside `useTauriMenu.ts`.
+
+- **Build hook:** `frontend/src/hooks/useTauriMenu.ts`
+  — a React hook called once by `useAppStartup`.  It reads
+  `APP_MENU_DEFINITION`, constructs the Tauri 2 `Menu` via
+  `@tauri-apps/api/menu`, wires action callbacks to `AppStartupServices`, and
+  installs the result with `menu.setAsAppMenu()`.  The hook is a no-op in
+  browser runtime (`isTauriRuntime()` guard).
+
+**To add a new menu action:**
+1. Add a new id to `MenuActionId` in `menu_definition.ts`.
+2. Insert a `{ kind: "action", id: "…", label: "…", accelerator?: "…" }` node
+   at the desired position in `APP_MENU_DEFINITION`.
+3. Add the handler `"new.id": (services) => { … }` in `MENU_ACTIONS` inside
+   `useTauriMenu.ts`.
 
 ## 2.4 Resource Library (`resource/`)
 
@@ -380,6 +408,19 @@ X2Chess handles PGN content through three canonical resource kinds (`file`, `dir
 `db`) plus a set of import-time converters for external formats. All kinds share the same
 adapter interface defined in `resource/domain/contracts.ts`; the resource client in
 `resource/client/` routes every operation to the correct adapter by `kind`.
+
+The resource fomat `file` is a single PGN file with multiple games. In this app this format
+is treated as read only as writing requires a rewrite of the entire file. Writing ability may
+be implemented in the future.
+
+The resource fomat `directory` is a directory of PGN files. It is implemented mainly for 
+testing purposes, but it may also serve practical use in situations where a user wishes to
+work with games in a storage structure that is independent of database technology.
+
+The resource fomat `db` is an X2Chess database. This type of database is built using SQLite
+and is the primary editable resource format. It is a self-contained file that contains all
+the data for a single game library. It is the only format that supports the full range of
+capabilities of the resource system, including search, filtering, and sorting.
 
 A resource is addressed by a `PgnResourceRef` (`kind` + `locator`). A single game within
 a resource is addressed by a `PgnGameRef` (`kind` + `locator` + `recordId`).

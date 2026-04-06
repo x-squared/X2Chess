@@ -45,6 +45,14 @@ export const REQUIRED_PGN_TAG_DEFAULTS: Record<string, string> = {
  */
 export const X2_STYLE_HEADER_KEY = "X2Style";
 
+/**
+ * Custom tag: board orientation override for default-position and Chess960 games.
+ * Values: `"white"` (white at bottom, default) | `"black"` (black at bottom).
+ * Ignored for games that start from a custom position — those always show the
+ * side to move first at the bottom.
+ */
+export const X2_BOARD_ORIENTATION_HEADER_KEY = "X2BoardOrientation";
+
 const X2_STYLE_VALUES: ReadonlySet<string> = new Set<string>(["plain", "text", "tree"]);
 
 /**
@@ -138,4 +146,36 @@ export const ensureRequiredPgnHeaders = (
     next = setHeaderValue(next, key, fallbackValue);
   });
   return next;
+};
+
+/**
+ * Derive whether the board should be flipped when a game is first opened.
+ *
+ * - **Custom-position games** (`SetUp "1"`, not Chess960): show the side that
+ *   moves first at the bottom (playing up). Derived from the FEN's side-to-move
+ *   field — `"b"` → flipped, `"w"` → not flipped.
+ * - **Default-position and Chess960 games**: honour the `X2BoardOrientation`
+ *   header (`"black"` → flipped). If the header is absent, white is at the
+ *   bottom (not flipped).
+ *
+ * @param {unknown} model - PGN model.
+ * @returns {boolean} `true` when the board should be flipped (black at bottom).
+ */
+export const deriveInitialBoardFlipped = (model: unknown): boolean => {
+  const isSetUp: boolean = getHeaderValue(model, "SetUp", "") === "1";
+  const isChess960: boolean =
+    getHeaderValue(model, "Variant", "").trim().toLowerCase() === "chess960";
+
+  if (isSetUp && !isChess960) {
+    // Position game: the side to move first plays from the bottom.
+    const fen: string = getHeaderValue(model, "FEN", "");
+    const sideToMove: string = fen.trim().split(/\s+/)[1] ?? "w";
+    return sideToMove === "b";
+  }
+
+  // Default / Chess960: use explicit flag, fallback to white at bottom.
+  const orientation: string = getHeaderValue(model, X2_BOARD_ORIENTATION_HEADER_KEY, "")
+    .trim()
+    .toLowerCase();
+  return orientation === "black";
 };

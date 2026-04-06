@@ -26,6 +26,7 @@ export type AppAction =
   | { type: "set_is_menu_open"; open: boolean }
   // ── Board / navigation actions ─────────────────────────────────────────
   | { type: "toggle_board_flip" }
+  | { type: "set_board_flipped"; flipped: boolean }
   | { type: "set_move_delay_ms"; value: number }
   | { type: "set_sound_enabled"; enabled: boolean }
   | { type: "set_error_message"; message: string }

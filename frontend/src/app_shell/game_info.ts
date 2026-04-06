@@ -16,6 +16,7 @@
 import {
   ECO_OPENING_CODES,
   REQUIRED_PGN_TAG_DEFAULTS,
+  X2_BOARD_ORIENTATION_HEADER_KEY,
   getHeaderValue,
   normalizeX2StyleValue,
   resolveEcoOpeningName,
@@ -79,6 +80,8 @@ type GameInfoField = {
   control: "text" | "select" | "number";
   placeholder?: string;
   options?: string[];
+  /** Optional display labels for select options keyed by option value. */
+  optionLabels?: Record<string, string>;
   validate?: (value: string) => boolean;
 };
 
@@ -148,6 +151,13 @@ export const GAME_INFO_HEADER_FIELDS: readonly GameInfoField[] = [
     label: "X2Style",
     control: "select",
     options: ["plain", "text", "tree"],
+  },
+  {
+    key: X2_BOARD_ORIENTATION_HEADER_KEY,
+    label: "X2BoardOrientation",
+    control: "select",
+    options: ["", "white", "black"],
+    optionLabels: { "": "Default Orientation" },
   },
 ];
 

@@ -17,7 +17,7 @@
 
 import type { ReactElement } from "react";
 import { usePositionSearch } from "../../hooks/usePositionSearch";
-import type { PositionSearchHit } from "../../../../resource/client/search_coordinator";
+import type { PositionSearchHit } from "../../../../parts/resource/src/client/search_coordinator";
 import { GUIDE_IDS } from "../../guide/guide_ids";
 
 type PositionSearchPanelProps = {

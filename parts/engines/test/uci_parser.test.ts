@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseUciLine } from "../../../engines/uci/uci_parser.js";
+import { parseUciLine } from "../src/uci/uci_parser.js";
 
 // ── identity / no-op lines ─────────────────────────────────────────────────
 

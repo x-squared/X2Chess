@@ -26,7 +26,7 @@ import type {
   MetadataSchema,
   MetadataFieldDefinition,
   MetadataFieldType,
-} from "../../../../resource/domain/metadata_schema";
+} from "../../../../parts/resource/src/domain/metadata_schema";
 import {
   moveField,
   renumberFields,

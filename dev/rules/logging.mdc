@@ -5,38 +5,80 @@ alwaysApply: true
 
 # Logging Rule
 
-All application code must carry structured debug-level logging via the `log`
-facade in `frontend/src/logger.ts`.  Logging is not optional or cosmetic — it
-is the primary tool for diagnosing problems in the desktop app where a
-browser DevTools session may not be available.
+All application code must carry structured logging via the `log` facade in
+`frontend/src/logger.ts`.  Logging is not optional or cosmetic — it is the
+primary tool for diagnosing problems in the desktop app where a browser
+DevTools session may not be available.
 
-## Requirements for new code
+## Log levels
 
-- **Every function that performs I/O, state mutation, or a non-trivial
-  computation** must emit at least one `log.debug` call that identifies the
-  operation and its key parameters.
-- **Every error path** (catch block, rejected promise, unexpected `null`)
-  must emit `log.error` with the module name and the error message before
-  any UI dispatch or rethrow.
-- **Every significant lifecycle event** (app startup steps, session
-  open/close/switch, resource load/save, navigation, service init) must
-  emit `log.info`.
-- Use `log.warn` for recoverable anomalies: missing optional data,
-  fallback behaviour engaged, deprecated path taken.
+### `log.info` — crucial conjunctures
+
+Use `log.info` for any event that is important enough that you would want to
+see it in a production log when diagnosing a field issue:
+
+- The **entire startup sequence**: each named step (logger active, prefs
+  loaded, snapshot restored / fresh session opened, app ready).
+- **All app lifecycle events**: window created, session opened/closed/switched,
+  resource loaded/saved/deleted, workspace snapshot written.
+- **Important resource events**: resource created, resource deleted, game
+  imported, database opened/closed.
+- **Code under scrutiny** (actively being debugged or recently changed):
+  add a `log.info` call and include a trailing note in a code comment or the
+  log message itself that the entry *may be downgraded to debug once
+  stable*, e.g.:
+  ```typescript
+  // [log: may downgrade to debug once move-entry is stable]
+  log.info("useMoveEntry", `applyEdit: targetMoveId=${targetMoveId}`);
+  ```
+
+### `log.debug` — detailed trace (dev builds only)
+
+Use `log.debug` for granular trace information: per-call parameters,
+intermediate computed values, loop iterations, cache hits/misses.
+
+**`log.debug` is gated**: in release builds `debugEnabled` is `false` and
+the call returns immediately before any string is constructed.  To ensure
+hot-path calls pay zero cost, use the **factory form** whenever the message
+requires any non-trivial construction:
+
+```typescript
+// Cheap literal — plain string is fine.
+log.debug("myModule", "entered parseHeaders");
+
+// Expensive — always use factory to avoid constructing the string in prod.
+log.debug("myModule", () => `pos=${JSON.stringify(pos)} keys=${Object.keys(map).join(",")}`);
+```
+
+The factory form is required whenever the message involves: template
+literals with object values, `JSON.stringify`, `.join`, `.map`, or any
+method call beyond a simple property read.
+
+### `log.warn` — recoverable anomalies
+
+Missing optional data, fallback behaviour engaged, unexpected but handled
+state, deprecated code path taken.
+
+### `log.error` — every error path
+
+Every `catch` block, rejected promise, and unexpected `null` result must
+emit `log.error` with the module name and error message **before** any UI
+dispatch or rethrow.
 
 ## Call convention
 
 ```typescript
 import { log } from "../logger"; // adjust relative path as needed
 
-log.debug("myModule", `loadGame: recordId=${recordId}`);
 log.info("myModule", `Session opened: title="${title}"`);
 log.warn("myModule", "sourceRef missing — falling back to active session");
 log.error("myModule", `Failed to load game: ${message}`);
+log.debug("myModule", "entered loadGame");
+log.debug("myModule", () => `loadGame: recordId=${recordId} size=${content.length}`);
 ```
 
-- First argument: the module or hook name as a plain string literal (no
-  dynamic values).  This makes log output grep-friendly.
+- First argument: the module or hook name as a **plain string literal**
+  (no dynamic values).  This makes log output grep-friendly.
 - Second argument: a short, human-readable message.  Include the key
   variable values inline so a single log line is self-contained.
 - Never log sensitive user data (passwords, PII).  File paths and game
@@ -45,20 +87,25 @@ log.error("myModule", `Failed to load game: ${message}`);
 ## Requirement when touching existing code
 
 When you modify any existing function or module, audit it for missing log
-calls and add them before finishing the task.  Specifically:
+calls and add them before finishing the task:
 
-1. Add `log.error` to every catch block that did not already have one.
-2. Add `log.info` or `log.debug` to lifecycle entry points that are silent.
-3. Do not remove or downgrade existing log calls.
+1. Add `log.error` to every `catch` block that lacks one.
+2. Add `log.info` to every lifecycle entry point that is silent.
+3. Upgrade any `log.debug` on a crucial conjuncture (see above) to `log.info`.
+4. Add the factory form to any `log.debug` whose message requires non-trivial
+   string construction.
+5. Do not remove or downgrade existing log calls.
 
 This rule applies to all layers: hooks, components, pure-logic modules,
-resource adapters, and the Rust backend (`eprintln!` / `log::info!` etc.).
+resource adapters, and the Rust backend (`log::info!`, `log::warn!`, etc.).
 
 ## Infrastructure
 
 - Logger module: `frontend/src/logger.ts`
 - Tauri plugin: `tauri-plugin-log` (configured in `src-tauri/src/main.rs`)
+- Capability: `log:default` in `src-tauri/capabilities/default.json`
 - Log file location (macOS): `~/Library/Logs/com.x2chess.app/`
 - Log level: `Debug` in dev builds, `Info` in release builds
-- `attachConsole()` is called at startup, so all `console.*` calls are also
-  captured in the file — but prefer explicit `log.*` calls in new code.
+- Log format: `[LEVEL] [module] message`
+- `attachConsole()` is awaited at startup, so all entries are also visible
+  in the WebKit inspector console.

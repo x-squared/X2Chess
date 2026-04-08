@@ -72,8 +72,8 @@ import {
   saveSchemas,
   upsertSchema,
 } from "../../resources_viewer/schema_storage";
-import type { MetadataSchema } from "../../../../resource/domain/metadata_schema";
-import { BUILT_IN_SCHEMA } from "../../../../resource/domain/metadata_schema";
+import type { MetadataSchema } from "../../../../parts/resource/src/domain/metadata_schema";
+import { BUILT_IN_SCHEMA } from "../../../../parts/resource/src/domain/metadata_schema";
 import { loadBadgesForRefs } from "../../training/transcript_storage";
 import type { TrainingBadge } from "../../training/transcript_storage";
 

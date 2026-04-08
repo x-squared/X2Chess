@@ -1,5 +1,5 @@
 import { createResourceMetadataPrefs } from "./resource_metadata_prefs.js";
-import { DEFAULT_RESOURCE_VIEWER_METADATA_KEYS } from "../../../resource/domain/metadata";
+import { DEFAULT_RESOURCE_VIEWER_METADATA_KEYS } from "../../../parts/resource/src/domain/metadata";
 import type { SourceRefLike } from "../runtime/bootstrap_shared";
 import type { ResourceTabSnap } from "../runtime/workspace_snapshot_store";
 

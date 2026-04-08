@@ -14,7 +14,7 @@
  */
 
 import type { ReactElement } from "react";
-import type { EngineVariation } from "../../../../engines/domain/analysis_types";
+import type { EngineVariation } from "../../../../parts/engines/src/domain/analysis_types";
 import type { OpeningResult } from "../../resources/ext_databases/opening_types";
 import type { TbProbeResult } from "../../resources/ext_databases/endgame_types";
 import { AnalysisPanel } from "../analysis/AnalysisPanel";

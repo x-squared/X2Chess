@@ -19,7 +19,7 @@ import type {
   GroupByState,
   SortConfig,
 } from "../../resources_viewer/viewer_utils";
-import type { MetadataSchema, MetadataFieldDefinition } from "../../../../resource/domain/metadata_schema";
+import type { MetadataSchema, MetadataFieldDefinition } from "../../../../parts/resource/src/domain/metadata_schema";
 import type { TrainingBadge } from "../../training/transcript_storage";
 
 // ── Props ─────────────────────────────────────────────────────────────────────

@@ -14,7 +14,7 @@
  *   `localStorage`.
  */
 
-import type { MetadataSchema, MetadataFieldDefinition } from "../../../resource/domain/metadata_schema";
+import type { MetadataSchema, MetadataFieldDefinition } from "../../../parts/resource/src/domain/metadata_schema";
 import { createVersionedStore } from "../storage";
 
 const STORAGE_KEY = "x2chess.metadata-schemas";

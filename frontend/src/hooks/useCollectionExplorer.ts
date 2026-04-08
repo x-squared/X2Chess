@@ -28,9 +28,9 @@ import {
   selectResourceViewerTabs,
 } from "../state/selectors";
 import { hashFen } from "../resources/position_indexer";
-import { isPgnResourceRef } from "../../../resource/domain/resource_ref";
-import type { MoveFrequencyEntry } from "../../../resource/domain/move_frequency";
-import type { PgnResourceRef } from "../../../resource/domain/resource_ref";
+import { isPgnResourceRef } from "../../../parts/resource/src/domain/resource_ref";
+import type { MoveFrequencyEntry } from "../../../parts/resource/src/domain/move_frequency";
+import type { PgnResourceRef } from "../../../parts/resource/src/domain/resource_ref";
 
 export type CollectionExplorerState = {
   entries: MoveFrequencyEntry[];

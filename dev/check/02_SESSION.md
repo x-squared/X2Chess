@@ -21,8 +21,14 @@ See dev/check/00_README.md. These rules must be strictly adhered to when this fi
 
 ## Checklist
 
-- [ ] **SESSION-10** — On app close (browser tab close or Tauri window close), if any session has unsaved edits (`dirtyState === "dirty"`), the platform's "unsaved changes — leave anyway?" dialog appears. Confirming closes; cancelling returns to the app.
-- [ ] **SESSION-11** — On next launch after a clean close, all sessions that were open are restored: their PGN content (including unsaved edits), titles, source references, layout modes, active ply, and save modes are correct. The session that was active when the app was closed is active again.
+- [!] **SESSION-5** — A tab with unsaved changes shows the red "unsaved" styling.
+  > In save mode = manual: That is not the case, the game remains in the original blue.
+- [x] **SESSION-6** — The dirty-dot indicator appears on a tab after editing (move entry, comment, header).
+  > In save mode = manual: That is not the case: The dot apears, but after a few seconds it disappears again.
+- [!] **SESSION-10** — On app close (browser tab close or Tauri window close), if any session has unsaved edits (`dirtyState === "dirty"`), the platform's "unsaved changes — leave anyway?" dialog appears. Confirming closes; cancelling returns to the app.
+  > I have edited the empty game, and it clearly had dirty state, and yet the dialog you describe did not appear on closing.
+- [!] **SESSION-11** — On next launch after a clean close, all sessions that were open are restored: their PGN content (including unsaved edits), titles, source references, layout modes, active ply, and save modes are correct. The session that was active when the app was closed is active again.
+  Restoring the sedssion seems to work well. Almost too well: You slaos seem to restore unsaved edits. This is uncommon behaviour. Argue why we should keep this behaviour. Do not change yet.
 - [ ] **SESSION-12** — On next launch, all resource viewer tabs that were open are restored (kind + locator), and the tab that was active is selected.
 - [ ] **SESSION-13** — On first launch (no snapshot), a single blank default session is opened. No leftover resource viewer tabs appear.
 
@@ -39,8 +45,6 @@ See dev/check/00_README.md. These rules must be strictly adhered to when this fi
 - [x] **SESSION-1** — Dropping or pasting a PGN opens it in a new tab; the previously active game is preserved.
   >> Fixed: tab labels now use actual PGN headers (filters out "White"/"Black"/"?" placeholders) and `preferredTitle`/`sourceRef` are forwarded from the drop handler so tabs have correct file-based titles and source association. Preservation logic unchanged — please re-verify that the prior session stays in its tab when a second file is dropped.
 - [x] **SESSION-4** — Closing the last tab creates a fresh empty game (no sample moves or headers) automatically.
-- [x] **SESSION-5** — A tab with unsaved changes shows the red "unsaved" styling.
-- [x] **SESSION-6** — The dirty-dot indicator appears on a tab after editing (move entry, comment, header).
 - [x] **SESSION-8** — A dirty (unsaved) tab shows a red pill colour and a dirty dot only — no save icon button.
 - [x] **SESSION-9** — When a game is opened, the {ui-id: editor.pane} should not increase in size. Its lower border is always aligned with the lower border of the {ui-id: board.chess-board}.
   > Added `max-height: var(--board-column-width)` and `overflow: hidden` to `.board-editor-pane` in `editor/styles.css`. Please re-verify with a long game.

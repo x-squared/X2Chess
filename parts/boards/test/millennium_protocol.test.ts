@@ -5,8 +5,8 @@ import {
   decodeDelta,
   encodeRequestFullScan,
   encodeEnableUpdateMode,
-} from "../../../boards/protocol/millennium_protocol.js";
-import { MILLENNIUM_CHESSLINK_V1 } from "../../../boards/domain/board_profile.js";
+} from "../src/protocol/millennium_protocol.js";
+import { MILLENNIUM_CHESSLINK_V1 } from "../src/domain/board_profile.js";
 
 const PROFILE = MILLENNIUM_CHESSLINK_V1;
 

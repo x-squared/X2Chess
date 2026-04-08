@@ -6,8 +6,8 @@
  * need to detect or communicate with the Tauri desktop runtime.
  */
 
-import type { FsGateway } from "../../../resource/io/fs_gateway";
-import type { DbGateway } from "../../../resource/io/db_gateway";
+import type { FsGateway } from "../../../parts/resource/src/io/fs_gateway";
+import type { DbGateway } from "../../../parts/resource/src/io/db_gateway";
 
 export type TauriWindowLike = Window & {
   __TAURI_INTERNALS__?: unknown;

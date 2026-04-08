@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   createBoardSimulator,
   parseFenPlacement,
-} from "../../../boards/adapters/simulator_adapter.js";
+} from "../src/adapters/simulator_adapter.js";
 
 // ── parseFenPlacement ─────────────────────────────────────────────────────────
 

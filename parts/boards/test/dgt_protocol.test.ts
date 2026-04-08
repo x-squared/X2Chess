@@ -5,8 +5,8 @@ import {
   decodeFieldUpdate,
   encodeRequestFullScan,
   encodeEnableUpdateMode,
-} from "../../../boards/protocol/dgt_protocol.js";
-import { DGT_USB_V3 } from "../../../boards/domain/board_profile.js";
+} from "../src/protocol/dgt_protocol.js";
+import { DGT_USB_V3 } from "../src/domain/board_profile.js";
 
 const PROFILE = DGT_USB_V3;
 

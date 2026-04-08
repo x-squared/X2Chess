@@ -19,14 +19,16 @@ import "./training/styles.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
-import { initLogger } from "./logger";
-
-void initLogger();
+import { initLogger, log } from "./logger";
 
 const rootEl = document.getElementById("root");
 if (!rootEl) {
   throw new Error("Missing #root element");
 }
+
+// Await the console bridge before mounting so all startup log calls are visible.
+await initLogger();
+log.info("main", "X2Chess starting — logging active");
 
 createRoot(rootEl).render(
   <StrictMode>

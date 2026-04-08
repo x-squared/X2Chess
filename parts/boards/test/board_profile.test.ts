@@ -5,7 +5,7 @@ import {
   DGT_USB_V3,
   BUILT_IN_PROFILES,
   findProfile,
-} from "../../../boards/domain/board_profile.js";
+} from "../src/domain/board_profile.js";
 
 // ── Built-in profiles ──────────────────────────────────────────────────────────
 

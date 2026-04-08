@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { formatUciCommand } from "../../../engines/uci/uci_writer.js";
+import { formatUciCommand } from "../src/uci/uci_writer.js";
 
 test("formatUciCommand — uci", () => {
   assert.equal(formatUciCommand({ type: "uci" }), "uci");

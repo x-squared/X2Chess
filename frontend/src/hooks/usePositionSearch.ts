@@ -27,8 +27,8 @@ import {
   selectResourceViewerTabs,
 } from "../state/selectors";
 import { hashFen } from "../resources/position_indexer";
-import type { PositionSearchHit } from "../../../resource/client/search_coordinator";
-import { isPgnResourceRef, type PgnResourceRef } from "../../../resource/domain/resource_ref";
+import type { PositionSearchHit } from "../../../parts/resource/src/client/search_coordinator";
+import { isPgnResourceRef, type PgnResourceRef } from "../../../parts/resource/src/domain/resource_ref";
 
 export type PositionSearchState = {
   results: PositionSearchHit[];

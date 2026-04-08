@@ -11,6 +11,7 @@ use rusqlite::types::ValueRef;
 use rusqlite::{params_from_iter, Connection};
 use serde_json::{json, Value as JsonValue};
 use std::sync::atomic::{AtomicU64, Ordering};
+use log::{info, warn};
 use tauri::{Emitter, Listener, Manager};
 
 fn is_simple_file_name(file_name: &str) -> bool {
@@ -628,6 +629,20 @@ fn main() {
         } else {
           log::LevelFilter::Info
         })
+        // Strip the JS call-site URL from webview log targets.
+        // Raw target looks like "webview:info@http://localhost:5287/node_modules/...".
+        // We keep only the part before the "@" (e.g. "webview:info").
+        .format(|out, message, record| {
+          let target = record.target();
+          let short_target = target.split('@').next().unwrap_or(target);
+          out.finish(format_args!(
+            "[{}][{}][{}] {}",
+            chrono::Local::now().format("%Y-%m-%d"),
+            chrono::Local::now().format("%H:%M:%S"),
+            short_target,
+            message,
+          ))
+        })
         .build(),
     )
     .plugin(tauri_plugin_updater::Builder::new().build())
@@ -659,18 +674,18 @@ fn main() {
       if let Ok(raw) = env::var("X2CHESS_WEBVIEW_DATA") {
         let data_dir = PathBuf::from(&raw);
         if let Err(e) = fs::create_dir_all(&data_dir) {
-          eprintln!("[x2chess] WARNING: could not create X2CHESS_WEBVIEW_DATA directory {raw:?}: {e}");
+          warn!("Could not create X2CHESS_WEBVIEW_DATA directory {:?}: {}", raw, e);
         } else {
           // WebKit on macOS requires an *absolute* path; canonicalize resolves
           // relative segments (e.g. "../../run/DEV/webview-data") so storage is
           // actually redirected instead of silently falling back to the OS default.
           match fs::canonicalize(&data_dir) {
             Ok(abs_dir) => {
-              eprintln!("[x2chess] Webview data directory: {}", abs_dir.display());
+              info!("Webview data directory: {}", abs_dir.display());
               builder = builder.data_directory(abs_dir);
             }
             Err(e) => {
-              eprintln!("[x2chess] WARNING: could not canonicalize X2CHESS_WEBVIEW_DATA {raw:?}: {e}");
+              warn!("Could not canonicalize X2CHESS_WEBVIEW_DATA {:?}: {}", raw, e);
             }
           }
         }

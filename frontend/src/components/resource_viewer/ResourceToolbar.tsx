@@ -15,8 +15,8 @@
 
 import type { ReactElement } from "react";
 import type { GroupByState } from "../../resources_viewer/viewer_utils";
-import type { MetadataSchema } from "../../../../resource/domain/metadata_schema";
-import { BUILT_IN_SCHEMA } from "../../../../resource/domain/metadata_schema";
+import type { MetadataSchema } from "../../../../parts/resource/src/domain/metadata_schema";
+import { BUILT_IN_SCHEMA } from "../../../../parts/resource/src/domain/metadata_schema";
 
 type ResourceToolbarProps = {
   groupByState: GroupByState;

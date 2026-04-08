@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { materialKeyFromFen } from "../../../resource/domain/material_key";
+import { materialKeyFromFen } from "../src/domain/material_key";
 
 test("materialKeyFromFen — empty string returns empty", () => {
   assert.equal(materialKeyFromFen(""), "");

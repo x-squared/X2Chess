@@ -107,7 +107,7 @@ import {
 import type { ResolvedAnchor } from "../../editor/resolveAnchors";
 import { AnchorDefDialog } from "../anchors/AnchorDefDialog";
 import { AnchorPickerDialog } from "../anchors/AnchorPickerDialog";
-import { NagPicker } from "./NagPicker";
+import { GUIDE_IDS } from "../../guide/guide_ids";
 import type { PgnModel } from "../../model/pgn_model";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -1164,25 +1164,6 @@ export const PgnTextEditor = (): ReactElement => {
     };
   }, [services]);
 
-  // ── NAG picker data (derived from selected move) ───────────────────────────
-  const selectedMoveNags: readonly string[] = useMemo((): readonly string[] => {
-    if (!selectedMoveId || !pgnModel) return [];
-    return findMoveNode(pgnModel as PgnModel, selectedMoveId)?.nags ?? [];
-  }, [selectedMoveId, pgnModel]);
-
-  const selectedMoveSide: "white" | "black" = useMemo((): "white" | "black" => {
-    if (!selectedMoveId || !pgnModel) return "white";
-    return findMoveSideById(pgnModel as PgnModel, selectedMoveId) ?? "white";
-  }, [selectedMoveId, pgnModel]);
-
-  const handleToggleNag = useCallback(
-    (nag: string): void => {
-      if (!selectedMoveId) return;
-      services.toggleMoveNag(selectedMoveId, nag);
-    },
-    [selectedMoveId, services],
-  );
-
   if (!pgnModel) {
     return (
       <div className="text-editor text-editor-empty" style={editorStyleVars as CSSProperties}>
@@ -1194,15 +1175,7 @@ export const PgnTextEditor = (): ReactElement => {
   }
 
   return (
-    <div className="text-editor" data-layout-mode={layoutMode} style={editorStyleVars as CSSProperties}>
-      {selectedMoveId !== null && (
-        <NagPicker
-          moveId={selectedMoveId}
-          currentNags={selectedMoveNags}
-          moveSide={selectedMoveSide}
-          onToggle={handleToggleNag}
-        />
-      )}
+      <div className="text-editor" data-guide-id={GUIDE_IDS.EDITOR_PGN_TEXT} data-layout-mode={layoutMode} style={editorStyleVars as CSSProperties}>
       {layoutMode === "tree" ? (
         <TreeModeView
           blocks={blocks}
@@ -1348,6 +1321,6 @@ export const PgnTextEditor = (): ReactElement => {
           onClose={(): void => { setContextMenu(null); }}
         />
       )}
-    </div>
+      </div>
   );
 };

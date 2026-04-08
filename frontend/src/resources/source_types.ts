@@ -9,7 +9,7 @@ import {
   type CompatLoadResult,
   type CompatSaveResult,
   type CompatSourceRef,
-} from "../../../resource/client/compatibility";
+} from "../../../parts/resource/src/client/compatibility";
 
 export type SourceAdapter = CompatAdapter;
 export type SourceCreateResult = CompatCreateResult;

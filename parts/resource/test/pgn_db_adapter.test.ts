@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createDbAdapter } from "../../../resource/adapters/db/db_adapter";
-import type { DbGateway } from "../../../resource/io/db_gateway";
+import { createDbAdapter } from "../src/adapters/db/db_adapter";
+import type { DbGateway } from "../src/io/db_gateway";
 
 // ── Shared utilities ──────────────────────────────────────────────────────────
 

@@ -1,7 +1,7 @@
 import {
   PGN_STANDARD_METADATA_KEYS as DEFAULT_PGN_METADATA_KEYS,
   DEFAULT_RESOURCE_VIEWER_METADATA_KEYS as DEFAULT_RESOURCE_VIEWER_KEYS,
-} from "../../../resource/domain/metadata";
+} from "../../../parts/resource/src/domain/metadata";
 
 /**
  * Resource Metadata Prefs module.

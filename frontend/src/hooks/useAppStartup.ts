@@ -273,7 +273,7 @@ export const useAppStartup = (): AppStartupServices => {
     if (startupRanRef.current) return;
     startupRanRef.current = true;
 
-    log.debug("useAppStartup", "Hello — debug logging is active");
+    log.info("useAppStartup", "Hello — startup sequence begins");
 
     migrateLocalStorage();
     migrateRemoteRulesCache();

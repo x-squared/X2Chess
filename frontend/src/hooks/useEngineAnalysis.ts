@@ -14,14 +14,14 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import type { EngineVariation, EngineBestMove, MoveSearchOptions } from "../../../engines/domain/analysis_types";
-import type { EngineManager } from "../../../engines/client/engine_manager";
+import type { EngineVariation, EngineBestMove, MoveSearchOptions } from "../../../parts/engines/src/domain/analysis_types";
+import type { EngineManager } from "../../../parts/engines/src/client/engine_manager";
 import {
   createEngineManager,
   parseEngineRegistry,
-} from "../../../engines/client/engine_manager";
-import { createTauriEngine } from "../../../engines/adapters/tauri_engine";
-import type { EnginePosition } from "../../../engines/domain/analysis_types";
+} from "../../../parts/engines/src/client/engine_manager";
+import { createTauriEngine } from "../../../parts/engines/src/adapters/tauri_engine";
+import type { EnginePosition } from "../../../parts/engines/src/domain/analysis_types";
 
 // ── Tauri FS helpers (mirrors source_gateway.ts pattern) ────────────────────
 

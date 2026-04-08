@@ -1,5 +1,5 @@
-import { extractPgnMetadata, PGN_STANDARD_METADATA_KEYS } from "../../../resource/domain/metadata";
-import { materialKeyFromFen } from "../../../resource/domain/material_key";
+import { extractPgnMetadata, PGN_STANDARD_METADATA_KEYS } from "../../../parts/resource/src/domain/metadata";
+import { materialKeyFromFen } from "../../../parts/resource/src/domain/material_key";
 import type {
   SourceAdapter,
   SourceCreateResult,

@@ -11,8 +11,8 @@
  */
 
 import { Chess } from "chess.js";
-import type { BuildPositionIndex, PositionRecord } from "../../../resource/adapters/db/position_index";
-import type { BuildMoveEdgeIndex, MoveEdge } from "../../../resource/adapters/db/move_edge_index";
+import type { BuildPositionIndex, PositionRecord } from "../../../parts/resource/src/adapters/db/position_index";
+import type { BuildMoveEdgeIndex, MoveEdge } from "../../../parts/resource/src/adapters/db/move_edge_index";
 
 // ── FNV-1a 32-bit hash ─────────────────────────────────────────────────────
 

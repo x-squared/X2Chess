@@ -1,17 +1,17 @@
-import { createDirectoryAdapter } from "../../../resource/adapters/directory/directory_adapter";
-import { createFileAdapter as createCanonicalFileAdapter } from "../../../resource/adapters/file/file_adapter";
-import { createDbAdapter } from "../../../resource/adapters/db/db_adapter";
+import { createDirectoryAdapter } from "../../../parts/resource/src/adapters/directory/directory_adapter";
+import { createFileAdapter as createCanonicalFileAdapter } from "../../../parts/resource/src/adapters/file/file_adapter";
+import { createDbAdapter } from "../../../parts/resource/src/adapters/db/db_adapter";
 import { buildPositionIndex, buildMoveEdgeIndex } from "./position_indexer";
-import { readSidecar, writeSidecar } from "../../../resource/adapters/directory/sidecar";
+import { readSidecar, writeSidecar } from "../../../parts/resource/src/adapters/directory/sidecar";
 import {
   searchAcrossResources,
   searchTextAcrossResources,
   exploreAcrossResources,
   type PositionSearchHit,
   type TextSearchHit,
-} from "../../../resource/client/search_coordinator";
-import type { MoveFrequencyEntry } from "../../../resource/domain/move_frequency";
-import { createResourceClient, type ResourceClient } from "../../../resource/client/api";
+} from "../../../parts/resource/src/client/search_coordinator";
+import type { MoveFrequencyEntry } from "../../../parts/resource/src/domain/move_frequency";
+import { createResourceClient, type ResourceClient } from "../../../parts/resource/src/client/api";
 import {
   mapSourceKind,
   toCanonicalGameRefFromSource,
@@ -23,8 +23,8 @@ import {
   type SourceRef,
   type SourceSaveResult,
 } from "./source_types";
-import type { PgnGameRef } from "../../../resource/domain/game_ref";
-import type { PgnResourceRef } from "../../../resource/domain/resource_ref";
+import type { PgnGameRef } from "../../../parts/resource/src/domain/game_ref";
+import type { PgnResourceRef } from "../../../parts/resource/src/domain/resource_ref";
 import { createSourcePickerAdapter } from "./source_picker_adapter";
 import { isTauriRuntime, buildTauriFsGateway, buildTauriDbGateway } from "./tauri_gateways";
 

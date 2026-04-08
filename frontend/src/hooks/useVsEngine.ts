@@ -15,7 +15,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import { Chess } from "chess.js";
-import type { EngineBestMove, MoveSearchOptions, EnginePosition } from "../../../engines/domain/analysis_types";
+import type { EngineBestMove, MoveSearchOptions, EnginePosition } from "../../../parts/engines/src/domain/analysis_types";
 
 export type VsEngineConfig = {
   /** Side the human plays. */

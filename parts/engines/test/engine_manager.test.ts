@@ -4,9 +4,9 @@ import {
   createEngineManager,
   parseEngineRegistry,
   type ProcessFactory,
-} from "../../../engines/client/engine_manager.js";
-import type { EngineProcess } from "../../../engines/uci/uci_session.js";
-import type { EngineConfig } from "../../../engines/domain/engine_config.js";
+} from "../src/client/engine_manager.js";
+import type { EngineProcess } from "../src/uci/uci_session.js";
+import type { EngineConfig } from "../src/domain/engine_config.js";
 
 // ── Mock engine process ─────────────────────────────────────────────────────
 

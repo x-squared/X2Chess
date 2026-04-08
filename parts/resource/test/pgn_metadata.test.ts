@@ -4,7 +4,7 @@ import {
   extractPgnMetadata,
   extractMultiPgnMetadata,
   PGN_STANDARD_METADATA_KEYS,
-} from "../../../resource/domain/metadata";
+} from "../src/domain/metadata";
 
 test("extractPgnMetadata returns normalized map and keys", () => {
   const pgn = `[Event "Rapid"]

@@ -22,9 +22,9 @@ import { useState, useCallback, useEffect, type ReactElement, type KeyboardEvent
 import { useAppContext } from "../../state/app_context";
 import { useServiceContext } from "../../state/ServiceContext";
 import { selectResourceViewerTabs } from "../../state/selectors";
-import { isPgnResourceRef } from "../../../../resource/domain/resource_ref";
-import type { TextSearchHit } from "../../../../resource/client/search_coordinator";
-import type { PgnResourceRef } from "../../../../resource/domain/resource_ref";
+import { isPgnResourceRef } from "../../../../parts/resource/src/domain/resource_ref";
+import type { TextSearchHit } from "../../../../parts/resource/src/client/search_coordinator";
+import type { PgnResourceRef } from "../../../../parts/resource/src/domain/resource_ref";
 import { GUIDE_IDS } from "../../guide/guide_ids";
 
 type TextSearchPanelProps = {

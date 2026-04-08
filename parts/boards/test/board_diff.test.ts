@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { boardDiff, computeSyncSignal, computeMoveSignal } from "../../../boards/protocol/board_diff.js";
-import type { BoardState, PieceCode } from "../../../boards/domain/board_types.js";
+import { boardDiff, computeSyncSignal, computeMoveSignal } from "../src/protocol/board_diff.js";
+import type { BoardState, PieceCode } from "../src/domain/board_types.js";
 
 // ── Fixtures ───────────────────────────────────────────────────────────────────
 

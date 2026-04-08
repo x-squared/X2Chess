@@ -19,7 +19,7 @@
 
 import type { ReactElement } from "react";
 import { useCollectionExplorer } from "../../hooks/useCollectionExplorer";
-import type { MoveFrequencyEntry } from "../../../../resource/domain/move_frequency";
+import type { MoveFrequencyEntry } from "../../../../parts/resource/src/domain/move_frequency";
 import { GUIDE_IDS } from "../../guide/guide_ids";
 
 type CollectionExplorerPanelProps = {

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createUciSession } from "../../../engines/uci/uci_session.js";
-import type { EngineProcess } from "../../../engines/uci/uci_session.js";
+import { createUciSession } from "../src/uci/uci_session.js";
+import type { EngineProcess } from "../src/uci/uci_session.js";
 
 // ── Mock engine process ────────────────────────────────────────────────────────
 

@@ -18,8 +18,8 @@
  */
 
 import { useCallback, type ReactElement } from "react";
-import type { EngineVariation } from "../../../../engines/domain/analysis_types";
-import type { EngineScore } from "../../../../engines/domain/uci_types";
+import type { EngineVariation } from "../../../../parts/engines/src/domain/analysis_types";
+import type { EngineScore } from "../../../../parts/engines/src/domain/uci_types";
 import { GUIDE_IDS } from "../../guide/guide_ids";
 
 type AnalysisPanelProps = {

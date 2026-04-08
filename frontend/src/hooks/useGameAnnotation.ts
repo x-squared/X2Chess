@@ -18,7 +18,7 @@ import { useState, useCallback, useRef } from "react";
 import { Chess } from "chess.js";
 import type { PgnModel, PgnMoveNode, PgnEntryNode } from "../model/pgn_model";
 import { insertCommentAroundMove, toggleMoveNag } from "../model/pgn_commands";
-import type { EngineBestMove, MoveSearchOptions, EnginePosition } from "../../../engines/domain/analysis_types";
+import type { EngineBestMove, MoveSearchOptions, EnginePosition } from "../../../parts/engines/src/domain/analysis_types";
 
 type FindBestMoveFn = (position: EnginePosition, opts: MoveSearchOptions) => Promise<EngineBestMove | null>;
 

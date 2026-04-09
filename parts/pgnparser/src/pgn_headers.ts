@@ -2,7 +2,7 @@
  * Pgn Headers module.
  *
  * Integration API:
- * - Primary exports from this module: `REQUIRED_PGN_TAG_DEFAULTS`, `X2_STYLE_HEADER_KEY`, `normalizeX2StyleValue`, `getHeaderValue`, `getX2StyleFromModel`, `setHeaderValue`, `ensureRequiredPgnHeaders`.
+ * - Primary exports from this module: `REQUIRED_PGN_TAG_DEFAULTS`, `X2_STYLE_HEADER_KEY`, `normalizeX2StyleValue`, `getHeaderValue`, `getX2StyleFromModel`, `setHeaderValue`, `ensureRequiredPgnHeaders`, `normalizeForChessJs`.
  *
  * Configuration API:
  * - Configuration is provided via typed function parameters/options in these exports
@@ -149,11 +149,38 @@ export const ensureRequiredPgnHeaders = (
 };
 
 /**
+ * Prepare a PGN string for chess.js's `loadPgn`.
+ *
+ * chess.js requires `[SetUp "1"]` alongside `[FEN "..."]` to recognise a
+ * custom starting position when calling `loadPgn`.  Many PGN producers omit
+ * `[SetUp]` even when a FEN header is present.  Without it, chess.js ignores
+ * the FEN, starts from the standard initial position, and throws as soon as it
+ * encounters the first move — leaving `g.moves` empty and board navigation
+ * silently broken.
+ *
+ * This function inserts `[SetUp "1"]` immediately before the `[FEN "..."]`
+ * line when the source already contains a FEN header but no SetUp header.
+ * The returned string is intended only for chess.js consumption; it is never
+ * stored or displayed.
+ *
+ * @param {string} source - Raw PGN string.
+ * @returns {string} PGN string with `[SetUp "1"]` injected when needed.
+ */
+export const normalizeForChessJs = (source: string): string => {
+  if (/\[SetUp\s+"[^"]*"\]/i.test(source)) return source;
+  if (!/\[FEN\s+"[^"]*"\]/i.test(source)) return source;
+  return source.replace(/(\[FEN\s+"[^"]*"\])/i, '[SetUp "1"]\n$1');
+};
+
+/**
  * Derive whether the board should be flipped when a game is first opened.
  *
- * - **Custom-position games** (`SetUp "1"`, not Chess960): show the side that
- *   moves first at the bottom (playing up). Derived from the FEN's side-to-move
- *   field — `"b"` → flipped, `"w"` → not flipped.
+ * - **Custom-position games** (a non-empty `FEN` header is present, not Chess960):
+ *   show the side that moves first at the bottom (playing up). Derived from the
+ *   FEN's side-to-move field — `"b"` → flipped, `"w"` → not flipped.
+ *   `SetUp` is intentionally not checked: many PGN producers omit it even when a
+ *   custom position is in use, so the presence of the `FEN` header is the
+ *   authoritative signal.
  * - **Default-position and Chess960 games**: honour the `X2BoardOrientation`
  *   header (`"black"` → flipped). If the header is absent, white is at the
  *   bottom (not flipped).
@@ -162,14 +189,13 @@ export const ensureRequiredPgnHeaders = (
  * @returns {boolean} `true` when the board should be flipped (black at bottom).
  */
 export const deriveInitialBoardFlipped = (model: unknown): boolean => {
-  const isSetUp: boolean = getHeaderValue(model, "SetUp", "") === "1";
   const isChess960: boolean =
     getHeaderValue(model, "Variant", "").trim().toLowerCase() === "chess960";
+  const fen: string = getHeaderValue(model, "FEN", "").trim();
 
-  if (isSetUp && !isChess960) {
-    // Position game: the side to move first plays from the bottom.
-    const fen: string = getHeaderValue(model, "FEN", "");
-    const sideToMove: string = fen.trim().split(/\s+/)[1] ?? "w";
+  if (fen && !isChess960) {
+    // Custom-position game: the side to move first plays from the bottom.
+    const sideToMove: string = fen.split(/\s+/)[1] ?? "w";
     return sideToMove === "b";
   }
 

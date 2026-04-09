@@ -26,7 +26,7 @@ import {
 } from "react";
 import { NagRow } from "./NagPicker";
 import { GUIDE_IDS } from "../../guide/guide_ids";
-import { NAG_MOVE_QUALITY, NAG_EVALUATION, NAG_POSITIONAL } from "../../model/nag_defs";
+import { NAG_MOVE_QUALITY, NAG_EVALUATION, NAG_POSITIONAL } from "../../../../parts/pgnparser/src/nag_defs";
 
 export type TruncationAction =
   | { type: "insert_comment_before"; moveId: string }

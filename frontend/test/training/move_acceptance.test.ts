@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Chess } from "chess.js";
-import { parsePgnToModel } from "../../src/model/pgn_model.js";
+import { parsePgnToModel } from "../../../parts/pgnparser/src/pgn_model.js";
 import { acceptMove } from "../../src/training/domain/move_acceptance.js";
 import type { MoveAcceptanceContext } from "../../src/training/domain/move_acceptance.js";
 

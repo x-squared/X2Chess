@@ -2,6 +2,7 @@ import { Chess } from "chess.js";
 import type { Move } from "chess.js";
 import type { GameSessionState } from "./game_session_state";
 import type { MovePositionIndex } from "../board/move_position";
+import { normalizeForChessJs } from "../../../parts/pgnparser/src/pgn_headers";
 
 /**
  * Session Model module.
@@ -90,13 +91,13 @@ export const createGameSessionModel = ({
     let errorMessage: string = "";
     try {
       const parser: Chess = new Chess();
-      parser.loadPgn(normalizedPgnText);
+      parser.loadPgn(normalizeForChessJs(normalizedPgnText));
       moves = parser.history();
       verboseMoves = parser.history({ verbose: true });
     } catch {
       try {
         const parser: Chess = new Chess();
-        parser.loadPgn(stripAnnotationsForBoardParserFn(normalizedPgnText));
+        parser.loadPgn(normalizeForChessJs(stripAnnotationsForBoardParserFn(normalizedPgnText)));
         moves = parser.history();
         verboseMoves = parser.history({ verbose: true });
       } catch {

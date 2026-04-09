@@ -20,7 +20,7 @@
 
 import { createContext, useContext } from "react";
 import type { ReactNode, ReactElement } from "react";
-import type { PgnModel } from "../model/pgn_model";
+import type { PgnModel } from "../../../parts/pgnparser/src/pgn_model";
 import type { PlayerRecord } from "../app_shell/app_state";
 import type { PositionSearchHit, TextSearchHit } from "../../../parts/resource/src/client/search_coordinator";
 import type { MoveFrequencyEntry } from "../../../parts/resource/src/domain/move_frequency";

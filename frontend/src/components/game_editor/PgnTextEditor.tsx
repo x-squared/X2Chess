@@ -52,7 +52,7 @@ import {
   findCursorForMoveId,
   findMoveNode,
   findMoveSideById,
-} from "../../model/pgn_move_ops";
+} from "../../../../parts/pgnparser/src/pgn_move_ops";
 import { TruncationMenu } from "./TruncationMenu";
 import type { TruncationAction } from "./TruncationMenu";
 import { QaBadge, QaInsertDialog } from "../badges/QaBadge";
@@ -108,7 +108,7 @@ import type { ResolvedAnchor } from "../../editor/resolveAnchors";
 import { AnchorDefDialog } from "../anchors/AnchorDefDialog";
 import { AnchorPickerDialog } from "../anchors/AnchorPickerDialog";
 import { GUIDE_IDS } from "../../guide/guide_ids";
-import type { PgnModel } from "../../model/pgn_model";
+import type { PgnModel } from "../../../../parts/pgnparser/src/pgn_model";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -1101,8 +1101,8 @@ export const PgnTextEditor = (): ReactElement => {
       if (!pgnModel) return;
       const cursor = findCursorForMoveId(pgnModel, action.moveId);
       if (!cursor) return;
-      let newModel: import("../../model/pgn_model").PgnModel;
-      let newCursor: import("../../model/pgn_move_ops").PgnCursor | null;
+      let newModel: import("../../../../parts/pgnparser/src/pgn_model").PgnModel;
+      let newCursor: import("../../../../parts/pgnparser/src/pgn_move_ops").PgnCursor | null;
       switch (action.type) {
         case "delete_from_here":
           [newModel, newCursor] = truncateAfter(pgnModel, cursor);

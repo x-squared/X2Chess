@@ -22,7 +22,7 @@ import "./EditorStyleDialog.css";
 
 import { useState, useCallback } from "react";
 import type { ReactElement, ChangeEvent } from "react";
-import type { PgnModel } from "../../model/pgn_model";
+import type { PgnModel } from "../../../../parts/pgnparser/src/pgn_model";
 import type {
   EditorStylePrefs,
   EditorFontFamily,

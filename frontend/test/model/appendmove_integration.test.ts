@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Chess } from "chess.js";
-import { parsePgnToModel } from "../../src/model/pgn_model.js";
-import { appendMove } from "../../src/model/pgn_move_ops.js";
-import { serializeModelToPgn } from "../../src/model/pgn_serialize.js";
+import { parsePgnToModel } from "../../../parts/pgnparser/src/pgn_model.js";
+import { appendMove } from "../../../parts/pgnparser/src/pgn_move_ops.js";
+import { serializeModelToPgn } from "../../../parts/pgnparser/src/pgn_serialize.js";
 
 const newGamePgn = '[Event "?"]\n[Site "?"]\n[Date "2026.04.06"]\n[Round "?"]\n[White "?"]\n[Black "?"]\n[Result "*"]\n\n*';
 

@@ -10,7 +10,7 @@
  */
 
 import type { PlanState, PgnComment, PgnEntry, PgnModel, PgnMove, PgnVariation } from "./types";
-import { nagGlyph } from "../../model/nag_defs";
+import { nagGlyph } from "../../../../parts/pgnparser/src/nag_defs";
 import {
   addCommentToken,
   addInlineToken,

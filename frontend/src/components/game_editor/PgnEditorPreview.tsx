@@ -20,7 +20,7 @@ import type { ReactElement, CSSProperties } from "react";
 import { useMemo } from "react";
 import { buildTextEditorPlan } from "../../editor/text_editor_plan";
 import type { PlanBlock, PlanToken, InlineToken, CommentToken } from "../../editor/text_editor_plan";
-import type { PgnModel } from "../../model/pgn_model";
+import type { PgnModel } from "../../../../parts/pgnparser/src/pgn_model";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

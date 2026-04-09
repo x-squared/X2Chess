@@ -26,7 +26,7 @@ import type {
   ResultHighlight,
 } from "../domain/training_protocol";
 import type { TrainingTranscript } from "../domain/training_transcript";
-import { parsePgnToModel } from "../../model/pgn_model";
+import { parsePgnToModel } from "../../../../parts/pgnparser/src/pgn_model";
 
 // ── Options ───────────────────────────────────────────────────────────────────
 

@@ -40,7 +40,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { isTauriRuntime } from "../resources/tauri_gateways";
 import type { AppStartupServices } from "../state/ServiceContext";
 import type { AppAction } from "../state/actions";
-import type { PgnModel } from "../model/pgn_model";
+import type { PgnModel } from "../../../parts/pgnparser/src/pgn_model";
 import type { GameSessionState } from "../game_sessions/game_session_state";
 import type { PgnResourceRef } from "../../../parts/resource/src/domain/resource_ref";
 import type { PositionSearchHit, TextSearchHit } from "../../../parts/resource/src/client/search_coordinator";

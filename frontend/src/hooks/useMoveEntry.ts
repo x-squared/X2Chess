@@ -35,9 +35,9 @@ import {
   insertVariation,
   replaceMove,
   promoteToMainline,
-} from "../model/pgn_move_ops";
-import type { PgnModel } from "../model/pgn_model";
-import type { PgnCursor } from "../model/pgn_move_ops";
+} from "../../../parts/pgnparser/src/pgn_move_ops";
+import type { PgnModel } from "../../../parts/pgnparser/src/pgn_model";
+import type { PgnCursor } from "../../../parts/pgnparser/src/pgn_move_ops";
 import type { ForkChoice } from "../components/board/DisambiguationDialog";
 import type { PromotionPiece } from "../components/board/PromotionPicker";
 

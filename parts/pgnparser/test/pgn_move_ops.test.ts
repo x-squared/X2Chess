@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parsePgnToModel } from "../../src/model/pgn_model.js";
+import { parsePgnToModel } from "../src/pgn_model.js";
 import {
   appendMove,
   insertVariation,
@@ -10,9 +10,9 @@ import {
   deleteVariation,
   promoteToMainline,
   findCursorForMoveId,
-} from "../../src/model/pgn_move_ops.js";
-import type { PgnCursor } from "../../src/model/pgn_move_ops.js";
-import type { PgnMoveNode, PgnModel } from "../../src/model/pgn_model.js";
+} from "../src/pgn_move_ops.js";
+import type { PgnCursor } from "../src/pgn_move_ops.js";
+import type { PgnMoveNode, PgnModel } from "../src/pgn_model.js";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 

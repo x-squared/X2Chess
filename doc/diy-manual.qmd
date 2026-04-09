@@ -93,6 +93,74 @@ npm run desktop:dev
 > Tip: To open the AST panel: open the app sidebar, enable the **Developer Tools** checkbox, then click **Open Developer Dock**.
 > Tip: Use menu controls **Save mode** (`Autosave`/`Manual`) and **Save now** for the active game tab.
 
+**Dev-mode — all debug output** — pass `VITE_DEBUG_MODULES=*` before the npm script.  All modules emit
+`log.debug` lines.  This is the default behaviour when no filter is set, so this variant is mainly useful for
+overriding a narrower filter that was previously stored in localStorage.
+
+```{bash}
+cd frontend
+VITE_DEBUG_MODULES='*' npm run desktop:dev:isolated
+```
+
+**Dev-mode — one module only** — pass `VITE_DEBUG_MODULES=<moduleName>` to restrict debug output to a single
+JS module (use the exact string passed as the first argument to `log.debug` in that module).
+
+```{bash}
+cd frontend
+VITE_DEBUG_MODULES=move_position npm run desktop:dev:isolated
+```
+
+Multiple modules can be enabled by separating names with commas:
+`VITE_DEBUG_MODULES=useAppStartup,board`.
+
+> Tip: The filter can also be changed at runtime without restarting.  Open the WebKit inspector console
+> (Cmd+Option+I in `desktop:dev` builds) and call:
+>
+> ```javascript
+> // Enable all modules
+> setDebugModules("*")
+> // Enable one module
+> setDebugModules("useAppStartup")
+> // Clear the runtime override (reverts to the env-var value or the default)
+> setDebugModules(null)
+> ```
+>
+> The setting is persisted in localStorage and survives restarts.  `VITE_DEBUG_MODULES` (env var) is only read
+> when there is no localStorage override.
+
+#### Debugging with breakpoints
+
+Launch the app normally:
+
+```{bash}
+cd frontend
+npm run desktop:dev:isolated
+```
+
+Open the inspector with **Cmd+Option+I** (macOS) inside the running app window.
+
+**Setting breakpoints:**
+
+1. In the inspector, go to the **Sources** tab.
+2. Press **Cmd+P** to open the file picker and type the source file name (e.g. `pgn_runtime.ts`).  Vite serves original TypeScript source via source maps, so you can set breakpoints directly on `.ts` lines.
+3. Click the line number gutter to toggle a breakpoint.  An orange/blue marker confirms it is active.
+4. Trigger the code path in the app.  Execution pauses at the breakpoint; the **Scope** panel shows local variables and the **Call Stack** panel shows the full trace.
+
+**Catching early-initialization code (inspector open before JS runs):**
+
+Pass `X2CHESS_OPEN_DEVTOOLS=1` — the Rust setup hook opens the WebKit inspector automatically before the first JS instruction executes:
+
+```{bash}
+cd frontend
+X2CHESS_OPEN_DEVTOOLS=1 npm run desktop:dev:isolated
+```
+
+The inspector window appears alongside the app window at launch.  Set your breakpoints in the **Sources** tab immediately; then resume execution (▶) to let the app start.
+
+> Note: `X2CHESS_OPEN_DEVTOOLS` is only honoured in debug builds (`tauri dev`).  It has no effect in production builds.
+
+> Tip: For code paths that are easy to trigger interactively (not startup-only), the `debugger;` statement is simpler — add it to the source, save, let Vite HMR push the change, then trigger the code path with the inspector already open.
+
 #### Resetting isolated dev storage
 
 Delete the directory — the app recreates it with factory defaults on the next launch:
@@ -126,18 +194,38 @@ cd frontend
 npm run build
 ```
 
-### Run frontend unit tests
+## Testing
+
+### Run unit tests in a top-level directory
 
 ```{bash}
 cd frontend
 npm test
 ```
 
+### Run unit tests of a single file
+
+Run a single test by name (--test-name-pattern accepts a regex):
+
+```{bash}
+cd frontend
+node --test --import tsx --test-name-pattern "parses NAGs" "../parts/pgnparser/test/pgn_model.test.ts"
+```
+
+### Run unit tests with DEBUG output
+
+Run with debug output (prints data for every test that calls `debugTest`):
+
+```{bash}
+cd frontend
+DEBUG_TEST=1 node --test --import tsx --test-name-pattern "FEN.*3\." "../parts/pgnparser/test/pgn_model.test.ts"
+```
+
 ### Run regression tests (targeted)
 
 ```{bash}
 cd frontend
-node --test test/app_shell/dev_dock_regression.test.js
+node --test --import tsx test/app_shell/dev_dock_regression.test.ts
 ```
 
 ### Stop local dev services quickly

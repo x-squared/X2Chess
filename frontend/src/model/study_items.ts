@@ -8,7 +8,7 @@
  * - Pure functions; no I/O or side effects.
  */
 
-import type { PgnModel, PgnMoveNode, PgnEntryNode, PgnCommentNode } from "./pgn_model";
+import type { PgnModel, PgnMoveNode, PgnEntryNode, PgnCommentNode } from "../../../parts/pgnparser/src/pgn_model";
 import { parseQaAnnotations, hasQaAnnotations } from "../resources_viewer/qa_parser";
 import type { QaAnnotation } from "../resources_viewer/qa_parser";
 

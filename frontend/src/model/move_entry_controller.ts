@@ -14,8 +14,8 @@
  */
 
 import { Chess } from "chess.js";
-import type { PgnModel, PgnMoveNode, PgnVariationNode } from "./pgn_model";
-import type { PgnCursor } from "./pgn_move_ops";
+import type { PgnModel, PgnMoveNode, PgnVariationNode } from "../../../parts/pgnparser/src/pgn_model";
+import type { PgnCursor } from "../../../parts/pgnparser/src/pgn_move_ops";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 

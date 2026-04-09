@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parsePgnToModel, parseCommentRuns } from "../../src/model/pgn_model.js";
-import type { PgnMoveNode, PgnVariationNode } from "../../src/model/pgn_model.js";
+import { parsePgnToModel, parseCommentRuns } from "../src/pgn_model.js";
+import type { PgnMoveNode, PgnMoveNumberNode } from "../src/pgn_model.js";
+import { serializeModelToPgn } from "../src/pgn_serialize.js";
+import { debugTest } from "../../utils/debug.js";
 
 // ── parseCommentRuns ───────────────────────────────────────────────────────────
 
@@ -100,7 +102,7 @@ test("parsePgnToModel — move ids are stable and unique", () => {
 
 test("parsePgnToModel — parses comment after move", () => {
   const model = parsePgnToModel("1. e4 {good move} e5");
-  const e4 = model.root.entries.find(e => e.type === "move" && (e as PgnMoveNode).san === "e4") as PgnMoveNode;
+  const e4 = model.root.entries.find(e => e.type === "move" && e.san === "e4") as PgnMoveNode;
   assert.ok(e4);
   assert.equal(e4.commentsAfter.length, 1);
   assert.equal(e4.commentsAfter[0].raw, "good move");
@@ -108,16 +110,16 @@ test("parsePgnToModel — parses comment after move", () => {
 
 test("parsePgnToModel — multiple comments after a move attach to that move", () => {
   const model = parsePgnToModel("1. e4 {intro} {second} e5");
-  const e4 = model.root.entries.find(e => e.type === "move" && (e as PgnMoveNode).san === "e4") as PgnMoveNode;
+  const e4 = model.root.entries.find(e => e.type === "move" && e.san === "e4") as PgnMoveNode;
   assert.ok(e4.commentsAfter.length >= 1);
 });
 
 test("parsePgnToModel — parses variation", () => {
   const model = parsePgnToModel("1. e4 (1. d4 d5) e5");
-  const e4 = model.root.entries.find(e => e.type === "move" && (e as PgnMoveNode).san === "e4") as PgnMoveNode;
+  const e4 = model.root.entries.find(e => e.type === "move" && e.san === "e4") as PgnMoveNode;
   assert.ok(e4);
   assert.equal(e4.ravs.length, 1);
-  const rav = e4.ravs[0] as PgnVariationNode;
+  const rav = e4.ravs[0];
   assert.equal(rav.type, "variation");
   assert.equal(rav.depth, 1);
   const ravMoves = rav.entries.filter(e => e.type === "move") as PgnMoveNode[];
@@ -157,7 +159,7 @@ test("parsePgnToModel — nested variations increment depth", () => {
 
 test("parsePgnToModel — postItems preserves comment+rav order", () => {
   const model = parsePgnToModel("1. e4 {after e4} (1. d4) e5");
-  const e4 = model.root.entries.find(e => e.type === "move" && (e as PgnMoveNode).san === "e4") as PgnMoveNode;
+  const e4 = model.root.entries.find(e => e.type === "move" && e.san === "e4") as PgnMoveNode;
   assert.equal(e4.postItems[0].type, "comment");
   assert.equal(e4.postItems[1].type, "rav");
 });
@@ -170,10 +172,67 @@ test("parsePgnToModel — escape sequences decoded in comments", () => {
 
 test("parsePgnToModel — comment after last move in rav goes to commentsAfter", () => {
   const model = parsePgnToModel("1. e4 e5 (1... c5 {trailing})");
-  const e5 = model.root.entries.find(e => e.type === "move" && (e as PgnMoveNode).san === "e5") as PgnMoveNode;
+  debugTest("comment after last move in rav", model, serializeModelToPgn);
+  const e5 = model.root.entries.find(e => e.type === "move" && e.san === "e5") as PgnMoveNode;
   const rav = e5.ravs[0];
   assert.ok(rav, "e5 should have a RAV");
   const c5 = rav.entries.find(e => e.type === "move") as PgnMoveNode;
   assert.equal(c5.commentsAfter.length, 1);
   assert.equal(c5.commentsAfter[0].raw, "trailing");
+});
+
+// FEN: starting position, white to move, move 1
+const FEN_STARTING = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+test("parsePgnToModel — parse model with initial FEN position where the first move starts with 1. (followed by move by white)", () => {
+  const pgn = `[FEN "${FEN_STARTING}"]\n\n1. e4 e5`;
+  const model = parsePgnToModel(pgn);
+  debugTest("FEN 1. white", model, serializeModelToPgn);
+  assert.ok(model.headers.find(h => h.key === "FEN" && h.value === FEN_STARTING));
+  const firstToken = model.root.entries.find(e => e.type === "move_number") as PgnMoveNumberNode;
+  assert.equal(firstToken.text, "1.");
+  const moves = model.root.entries.filter(e => e.type === "move") as PgnMoveNode[];
+  assert.deepEqual(moves.map(m => m.san), ["e4", "e5"]);
+});
+
+// FEN: after 1.e4, black to move, move 1
+const FEN_AFTER_E4 = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
+
+test("parsePgnToModel — parse model with initial FEN position where the first move starts with 1. (followed by move by black)", () => {
+  const pgn = `[FEN "${FEN_AFTER_E4}"]\n\n1... e5`;
+  const model = parsePgnToModel(pgn);
+  debugTest("FEN 1... black", model, serializeModelToPgn);
+  assert.ok(model.headers.find(h => h.key === "FEN" && h.value === FEN_AFTER_E4));
+  const firstToken = model.root.entries.find(e => e.type === "move_number") as PgnMoveNumberNode;
+  assert.equal(firstToken.text, "1...");
+  const moves = model.root.entries.filter(e => e.type === "move") as PgnMoveNode[];
+  assert.deepEqual(moves.map(m => m.san), ["e5"]);
+});
+
+// FEN: after 1.e4 e5 2.Nf3 Nc6, white to move, move 3
+const FEN_MOVE3_WHITE = "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3";
+
+test("parsePgnToModel — parse model with initial FEN position where the first move starts with 3. (followed by move by white)", () => {
+  const pgn = `[FEN "${FEN_MOVE3_WHITE}"]\n\n3. Bc4 Bc5`;
+  const model = parsePgnToModel(pgn);
+  debugTest("FEN 3. white", model, serializeModelToPgn);
+  assert.ok(model.headers.find(h => h.key === "FEN" && h.value === FEN_MOVE3_WHITE));
+  const firstToken = model.root.entries.find(e => e.type === "move_number") as PgnMoveNumberNode;
+  assert.equal(firstToken.text, "3.");
+  const moves = model.root.entries.filter(e => e.type === "move") as PgnMoveNode[];
+  assert.deepEqual(moves.map(m => m.san), ["Bc4", "Bc5"]);
+});
+
+// FEN: after 1.e4 e5 2.Nf3 Nc6 3.Bc4, black to move, move 3
+const FEN_MOVE3_BLACK = "r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R b KQkq - 3 3";
+
+test("parsePgnToModel — parse model with initial FEN position where the first move starts with 3. (followed by move by black)", () => {
+  const pgn = `[FEN "${FEN_MOVE3_BLACK}"]\n\n3... Bc5`;
+  const model = parsePgnToModel(pgn);
+  debugTest("FEN 3... black", model, serializeModelToPgn);
+  assert.ok(model.headers.find(h => h.key === "FEN" && h.value === FEN_MOVE3_BLACK));
+  const firstToken = model.root.entries.find(e => e.type === "move_number") as PgnMoveNumberNode;
+  assert.equal(firstToken.text, "3...");
+  const moves = model.root.entries.filter(e => e.type === "move") as PgnMoveNode[];
+  assert.deepEqual(moves.map(m => m.san), ["Bc5"]);
 });

@@ -15,7 +15,7 @@
  * - State is updated exclusively via `dispatch(action)` — never mutated directly.
  */
 
-import type { PgnModel } from "../model/pgn_model";
+import type { PgnModel } from "../../../parts/pgnparser/src/pgn_model";
 import type { AppAction } from "./actions";
 import { DEFAULT_SHAPE_PREFS } from "../runtime/shape_prefs";
 import type { ShapePrefs } from "../runtime/shape_prefs";

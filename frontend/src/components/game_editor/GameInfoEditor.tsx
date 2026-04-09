@@ -30,7 +30,7 @@ import { selectIsGameInfoEditorOpen, selectPgnModel, selectBoardFlipped } from "
 import { useServiceContext } from "../../state/ServiceContext";
 import { useTranslator } from "../../hooks/useTranslator";
 import { PlayerAutocomplete } from "./PlayerAutocomplete";
-import type { PgnModel } from "../../model/pgn_model";
+import type { PgnModel } from "../../../../parts/pgnparser/src/pgn_model";
 import { GUIDE_IDS } from "../../guide/guide_ids";
 
 // ── Summary helpers ────────────────────────────────────────────────────────────

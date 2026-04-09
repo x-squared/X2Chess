@@ -64,7 +64,7 @@ import { useMoveEntry } from "../../hooks/useMoveEntry";
 import { useWebImport } from "../../hooks/useWebImport";
 import { WebImportBrowserPanel } from "../web_import/WebImportBrowserPanel";
 import { collectStudyItems } from "../../model/study_items";
-import { getHeaderValue } from "../../model/pgn_headers";
+import { getHeaderValue } from "../../../../parts/pgnparser/src/pgn_headers";
 import { STANDARD_STARTING_FEN } from "../../editor/fen_utils";
 import { ServiceContextProvider } from "../../state/ServiceContext";
 import type { AppStartupServices } from "../../state/ServiceContext";

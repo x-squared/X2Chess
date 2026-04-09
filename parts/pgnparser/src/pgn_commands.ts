@@ -16,47 +16,16 @@
  */
 
 import { parseCommentRuns } from "./pgn_model";
+import type { PgnModel, PgnMoveNode, PgnVariationNode, PgnCommentNode, PgnEntryNode, PgnPostItem } from "./pgn_model";
 import { siblingCodesInGroup } from "./nag_defs";
 
-type PgnComment = {
-  id: string;
-  type: "comment";
-  raw: string;
-  runs: unknown[];
-};
-
-type PgnVariation = {
-  type?: "variation";
-  entries: PgnEntry[];
-  trailingComments?: PgnComment[];
-};
-
-type PgnPostItem =
-  | { type: "comment"; comment?: PgnComment }
-  | { type: "rav"; rav?: PgnVariation };
-
-type PgnMove = {
-  type: "move";
-  id: string;
-  nags: string[];
-  commentsBefore: PgnComment[];
-  commentsAfter: PgnComment[];
-  ravs: PgnVariation[];
-  postItems?: PgnPostItem[];
-};
-
-type PgnEntry = PgnComment | PgnMove | PgnVariation | { type: "move_number" };
-
-type PgnModel = {
-  root?: PgnVariation;
-};
 
 const cloneModel = <T>(model: T): T => JSON.parse(JSON.stringify(model)) as T;
 
 const visitVariation = (
-  variation: PgnVariation,
-  visitMove: (move: PgnMove) => void,
-  visitComment: (comment: PgnComment) => void,
+  variation: PgnVariationNode,
+  visitMove: (move: PgnMoveNode) => void,
+  visitComment: (comment: PgnCommentNode) => void,
 ): void => {
   for (const entry of variation.entries) {
     if (entry.type === "comment") {
@@ -65,21 +34,21 @@ const visitVariation = (
     }
     if (entry.type === "move") {
       visitMove(entry);
-      entry.commentsBefore.forEach((comment: PgnComment): void => visitComment(comment));
-      entry.commentsAfter.forEach((comment: PgnComment): void => visitComment(comment));
+      entry.commentsBefore.forEach((comment: PgnCommentNode): void => visitComment(comment));
+      entry.commentsAfter.forEach((comment: PgnCommentNode): void => visitComment(comment));
       if (Array.isArray(entry.postItems)) {
         entry.postItems.forEach((item: PgnPostItem): void => {
           if (item.type === "comment" && item.comment) visitComment(item.comment);
           if (item.type === "rav" && item.rav) visitVariation(item.rav, visitMove, visitComment);
         });
       } else {
-        entry.ravs.forEach((child: PgnVariation): void => visitVariation(child, visitMove, visitComment));
+        entry.ravs.forEach((child: PgnVariationNode): void => visitVariation(child, visitMove, visitComment));
       }
     } else if (entry.type === "variation") {
       visitVariation(entry, visitMove, visitComment);
     }
   }
-  (Array.isArray(variation.trailingComments) ? variation.trailingComments : []).forEach((comment: PgnComment): void => visitComment(comment));
+  (Array.isArray(variation.trailingComments) ? variation.trailingComments : []).forEach((comment: PgnCommentNode): void => visitComment(comment));
 };
 
 /** Return the raw text of the comment with the given ID, or null if not found. */
@@ -90,7 +59,7 @@ export const getCommentRawById = (model: unknown, commentId: string): string | n
   visitVariation(
     typedModel.root,
     (): void => {},
-    (comment: PgnComment): void => {
+    (comment: PgnCommentNode): void => {
       if (comment.id === commentId) found = comment.raw;
     },
   );
@@ -104,7 +73,7 @@ export const setCommentTextById = (model: unknown, commentId: string, rawText: s
   visitVariation(
     next.root,
     (): void => {},
-    (comment: PgnComment): void => {
+    (comment: PgnCommentNode): void => {
       if (comment.id !== commentId) return;
       comment.raw = rawText;
       comment.runs = parseCommentRuns(rawText);
@@ -113,16 +82,16 @@ export const setCommentTextById = (model: unknown, commentId: string, rawText: s
   return next;
 };
 
-const removeCommentInVariation = (variation: PgnVariation, commentId: string): boolean => {
+const removeCommentInVariation = (variation: PgnVariationNode, commentId: string): boolean => {
   let removed = false;
-  variation.entries = variation.entries.filter((entry: PgnEntry): boolean => {
+  variation.entries = variation.entries.filter((entry: PgnEntryNode): boolean => {
     if (entry.type === "comment" && entry.id === commentId) {
       removed = true;
       return false;
     }
     return true;
   });
-  variation.trailingComments = (Array.isArray(variation.trailingComments) ? variation.trailingComments : []).filter((comment: PgnComment): boolean => {
+  variation.trailingComments = (Array.isArray(variation.trailingComments) ? variation.trailingComments : []).filter((comment: PgnCommentNode): boolean => {
     if (comment.id === commentId) {
       removed = true;
       return false;
@@ -130,7 +99,7 @@ const removeCommentInVariation = (variation: PgnVariation, commentId: string): b
     return true;
   });
 
-  variation.entries.forEach((entry: PgnEntry): void => {
+  variation.entries.forEach((entry: PgnEntryNode): void => {
     if (entry.type === "variation") {
       if (removeCommentInVariation(entry, commentId)) removed = true;
       return;
@@ -138,11 +107,11 @@ const removeCommentInVariation = (variation: PgnVariation, commentId: string): b
     if (entry.type !== "move") return;
 
     const beforeLen = entry.commentsBefore.length;
-    entry.commentsBefore = entry.commentsBefore.filter((comment: PgnComment): boolean => comment.id !== commentId);
+    entry.commentsBefore = entry.commentsBefore.filter((comment: PgnCommentNode): boolean => comment.id !== commentId);
     if (entry.commentsBefore.length !== beforeLen) removed = true;
 
     const afterLen = entry.commentsAfter.length;
-    entry.commentsAfter = entry.commentsAfter.filter((comment: PgnComment): boolean => comment.id !== commentId);
+    entry.commentsAfter = entry.commentsAfter.filter((comment: PgnCommentNode): boolean => comment.id !== commentId);
     if (entry.commentsAfter.length !== afterLen) removed = true;
 
     if (Array.isArray(entry.postItems)) {
@@ -155,7 +124,7 @@ const removeCommentInVariation = (variation: PgnVariation, commentId: string): b
         }
       });
     } else {
-      entry.ravs.forEach((child: PgnVariation): void => {
+      entry.ravs.forEach((child: PgnVariationNode): void => {
         if (removeCommentInVariation(child, commentId)) removed = true;
       });
     }
@@ -177,7 +146,7 @@ const getNextCommentId = (model: PgnModel): string => {
   visitVariation(
     model.root,
     (): void => {},
-    (comment: PgnComment): void => {
+    (comment: PgnCommentNode): void => {
       const match = String(comment.id || "").match(/^comment_(\d+)$/);
       if (!match) return;
       const numeric = Number(match[1]);
@@ -187,7 +156,7 @@ const getNextCommentId = (model: PgnModel): string => {
   return `comment_${maxId + 1}`;
 };
 
-const makeComment = (id: string, raw: string = ""): PgnComment => ({
+const makeComment = (id: string, raw: string = ""): PgnCommentNode => ({
   id,
   type: "comment",
   raw,
@@ -211,7 +180,7 @@ const withLeadingIntroDirective = (rawText: string): string => {
   return stripped ? `\\intro ${stripped}` : "\\intro";
 };
 
-const findFirstCommentInVariation = (variation: PgnVariation): PgnComment | null => {
+const findFirstCommentInVariation = (variation: PgnVariationNode): PgnCommentNode | null => {
   for (const entry of variation.entries) {
     if (entry.type === "comment") return entry;
     if (entry.type === "variation") {
@@ -299,7 +268,7 @@ export const toggleFirstCommentIntroRole = (model: unknown): PgnModel => {
   return setFirstCommentIntroRole(model, !meta.isIntro);
 };
 
-const findNextMoveIdInEntries = (entries: PgnEntry[], startIdx: number): string | null => {
+const findNextMoveIdInEntries = (entries: PgnEntryNode[], startIdx: number): string | null => {
   for (let i = startIdx; i < entries.length; i += 1) {
     const candidate = entries[i];
     if (candidate?.type === "move" && candidate.id) return candidate.id;
@@ -307,7 +276,7 @@ const findNextMoveIdInEntries = (entries: PgnEntry[], startIdx: number): string 
   return null;
 };
 
-const resolveOwningMoveIdInVariation = (variation: PgnVariation, commentId: string, previousMoveId: string | null = null): string | null => {
+const resolveOwningMoveIdInVariation = (variation: PgnVariationNode, commentId: string, previousMoveId: string | null = null): string | null => {
   let localPreviousMoveId = previousMoveId;
   for (let idx = 0; idx < variation.entries.length; idx += 1) {
     const entry = variation.entries[idx];
@@ -323,10 +292,10 @@ const resolveOwningMoveIdInVariation = (variation: PgnVariation, commentId: stri
       continue;
     }
     if (entry.type !== "move") continue;
-    if (Array.isArray(entry.commentsBefore) && entry.commentsBefore.some((comment: PgnComment): boolean => comment.id === commentId)) {
+    if (Array.isArray(entry.commentsBefore) && entry.commentsBefore.some((comment: PgnCommentNode): boolean => comment.id === commentId)) {
       return entry.id || null;
     }
-    if (Array.isArray(entry.commentsAfter) && entry.commentsAfter.some((comment: PgnComment): boolean => comment.id === commentId)) {
+    if (Array.isArray(entry.commentsAfter) && entry.commentsAfter.some((comment: PgnCommentNode): boolean => comment.id === commentId)) {
       return entry.id || null;
     }
     if (Array.isArray(entry.postItems)) {
@@ -349,7 +318,7 @@ const resolveOwningMoveIdInVariation = (variation: PgnVariation, commentId: stri
     }
     localPreviousMoveId = entry.id || localPreviousMoveId;
   }
-  if (Array.isArray(variation.trailingComments) && variation.trailingComments.some((comment: PgnComment): boolean => comment.id === commentId)) {
+  if (Array.isArray(variation.trailingComments) && variation.trailingComments.some((comment: PgnCommentNode): boolean => comment.id === commentId)) {
     return localPreviousMoveId || null;
   }
   return null;
@@ -374,7 +343,7 @@ export const resolveOwningMoveIdForCommentId = (model: unknown, commentId: strin
   return resolveOwningMoveIdInVariation(typedModel.root, commentId, null);
 };
 
-const getNearestAfterComment = (move: PgnMove): PgnComment | null => {
+const getNearestAfterComment = (move: PgnMoveNode): PgnCommentNode | null => {
   if (!Array.isArray(move?.postItems)) return null;
   for (const item of move.postItems) {
     if (item.type === "rav") break;
@@ -383,7 +352,7 @@ const getNearestAfterComment = (move: PgnMove): PgnComment | null => {
   return null;
 };
 
-const findExistingAroundMoveInVariation = (variation: PgnVariation, moveId: string, position: "before" | "after"): PgnComment | null => {
+const findExistingAroundMoveInVariation = (variation: PgnVariationNode, moveId: string, position: "before" | "after"): PgnCommentNode | null => {
   for (let idx = 0; idx < variation.entries.length; idx += 1) {
     const entry = variation.entries[idx];
     if (entry.type === "variation") {
@@ -402,7 +371,7 @@ const findExistingAroundMoveInVariation = (variation: PgnVariation, moveId: stri
           insertIdx -= 1;
         }
         if (insertIdx > 0 && variation.entries[insertIdx - 1]?.type === "comment") {
-          return variation.entries[insertIdx - 1] as PgnComment;
+          return variation.entries[insertIdx - 1] as PgnCommentNode;
         }
         return null;
       }
@@ -437,14 +406,14 @@ export const findExistingCommentIdAroundMove = (model: unknown, moveId: string, 
   return existing?.id ?? null;
 };
 
-const normalizeMovePostItems = (move: PgnMove): void => {
+const normalizeMovePostItems = (move: PgnMoveNode): void => {
   if (Array.isArray(move.postItems) && move.postItems.length > 0) return;
   move.postItems = [];
   if (Array.isArray(move.commentsAfter)) {
-    move.commentsAfter.forEach((comment: PgnComment): void => { move.postItems!.push({ type: "comment", comment }); });
+    move.commentsAfter.forEach((comment: PgnCommentNode): void => { move.postItems?.push({ type: "comment", comment }); });
   }
   if (Array.isArray(move.ravs)) {
-    move.ravs.forEach((rav: PgnVariation): void => { move.postItems!.push({ type: "rav", rav }); });
+    move.ravs.forEach((rav: PgnVariationNode): void => { move.postItems?.push({ type: "rav", rav }); });
   }
 };
 
@@ -456,16 +425,16 @@ export const applyDefaultIndentDirectives = (model: unknown): PgnModel => {
   visitVariation(
     next.root,
     (): void => {},
-    (comment: PgnComment): void => {
+    (comment: PgnCommentNode): void => {
       const match = String(comment.id || "").match(/^comment_(\d+)$/);
       if (!match) return;
       const numeric = Number(match[1]);
       if (Number.isFinite(numeric)) maxId = Math.max(maxId, numeric);
     },
   );
-  const createIndentComment = (): PgnComment => makeComment(`comment_${++maxId}`, "\\i");
+  const createIndentComment = (): PgnCommentNode => makeComment(`comment_${++maxId}`, "\\i");
 
-  const walkVariation = (variation: PgnVariation): void => {
+  const walkVariation = (variation: PgnVariationNode): void => {
     for (let idx = 0; idx < variation.entries.length; idx += 1) {
       const entry = variation.entries[idx];
       if (entry.type === "variation") {
@@ -532,7 +501,7 @@ export const applyDefaultLayout = (
   visitVariation(
     next.root,
     (): void => {},
-    (comment: PgnComment): void => {
+    (comment: PgnCommentNode): void => {
       const match = String(comment.id || "").match(/^comment_(\d+)$/);
       if (!match) return;
       const numeric = Number(match[1]);
@@ -544,13 +513,13 @@ export const applyDefaultLayout = (
   let introCommentId: string | null = findFirstCommentInVariation(next.root)?.id ?? null;
   if (prefs.addIntroIfMissing && !introCommentId) {
     const introComment = makeComment(`comment_${++maxId}`, prefs.introText);
-    (next.root.entries as PgnEntry[]).unshift(introComment as PgnEntry);
+    next.root.entries.unshift(introComment);
     introCommentId = introComment.id;
   }
 
   // Step 2: Optionally prepend [[br]] to main-line comments (skip the intro).
   if (prefs.addBrToMainLineComments) {
-    const addBr = (comment: PgnComment): void => {
+    const addBr = (comment: PgnCommentNode): void => {
       if (comment.id === introCommentId) return;
       if (comment.raw.startsWith("[[br]]")) return;
       comment.raw = `[[br]]${comment.raw}`;
@@ -579,7 +548,7 @@ export const applyDefaultLayout = (
   return next;
 };
 
-const insertAroundMoveInVariation = (variation: PgnVariation, moveId: string, position: "before" | "after", comment: PgnComment): boolean => {
+const insertAroundMoveInVariation = (variation: PgnVariationNode, moveId: string, position: "before" | "after", comment: PgnCommentNode): boolean => {
   for (let idx = 0; idx < variation.entries.length; idx += 1) {
     const entry = variation.entries[idx];
     if (entry.type === "variation") {
@@ -675,7 +644,7 @@ export const toggleMoveNag = (
   let found = false;
   visitVariation(
     next.root,
-    (move: PgnMove): void => {
+    (move: PgnMoveNode): void => {
       if (move.id !== moveId) return;
       found = true;
       const nags: string[] = move.nags;

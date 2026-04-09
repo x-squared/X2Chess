@@ -87,7 +87,8 @@ export const createBoardNavigationCapabilities = ({
 
     const isStalemateNow = (() => {
       try {
-        const game = new Chess();
+        const startFen = g.pgnModel?.headers?.find((h) => h.key === "FEN")?.value?.trim();
+        const game = startFen ? new Chess(startFen) : new Chess();
         for (let i = 0; i < plyAfterStep; i += 1) {
           game.move(g.moves[i]);
         }

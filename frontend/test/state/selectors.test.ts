@@ -40,7 +40,7 @@ import {
   selectBoardPreview,
   selectAnnotationShapes,
 } from "../../src/state/selectors.js";
-import { parsePgnToModel } from "../../src/model/pgn_model.js";
+import { parsePgnToModel } from "../../../parts/pgnparser/src/pgn_model.js";
 
 const s = initialAppStoreState;
 

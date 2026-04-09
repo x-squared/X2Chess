@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parsePgnToModel } from "../../src/model/pgn_model.js";
-import type { PgnMoveNode } from "../../src/model/pgn_model.js";
+import { parsePgnToModel } from "../src/pgn_model.js";
+import type { PgnMoveNode } from "../src/pgn_model.js";
 import {
   setCommentTextById,
   removeCommentById,
@@ -12,7 +12,7 @@ import {
   findExistingCommentIdAroundMove,
   insertCommentAroundMove,
   toggleMoveNag,
-} from "../../src/model/pgn_commands.js";
+} from "../src/pgn_commands.js";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 

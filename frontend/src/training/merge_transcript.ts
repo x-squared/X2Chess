@@ -9,9 +9,9 @@
  * - Pure functions; no side effects.
  */
 
-import type { PgnModel, PgnEntryNode, PgnMoveNode } from "../model/pgn_model";
-import { insertCommentAroundMove } from "../model/pgn_commands";
-import { serializeModelToPgn } from "../model/pgn_serialize";
+import type { PgnModel, PgnEntryNode, PgnMoveNode } from "../../../parts/pgnparser/src/pgn_model";
+import { insertCommentAroundMove } from "../../../parts/pgnparser/src/pgn_commands";
+import { serializeModelToPgn } from "../../../parts/pgnparser/src/pgn_serialize";
 import type { MergeSelection } from "./domain/training_transcript";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

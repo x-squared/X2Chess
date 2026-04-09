@@ -55,7 +55,7 @@ import {
 import { setResourceLoaderService } from "../services/resource_loader";
 import type { AppAction } from "../state/actions";
 import type { AppStoreState, SessionItemState, ResourceTabSnapshot } from "../state/app_reducer";
-import type { PgnModel } from "../model/pgn_model";
+import type { PgnModel } from "../../../parts/pgnparser/src/pgn_model";
 import type { Dispatch } from "react";
 import type { MovePositionRecord } from "../board/move_position";
 
@@ -270,6 +270,30 @@ export function createAppServicesBundle(
   };
 
   // ── PGN runtime ──────────────────────────────────────────────────────────
+  //
+  // The *runtime capability model*: `createPgnRuntimeCapabilities` is a pure-logic
+  // factory — it has no access to React, the DOM, or any concrete I/O.  It returns
+  // a bundle of operations (`applyPgnModelUpdate`, `loadPgn`, `syncChessParseState`,
+  // `initializeWithDefaultPgn`) that share state exclusively through `activeSessionRef`
+  // and the injected dependency callbacks below.  There is no class, no `this`, and
+  // no global state: the only "instance" is the closure formed by this call.
+  //
+  // *Registering a method* (e.g. `buildMovePositionByIdFn`, `parsePgnToModelFn`):
+  // Each `…Fn` parameter is a capability slot — a single concrete implementation
+  // wired in here and called by the runtime whenever the corresponding operation is
+  // needed.  Registering `buildMovePositionByIdFn: buildMovePositionById` means that
+  // every time the runtime re-parses PGN (inside `syncChessParseState`), it invokes
+  // `buildMovePositionById` to do a full depth-first walk of the PGN tree and write
+  // a fresh `MovePositionIndex` to `activeSessionRef.current.movePositionById`.
+  // Swapping the registered function entirely replaces the indexing strategy without
+  // touching the runtime module.  The thin wrapper around `buildMovePositionById`
+  // exists only to satisfy the runtime's `unknown`-typed boundary while the call
+  // site holds the concrete `PgnModelForMoves` type.
+  //
+  // *Callback slots* (`onPgnChange`, `onNavigationChange`, `onRecordHistory`, …)
+  // are the outbound half of the same pattern: the runtime calls them to report state
+  // changes and the host (this file) wires them to React dispatch.  The runtime never
+  // imports React; the host never re-implements parsing logic.
   const pgnRuntime: PgnRuntime = createPgnRuntimeCapabilities({
     sessionRef: activeSessionRef,
     pgnInput: null,

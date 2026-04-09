@@ -24,7 +24,7 @@
  */
 
 import { Chess } from "chess.js";
-import type { PgnMoveNode, PgnVariationNode, PgnCommentNode } from "../../model/pgn_model";
+import type { PgnMoveNode, PgnVariationNode, PgnCommentNode } from "../../../../parts/pgnparser/src/pgn_model";
 import type { UserMoveInput, MoveEvalResult } from "./training_protocol";
 import { parseTrainTag } from "./train_tag_parser";
 

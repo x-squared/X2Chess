@@ -42,6 +42,7 @@ import {
   selectMoveDelayMs,
   selectMoves,
   selectAnnotationShapes,
+  selectStartingFen,
 } from "../../state/selectors";
 import type { BoardKey, BoardShape, ShapeColor, ShapePresets } from "../../board/board_shapes";
 import { isBoardKey, DEFAULT_PRESETS } from "../../board/board_shapes";
@@ -102,8 +103,8 @@ export type ChessBoardProps = {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Reconstruct a Chess position by replaying `ply` moves from the SAN list. */
-const buildGameAtPly = (ply: number, sanMoves: string[]): Chess => {
-  const game: Chess = new Chess();
+const buildGameAtPly = (ply: number, sanMoves: string[], startFen?: string): Chess => {
+  const game: Chess = startFen ? new Chess(startFen) : new Chess();
   const limit: number = Math.min(ply, sanMoves.length);
   for (let i: number = 0; i < limit; i += 1) {
     game.move(sanMoves[i]);
@@ -187,6 +188,7 @@ export const ChessBoard = ({
   const boardPreview: { fen: string; lastMove?: [string, string] | null } | null =
     selectBoardPreview(state);
   const annotationShapes: BoardShape[] = selectAnnotationShapes(state);
+  const startingFen: string = selectStartingFen(state);
 
   const boardElRef = useRef<HTMLDivElement>(null);
   const cgRef = useRef<ChessgroundApi | null>(null);
@@ -324,7 +326,7 @@ export const ChessBoard = ({
       return;
     }
 
-    const game: Chess = buildGameAtPly(currentPly, moves);
+    const game: Chess = buildGameAtPly(currentPly, moves, startingFen || undefined);
     const fen: string = game.fen();
     const lastMove: KeyPair | undefined = computeLastMove(game, currentPly);
     const isInteractive: boolean = Boolean(onMovePlayedRef.current);
@@ -389,7 +391,7 @@ export const ChessBoard = ({
             try { g.load(boardPreview.fen); } catch { /* fall through */ }
             return g;
           })()
-        : buildGameAtPly(currentPly, moves);
+        : buildGameAtPly(currentPly, moves, startingFen || undefined);
       return computeMoveHints(game, hoveredSquare);
     })();
 

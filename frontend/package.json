@@ -7,7 +7,7 @@
     "dev": "vite --port 5287 --strictPort",
     "build": "tsc -p tsconfig.json --noEmit && vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --test --import tsx \"test/**/*.test.ts\"",
+    "test": "node --test --import tsx \"test/**/*.test.ts\" \"../parts/pgnparser/test/**/*.test.ts\" \"../parts/boards/test/**/*.test.ts\" \"../parts/engines/test/**/*.test.ts\" \"../parts/resource/test/**/*.test.ts\"",
     "preview": "vite preview --port 5287 --strictPort",
     "desktop:dev": "tauri dev",
     "desktop:dev:isolated": "X2CHESS_WEBVIEW_DATA=../../run/DEV/webview-data tauri dev",

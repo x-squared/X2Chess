@@ -23,7 +23,7 @@ import {
   useCallback,
   type ReactElement,
 } from "react";
-import type { PgnModel } from "../../model/pgn_model";
+import type { PgnModel } from "../../../../parts/pgnparser/src/pgn_model";
 import type { AnnotateOptions, AnnotatePhase, AnnotationProgress } from "../../hooks/useGameAnnotation";
 
 type AnnotateGameDialogProps = {

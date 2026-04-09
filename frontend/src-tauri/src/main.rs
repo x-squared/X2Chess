@@ -691,7 +691,13 @@ fn main() {
         }
       }
 
-      builder.build()?;
+      let window = builder.build()?;
+      // Open the WebKit inspector before any JS runs when X2CHESS_OPEN_DEVTOOLS is set.
+      // Only active in debug builds.
+      #[cfg(debug_assertions)]
+      if env::var("X2CHESS_OPEN_DEVTOOLS").is_ok() {
+        window.open_devtools();
+      }
       Ok(())
     })
     .invoke_handler(tauri::generate_handler![

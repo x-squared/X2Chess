@@ -11,7 +11,7 @@
  * - Each action variant is dispatched via `dispatch(action)` from `useAppContext()`.
  */
 
-import type { PgnModel } from "../model/pgn_model";
+import type { PgnModel } from "../../../parts/pgnparser/src/pgn_model";
 import type { SessionItemState, ResourceTabSnapshot } from "./app_reducer";
 import type { ShapePrefs } from "../runtime/shape_prefs";
 import type { EditorStylePrefs } from "../runtime/editor_style_prefs";

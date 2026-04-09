@@ -22,8 +22,8 @@ import { useState, useCallback, useMemo } from "react";
 import type { ReactElement, ChangeEvent } from "react";
 import type { DefaultLayoutPrefs } from "../../runtime/default_layout_prefs";
 import { DEFAULT_DEFAULT_LAYOUT_PREFS } from "../../runtime/default_layout_prefs";
-import { parsePgnToModel } from "../../model/pgn_model";
-import type { PgnModel } from "../../model/pgn_model";
+import { parsePgnToModel } from "../../../../parts/pgnparser/src/pgn_model";
+import type { PgnModel } from "../../../../parts/pgnparser/src/pgn_model";
 import { applyDefaultLayout } from "../../model";
 import { PgnEditorPreview } from "../game_editor/PgnEditorPreview";
 

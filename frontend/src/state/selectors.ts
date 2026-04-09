@@ -12,9 +12,9 @@
  * - Selectors are read-only projections; they never mutate state or dispatch actions.
  */
 
-import type { PgnModel } from "../model/pgn_model";
+import type { PgnModel } from "../../../parts/pgnparser/src/pgn_model";
 import type { AppStoreState, ResourceTabSnapshot, SessionItemState } from "./app_reducer";
-import { findMoveNode } from "../model/pgn_move_ops";
+import { findMoveNode } from "../../../parts/pgnparser/src/pgn_move_ops";
 import { parseShapes } from "../board/shape_parser";
 import type { BoardShape } from "../board/board_shapes";
 import type { ShapePrefs } from "../runtime/shape_prefs";
@@ -66,6 +66,17 @@ export const selectIsGameInfoEditorOpen = (state: AppStoreState): boolean =>
   state.isGameInfoEditorOpen;
 export const selectUndoDepth = (state: AppStoreState): number => state.undoDepth;
 export const selectRedoDepth = (state: AppStoreState): number => state.redoDepth;
+
+/**
+ * Derive the starting FEN for the active game from its PGN headers.
+ *
+ * Returns the value of the `FEN` header when present and non-empty, which
+ * indicates the game begins from a custom position.  Falls back to an empty
+ * string (callers treat empty as standard initial position) when no FEN header
+ * is present.  `SetUp` is intentionally not checked — see `PgnModelForMoves`.
+ */
+export const selectStartingFen = (state: AppStoreState): string =>
+  state.pgnModel?.headers?.find((h) => h.key === "FEN")?.value?.trim() ?? "";
 
 // ── Board shapes (annotation-derived) ────────────────────────────────────────
 /**

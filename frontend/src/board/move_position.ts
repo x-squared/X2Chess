@@ -1,4 +1,10 @@
 import { Chess, type Move } from "chess.js";
+import type {
+  PgnVariationNode,
+  PgnEntryNode,
+  PgnMoveNode,
+} from "../../../parts/pgnparser/src/pgn_model";
+import { log } from "../logger";
 
 /**
  * Board move-position resolver helpers.
@@ -16,87 +22,126 @@ import { Chess, type Move } from "chess.js";
  * - `replayPvToPosition(startFen, pvSans, upToIndex)`
  */
 
-/** Parsed variation subtree (matches `parsePgnToModel` output at runtime). */
-export type PgnVariationNode = {
-  type: "variation";
-  entries: PgnVariationEntry[];
-};
 
-export type PgnMoveNode = {
-  type: "move";
-  id: string;
-  san: string;
-  postItems?: PgnPostItem[];
-  ravs?: PgnVariationNode[];
-};
-
-type PgnPostItem =
-  | { type: "rav"; rav: PgnVariationNode }
-  | { type: "comment"; comment: unknown };
-
-/** Non-move tokens that can appear in a variation’s `entries` list. */
-export type PgnOtherEntry =
-  | { id: string; type: "move_number"; text: string }
-  | { id: string; type: "result"; text: string }
-  | { id: string; type: "nag"; text: string };
-
-/** All nodes that can appear in a variation’s `entries` list. */
-export type PgnVariationEntry = PgnVariationNode | PgnMoveNode | PgnOtherEntry;
-
-/** Minimal model shape for move-position APIs. */
+/**
+ * Minimal model shape accepted by all move-position APIs.
+ *
+ * `PgnModel` satisfies this type structurally — pass the parsed model directly.
+ * `headers` is optional so that test stubs that only supply `root` continue to
+ * work; when absent the standard initial position is assumed.
+ */
 export type PgnModelForMoves = {
+  /** The root variation of the parsed PGN game tree. */
   root?: PgnVariationNode;
+  /**
+   * PGN tag-pair headers.  When a `FEN` entry is present its value is used as
+   * the starting position; `SetUp` is intentionally not checked because many
+   * PGN producers omit it even when a custom position is in use.
+   */
+  headers?: Array<{ key: string; value: string }>;
 };
 
+/**
+ * Board-position metadata for a single move node in the PGN tree.
+ *
+ * Written by `buildMovePositionById` and stored in `MovePositionIndex`.
+ * Read by `navigation.ts` for prev/next/variation traversal and by the board
+ * renderer to display the correct position and highlight squares.
+ */
 export type MovePositionRecord = {
+  /** FEN string of the position *after* this move was played. */
   fen: string;
+  /** From- and to-squares of the move (`[from, to]`), or `null` for the start position. */
   lastMove: [string, string] | null;
+  /** Sequential 1-based half-move count within the mainline (starting from the
+   *  first recorded move, regardless of any `[FEN]` / `[SetUp]` header),
+   *  or `null` for variation moves. */
   mainlinePly: number | null;
+  /** Move ID of the move that starts the variation containing this move,
+   *  or `null` for mainline moves. */
   parentMoveId: string | null;
+  /** `true` when this is the first move of a nested variation (RAV or inline). */
   isVariationStart?: boolean;
+  /** Move IDs of the first move of each child variation branching *after* this move. */
   variationFirstMoveIds: string[];
+  /** Move ID of the preceding move in the same variation, or `null` at the variation start. */
   previousMoveId?: string | null;
+  /** Move ID of the next move in the same variation, or `null` at the variation end. */
   nextMoveId?: string | null;
 };
 
+/**
+ * Lightweight board-position result returned by `resolveMovePositionById`.
+ *
+ * Contains only the fields needed to display a position; use `MovePositionIndex`
+ * when navigation (prev/next/variation links) is also required.
+ */
 export type MovePositionResolved = {
+  /** FEN string of the position *after* this move was played. */
   fen: string;
+  /** From- and to-squares of the move (`[from, to]`), or `null` for the start position. */
   lastMove: [string, string] | null;
+  /** Sequential 1-based half-move count within the mainline (starting from the
+   *  first recorded move, regardless of any `[FEN]` / `[SetUp]` header),
+   *  or `null` for variation moves. */
   mainlinePly: number | null;
+  /** Move ID of the variation-start move, or `null` for mainline moves. */
   parentMoveId: string | null;
 };
 
+/**
+ * Full move-position index keyed by move ID.
+ *
+ * Built once per game load by `buildMovePositionById` and stored on the session.
+ * Provides O(1) lookup of any move's board position and navigation links.
+ */
 export type MovePositionIndex = Record<string, MovePositionRecord>;
 
+/**
+ * Sequential half-move index (1-based) for mainline moves, keyed by move ID.
+ *
+ * Built by `buildMainlinePlyByMoveId`; covers only mainline moves.
+ *
+ * **Limitation**: the count always starts at 1 for the first recorded move,
+ * regardless of any `[FEN]` / `[SetUp]` header.  For games that begin from a
+ * custom position the values will *not* match the actual chess half-move numbers.
+ */
 export type MainlinePlyByMoveId = Record<string, number>;
 
 /**
  * Clone a Chess instance from current FEN.
  */
 const cloneGame = (game: Chess): Chess => {
-  const next = new Chess();
-  next.load(game.fen());
-  return next;
+  const clonedGame = new Chess();
+  clonedGame.load(game.fen());
+  return clonedGame;
 };
 
 /**
- * Apply SAN to game using tolerant normalization fallbacks.
+ * Apply a SAN string to a `chess.js` game using tolerant normalization fallbacks.
  *
- * @returns `chess.js` move object or null when all candidates fail.
+ * Tries the raw SAN first, then progressively strips move-number prefixes
+ * (`1.`, `1...`), ellipsis prefixes (`...`, `…`), and annotation glyphs
+ * (`!`, `?`, `!!`, `??`, `!?`, `?!`) in combination. Mutates `game` in place
+ * when a candidate succeeds.
+ *
+ * @param game - The `chess.js` `Chess` instance to apply the move to (mutated on success).
+ * @param san - Raw SAN string, possibly containing move numbers or annotation glyphs.
+ * @returns The `chess.js` `Move` object on success, or `null` when all candidates fail.
  */
 export const applySanWithFallback = (game: Chess, san: string): Move | null => {
   if (!san || typeof san !== "string") return null;
   const raw = san.trim();
   if (!raw) return null;
   const candidates = new Set([raw]);
-  candidates.add(raw.replace(/[!?]+/g, ""));
+  candidates.add(raw.replaceAll(/[!?]+/g, ""));
   candidates.add(raw.replace(/^\d+\.(?:\.\.)?/, "").trim());
   candidates.add(raw.replace(/^(?:\.\.\.|…)+/, "").trim());
   candidates.add(
     raw
       .replace(/^\d+\.(?:\.\.)?/, "")
       .replace(/^(?:\.\.\.|…)+/, "")
-      .replace(/[!?]+/g, "")
+      .replaceAll(/[!?]+/g, "")
       .trim(),
   );
 
@@ -109,93 +154,222 @@ export const applySanWithFallback = (game: Chess, san: string): Move | null => {
       // Try next candidate.
     }
   }
+  log.warn("move_position", `applySanWithFallback: all candidates failed san="${san}"`);
   return null;
 };
 
 /**
- * Build move-position index keyed by move id across mainline and variations.
+ * RAV children attached to a move: prefer `postItems` order when present,
+ * otherwise fall back to `ravs` (matches `resolveMovePositionById`).
+ */
+const ravVariationsForMove = (move: PgnMoveNode): PgnVariationNode[] => {
+  if (Array.isArray(move.postItems)) {
+    const out: PgnVariationNode[] = [];
+    for (const item of move.postItems) {
+      if (item.type === "rav" && item.rav) {
+        out.push(item.rav);
+      }
+    }
+    return out;
+  }
+  if (Array.isArray(move.ravs)) {
+    return move.ravs;
+  }
+  return [];
+};
+
+/**
+ * Record that a nested variation's first move branches from `branchParentMoveId`.
+ */
+const pushVariationFirstChild = (
+  index: MovePositionIndex,
+  branchParentMoveId: string | null,
+  childFirstMoveId: string,
+): void => {
+  if (!branchParentMoveId) return;
+  const parent: MovePositionRecord | undefined = index[branchParentMoveId];
+  if (!parent) return;
+  if (!Array.isArray(parent.variationFirstMoveIds)) {
+    parent.variationFirstMoveIds = [];
+  }
+  parent.variationFirstMoveIds.push(childFirstMoveId);
+};
+
+type WalkVariationArgs = {
+  index: MovePositionIndex;
+  variation: PgnVariationNode;
+  baseGame: Chess;
+  isMainline: boolean;
+  mainlinePly: number;
+  parentMoveId: string | null;
+};
+
+/** Mutable cursor while walking one variation's `entries` array. */
+type IndexWalkCursor = {
+  mainlinePly: number;
+  firstMoveId: string | null;
+  lastMoveId: string | null;
+};
+
+/**
+ * Nested `(…)` variation entry: recurse and attach first-move link to the branch parent.
+ */
+const processNestedVariationForIndex = (
+  index: MovePositionIndex,
+  game: Chess,
+  cursor: IndexWalkCursor,
+  nested: PgnVariationNode,
+): void => {
+  const childFirst: string | null = walkVariationForIndex({
+    index,
+    variation: nested,
+    baseGame: game,
+    isMainline: false,
+    mainlinePly: cursor.mainlinePly,
+    parentMoveId: cursor.lastMoveId,
+  });
+  if (childFirst) {
+    pushVariationFirstChild(index, cursor.lastMoveId, childFirst);
+  }
+};
+
+/**
+ * Apply one SAN move, write its `MovePositionRecord`, link prev/next, walk RAVs.
+ */
+const processMoveEntryForIndex = (
+  index: MovePositionIndex,
+  game: Chess,
+  cursor: IndexWalkCursor,
+  move: PgnMoveNode,
+  isMainline: boolean,
+  parentMoveId: string | null,
+): void => {
+  const gameBeforeMove: Chess = cloneGame(game);
+  const moved: Move | null = applySanWithFallback(game, move.san);
+  if (!moved) {
+    log.warn("move_position", `processMoveEntryForIndex: skipping move id="${move.id}" san="${move.san}"`);
+    return;
+  }
+
+  if (isMainline) {
+    cursor.mainlinePly += 1;
+  }
+  if (!cursor.firstMoveId) {
+    cursor.firstMoveId = move.id;
+  }
+
+  const childVariationFirstMoveIds: string[] = [];
+  const previousMoveId: string | null = cursor.lastMoveId;
+
+  index[move.id] = {
+    fen: game.fen(),
+    lastMove: moved.from && moved.to ? [moved.from, moved.to] : null,
+    mainlinePly: isMainline ? cursor.mainlinePly : null,
+    parentMoveId: isMainline ? null : parentMoveId,
+    isVariationStart: !isMainline && cursor.firstMoveId === move.id,
+    variationFirstMoveIds: childVariationFirstMoveIds,
+    previousMoveId,
+    nextMoveId: null,
+  };
+
+  if (previousMoveId && index[previousMoveId]) {
+    index[previousMoveId].nextMoveId = move.id;
+  }
+
+  for (const rav of ravVariationsForMove(move)) {
+    const ravFirst: string | null = walkVariationForIndex({
+      index,
+      variation: rav,
+      baseGame: gameBeforeMove,
+      isMainline: false,
+      mainlinePly: cursor.mainlinePly,
+      parentMoveId: move.id,
+    });
+    if (ravFirst) {
+      childVariationFirstMoveIds.push(ravFirst);
+    }
+  }
+
+  cursor.lastMoveId = move.id;
+};
+
+/**
+ * Depth-first walk: populate `index` and return the first move id in this variation, or null.
+ */
+const walkVariationForIndex = (args: WalkVariationArgs): string | null => {
+  const { index, variation, baseGame, isMainline, parentMoveId } = args;
+
+  const game: Chess = cloneGame(baseGame);
+  const cursor: IndexWalkCursor = {
+    mainlinePly: args.mainlinePly,
+    firstMoveId: null,
+    lastMoveId: parentMoveId,
+  };
+
+  for (const entry of variation.entries) {
+    if (entry.type === "variation") {
+      processNestedVariationForIndex(index, game, cursor, entry);
+      continue;
+    }
+    if (entry.type !== "move") continue;
+    processMoveEntryForIndex(index, game, cursor, entry, isMainline, parentMoveId);
+  }
+
+  return cursor.firstMoveId;
+};
+
+/**
+ * Build a complete `MovePositionIndex` for all moves in the PGN game tree.
+ *
+ * Performs a depth-first walk of the mainline and all nested variations (RAVs).
+ * Each entry in the returned index contains the FEN after the move, from/to
+ * squares, mainline ply, parent-move link, variation-start flag, child-variation
+ * first-move IDs, and doubly-linked prev/next pointers within each variation.
+ *
+ * Called once per game load (in `session_model` and `pgn_runtime`) and stored
+ * on the session for O(1) board-position and navigation lookups.
+ *
+ * @param pgnModel - Parsed PGN game model exposing a `root` variation node.
+ * @returns Index keyed by move ID; empty object when `pgnModel.root` is absent.
  */
 export const buildMovePositionById = (pgnModel: PgnModelForMoves): MovePositionIndex => {
   const index: MovePositionIndex = {};
   if (!pgnModel?.root) return index;
 
-  const root = pgnModel.root as PgnVariationNode;
+  const startFen = pgnModel.headers?.find(h => h.key === "FEN")?.value?.trim();
+  const baseGame = startFen ? new Chess(startFen) : new Chess();
 
-  const walkVariation = (
-    variation: PgnVariationNode,
-    baseGame: Chess,
-    isMainline: boolean,
-    mainlinePly: number,
-    parentMoveId: string | null = null,
-  ): string | null => {
-    const game = cloneGame(baseGame);
-    let ply = mainlinePly;
-    let firstMoveId: string | null = null;
-    let lastMoveId: string | null = parentMoveId;
-    for (const entry of variation.entries) {
-      if (entry.type === "variation") {
-        const childFirstMoveId = walkVariation(entry, game, false, ply, lastMoveId);
-        if (childFirstMoveId && lastMoveId && index[lastMoveId]) {
-          const nextStarts = Array.isArray(index[lastMoveId].variationFirstMoveIds)
-            ? index[lastMoveId].variationFirstMoveIds
-            : [];
-          index[lastMoveId].variationFirstMoveIds = [...nextStarts, childFirstMoveId];
-        }
-        continue;
-      }
-      if (entry.type !== "move") continue;
-      const gameBeforeMove = cloneGame(game);
-      const moved = applySanWithFallback(game, entry.san);
-      if (!moved) continue;
-      if (isMainline) ply += 1;
-      if (!firstMoveId) firstMoveId = entry.id;
-      const childVariationFirstMoveIds: string[] = [];
-      const previousMoveId = lastMoveId;
-      index[entry.id] = {
-        fen: game.fen(),
-        lastMove: moved.from && moved.to ? [moved.from, moved.to] : null,
-        mainlinePly: isMainline ? ply : null,
-        parentMoveId: isMainline ? null : parentMoveId,
-        isVariationStart: !isMainline && firstMoveId === entry.id,
-        variationFirstMoveIds: childVariationFirstMoveIds,
-        previousMoveId,
-        nextMoveId: null,
-      };
-      if (previousMoveId && index[previousMoveId]) {
-        index[previousMoveId].nextMoveId = entry.id;
-      }
-      if (Array.isArray(entry.postItems)) {
-        entry.postItems.forEach((item: PgnPostItem): void => {
-          if (item.type === "rav" && item.rav) {
-            const childFirstMoveId = walkVariation(item.rav, gameBeforeMove, false, ply, entry.id);
-            if (childFirstMoveId) childVariationFirstMoveIds.push(childFirstMoveId);
-          }
-        });
-      } else if (Array.isArray(entry.ravs)) {
-        entry.ravs.forEach((child: PgnVariationNode): void => {
-          const childFirstMoveId = walkVariation(child, gameBeforeMove, false, ply, entry.id);
-          if (childFirstMoveId) childVariationFirstMoveIds.push(childFirstMoveId);
-        });
-      }
-      lastMoveId = entry.id;
-    }
-    return firstMoveId;
-  };
-
-  walkVariation(root, new Chess(), true, 0);
+  walkVariationForIndex({
+    index,
+    variation: pgnModel.root,
+    baseGame,
+    isMainline: true,
+    mainlinePly: 0,
+    parentMoveId: null,
+  });
   return index;
 };
 
 /**
- * Resolve a single move id to board position metadata by traversing model.
+ * Resolve a single move ID to board-position metadata by traversing the PGN tree.
+ *
+ * Performs a targeted depth-first search; cheaper than building the full index
+ * when only one position is needed (e.g. move-click in `PgnTextEditor`).
+ * Checks the move itself and all sub-variations reachable from it.
+ *
+ * @param pgnModel - Parsed PGN game model exposing a `root` variation node.
+ * @param moveId - ID of the move node to resolve.
+ * @returns FEN, last-move squares, mainline ply, and parent-move ID for the move,
+ *   or `null` when the move ID is not found or `pgnModel.root` is absent.
  */
 export const resolveMovePositionById = (
   pgnModel: PgnModelForMoves,
   moveId: string,
 ): MovePositionResolved | null => {
-  if (!moveId || !pgnModel?.root) return null;
-
-  const root = pgnModel.root as PgnVariationNode;
+  if (!moveId || !pgnModel?.root) {
+    log.debug("move_position", () => `resolveMovePositionById: early exit moveId="${moveId}" hasRoot=${!!pgnModel?.root}`);
+    return null;
+  }
 
   const walkVariation = (
     variation: PgnVariationNode,
@@ -208,6 +382,60 @@ export const resolveMovePositionById = (
     let ply = mainlinePly;
     let lastMoveId: string | null = parentMoveId;
 
+    // Helper to resolve mainline move and test for match
+    const resolveMoveEntry = (
+      entry: any,
+      game: any,
+      ply: number,
+      isMainline: boolean,
+      parentMoveId: string | null
+    ): MovePositionResolved | null => {
+      const gameBeforeMove = cloneGame(game);
+      const moved = applySanWithFallback(game, entry.san);
+      if (!moved) {
+        return null;
+      }
+      const nextPly = isMainline ? ply + 1 : ply;
+
+      const resolved: MovePositionResolved = {
+        fen: game.fen(),
+        lastMove: moved.from && moved.to ? [moved.from, moved.to] : null,
+        mainlinePly: isMainline ? nextPly : null,
+        parentMoveId: isMainline ? null : parentMoveId,
+      };
+      if (entry.id === moveId) {
+        return resolved;
+      }
+      // Check for sub-variations after this move
+      const foundInSub = findInSubVariations(entry, gameBeforeMove, nextPly, entry.id);
+      if (foundInSub) return foundInSub;
+      log.warn("move_position", `resolveMoveEntry: SAN failed id="${entry.id}" san="${entry.san}"`);
+      return null;
+    };
+
+    // Helper to traverse postItems/ravs variations for a move, used after resolving main move entry
+    const findInSubVariations = (
+      entry: any,
+      gameBeforeMove: any,
+      ply: number,
+      parentMoveId: string | null
+    ): MovePositionResolved | null => {
+      const ravsToCheck = Array.isArray(entry.postItems)
+        ? entry.postItems.filter((item: any) => item.type === "rav" && item.rav).map((item: any) => item.rav)
+        : (() => {
+            if (Array.isArray(entry.ravs)) {
+              return entry.ravs;
+            }
+            return [];
+          })()
+     
+      for (const rav of ravsToCheck) {
+        const found = walkVariation(rav, gameBeforeMove, false, ply, entry.id);
+        if (found) return found;
+      }
+      return null;
+    };
+
     for (const entry of variation.entries) {
       if (entry.type === "variation") {
         const found = walkVariation(entry, game, false, ply, lastMoveId);
@@ -216,49 +444,41 @@ export const resolveMovePositionById = (
       }
       if (entry.type !== "move") continue;
 
-      const gameBeforeMove = cloneGame(game);
-      const moved = applySanWithFallback(game, entry.san);
-      if (!moved) continue;
+      const result = resolveMoveEntry(entry, game, ply, isMainline, parentMoveId);
+      if (result) return result;
 
       if (isMainline) ply += 1;
-      const resolved: MovePositionResolved = {
-        fen: game.fen(),
-        lastMove: moved.from && moved.to ? [moved.from, moved.to] : null,
-        mainlinePly: isMainline ? ply : null,
-        parentMoveId: isMainline ? null : parentMoveId,
-      };
-      if (entry.id === moveId) return resolved;
-
-      if (Array.isArray(entry.postItems)) {
-        for (const item of entry.postItems) {
-          if (item.type === "rav" && item.rav) {
-            const found = walkVariation(item.rav, gameBeforeMove, false, ply, entry.id);
-            if (found) return found;
-          }
-        }
-      } else if (Array.isArray(entry.ravs)) {
-        for (const child of entry.ravs) {
-          const found = walkVariation(child, gameBeforeMove, false, ply, entry.id);
-          if (found) return found;
-        }
-      }
       lastMoveId = entry.id;
     }
+    log.warn("move_position", `walkVariation: target="${moveId}" not found (isMainline=${isMainline} parentMoveId="${parentMoveId}")`);
     return null;
   };
 
-  return walkVariation(root, new Chess(), true, 0);
+  const startFen = pgnModel.headers?.find(h => h.key === "FEN")?.value?.trim();
+  const startGame = startFen ? new Chess(startFen) : new Chess();
+  return walkVariation(pgnModel.root, startGame, true, 0);
 };
 
 /**
- * Build mainline ply index by move id.
+ * Build a sequential half-move index for mainline moves only.
+ *
+ * Iterates only `pgnModel.root.entries`; variation moves are excluded.
+ * Cheaper than `buildMovePositionById` when only relative ply numbers are needed
+ * (e.g. scroll anchoring or progress display in the text editor).
+ *
+ * The index always starts at 1 for the first recorded move.  It has no access
+ * to PGN headers, so it cannot account for a `[FEN]` / `[SetUp]` starting
+ * position; the values will not match actual chess move numbers for such games.
+ *
+ * @param pgnModel - Parsed PGN game model exposing a `root` variation node.
+ * @returns Map of move ID → sequential 1-based ply; empty object when `root` has no entries.
  */
 export const buildMainlinePlyByMoveId = (pgnModel: PgnModelForMoves): MainlinePlyByMoveId => {
   const byId: MainlinePlyByMoveId = {};
   const entries = pgnModel?.root?.entries;
   if (!Array.isArray(entries)) return byId;
   let ply = 0;
-  entries.forEach((entry: PgnVariationEntry): void => {
+  entries.forEach((entry: PgnEntryNode): void => {
     if (entry?.type !== "move" || !entry?.id) return;
     ply += 1;
     byId[entry.id] = ply;
@@ -266,19 +486,31 @@ export const buildMainlinePlyByMoveId = (pgnModel: PgnModelForMoves): MainlinePl
   return byId;
 };
 
-/** Result of replaying engine PV moves to a specific index. */
+/**
+ * Result of replaying engine PV moves to a specific half-move index.
+ * Returned by `replayPvToPosition`.
+ */
 export type PvPositionResult = {
+  /** FEN string of the position reached after applying moves up to `upToIndex`. */
   fen: string;
+  /** From- and to-squares of the last applied move, or `null` when no moves were applied. */
   lastMove: [string, string] | null;
 };
 
 /**
- * Replay engine PV SAN moves from a starting FEN up to and including the move
- * at `upToIndex` (0-based inclusive). Used for position preview on hover over
+ * Replay engine principal-variation (PV) SAN moves from a starting FEN.
+ *
+ * Applies moves from `pvSans[0]` up to and including `pvSans[upToIndex]` (0-based,
+ * inclusive). Used in `AppShell` to preview positions when the user hovers over
  * individual PV move tokens in the analysis panel.
  *
- * If `startFen` is malformed or any SAN fails to apply, the function returns
- * the position reached so far (partial replay) without throwing.
+ * Returns the position reached so far when `startFen` is malformed or a SAN
+ * fails to apply (partial replay); never throws.
+ *
+ * @param startFen - FEN string of the position before the first PV move.
+ * @param pvSans - Ordered array of SAN strings from the engine PV line.
+ * @param upToIndex - 0-based index of the last PV move to apply (inclusive).
+ * @returns FEN and last-move squares of the position after replaying to `upToIndex`.
  */
 export const replayPvToPosition = (
   startFen: string,
@@ -289,6 +521,7 @@ export const replayPvToPosition = (
   try {
     game = new Chess(startFen);
   } catch {
+    log.warn("move_position", `replayPvToPosition: malformed startFen="${startFen}"`);
     return { fen: startFen, lastMove: null };
   }
 
@@ -304,14 +537,23 @@ export const replayPvToPosition = (
 };
 
 /**
- * Remove comments and side-variations from PGN source for board parser fallback.
+ * Strip PGN comments (`{ … }`) and side-variations (`( … )`) from raw PGN source.
+ *
+ * Produces a stripped string suitable for loading into `chess.js` as a fallback
+ * when the custom PGN parser fails. Called via the injected
+ * `stripAnnotationsForBoardParserFn` callback in `session_model` and `pgn_runtime`.
+ *
+ * The character-by-character scan correctly handles nesting and ignores content
+ * inside comments (so nested braces or parentheses inside `{ }` are skipped).
+ *
+ * @param source - Raw PGN text, possibly containing comments and RAVs.
+ * @returns PGN text with all `{ … }` comment spans and `( … )` RAV spans removed.
  */
 export const stripAnnotationsForBoardParser = (source: string): string => {
   let out = "";
   let variationDepth = 0;
   let inComment = false;
-  for (let i = 0; i < source.length; i += 1) {
-    const ch = source[i];
+  for (const ch of source) {
     if (inComment) {
       if (ch === "}") inComment = false;
       continue;

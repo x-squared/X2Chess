@@ -28,8 +28,8 @@ import type {
   ResultHighlight,
 } from "../domain/training_protocol";
 import type { TrainingTranscript } from "../domain/training_transcript";
-import type { PgnMoveNode } from "../../model/pgn_model";
-import { parsePgnToModel } from "../../model/pgn_model";
+import type { PgnMoveNode } from "../../../../parts/pgnparser/src/pgn_model";
+import { parsePgnToModel } from "../../../../parts/pgnparser/src/pgn_model";
 import {
   acceptMove,
   EVAL_ACCEPT_THRESHOLD_CP,

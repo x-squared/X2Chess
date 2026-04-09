@@ -1,6 +1,7 @@
 import { Chess } from "chess.js";
 import type { ActiveSessionRef } from "../game_sessions/game_session_state";
 import type { MovePositionIndex } from "../board/move_position";
+import { normalizeForChessJs } from "../../../parts/pgnparser/src/pgn_headers";
 import { log } from "../logger";
 
 /**
@@ -93,7 +94,7 @@ export const createPgnRuntimeCapabilities = ({
     }
     try {
       const parser: Chess = new Chess();
-      parser.loadPgn(source);
+      parser.loadPgn(normalizeForChessJs(source));
       g.moves = parser.history();
       g.verboseMoves = parser.history({ verbose: true });
       g.currentPly = Math.min(g.currentPly, g.moves.length);
@@ -105,7 +106,7 @@ export const createPgnRuntimeCapabilities = ({
     } catch {
       try {
         const fallbackParser: Chess = new Chess();
-        fallbackParser.loadPgn(stripAnnotationsForBoardParserFn(source));
+        fallbackParser.loadPgn(normalizeForChessJs(stripAnnotationsForBoardParserFn(source)));
         g.moves = fallbackParser.history();
         g.verboseMoves = fallbackParser.history({ verbose: true });
         g.currentPly = Math.min(g.currentPly, g.moves.length);

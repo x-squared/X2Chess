@@ -49,7 +49,7 @@ import { readDefaultLayoutPrefs } from "../runtime/default_layout_prefs";
 import { useAppContext } from "../state/app_context";
 import type { AppStartupServices } from "../state/ServiceContext";
 import type { AppAction } from "../state/actions";
-import type { PgnModel } from "../model/pgn_model";
+import type { PgnModel } from "../../../parts/pgnparser/src/pgn_model";
 import type { GameSessionState } from "../game_sessions/game_session_state";
 import type { AppStoreState } from "../state/app_reducer";
 import type { Dispatch } from "react";

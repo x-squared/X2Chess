@@ -9,7 +9,7 @@
 
 // ── Patterns ──────────────────────────────────────────────────────────────────
 
-import { nagGlyph } from "../../model/nag_defs";
+import { nagGlyph } from "../../../../parts/pgnparser/src/nag_defs";
 
 /** Matches any break marker variant (canonical + legacy aliases). */
 const NEWLINE_PATTERN: RegExp = /(?:\[\[br\]\]|<br\s*\/?>|\\n|\n)/gi;

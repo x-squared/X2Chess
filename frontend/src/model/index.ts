@@ -13,8 +13,8 @@
  *   exported function signatures and typed callback contracts.
  */
 
-export { parsePgnToModel, parseCommentRuns } from "./pgn_model";
-export { serializeModelToPgn } from "./pgn_serialize";
+export { parsePgnToModel, parseCommentRuns } from "../../../parts/pgnparser/src/pgn_model";
+export { serializeModelToPgn } from "../../../parts/pgnparser/src/pgn_serialize";
 export { ECO_OPENING_CODES, resolveEcoOpeningName } from "./eco_openings";
 export {
   applyDefaultIndentDirectives,
@@ -29,8 +29,8 @@ export {
   setFirstCommentIntroRole,
   toggleFirstCommentIntroRole,
   toggleMoveNag,
-} from "./pgn_commands";
-export { findMoveNode, findMoveSideById } from "./pgn_move_ops";
+} from "../../../parts/pgnparser/src/pgn_commands";
+export { findMoveNode, findMoveSideById } from "../../../parts/pgnparser/src/pgn_move_ops";
 export {
   NAG_DEFS,
   NAG_BY_CODE,
@@ -40,7 +40,7 @@ export {
   nagGlyph,
   nagGroup,
   colorPairCode,
-} from "./nag_defs";
+} from "../../../parts/pgnparser/src/nag_defs";
 export {
   REQUIRED_PGN_TAG_DEFAULTS,
   X2_STYLE_HEADER_KEY,
@@ -51,4 +51,4 @@ export {
   normalizeX2StyleValue,
   setHeaderValue,
   deriveInitialBoardFlipped,
-} from "./pgn_headers";
+} from "../../../parts/pgnparser/src/pgn_headers";

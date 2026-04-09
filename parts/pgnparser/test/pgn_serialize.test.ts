@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parsePgnToModel } from "../../src/model/pgn_model.js";
-import { serializeModelToPgn } from "../../src/model/pgn_serialize.js";
+import { parsePgnToModel } from "../src/pgn_model.js";
+import { serializeModelToPgn } from "../src/pgn_serialize.js";
 
 /** Round-trip helper: parse then serialize and return the move-text portion. */
 const roundTrip = (pgn: string): string => serializeModelToPgn(parsePgnToModel(pgn));

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   getX2StyleFromModel,
   normalizeX2StyleValue,
-} from "../../src/model/pgn_headers.js";
+} from "../src/pgn_headers.js";
 
 test("normalizeX2StyleValue defaults invalid and empty to plain", () => {
   assert.equal(normalizeX2StyleValue(""), "plain");

@@ -13,8 +13,8 @@
  *   exported function signatures and typed callback contracts.
  */
 
-export { parsePgnToModel } from "../model/pgn_model";
-export { serializeModelToPgn } from "../model/pgn_serialize";
+export { parsePgnToModel } from "../../../parts/pgnparser/src/pgn_model";
+export { serializeModelToPgn } from "../../../parts/pgnparser/src/pgn_serialize";
 export {
   ECO_OPENING_CODES,
   REQUIRED_PGN_TAG_DEFAULTS,

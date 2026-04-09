@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parsePgnToModel } from "../../src/model/pgn_model.js";
+import { parsePgnToModel } from "../../../parts/pgnparser/src/pgn_model.js";
 import { resolveMoveEntry } from "../../src/model/move_entry_controller.js";
-import { insertVariation } from "../../src/model/pgn_move_ops.js";
-import type { PgnCursor } from "../../src/model/pgn_move_ops.js";
-import type { PgnMoveNode } from "../../src/model/pgn_model.js";
+import { insertVariation } from "../../../parts/pgnparser/src/pgn_move_ops.js";
+import type { PgnCursor } from "../../../parts/pgnparser/src/pgn_move_ops.js";
+import type { PgnMoveNode } from "../../../parts/pgnparser/src/pgn_model.js";
 
 const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 // FEN after 1. e4

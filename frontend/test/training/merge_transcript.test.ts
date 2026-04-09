@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parsePgnToModel } from "../../src/model/pgn_model.js";
+import { parsePgnToModel } from "../../../parts/pgnparser/src/pgn_model.js";
 import { applyMergeToModel, mergeToNewPgn } from "../../src/training/merge_transcript.js";
 import type { MergeSelection, TrainingAnnotation } from "../../src/training/domain/training_transcript.js";
 

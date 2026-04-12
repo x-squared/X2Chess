@@ -13,6 +13,12 @@ All source code must include public documentation that explains intent and behav
   - the file's intent,
   - the main responsibilities,
   - important side effects (if any).
+- Every package directory under `frontend/src/` must include a `README.md` that explains:
+  - the package purpose,
+  - the most important modules, exports, types, or subdirectories it contains,
+  - how those important modules are used by the rest of the app,
+  - the main ownership or boundary expectations for that package,
+  - whether the package is canonical, transitional, or a compatibility facade.
 - Every public function/method must include a doc comment that explains:
   - purpose and behavior,
   - all parameters (name, meaning, and expected shape/range),
@@ -25,10 +31,33 @@ All source code must include public documentation that explains intent and behav
 - Documentation must be actionable for maintainers, not just structurally complete.
 - Prefer concrete phrasing:
   - name real functions/exports/callbacks,
+  - name real files and subdirectories when documenting a package,
+  - call out the most important types/state shapes/components/hooks in that package,
   - name real configuration keys and where they are passed,
   - name real side effects (state fields, DOM writes, storage/network calls).
 - Avoid vague, content-light phrasing (for example "delegates to services", "supports communication", "handles configuration") unless followed by concrete details.
 - Write with "how to use this module" in mind: what to call, what to pass, what happens.
+
+## Package README minimum standard
+
+Package `README.md` files under `frontend/src/` must be useful to a developer who has not
+already read the package source.
+
+- Every package README must include:
+  - a one-paragraph purpose/boundary summary,
+  - a short list of the most important files, exports, types, or subdirectories,
+  - a short explanation of how those files/exports are typically used,
+  - guidance on what code belongs in the package and what should live elsewhere.
+- Small or transitional packages must still explain why they exist.
+  - Example: if a directory only contains two hooks, the README must name those hooks and
+    explain why they remain shared rather than feature-owned.
+  - Example: if a directory is a facade or compatibility layer, the README must say what the
+    canonical package is and whether new code should still be added there.
+- Avoid placeholder summaries that only restate the directory name.
+  - Bad: "Contains shared helpers."
+  - Good: "Contains `session_state_sync.ts` for mirroring `GameSessionState` into reducer
+    actions, and `useTauriMenu.ts` for installing the desktop menu from
+    `app/shell/menu_definition.ts`."
 
 ## Parameter documentation policy
 
@@ -57,3 +86,6 @@ Use JSDoc tags on all exported functions, hook factories, and factory functions.
 - New/updated public functions and methods include parameter docs.
 - Documentation reflects current behavior after refactors.
 - Top-level component docs are concrete enough that another developer can integrate the component without opening unrelated files.
+- Package `README.md` files are added for new packages and updated whenever a refactor changes package ownership, directory responsibilities, or canonical import paths.
+- Package `README.md` files are not left as thin placeholders; they must identify the important
+  files/types/subdirectories that a maintainer will look for first.

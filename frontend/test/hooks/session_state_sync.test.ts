@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createEmptyGameSessionState } from "../../src/game_sessions/game_session_state.js";
+import { createEmptyGameSessionState } from "../../src/features/sessions/services/game_session_state.js";
 import {
   dispatchNavigationState,
   dispatchSessionStateSnapshot,

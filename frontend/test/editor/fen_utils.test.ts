@@ -4,7 +4,7 @@ import {
   STANDARD_STARTING_FEN,
   validateFenStructure,
   validateKings,
-} from "../../src/editor/fen_utils.js";
+} from "../../src/features/editor/model/fen_utils.js";
 
 // ── STANDARD_STARTING_FEN ──────────────────────────────────────────────────────
 

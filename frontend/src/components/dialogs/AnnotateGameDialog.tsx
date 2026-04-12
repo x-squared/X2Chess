@@ -24,7 +24,7 @@ import {
   type ReactElement,
 } from "react";
 import type { PgnModel } from "../../../../parts/pgnparser/src/pgn_model";
-import type { AnnotateOptions, AnnotatePhase, AnnotationProgress } from "../../hooks/useGameAnnotation";
+import type { AnnotateOptions, AnnotatePhase, AnnotationProgress } from "../../features/analysis/hooks/useGameAnnotation";
 
 type AnnotateGameDialogProps = {
   phase: AnnotatePhase;

@@ -28,8 +28,8 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
 } from "react";
-import type { AnchorAnnotation, AnchorRefAnnotation } from "../../resources_viewer/anchor_parser";
-import type { ResolvedAnchor } from "../../editor/resolveAnchors";
+import type { AnchorAnnotation, AnchorRefAnnotation } from "../../features/resources/services/anchor_parser";
+import type { ResolvedAnchor } from "../../features/editor/model/resolveAnchors";
 import { useHoverPreview } from "../board/HoverPreviewContext";
 
 // ── AnchorBadge ───────────────────────────────────────────────────────────────

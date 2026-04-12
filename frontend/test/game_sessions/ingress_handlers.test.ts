@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createIngressEventHandlers } from "../../src/game_sessions/ingress_handlers.js";
+import { createIngressEventHandlers } from "../../src/features/sessions/services/ingress_handlers.js";
 
 test("dragover accepts drags exposing Files type without file list", () => {
   const { handleDragOver } = createIngressEventHandlers({

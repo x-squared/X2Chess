@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createGameSessionStore } from "../../src/game_sessions/session_store.js";
-import { createEmptyGameSessionState } from "../../src/game_sessions/game_session_state.js";
-import type { ActiveSessionRef } from "../../src/game_sessions/game_session_state.js";
+import { createGameSessionStore } from "../../src/features/sessions/services/session_store.js";
+import { createEmptyGameSessionState } from "../../src/features/sessions/services/game_session_state.js";
+import type { ActiveSessionRef } from "../../src/features/sessions/services/game_session_state.js";
 
 test("session store switches sessions without losing active state", () => {
   const activeSessionRef: ActiveSessionRef = { current: createEmptyGameSessionState() };

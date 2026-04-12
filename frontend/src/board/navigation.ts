@@ -1,7 +1,7 @@
 import { Chess } from "chess.js";
 import type { MovePositionRecord } from "./move_position";
 import type { ChessSoundType } from "./move_sound";
-import type { ActiveSessionRef } from "../game_sessions/game_session_state";
+import type { ActiveSessionRef } from "../features/sessions/services/game_session_state";
 import { log } from "../logger";
 
 /**

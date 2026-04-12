@@ -13,7 +13,7 @@
  *   interactions are explicit in exported function signatures and typed callback contracts.
  */
 
-import type { PlayerRecord } from "../app_shell/app_state";
+import type { PlayerRecord } from "../app/shell/model/app_state";
 
 /** localStorage key under which the player list is stored. */
 export const PLAYER_LIST_KEY = "x2chess.playerList";

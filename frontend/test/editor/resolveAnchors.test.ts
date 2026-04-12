@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { resolveAnchors } from "../../src/editor/resolveAnchors.js";
+import { resolveAnchors } from "../../src/features/editor/model/resolveAnchors.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

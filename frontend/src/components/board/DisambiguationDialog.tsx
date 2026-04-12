@@ -16,7 +16,7 @@
  */
 
 import { useState, useRef, useEffect, useCallback, type ReactElement } from "react";
-import { GUIDE_IDS } from "../../guide/guide_ids";
+import { GUIDE_IDS } from "../../features/guide/model/guide_ids";
 
 export type ForkChoice = "replace" | "variation" | "promote";
 

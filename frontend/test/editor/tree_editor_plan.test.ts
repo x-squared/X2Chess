@@ -3,8 +3,8 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildTextEditorPlan } from "../../src/editor/text_editor_plan.js";
-import type { PlanBlock, PlanToken, InlineToken, CommentToken } from "../../src/editor/text_editor_plan.js";
+import { buildTextEditorPlan } from "../../src/features/editor/model/text_editor_plan.js";
+import type { PlanBlock, PlanToken, InlineToken, CommentToken } from "../../src/features/editor/model/text_editor_plan.js";
 
 // ── Model builders ────────────────────────────────────────────────────────────
 

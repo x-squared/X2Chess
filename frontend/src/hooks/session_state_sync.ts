@@ -18,7 +18,7 @@
  *   through the provided callback.
  */
 
-import type { GameSessionState } from "../game_sessions/game_session_state";
+import type { GameSessionState } from "../features/sessions/services/game_session_state";
 import type { AppAction } from "../state/actions";
 
 type BoardPreviewSnapshot = { fen: string; lastMove?: [string, string] | null } | null;

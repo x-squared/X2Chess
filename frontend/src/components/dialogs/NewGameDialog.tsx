@@ -28,15 +28,15 @@ import {
   STANDARD_STARTING_FEN,
   validateFenStructure,
   validateKings,
-} from "../../editor/fen_utils";
-import { useTranslator } from "../../hooks/useTranslator";
+} from "../../features/editor/model/fen_utils";
+import { useTranslator } from "../../app/hooks/useTranslator";
 import {
   GAME_INFO_HEADER_FIELDS,
   PLAYER_NAME_HEADER_KEYS,
   normalizeGameInfoHeaderValue,
-} from "../../app_shell/game_info";
-import { FieldInput } from "../game_editor/GameInfoEditor";
-import { PlayerAutocomplete } from "../game_editor/PlayerAutocomplete";
+} from "../../features/editor/model/game_info";
+import { FieldInput } from "../../features/editor/components/GameInfoEditor";
+import { PlayerAutocomplete } from "../../features/editor/components/PlayerAutocomplete";
 import "./dialog.css";
 import "./new_game_dialog.css";
 

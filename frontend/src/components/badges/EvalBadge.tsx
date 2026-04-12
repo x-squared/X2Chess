@@ -27,8 +27,8 @@ import {
   type ReactElement,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
-import { formatEvalDisplay } from "../../resources_viewer/eval_parser";
-import type { EvalAnnotation } from "../../resources_viewer/eval_parser";
+import { formatEvalDisplay } from "../../features/resources/services/eval_parser";
+import type { EvalAnnotation } from "../../features/resources/services/eval_parser";
 
 // ── EvalBadge ─────────────────────────────────────────────────────────────────
 

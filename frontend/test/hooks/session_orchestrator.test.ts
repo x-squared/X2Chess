@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createSessionOrchestrator } from "../../src/hooks/session_orchestrator.js";
-import { createEmptyGameSessionState } from "../../src/game_sessions/game_session_state.js";
+import { createSessionOrchestrator } from "../../src/core/services/session_orchestrator.js";
+import { createEmptyGameSessionState } from "../../src/features/sessions/services/game_session_state.js";
 import type { AppAction } from "../../src/state/actions.js";
 
 type DispatchRef = { current: (action: AppAction) => void };

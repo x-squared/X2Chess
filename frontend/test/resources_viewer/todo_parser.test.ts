@@ -7,7 +7,7 @@ import {
   formatTodoAnnotation,
   replaceTodoAnnotation,
   appendTodoAnnotation,
-} from "../../src/resources_viewer/todo_parser.js";
+} from "../../src/features/resources/services/todo_parser.js";
 
 // ── parseTodoAnnotations ───────────────────────────────────────────────────────
 

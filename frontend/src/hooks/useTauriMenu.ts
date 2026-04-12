@@ -8,7 +8,7 @@
  *   `ServiceContext.Provider` is mounted and `services` is stable).
  *
  * Configuration API:
- * - Edit `src/app_shell/menu_definition.ts` to change the menu structure,
+ * - Edit `src/app/shell/menu_definition.ts` to change the menu structure,
  *   labels, or keyboard shortcuts.
  * - Add new action ids to `MenuActionId` there and handle them in
  *   `MENU_ACTIONS` below.
@@ -27,8 +27,8 @@ import {
   type MenuActionId,
   type MenuNode,
   type MenuSubmenuNode,
-} from "../app_shell/menu_definition";
-import { isTauriRuntime } from "../resources/tauri_gateways";
+} from "../app/shell/menu_definition";
+import { isTauriRuntime } from "../platform/desktop/tauri/tauri_gateways";
 
 // ── Action handlers ───────────────────────────────────────────────────────────
 

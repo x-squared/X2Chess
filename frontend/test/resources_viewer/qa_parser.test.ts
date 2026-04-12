@@ -7,7 +7,7 @@ import {
   formatQaAnnotation,
   replaceQaAnnotation,
   appendQaAnnotation,
-} from "../../src/resources_viewer/qa_parser.js";
+} from "../../src/features/resources/services/qa_parser.js";
 
 // ── parseQaAnnotations ─────────────────────────────────────────────────────────
 

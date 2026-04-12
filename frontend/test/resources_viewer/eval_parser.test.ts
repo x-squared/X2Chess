@@ -7,7 +7,7 @@ import {
   formatEvalAnnotation,
   replaceEvalAnnotation,
   formatEvalDisplay,
-} from "../../src/resources_viewer/eval_parser.js";
+} from "../../src/features/resources/services/eval_parser.js";
 
 // ── parseEvalAnnotations ───────────────────────────────────────────────────────
 

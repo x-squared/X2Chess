@@ -13,7 +13,7 @@ import {
   formatAnchorRefAnnotation,
   replaceAnchorRefAnnotation,
   appendAnchorRefAnnotation,
-} from "../../src/resources_viewer/anchor_parser.js";
+} from "../../src/features/resources/services/anchor_parser.js";
 
 // ── parseAnchorAnnotations ─────────────────────────────────────────────────────
 

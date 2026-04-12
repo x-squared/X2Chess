@@ -25,7 +25,7 @@ import {
   type ReactElement,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
-import type { TodoAnnotation } from "../../resources_viewer/todo_parser";
+import type { TodoAnnotation } from "../../features/resources/services/todo_parser";
 
 // ── TodoBadge ──────────────────────────────────────────────────────────────────
 

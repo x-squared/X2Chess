@@ -18,7 +18,7 @@
  */
 
 import type { NativeHttpGateway } from "./rule_fetcher";
-import type { TauriWindowLike } from "../tauri_gateways";
+import type { TauriWindowLike } from "../../platform/desktop/tauri/tauri_gateways";
 
 /**
  * Construct a `NativeHttpGateway` that routes GET requests through the Tauri

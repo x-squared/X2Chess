@@ -23,7 +23,7 @@ import {
   type ReactElement,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
-import type { TrainTag } from "../../resources_viewer/train_tag_parser";
+import type { TrainTag } from "../../features/resources/services/train_tag_parser";
 
 // ── TrainBadge ─────────────────────────────────────────────────────────────────
 

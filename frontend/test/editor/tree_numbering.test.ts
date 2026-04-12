@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { alphaNumericPathStrategy } from "../../src/editor/tree_numbering.js";
+import { alphaNumericPathStrategy } from "../../src/features/editor/model/tree_numbering.js";
 
 test("empty path returns empty string", () => {
   assert.equal(alphaNumericPathStrategy([]), "");

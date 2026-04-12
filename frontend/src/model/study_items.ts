@@ -9,8 +9,8 @@
  */
 
 import type { PgnModel, PgnMoveNode, PgnEntryNode, PgnCommentNode } from "../../../parts/pgnparser/src/pgn_model";
-import { parseQaAnnotations, hasQaAnnotations } from "../resources_viewer/qa_parser";
-import type { QaAnnotation } from "../resources_viewer/qa_parser";
+import { parseQaAnnotations, hasQaAnnotations } from "../features/resources/services/qa_parser";
+import type { QaAnnotation } from "../features/resources/services/qa_parser";
 
 export type StudyItem = {
   /** Mainline ply index (1-based; ply N = after N half-moves). */

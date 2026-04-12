@@ -1,7 +1,7 @@
 import { createPlayerStoreService } from "./player_store_service";
 import { createRuntimeConfigService } from "./runtime_config_service";
 import { createSourceGateway } from "./source_gateway";
-import type { PlayerRecord } from "../app_shell/app_state";
+import type { PlayerRecord } from "../app/shell/model/app_state";
 import type { SourceRefLike } from "../runtime/bootstrap_shared";
 import type { PgnResourceRef } from "../../../parts/resource/src/domain/resource_ref";
 import type { PositionSearchHit, TextSearchHit } from "../../../parts/resource/src/client/search_coordinator";

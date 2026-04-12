@@ -21,7 +21,7 @@ import {
   type ReactElement,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
-import { GUIDE_IDS } from "../../guide/guide_ids";
+import { GUIDE_IDS } from "../../features/guide/model/guide_ids";
 
 export type PromotionPiece = "q" | "r" | "b" | "n";
 

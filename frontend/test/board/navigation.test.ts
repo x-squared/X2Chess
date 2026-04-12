@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createBoardNavigationCapabilities } from "../../src/board/navigation.js";
 import type { MovePositionRecord } from "../../src/board/move_position.js";
-import type { GameSessionState } from "../../src/game_sessions/game_session_state.js";
+import type { GameSessionState } from "../../src/features/sessions/services/game_session_state.js";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 

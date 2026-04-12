@@ -33,7 +33,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { getResourceLoaderService } from "../../services/resource_loader";
-import type { ResourceRow } from "../../resources_viewer/viewer_utils";
+import type { ResourceRow } from "../../features/resources/services/viewer_utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

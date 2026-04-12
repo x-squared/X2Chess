@@ -13,7 +13,7 @@
  */
 
 import { useState, useCallback, type ReactElement } from "react";
-import type { ResolvedAnchor } from "../../editor/resolveAnchors";
+import type { ResolvedAnchor } from "../../features/editor/model/resolveAnchors";
 import { useHoverPreview } from "../board/HoverPreviewContext";
 
 // ── Types ─────────────────────────────────────────────────────────────────────

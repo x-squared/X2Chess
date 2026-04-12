@@ -14,7 +14,7 @@
  */
 
 import { useState, useRef, useEffect, useCallback, type ReactElement } from "react";
-import type { VsEngineConfig } from "../../hooks/useVsEngine";
+import type { VsEngineConfig } from "../../features/analysis/hooks/useVsEngine";
 
 type PlayVsEngineDialogProps = {
   /** Display name of the configured engine, or null if none available. */

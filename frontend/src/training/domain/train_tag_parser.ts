@@ -1,9 +1,9 @@
 /**
  * train_tag_parser — re-exports the canonical `[%train]` parser from
- * `resources_viewer/train_tag_parser` for use within the training domain.
+ * `features/resources/services/train_tag_parser` for use within the training domain.
  *
  * Integration API:
- * - `TrainTag`, `parseTrainTag` — same as the resources_viewer module.
+ * - `TrainTag`, `parseTrainTag` — same as the canonical resource-service module.
  *
  * Configuration API:
  * - None.
@@ -12,5 +12,5 @@
  * - Pure re-exports; no side effects.
  */
 
-export type { TrainTag } from "../../resources_viewer/train_tag_parser";
-export { parseTrainTag } from "../../resources_viewer/train_tag_parser";
+export type { TrainTag } from "../../features/resources/services/train_tag_parser";
+export { parseTrainTag } from "../../features/resources/services/train_tag_parser";

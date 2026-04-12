@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createMoveLookupCapabilities } from "../../src/board/move_lookup.js";
 import type { MovePositionIndex, MovePositionRecord } from "../../src/board/move_position.js";
-import type { GameSessionState } from "../../src/game_sessions/game_session_state.js";
+import type { GameSessionState } from "../../src/features/sessions/services/game_session_state.js";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 

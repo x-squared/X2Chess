@@ -7,7 +7,7 @@ import {
   formatLinkAnnotation,
   replaceLinkAnnotation,
   appendLinkAnnotation,
-} from "../../src/resources_viewer/link_parser.js";
+} from "../../src/features/resources/services/link_parser.js";
 
 // ── parseLinkAnnotations ───────────────────────────────────────────────────────
 

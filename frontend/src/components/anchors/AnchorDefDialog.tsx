@@ -17,9 +17,9 @@ import {
   type ReactElement,
   type ChangeEvent,
 } from "react";
-import type { AnchorAnnotation } from "../../resources_viewer/anchor_parser";
-import type { AnchorDefDialogState } from "../../editor/useAnchorDefDialog";
-import type { ResolvedAnchor } from "../../editor/resolveAnchors";
+import type { AnchorAnnotation } from "../../features/resources/services/anchor_parser";
+import type { AnchorDefDialogState } from "../../features/editor/hooks/useAnchorDefDialog";
+import type { ResolvedAnchor } from "../../features/editor/model/resolveAnchors";
 import { AnchorList } from "./AnchorList";
 
 // ── Types ─────────────────────────────────────────────────────────────────────

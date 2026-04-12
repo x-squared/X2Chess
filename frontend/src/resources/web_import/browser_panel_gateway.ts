@@ -19,7 +19,7 @@
  *   if the script resolved to null/undefined.
  */
 
-import type { TauriWindowLike } from "../tauri_gateways";
+import type { TauriWindowLike } from "../../platform/desktop/tauri/tauri_gateways";
 
 // ── Gateway type ───────────────────────────────────────────────────────────────
 

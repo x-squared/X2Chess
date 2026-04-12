@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createSessionPersistenceService } from "../../src/game_sessions/session_persistence.js";
+import { createSessionPersistenceService } from "../../src/features/sessions/services/session_persistence.js";
 
 test("persistence routes save through active session sourceRef", async () => {
   const session = {

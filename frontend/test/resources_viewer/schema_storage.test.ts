@@ -8,7 +8,7 @@ import {
   validateSchemaJson,
   renumberFields,
   moveField,
-} from "../../src/resources_viewer/schema_storage.js";
+} from "../../src/features/resources/services/schema_storage.js";
 import type { MetadataSchema, MetadataFieldDefinition } from "../../../parts/resource/src/domain/metadata_schema.js";
 
 // ── Fixtures ───────────────────────────────────────────────────────────────────

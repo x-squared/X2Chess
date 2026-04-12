@@ -4,14 +4,14 @@ import { readFile } from "node:fs/promises";
 import {
   DEFAULT_RESOURCE_VIEWER_HEIGHT_PX,
   DEFAULT_BOARD_COLUMN_WIDTH_PX,
-} from "../../src/app_shell/app_state.js";
+} from "../../src/app/shell/model/app_state.js";
 import { initialAppStoreState } from "../../src/state/app_reducer.js";
 
 /** Read the contents of both the global stylesheet and the main component stylesheet. */
 const readAllCss = async (): Promise<string> => {
   const [main, components] = await Promise.all([
     readFile(new URL("../../src/styles.css", import.meta.url), "utf8"),
-    readFile(new URL("../../src/components/resource_viewer/resource_viewer.css", import.meta.url), "utf8"),
+    readFile(new URL("../../src/features/resources/components/resource_viewer.css", import.meta.url), "utf8"),
   ]);
   return main + "\n" + components;
 };

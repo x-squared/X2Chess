@@ -42,7 +42,7 @@ import {
   error as tauriError,
   attachConsole,
 } from "@tauri-apps/plugin-log";
-import { isTauriRuntime } from "./resources/tauri_gateways";
+import { isTauriRuntime } from "./platform/desktop/tauri/tauri_gateways";
 
 /**
  * True in Vite dev builds (`import.meta.env.DEV`).

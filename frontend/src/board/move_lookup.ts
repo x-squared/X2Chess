@@ -4,7 +4,7 @@ import type {
   MovePositionResolved,
 } from "./move_position";
 import type { PgnModel } from "../../../parts/pgnparser/src/pgn_model";
-import type { ActiveSessionRef } from "../game_sessions/game_session_state";
+import type { ActiveSessionRef } from "../features/sessions/services/game_session_state";
 
 /**
  * Move Lookup module.

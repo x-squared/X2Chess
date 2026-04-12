@@ -17,7 +17,7 @@ import {
   useCallback,
   type ReactElement,
 } from "react";
-import type { ResolvedAnchor } from "../../editor/resolveAnchors";
+import type { ResolvedAnchor } from "../../features/editor/model/resolveAnchors";
 import { AnchorList } from "./AnchorList";
 
 // ── Types ─────────────────────────────────────────────────────────────────────

@@ -26,7 +26,7 @@ import {
 import type { PgnGameRef } from "../../../parts/resource/src/domain/game_ref";
 import type { PgnResourceRef } from "../../../parts/resource/src/domain/resource_ref";
 import { createSourcePickerAdapter } from "./source_picker_adapter";
-import { isTauriRuntime, buildTauriFsGateway, buildTauriDbGateway } from "./tauri_gateways";
+import { isTauriRuntime, buildTauriFsGateway, buildTauriDbGateway } from "../platform/desktop/tauri/tauri_gateways";
 
 /**
  * Source Gateway module.

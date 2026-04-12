@@ -1,4 +1,4 @@
-import type { ActiveSessionRef } from "../game_sessions/game_session_state";
+import type { ActiveSessionRef } from "../features/sessions/services/game_session_state";
 
 type PgnRuntimeCapabilitiesLike = {
   applyPgnModelUpdate: (

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Chess } from "chess.js";
-import { buildFenAtPly } from "../../../src/components/shell/fen_at_ply.js";
+import { buildFenAtPly } from "../../../src/app/shell/fen_at_ply.js";
 
 test("buildFenAtPly replays SAN on standard start", (): void => {
   const fen: string = buildFenAtPly(["e4", "e5", "Nf3"], 3);

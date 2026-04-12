@@ -161,7 +161,7 @@
   background: var(--surface-1);
   white-space: pre-wrap;
   position: relative;
-  padding: 4px 0 8px;
+  padding: 4px 0 8px 6px;
   min-height: 340px;
   max-height: var(--text-editor-max-height);
   overflow-y: auto;
@@ -220,13 +220,13 @@
   --tree-step: 1.2em;
   --tree-margin-bottom: 0.2em;
   margin-bottom: var(--tree-margin-bottom);
-  padding-left: 0.45em;
+  padding-left: 0;
   position: relative;
 }
 
 /* Depth indentation with left-border indent guides */
 .text-editor-block.tree-depth-1 {
-  font-weight: 500;
+  font-weight: inherit;
 }
 
 .text-editor-block.tree-depth-2 {
@@ -312,6 +312,7 @@ span[data-kind="branch_header"] {
 /* Comments inherit Verdana from the editor; no italic. */
 .text-editor-comment-block {
   font-family: inherit;
+  color: var(--editor-comment-text-color, #243244);
 }
 
 /* Restore text selection inside comment blocks so users can edit/copy comment text. */
@@ -596,7 +597,7 @@ span[data-kind="branch_header"] {
 
 .text-editor-main-comment {
   margin-top: 0;
-  color: #243244;
+  color: var(--editor-comment-text-color, #243244);
   margin-left: 0;
   padding-left: 0;
   text-indent: 0;
@@ -605,8 +606,10 @@ span[data-kind="branch_header"] {
 /* Intro comments are visually emphasized in text/tree mode.
    Appearance is driven by CSS custom properties set from EditorStylePrefs. */
 .text-editor .text-editor-comment-intro {
-  display: inline-block;
-  margin: 0 0.55rem var(--editor-intro-padding-bottom, 0.45rem) 0;
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 0 var(--editor-intro-padding-bottom, 0.45rem) 0;
   padding: 0.2rem 0.38rem;
   border-radius: 4px;
   background: var(--editor-intro-bg, #f4f8ff);
@@ -615,26 +618,34 @@ span[data-kind="branch_header"] {
 
 .text-editor-variation-move {
   font-weight: 400;
+  color: var(--editor-variation-move-color, #1f2937);
   position: relative;
   margin: 0 0.2rem;
   padding: 0 0.16rem;
   border-radius: 4px;
 }
 
+/* Optional layout policy: keep variation comments inline instead of forcing a new line. */
+.text-editor[data-comment-linebreak-policy="mainline_only"] .text-editor-comment-block[data-variation-depth]:not([data-variation-depth="0"]) {
+  display: inline;
+}
+
 .text-editor-move-selected {
   z-index: 40;
+  background: rgba(219, 231, 255, 0.5);
+  box-shadow: 0 0 0 1px rgba(42, 93, 202, 0.4);
 }
 
 .text-editor-move-selected::before {
   content: "";
   position: absolute;
-  left: -6px;
-  right: -6px;
-  top: -4px;
-  bottom: -4px;
-  border: 1px solid rgba(42, 93, 202, 0.58);
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  border: 1px solid rgba(42, 93, 202, 0.4);
   border-radius: 4px;
-  background: rgba(219, 231, 255, 0.58);
+  background: transparent;
   z-index: -1;
   pointer-events: none;
 }

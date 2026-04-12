@@ -7,9 +7,7 @@
  *
  * Communication API:
  * - Pure function; no I/O or side effects.
- * - Accepts the same runtime shape as `PgnModelForMoves` from `move_position.ts`
- *   but requires the richer `commentsAfter`/`commentsBefore` fields present at
- *   runtime on move nodes.
+ * - Accepts a `PgnModel` from `parts/pgnparser`.
  */
 
 import { Chess } from "chess.js";

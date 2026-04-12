@@ -20,7 +20,8 @@
  * - `errorMessage`, `statusMessage` → dispatched directly via service callbacks
  */
 
-import type { MovePositionIndex, PgnModelForMoves } from "../board/move_position";
+import type { MovePositionIndex } from "../board/move_position";
+import type { PgnModel } from "../../../parts/pgnparser/src/pgn_model";
 import type { BoardPreviewLike } from "../board/runtime";
 
 /**
@@ -29,7 +30,7 @@ import type { BoardPreviewLike } from "../board/runtime";
  */
 export type GameSessionState = {
   // PGN / model
-  pgnModel: PgnModelForMoves | null;
+  pgnModel: PgnModel | null;
   pgnText: string;
   moves: string[];
   verboseMoves: Array<{ flags?: string; from?: string; to?: string }>;

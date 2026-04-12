@@ -5,11 +5,12 @@
  * without the full interactive machinery of PgnTextEditor.
  *
  * Integration API:
- * - `<PgnEditorPreview pgnModel={...} layoutMode={...} styleVars={...} />`
+ * - `<PgnEditorPreview pgnModel={...} layoutMode={...} commentLineBreakPolicy={...} styleVars={...} />`
  *
  * Configuration API:
  * - `pgnModel` — the model to preview; renders a placeholder hint when null.
  * - `layoutMode` — drives the plan builder and CSS data attribute.
+ * - `commentLineBreakPolicy` — comment flow policy (`"always"` or `"mainline_only"`).
  * - `styleVars` — CSS custom-property values applied inline to the root element.
  *
  * Communication API:
@@ -90,7 +91,7 @@ const renderCommentToken = (token: CommentToken): ReactElement => {
     .filter(Boolean)
     .join(" ");
   return (
-    <div key={token.key} className={cls}>
+    <div key={token.key} className={cls} data-variation-depth={String(token.variationDepth)}>
       {token.text}
     </div>
   );
@@ -140,18 +141,20 @@ const renderTreeBlocks = (blocks: PlanBlock[]): ReactElement => (
 type PgnEditorPreviewProps = {
   pgnModel: PgnModel | null;
   layoutMode: "plain" | "text" | "tree";
+  commentLineBreakPolicy: "always" | "mainline_only";
   styleVars: Record<string, string>;
 };
 
 export const PgnEditorPreview = ({
   pgnModel,
   layoutMode,
+  commentLineBreakPolicy,
   styleVars,
 }: PgnEditorPreviewProps): ReactElement => {
   const blocks: PlanBlock[] = useMemo(() => {
     if (!pgnModel) return [];
-    return buildTextEditorPlan(pgnModel, { layoutMode });
-  }, [pgnModel, layoutMode]);
+    return buildTextEditorPlan(pgnModel, { layoutMode, commentLineBreakPolicy });
+  }, [pgnModel, layoutMode, commentLineBreakPolicy]);
 
   if (!pgnModel) {
     return (
@@ -165,6 +168,7 @@ export const PgnEditorPreview = ({
     <div
       className="text-editor pgn-editor-preview"
       data-layout-mode={layoutMode}
+      data-comment-linebreak-policy={commentLineBreakPolicy}
       style={styleVars as CSSProperties}
     >
       {layoutMode === "tree" ? renderTreeBlocks(blocks) : renderLinearBlocks(blocks)}

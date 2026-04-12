@@ -108,6 +108,47 @@ test("gotoPly animate=false — no-op when already at target", async () => {
   assert.equal(rendered, 0);
 });
 
+test("gotoPly animate=false — navigation callback error does not throw", async () => {
+  const session = makeSession({ moves: ["e4", "e5", "Nf3"], currentPly: 0 });
+  const sessionRef = { current: session };
+  const { gotoPly } = createBoardNavigationCapabilities({
+    sessionRef,
+    getDelayMs: () => 0,
+    getMovePositionById: () => null,
+    selectMoveById: () => false,
+    findCommentIdAroundMove: () => null,
+    focusCommentById: () => false,
+    playMoveSound: noop,
+    onNavigationChange: () => {
+      throw new Error("synthetic navigation failure");
+    },
+  });
+  await assert.doesNotReject(async (): Promise<void> => {
+    await gotoPly(2, { animate: false });
+  });
+  assert.equal(session.currentPly, 2);
+});
+
+test("gotoPly tolerates malformed session moves value", async () => {
+  const session = makeSession({ currentPly: 0 });
+  (session as unknown as { moves: unknown }).moves = undefined;
+  const sessionRef = { current: session };
+  const { gotoPly } = createBoardNavigationCapabilities({
+    sessionRef,
+    getDelayMs: () => 0,
+    getMovePositionById: () => null,
+    selectMoveById: () => false,
+    findCommentIdAroundMove: () => null,
+    focusCommentById: () => false,
+    playMoveSound: noop,
+    onNavigationChange: () => {},
+  });
+  await assert.doesNotReject(async (): Promise<void> => {
+    await gotoPly(3, { animate: false });
+  });
+  assert.equal(session.currentPly, 0);
+});
+
 // ── gotoRelativeStep (variation context) ──────────────────────────────────────
 
 test("gotoRelativeStep backward in variation — selects previousMoveId", async () => {

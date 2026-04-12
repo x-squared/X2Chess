@@ -55,6 +55,13 @@ export type AppStartupServices = {
    */
   loadPgnText: (pgnText: string) => void;
   /**
+   * Replace the active game from PGN edited in the Developer Dock (Raw PGN tab).
+   * Clears undo/redo, updates board/editor state, marks dirty, and does not schedule autosave.
+   * @param pgnText - Full raw PGN string.
+   * @returns True when the session was updated; false on parse failure (session unchanged).
+   */
+  applyDeveloperDockRawPgn: (pgnText: string) => boolean;
+  /**
    * Insert a new comment node around the given move, or focus the existing one.
    * Returns `{ id, rawText }` for the comment (new or existing), or null on failure.
    * @param moveId - Target move node ID.
@@ -256,7 +263,7 @@ export type AppStartupServices = {
   /** Open the Default Layout configuration dialog. */
   openDefaultLayoutDialog: () => void;
   setDevDockOpen: (open: boolean) => void;
-  setActiveDevTab: (tab: "ast") => void;
+  setActiveDevTab: (tab: "ast" | "pgn") => void;
   setLayoutMode: (mode: "plain" | "text" | "tree") => void;
   /** Toggle whether engine evaluation pills are visible in text/tree mode. */
   setShowEvalPills: (show: boolean) => void;
@@ -304,6 +311,7 @@ const defaultServices: AppStartupServices = {
   gotoMoveById: noop,
   handleEditorArrowHotkey: (): boolean => false,
   loadPgnText: noop,
+  applyDeveloperDockRawPgn: (): boolean => false,
   insertComment: (): null => null,
   focusCommentAroundMove: noop,
   saveCommentText: noop,

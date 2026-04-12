@@ -741,7 +741,8 @@
   left: 1rem;
   right: 1rem;
   bottom: 0.8rem;
-  z-index: 105;
+  /* Above app menu panel (120) so the dock is visible when opened from the menu */
+  z-index: 125;
   border: 1px solid var(--border-strong);
   border-radius: 10px;
   background: linear-gradient(180deg, #fcfdff, #f2f7ff);

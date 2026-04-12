@@ -41,6 +41,33 @@ test("setCommentTextById — does not mutate original", () => {
   assert.equal(e4.commentsAfter[0].raw, "original");
 });
 
+test("setCommentTextById — empty text removes comment node", () => {
+  const model = parsePgnToModel("4. Nf3 {temp} 4... Nc6");
+  const nf3 = model.root.entries.find((e) => e.type === "move") as PgnMoveNode;
+  const commentId = nf3.commentsAfter[0].id;
+  const next = setCommentTextById(model, commentId, "") as typeof model;
+  const nextNf3 = next.root.entries.find((e) => e.type === "move") as PgnMoveNode;
+  assert.equal(nextNf3.commentsAfter.length, 0);
+});
+
+test("setCommentTextById — [[br]] only (cleared contentEditable) removes comment node", () => {
+  const model = parsePgnToModel("1. Nd4+ Nxd4 {test} 2. Kf6 *");
+  const nxd4 = model.root.entries.filter((e) => e.type === "move").find((m) => m.san === "Nxd4") as PgnMoveNode;
+  const commentId = nxd4.commentsAfter[0].id;
+  const next = setCommentTextById(model, commentId, "[[br]]") as typeof model;
+  const nextNxd4 = next.root.entries.filter((e) => e.type === "move").find((m) => m.san === "Nxd4") as PgnMoveNode;
+  assert.equal(nextNxd4.commentsAfter.length, 0);
+});
+
+test("setCommentTextById — whitespace and repeated [[br]] only removes comment", () => {
+  const model = parsePgnToModel("1. e4 {x} e5");
+  const e4 = model.root.entries.find((e) => e.type === "move") as PgnMoveNode;
+  const commentId = e4.commentsAfter[0].id;
+  const next = setCommentTextById(model, commentId, "  [[br]]\n[[BR]]  ") as typeof model;
+  const nextE4 = next.root.entries.find((e) => e.type === "move") as PgnMoveNode;
+  assert.equal(nextE4.commentsAfter.length, 0);
+});
+
 test("setCommentTextById — unknown id returns model unchanged", () => {
   const model = parsePgnToModel("1. e4");
   const result = setCommentTextById(model, "no-such-id", "text");

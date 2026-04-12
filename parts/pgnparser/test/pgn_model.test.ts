@@ -89,6 +89,13 @@ test("parsePgnToModel — parses simple moves", () => {
   assert.deepEqual(moves.map(m => m.san), ["e4", "e5", "Nf3", "Nc6"]);
 });
 
+test("parsePgnToModel — Unicode ellipsis black move numbers normalise to ASCII", () => {
+  const ellipsis = "\u2026";
+  const model = parsePgnToModel(`1. e4 1${ellipsis} c5`);
+  const nums = model.root.entries.filter((e) => e.type === "move_number") as PgnMoveNumberNode[];
+  assert.ok(nums.some((n) => n.text === "1..."));
+});
+
 test("parsePgnToModel — move ids are stable and unique", () => {
   const model = parsePgnToModel("1. e4 e5 2. Nf3");
   const moves = model.root.entries.filter(e => e.type === "move") as PgnMoveNode[];

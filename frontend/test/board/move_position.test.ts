@@ -17,11 +17,12 @@ import {
   type MovePositionIndex,
   type MovePositionRecord,
 } from "../../src/board/move_position.js";
+import type { PgnModel } from "../../../parts/pgnparser/src/pgn_model.js";
 
 test("buildMovePositionById — empty / missing root yields empty index", () => {
-  const empty: MovePositionIndex = buildMovePositionById({});
+  const empty: MovePositionIndex = buildMovePositionById({} as PgnModel);
   assert.deepEqual(empty, {});
-  const noRoot: MovePositionIndex = buildMovePositionById({ root: undefined });
+  const noRoot: MovePositionIndex = buildMovePositionById({ root: undefined } as unknown as PgnModel);
   assert.deepEqual(noRoot, {});
 });
 
@@ -137,9 +138,113 @@ test("replayPvToPosition — bad start FEN returns original fen", () => {
   assert.equal(result.lastMove, null);
 });
 
+// Non-standard FEN (position after 1. e4 c5): white to move on move 2.
+const SICILIAN_FEN = "rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq c6 0 2";
+
+test("buildMovePositionById — non-standard FEN with standard numbering (1.) indexes all mainline moves", () => {
+  const model = parsePgnToModel(`[FEN "${SICILIAN_FEN}"]\n\n1. Nf3 Nc6 2. d4 *`);
+  const idx: MovePositionIndex = buildMovePositionById(model);
+  const mainline: [string, MovePositionRecord][] = Object.entries(idx)
+    .filter((entry: [string, MovePositionRecord]): boolean => entry[1].mainlinePly != null)
+    .sort(
+      (a: [string, MovePositionRecord], b: [string, MovePositionRecord]): number =>
+        (a[1].mainlinePly ?? 0) - (b[1].mainlinePly ?? 0),
+    );
+  assert.equal(mainline.length, 3);
+  assert.equal(mainline[0][1].mainlinePly, 1);
+  assert.equal(mainline[1][1].mainlinePly, 2);
+  assert.equal(mainline[2][1].mainlinePly, 3);
+  for (const [, rec] of mainline) {
+    assert.notEqual(rec.fen, SICILIAN_FEN, "move FEN must differ from start FEN");
+    assert.ok(rec.lastMove != null, "lastMove must be non-null after applying move");
+  }
+});
+
+test("buildMovePositionById — non-standard FEN with non-standard numbering (2.) indexes all mainline moves", () => {
+  const model = parsePgnToModel(`[FEN "${SICILIAN_FEN}"]\n\n2. Nf3 Nc6 3. d4 *`);
+  const idx: MovePositionIndex = buildMovePositionById(model);
+  const mainline: [string, MovePositionRecord][] = Object.entries(idx)
+    .filter((entry: [string, MovePositionRecord]): boolean => entry[1].mainlinePly != null)
+    .sort(
+      (a: [string, MovePositionRecord], b: [string, MovePositionRecord]): number =>
+        (a[1].mainlinePly ?? 0) - (b[1].mainlinePly ?? 0),
+    );
+  assert.equal(mainline.length, 3);
+  assert.equal(mainline[0][1].mainlinePly, 1);
+  assert.equal(mainline[1][1].mainlinePly, 2);
+  assert.equal(mainline[2][1].mainlinePly, 3);
+  for (const [, rec] of mainline) {
+    assert.notEqual(rec.fen, SICILIAN_FEN, "move FEN must differ from start FEN");
+    assert.ok(rec.lastMove != null, "lastMove must be non-null after applying move");
+  }
+});
+
+test("buildMovePositionById — non-standard FEN: standard and non-standard move numbering yield identical mainline FENs", () => {
+  const idxStd: MovePositionIndex = buildMovePositionById(
+    parsePgnToModel(`[FEN "${SICILIAN_FEN}"]\n\n1. Nf3 Nc6 2. d4 *`),
+  );
+  const idxNonStd: MovePositionIndex = buildMovePositionById(
+    parsePgnToModel(`[FEN "${SICILIAN_FEN}"]\n\n2. Nf3 Nc6 3. d4 *`),
+  );
+  const fensOf = (idx: MovePositionIndex): string[] =>
+    Object.values(idx)
+      .filter((rec: MovePositionRecord): boolean => rec.mainlinePly != null)
+      .sort((a: MovePositionRecord, b: MovePositionRecord): number =>
+        (a.mainlinePly ?? 0) - (b.mainlinePly ?? 0),
+      )
+      .map((rec: MovePositionRecord): string => rec.fen);
+  const fensStd = fensOf(idxStd);
+  const fensNonStd = fensOf(idxNonStd);
+  assert.equal(fensStd.length, 3, "expected 3 mainline positions");
+  assert.deepEqual(fensStd, fensNonStd, "same starting FEN + same moves must yield same positions regardless of numbering");
+});
+
+test("buildMovePositionById — non-standard FEN with standard numbering (1.) - mainline moves all have different FENs", () => {
+  const model = parsePgnToModel(`[FEN "${SICILIAN_FEN}"]\n\n1. Nf3 Nc6 2. d4 cxd4 3. Nxd4 e5 4. Nb5 d6 *`);
+  const idx: MovePositionIndex = buildMovePositionById(model);
+  const mainlineFens: string[] = Object.values(idx)
+    .filter((rec: MovePositionRecord): boolean => rec.mainlinePly != null)
+    .map((rec: MovePositionRecord): string => rec.fen);
+  assert.equal(mainlineFens.length, 8, "expected 8 mainline moves");
+  assert.equal(new Set(mainlineFens).size, mainlineFens.length, "each mainline move must produce a unique FEN");
+});
+
 test("stripAnnotationsForBoardParser — strips comments and parenthetical variations", () => {
   const stripped: string = stripAnnotationsForBoardParser("1. e4 {comment} e5 (2. d4 d5)");
   assert.match(stripped, /1\.\s*e4/);
   assert.ok(!stripped.includes("comment"));
   assert.ok(!stripped.includes("d4"));
+});
+
+test("FEN + null-move: mainline and variation moves resolve after null move", () => {
+  const model = parsePgnToModel(
+    '[FEN "4k3/8/8/8/8/8/8/4K3 w - - 0 1"]\n\n1. -- 1... Kd7 (1... Kf7) *',
+  );
+  const idx: MovePositionIndex = buildMovePositionById(model);
+  const mainline: [string, MovePositionRecord][] = Object.entries(idx)
+    .filter((entry: [string, MovePositionRecord]): boolean => entry[1].mainlinePly != null)
+    .sort(
+      (a: [string, MovePositionRecord], b: [string, MovePositionRecord]): number =>
+        (a[1].mainlinePly ?? 0) - (b[1].mainlinePly ?? 0),
+    );
+  assert.equal(mainline.length, 2, "null move and black reply should both be indexed");
+  assert.equal(mainline[0][1].lastMove, null, "null move must not carry from/to squares");
+  const resolvedMainline = resolveMovePositionById(model, mainline[1][0]);
+  assert.ok(resolvedMainline, "mainline move after null move should resolve");
+
+  const variationEntry: [string, MovePositionRecord] | undefined = Object.entries(idx).find(
+    (entry: [string, MovePositionRecord]): boolean =>
+      entry[1].mainlinePly === null && entry[1].parentMoveId === mainline[1][0],
+  );
+  if (!variationEntry) {
+    assert.fail("expected variation move branching after null move");
+    return;
+  }
+  const variationMoveId: string = variationEntry[0];
+  const resolved = resolveMovePositionById(model, variationMoveId);
+  assert.ok(resolved, "variation move should resolve");
+  if (!resolved) return;
+  assert.equal(resolved.mainlinePly, null);
+  assert.equal(typeof resolved.fen, "string");
+  assert.ok(resolved.fen.length > 0);
 });

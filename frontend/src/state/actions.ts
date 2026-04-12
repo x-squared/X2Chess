@@ -22,7 +22,7 @@ export type AppAction =
   | { type: "set_locale"; locale: string }
   | { type: "set_dev_tools_enabled"; enabled: boolean }
   | { type: "set_dev_dock_open"; open: boolean }
-  | { type: "set_active_dev_tab"; tab: "ast" }
+  | { type: "set_active_dev_tab"; tab: "ast" | "pgn" }
   | { type: "set_is_menu_open"; open: boolean }
   // ── Board / navigation actions ─────────────────────────────────────────
   | { type: "toggle_board_flip" }

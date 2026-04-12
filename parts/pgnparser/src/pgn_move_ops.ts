@@ -20,6 +20,7 @@ import type {
   PgnVariationNode,
   PgnEntryNode,
   PgnMoveNode,
+  PgnMoveNumberNode,
 } from "./pgn_model";
 
 // ── Cursor type ───────────────────────────────────────────────────────────────
@@ -61,10 +62,28 @@ const countMovesBeforeIdx = (entries: PgnEntryNode[], upToIdx: number): number =
   return count;
 };
 
+/** True when `entry` is a white full-move clock token (`12.`). */
+const isWhiteMoveNumberEntry = (entry: PgnEntryNode | undefined): boolean => {
+  if (!entry || entry.type !== "move_number") return false;
+  const text: string = String((entry as PgnMoveNumberNode).text ?? "").trim();
+  return /^\d+\.$/.test(text);
+};
+
+/**
+ * True when SAN was tokenised with the clock glued to the move (`4.Kg5`),
+ * so a separate `move_number` must not be inserted before it.
+ */
+const moveSanEmbedsWhiteClockPrefix = (san: string): boolean =>
+  /^\d{1,3}\.\S/.test(String(san ?? ""));
+
 /**
  * Insert a move_number node before `insertIdx` when the move about to be
  * inserted is a white move and no move_number is already immediately
  * preceding.  Only applied to the root mainline variation.
+ *
+ * Skips insertion when the next entry already supplies a white clock (`4.`)
+ * or the next move SAN embeds one (`4.Kg5`), so appending (e.g. `--`) after a
+ * black half-move does not duplicate the upcoming white move number.
  *
  * Returns the adjusted insertIdx (incremented when a node was inserted).
  */
@@ -83,6 +102,17 @@ const maybeInsertMoveNumber = (
   const isWhiteTurn = startsWhite ? preceding % 2 === 0 : preceding % 2 !== 0;
   const prevEntry = insertIdx > 0 ? entries[insertIdx - 1] : undefined;
   if (isWhiteTurn && prevEntry?.type !== "move_number") {
+    const nextEntry: PgnEntryNode | undefined =
+      insertIdx < entries.length ? entries[insertIdx] : undefined;
+    if (isWhiteMoveNumberEntry(nextEntry)) {
+      return insertIdx;
+    }
+    if (nextEntry?.type === "move") {
+      const nextSan: string = (nextEntry as PgnMoveNode).san;
+      if (moveSanEmbedsWhiteClockPrefix(nextSan)) {
+        return insertIdx;
+      }
+    }
     const moveNum = Math.floor(preceding / 2) + 1;
     entries.splice(insertIdx, 0, {
       id: nextId("move_number"),
@@ -163,6 +193,143 @@ const locateVariation = (
     return false;
   });
   return found;
+};
+
+/** True when `entries` contains at least one move node. */
+const hasMoveEntry = (entries: PgnEntryNode[]): boolean =>
+  entries.some((entry: PgnEntryNode): boolean => entry.type === "move");
+
+/**
+ * Remove move-number tokens that no longer prefix a real move in the same
+ * variation (for example `2.` left behind after deleting `--`).
+ */
+const pruneDanglingMoveNumbers = (variation: PgnVariationNode): void => {
+  const cleaned: PgnEntryNode[] = [];
+  const source: PgnEntryNode[] = variation.entries;
+  for (let i = 0; i < source.length; i += 1) {
+    const entry: PgnEntryNode = source[i];
+    if (entry.type !== "move_number") {
+      cleaned.push(entry);
+      continue;
+    }
+    let hasMoveAhead: boolean = false;
+    for (let j = i + 1; j < source.length; j += 1) {
+      const lookahead: PgnEntryNode = source[j];
+      if (lookahead.type === "move") {
+        hasMoveAhead = true;
+        break;
+      }
+      if (lookahead.type === "move_number" || lookahead.type === "result") {
+        break;
+      }
+    }
+    if (hasMoveAhead) cleaned.push(entry);
+  }
+  variation.entries = cleaned;
+};
+
+/** True when `text` is a black move-number token (`12...` or `12…`). */
+const isBlackMoveNumberText = (raw: string): boolean => {
+  const text: string = String(raw ?? "");
+  return /^(\d+)\.{3,}$/.test(text) || /^(\d+)…$/.test(text);
+};
+
+/**
+ * Remove redundant black move-number tokens (`N...`) that appear after a move
+ * already exists earlier in the same variation (e.g. `1. Nf3 1... Nc6`).
+ */
+const pruneRedundantBlackMoveNumbers = (variation: PgnVariationNode): void => {
+  const cleaned: PgnEntryNode[] = [];
+  let seenMove: boolean = false;
+  for (const entry of variation.entries) {
+    if (entry.type === "move") {
+      seenMove = true;
+      cleaned.push(entry);
+      continue;
+    }
+    if (entry.type === "move_number" && seenMove && isBlackMoveNumberText((entry as PgnMoveNumberNode).text)) {
+      continue;
+    }
+    cleaned.push(entry);
+  }
+  variation.entries = cleaned;
+};
+
+/**
+ * After removing a null move (`--`), drop a redundant black move-number (or a
+ * move-number-shaped SAN misparsed as a move) that immediately continues the
+ * previous half-move on the same line (e.g. `5. h6 5... Ne5` → `5. h6 Ne5`).
+ */
+const stripRedundantBlackNumberingAfterRemovedNullMove = (
+  variation: PgnVariationNode,
+  joinIdx: number,
+): void => {
+  if (joinIdx <= 0 || joinIdx >= variation.entries.length) return;
+  const prev: PgnEntryNode = variation.entries[joinIdx - 1];
+  if (prev.type !== "move") return;
+  let idx: number = joinIdx;
+  while (idx < variation.entries.length) {
+    const cur: PgnEntryNode = variation.entries[idx];
+    if (cur.type === "comment") {
+      idx += 1;
+      continue;
+    }
+    if (cur.type === "move_number") {
+      const text: string = String((cur as PgnMoveNumberNode).text ?? "");
+      if (isBlackMoveNumberText(text)) {
+        variation.entries.splice(idx, 1);
+      }
+      return;
+    }
+    if (cur.type === "move") {
+      const san: string = (cur as PgnMoveNode).san;
+      if (isBlackMoveNumberText(san)) {
+        variation.entries.splice(idx, 1);
+      }
+      return;
+    }
+    return;
+  }
+};
+
+/** Remove consecutive move-number tokens; keep only the last one. */
+const pruneConsecutiveMoveNumbers = (variation: PgnVariationNode): void => {
+  const cleaned: PgnEntryNode[] = [];
+  for (const entry of variation.entries) {
+    if (entry.type === "move_number") {
+      const prev: PgnEntryNode | undefined = cleaned[cleaned.length - 1];
+      if (prev?.type === "move_number") {
+        cleaned[cleaned.length - 1] = entry;
+        continue;
+      }
+    }
+    cleaned.push(entry);
+  }
+  variation.entries = cleaned;
+};
+
+/**
+ * Normalize the splice boundary after replacing a null move with continuation
+ * entries. If a move is already present immediately before `joinIndex`, the
+ * first move_number token at `joinIndex` is redundant and removed.
+ */
+const normalizeJoinBoundary = (variation: PgnVariationNode, joinIndex: number): void => {
+  if (joinIndex <= 0 || joinIndex >= variation.entries.length) return;
+  const prev: PgnEntryNode = variation.entries[joinIndex - 1];
+  if (prev.type !== "move") return;
+  let idx: number = joinIndex;
+  while (idx < variation.entries.length) {
+    const entry: PgnEntryNode = variation.entries[idx];
+    if (entry.type === "move_number") {
+      variation.entries.splice(idx, 1);
+      continue;
+    }
+    if (entry.type === "comment") {
+      idx += 1;
+      continue;
+    }
+    break;
+  }
 };
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -335,6 +502,63 @@ export const truncateAfter = (
     : null;
 
   return [cloned, newCursor];
+};
+
+/**
+ * Delete exactly one move identified by `moveId` while preserving surrounding
+ * entries in the same variation.
+ *
+ * Returns `[updatedModel, newCursor]` where `newCursor` points to the previous
+ * move in that variation (or null when none exists).
+ */
+export const deleteSingleMove = (
+  model: PgnModel,
+  moveId: string,
+): [PgnModel, PgnCursor | null] => {
+  const cloned = cloneModel(model);
+  const loc = locateMove(cloned, moveId);
+  if (!loc) return [model, null];
+
+  const prevMoveId: string | null = (() => {
+    for (let i = loc.index - 1; i >= 0; i -= 1) {
+      if (loc.variation.entries[i].type === "move") {
+        return (loc.variation.entries[i] as PgnMoveNode).id;
+      }
+    }
+    return null;
+  })();
+
+  const targetEntry: PgnEntryNode | undefined = loc.variation.entries[loc.index];
+  const targetMove: PgnMoveNode | null = targetEntry?.type === "move" ? targetEntry : null;
+  const hasMainlineMoveAfterTarget: boolean = loc.variation.entries
+    .slice(loc.index + 1)
+    .some((entry: PgnEntryNode): boolean => entry.type === "move");
+  const soleContinuation: PgnVariationNode | null =
+    targetMove &&
+    targetMove.san === "--" &&
+    targetMove.ravs.length === 1 &&
+    !hasMainlineMoveAfterTarget &&
+    hasMoveEntry(targetMove.ravs[0].entries)
+      ? targetMove.ravs[0]
+      : null;
+
+  if (soleContinuation) {
+    // Promote the only null-move continuation RAV into the parent variation.
+    loc.variation.entries.splice(loc.index, 1, ...soleContinuation.entries);
+    normalizeJoinBoundary(loc.variation, loc.index);
+    stripRedundantBlackNumberingAfterRemovedNullMove(loc.variation, loc.index);
+  } else {
+    loc.variation.entries.splice(loc.index, 1);
+    stripRedundantBlackNumberingAfterRemovedNullMove(loc.variation, loc.index);
+  }
+  pruneDanglingMoveNumbers(loc.variation);
+  pruneRedundantBlackMoveNumbers(loc.variation);
+  pruneConsecutiveMoveNumbers(loc.variation);
+
+  return [
+    cloned,
+    prevMoveId ? { moveId: prevMoveId, variationId: loc.variation.id } : null,
+  ];
 };
 
 /**

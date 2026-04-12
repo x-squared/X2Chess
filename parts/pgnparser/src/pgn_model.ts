@@ -89,7 +89,16 @@ const tokenizeMoveText = (source: string): MoveTextToken[] => {
   return tokens;
 };
 
-const isMoveNumber = (value: string): boolean => /^\d+\.(\.\.)?$|^\d+\.\.\.$/.test(value);
+/** True for white (`12.`), black (`12...` / `12…`), or legacy `12..` move-number tokens. */
+const isMoveNumber = (value: string): boolean =>
+  /^\d+\.(\.\.)?$|^\d+\.\.\.$|^\d+…$/.test(value);
+
+/** Canonicalise Unicode ellipsis black move numbers to ASCII `N...` for stable round-trips. */
+const canonicalMoveNumberText = (symbol: string): string => {
+  const m: RegExpMatchArray | null = symbol.match(/^(\d+)…$/);
+  if (m) return `${m[1]}...`;
+  return symbol;
+};
 const isResult = (value: string): boolean => /^(1-0|0-1|1\/2-1\/2|\*)$/.test(value);
 const isNag = (value: string): boolean => /^\$\d+$/.test(value);
 
@@ -410,7 +419,7 @@ export const parsePgnToModel = (rawPgn: string): PgnModel => {
       frame.variation.entries.push({
         id: nextId("move_number"),
         type: "move_number",
-        text: symbol,
+        text: canonicalMoveNumberText(symbol),
       });
       continue;
     }

@@ -151,25 +151,32 @@ export const ensureRequiredPgnHeaders = (
 /**
  * Prepare a PGN string for chess.js's `loadPgn`.
  *
- * chess.js requires `[SetUp "1"]` alongside `[FEN "..."]` to recognise a
- * custom starting position when calling `loadPgn`.  Many PGN producers omit
- * `[SetUp]` even when a FEN header is present.  Without it, chess.js ignores
- * the FEN, starts from the standard initial position, and throws as soon as it
- * encounters the first move — leaving `g.moves` empty and board navigation
- * silently broken.
+ * Applies two normalizations:
  *
- * This function inserts `[SetUp "1"]` immediately before the `[FEN "..."]`
- * line when the source already contains a FEN header but no SetUp header.
+ * 1. **Null-move stripping** — `--` (pass/null move) is used in endgame studies
+ *    to demonstrate zugzwang but is not valid chess.js PGN syntax.  All ` --`
+ *    tokens are removed so chess.js can parse the preceding moves.
+ *
+ * 2. **SetUp injection** — chess.js requires `[SetUp "1"]` alongside `[FEN "..."]`
+ *    to recognise a custom starting position.  Many PGN producers omit `[SetUp]`
+ *    even when a FEN header is present; without it chess.js ignores the FEN,
+ *    starts from the standard initial position, and throws on the first move.
+ *    This function inserts `[SetUp "1"]` immediately before the `[FEN "..."]`
+ *    line when it is absent.
+ *
  * The returned string is intended only for chess.js consumption; it is never
  * stored or displayed.
  *
  * @param {string} source - Raw PGN string.
- * @returns {string} PGN string with `[SetUp "1"]` injected when needed.
+ * @returns {string} PGN string with null moves stripped and `[SetUp "1"]` injected when needed.
  */
 export const normalizeForChessJs = (source: string): string => {
-  if (/\[SetUp\s+"[^"]*"\]/i.test(source)) return source;
-  if (!/\[FEN\s+"[^"]*"\]/i.test(source)) return source;
-  return source.replace(/(\[FEN\s+"[^"]*"\])/i, '[SetUp "1"]\n$1');
+  // Strip `--` null/pass moves. They appear as ` --` in the movetext and are
+  // never valid inside header values (which are quoted) or FEN strings.
+  const stripped = source.replaceAll(" --", "");
+  if (/\[SetUp\s+"[^"]*"\]/i.test(stripped)) return stripped;
+  if (!/\[FEN\s+"[^"]*"\]/i.test(stripped)) return stripped;
+  return stripped.replace(/(\[FEN\s+"[^"]*"\])/i, '[SetUp "1"]\n$1');
 };
 
 /**

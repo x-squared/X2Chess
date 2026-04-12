@@ -40,3 +40,64 @@
 .ast-headers {
   color: var(--text-secondary);
 }
+
+.raw-pgn-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 0;
+  flex: 1;
+}
+
+.raw-pgn-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.raw-pgn-apply {
+  flex-shrink: 0;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.82rem;
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle, #d1d5db);
+  background: var(--surface-elevated, #f9fafb);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.raw-pgn-apply:hover {
+  background: var(--surface-hover, #f3f4f6);
+}
+
+.raw-pgn-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--text-secondary);
+  flex: 1;
+  min-width: 12rem;
+}
+
+.raw-pgn-view {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--text-primary);
+}
+
+.raw-pgn-editor {
+  width: 100%;
+  min-height: 12rem;
+  flex: 1;
+  resize: vertical;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--border-subtle, #d1d5db);
+  border-radius: 4px;
+  background: var(--surface-base, #fff);
+  box-sizing: border-box;
+}

@@ -26,7 +26,6 @@
 
 import { useRef, useEffect, useCallback, useState, useMemo } from "react";
 import type { ReactElement } from "react";
-import { Chess } from "chess.js";
 import { useGameIngress } from "../../hooks/useGameIngress";
 import { isLikelyPgnText } from "../../runtime/bootstrap_shared";
 import { useAppContext } from "../../state/app_context";
@@ -48,6 +47,7 @@ import {
   selectShapePrefs,
   selectEditorStylePrefs,
   selectDefaultLayoutPrefs,
+  selectPositionPreviewOnHover,
 } from "../../state/selectors";
 import { useTranslator } from "../../hooks/useTranslator";
 import { useAppStartup } from "../../hooks/useAppStartup";
@@ -70,7 +70,6 @@ import { ServiceContextProvider } from "../../state/ServiceContext";
 import type { AppStartupServices } from "../../state/ServiceContext";
 import { useHoverPreview } from "../board/HoverPreviewContext";
 import { replayPvToPosition } from "../../board/move_position";
-import { selectPositionPreviewOnHover } from "../../state/selectors";
 import { MenuPanel } from "./MenuPanel";
 import { DevDock } from "./DevDock";
 import { GuideInspector } from "../guide/GuideInspector";
@@ -105,14 +104,7 @@ import { TrainingResult } from "../../training/components/TrainingResult";
 import { useBoardColumnResize } from "../../hooks/useBoardColumnResize";
 import { useNavigateGuard } from "../../hooks/useNavigateGuard";
 import { useTrainingDialogState } from "../../hooks/useTrainingDialogState";
-
-/** Compute the FEN at the given ply by replaying SAN moves. */
-const fenAtPly = (sanMoves: string[], ply: number): string => {
-  const game = new Chess();
-  const limit = Math.min(ply, sanMoves.length);
-  for (let i = 0; i < limit; i++) game.move(sanMoves[i]);
-  return game.fen();
-};
+import { buildFenAtPly } from "./fen_at_ply";
 
 /** Root application shell component. */
 export const AppShell = (): ReactElement => {
@@ -132,6 +124,7 @@ export const AppShell = (): ReactElement => {
   const boardFlipped: boolean = selectBoardFlipped(state);
   const positionPreviewOnHover: boolean = selectPositionPreviewOnHover(state);
   const shapePrefs = selectShapePrefs(state);
+  const pgnModel = selectPgnModel(state);
   const activeSession = sessions.find((s) => s.sessionId === activeSessionId);
   const t: (key: string, fallback?: string) => string = useTranslator();
   const { showPreview, hidePreview } = useHoverPreview();
@@ -185,7 +178,11 @@ export const AppShell = (): ReactElement => {
     [vsEngine],
   );
 
-  const currentFen = fenAtPly(moves, currentPly);
+  const currentFen = useMemo((): string => {
+    const startFenHeader: string = getHeaderValue(pgnModel, "FEN", "").trim();
+    const startFen: string | undefined = startFenHeader.length > 0 ? startFenHeader : undefined;
+    return buildFenAtPly(moves, currentPly, startFen);
+  }, [moves, currentPly, pgnModel]);
 
   const extDbSettings = useExtDatabaseSettings();
   const openingExplorer = useOpeningExplorer(
@@ -206,7 +203,6 @@ export const AppShell = (): ReactElement => {
   const [boardResetKey, setBoardResetKey] = useState<number>(0);
 
   // NG7: edit starting position dialog
-  const pgnModel = selectPgnModel(state);
   const isSetUpGame = getHeaderValue(pgnModel, "SetUp") === "1";
   const currentStartingFen = isSetUpGame
     ? getHeaderValue(pgnModel, "FEN", STANDARD_STARTING_FEN)
@@ -271,6 +267,46 @@ export const AppShell = (): ReactElement => {
     if (uci.length < 4) return;
     onMovePlayed(uci.slice(0, 2), uci.slice(2, 4));
   }, [onMovePlayed]);
+
+  /** Insert `[[indent]]` at the current caret in the active comment editor. */
+  const handleInsertIndentMarker = useCallback((): void => {
+    const selection: Selection | null = globalThis.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+    const anchorNode: Node | null = selection.anchorNode;
+    const anchorElement: Element | null = anchorNode instanceof Element
+      ? anchorNode
+      : anchorNode?.parentElement ?? null;
+    const editableHost: HTMLElement | null = anchorElement?.closest("[contenteditable='true']") as HTMLElement | null;
+    if (!editableHost) return;
+    const range: Range = selection.getRangeAt(0);
+    range.deleteContents();
+    const markerNode: Text = document.createTextNode("[[indent]] ");
+    range.insertNode(markerNode);
+    range.setStartAfter(markerNode);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }, []);
+
+  /** Insert `[[deindent]]` at the current caret in the active comment editor. */
+  const handleInsertDeindentMarker = useCallback((): void => {
+    const selection: Selection | null = globalThis.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+    const anchorNode: Node | null = selection.anchorNode;
+    const anchorElement: Element | null = anchorNode instanceof Element
+      ? anchorNode
+      : anchorNode?.parentElement ?? null;
+    const editableHost: HTMLElement | null = anchorElement?.closest("[contenteditable='true']") as HTMLElement | null;
+    if (!editableHost) return;
+    const range: Range = selection.getRangeAt(0);
+    range.deleteContents();
+    const markerNode: Text = document.createTextNode("[[deindent]] ");
+    range.insertNode(markerNode);
+    range.setStartAfter(markerNode);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }, []);
 
   const handleSearchPlayer = useCallback((query: string): void => {
     setActiveRightPanel("text-search");
@@ -625,6 +661,8 @@ export const AppShell = (): ReactElement => {
                   showEvalPills={showEvalPills}
                   t={t}
                   onSetLayoutMode={(mode): void => { services.setLayoutMode(mode); }}
+                  onInsertIndentMarker={handleInsertIndentMarker}
+                  onInsertDeindentMarker={handleInsertDeindentMarker}
                   onApplyDefaultIndent={(): void => { services.applyDefaultIndent(); }}
                   onOpenDefaultLayoutConfig={(): void => { services.openDefaultLayoutDialog(); }}
                   onSave={(): void => { services.saveActiveGameNow(); }}

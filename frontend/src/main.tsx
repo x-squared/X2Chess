@@ -30,6 +30,23 @@ if (!rootEl) {
 await initLogger();
 log.info("main", "X2Chess starting — logging active");
 
+// Capture top-level runtime crashes that bypass local try/catch handlers.
+globalThis.addEventListener("error", (event: ErrorEvent): void => {
+  const err = event.error;
+  const detail: string = err instanceof Error
+    ? `${err.name}: ${err.message}\n${err.stack ?? ""}`
+    : `${event.message} @ ${event.filename}:${event.lineno}:${event.colno}`;
+  log.error("main", `Unhandled error event: ${detail}`);
+});
+
+globalThis.addEventListener("unhandledrejection", (event: PromiseRejectionEvent): void => {
+  const reason = event.reason;
+  const detail: string = reason instanceof Error
+    ? `${reason.name}: ${reason.message}\n${reason.stack ?? ""}`
+    : String(reason);
+  log.error("main", `Unhandled rejection: ${detail}`);
+});
+
 createRoot(rootEl).render(
   <StrictMode>
     <App />

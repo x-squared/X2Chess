@@ -18,8 +18,7 @@
  * **PGN model** — the parsed representation of a PGN game produced by the
  * external PGN parser (in `parts/pgnparser`).  It is a tree: a root
  * `PgnVariationNode` whose `entries` array contains `PgnMoveNode` and nested
- * `PgnVariationNode` items.  The board module consumes this tree only through
- * the narrow `PgnModelForMoves` interface (`{ root?: PgnVariationNode }`).
+ * `PgnVariationNode` items.
  *
  * **Variation (RAV)** — a branch in the game tree, recorded in PGN inside
  * parentheses.  Variation moves are part of the PGN model and have move IDs but

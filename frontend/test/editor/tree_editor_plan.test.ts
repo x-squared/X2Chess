@@ -158,19 +158,19 @@ test("sub-RAV block has branch_header token labelled A.1", () => {
   assert.equal(String(branchHeaderToken(blocks[2])!.dataset.label), "A.1");
 });
 
-// ── [[br]] not split in tree mode ─────────────────────────────────────────────
+// ── Marker handling in tree mode ──────────────────────────────────────────────
 
-test("[[br]] inside a comment does not split blocks in tree mode", () => {
+test("[[br]] inside a comment is rendered as newline in tree mode", () => {
   const m = model(variation(0, [
     moveNumber("1."),
     move("m1", "e4", { commentsAfter: [comment("c1", "First part [[br]] Second part")] }),
   ]));
   const blocks = treeBlocks(m);
-  // All moves + comment land in the single mainline block — no extra block from [[br]].
+  // All moves + comment land in the same tree block.
   assert.equal(blocks.length, 1);
   const commentTok = blocks[0].tokens.find((t) => t.kind === "comment");
   assert.ok(commentTok, "comment token should be present");
-  assert.equal((commentTok as { text: string }).text, "First part [[br]] Second part");
+  assert.equal((commentTok as { text: string }).text, "First part \n Second part");
 });
 
 // ── Marker round-trip ─────────────────────────────────────────────────────────
@@ -186,6 +186,21 @@ test("rawText preserved in tree mode — [[br]] survives for text-mode round-tri
     | undefined;
   assert.ok(commentTok);
   assert.equal(commentTok!.rawText, "Note [[br]] continued");
+});
+
+test("tree mode strips visible [[indent]] marker text from comment display", () => {
+  const m = model(variation(0, [
+    comment("c1", "[[indent]] Intro line"),
+    moveNumber("1."),
+    move("m1", "e4"),
+  ]));
+  const blocks = treeBlocks(m);
+  const commentTok = blocks[0].tokens.find((t) => t.kind === "comment") as
+    | { text: string; rawText: string }
+    | undefined;
+  assert.ok(commentTok);
+  assert.equal(commentTok!.text, "Intro line");
+  assert.equal(commentTok!.rawText, "[[indent]] Intro line");
 });
 
 // ── Intro styling ─────────────────────────────────────────────────────────────
@@ -257,6 +272,45 @@ test("text mode: [[indent]] alias \\i still triggers indent directive", () => {
   assert.ok(indented, "expected at least one indented block in text mode");
 });
 
+test("text mode: indent directive does not force line breaks in mainline", () => {
+  const m = model(variation(0, [
+    comment("c1", "[[indent]]"),
+    moveNumber("1."),
+    move("m1", "e4"),
+    move("m2", "e5"),
+  ]));
+  const blocks = textBlocks(m);
+  assert.ok(blocks.length >= 2);
+});
+
+test("text mode: [[deindent]] cancels prior indent for following content", () => {
+  const m = model(variation(0, [
+    comment("c1", "[[indent]]"),
+    moveNumber("1."),
+    move("m1", "e4"),
+    comment("c2", "[[deindent]]"),
+    moveNumber("1..."),
+    move("m2", "e5"),
+  ]));
+  const blocks = textBlocks(m);
+  assert.ok(blocks.length >= 2);
+});
+
+test("tree mode strips visible [[deindent]] marker text from comment display", () => {
+  const m = model(variation(0, [
+    comment("c1", "[[deindent]] Back out"),
+    moveNumber("1."),
+    move("m1", "e4"),
+  ]));
+  const blocks = treeBlocks(m);
+  const commentTok = blocks[0].tokens.find((t) => t.kind === "comment") as
+    | { text: string; rawText: string }
+    | undefined;
+  assert.ok(commentTok);
+  assert.equal(commentTok!.text, "Back out");
+  assert.equal(commentTok!.rawText, "[[deindent]] Back out");
+});
+
 test("plain mode: rawText shown verbatim with no splitting", () => {
   const m = model(variation(0, [
     comment("c1", "Hello [[br]] World"),
@@ -269,4 +323,81 @@ test("plain mode: rawText shown verbatim with no splitting", () => {
   assert.ok(commentTok);
   assert.equal(commentTok!.text, "Hello [[br]] World");
   assert.equal(commentTok!.plainLiteralComment, true);
+});
+
+test("text mode suppresses redundant black move number after white move", () => {
+  const m = model(variation(0, [
+    moveNumber("4."),
+    move("w4", "Kg5"),
+    moveNumber("4..."),
+    move("b4", "Nc4"),
+  ]));
+  const blocks = textBlocks(m);
+  const text = blocks
+    .flatMap((b) => b.tokens)
+    .filter((t) => t.kind === "inline")
+    .map((t) => t.text)
+    .join(" ");
+  assert.match(text, /Kg5/);
+  assert.match(text, /Nc4/);
+  assert.doesNotMatch(text, /4\.\.\./);
+});
+
+test("text mode suppresses redundant black move number with four dots after comment removal shape", () => {
+  const m = model(variation(0, [
+    moveNumber("4."),
+    move("w4", "Nf3"),
+    moveNumber("4...."),
+    move("b4", "Nc6"),
+  ]));
+  const blocks = textBlocks(m);
+  const text = blocks
+    .flatMap((b) => b.tokens)
+    .filter((t) => t.kind === "inline")
+    .map((t) => t.text)
+    .join(" ");
+  assert.match(text, /Nf3/);
+  assert.match(text, /Nc6/);
+  assert.doesNotMatch(text, /4\.\.\.\./);
+});
+
+test("text mode collapses duplicate white move numbers before a move", () => {
+  const m = model(variation(0, [
+    moveNumber("2..."),
+    move("b2", "Nc2"),
+    moveNumber("3."),
+    move("w3", "h5"),
+    move("b3", "Ne3"),
+    moveNumber("4."),
+    moveNumber("4."),
+    move("w4", "Kg5"),
+  ]));
+  const blocks = textBlocks(m);
+  const text = blocks
+    .flatMap((b) => b.tokens)
+    .filter((t) => t.kind === "inline")
+    .map((t) => t.text)
+    .join(" ");
+  assert.match(text, /Ne3/);
+  assert.match(text, /Kg5/);
+  assert.doesNotMatch(text, /4\s+4/);
+});
+
+test("text mode suppresses black move number after move even with intervening comment token", () => {
+  const m = model(variation(0, [
+    moveNumber("5."),
+    move("w5", "h6"),
+    comment("c5", ""),
+    moveNumber("5..."),
+    move("b5", "Ne5"),
+  ]));
+  const blocks = textBlocks(m);
+  const text = blocks
+    .flatMap((b) => b.tokens)
+    .filter((t) => t.kind === "inline")
+    .map((t) => t.text)
+    .join(" ");
+  assert.match(text, /h6/);
+  assert.match(text, /Ne5/);
+  assert.doesNotMatch(text, /5\.\.\./);
 });

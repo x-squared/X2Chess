@@ -2,8 +2,8 @@ import type {
   MovePositionIndex,
   MovePositionRecord,
   MovePositionResolved,
-  PgnModelForMoves,
 } from "./move_position";
+import type { PgnModel } from "../../../parts/pgnparser/src/pgn_model";
 import type { ActiveSessionRef } from "../game_sessions/game_session_state";
 
 /**
@@ -22,9 +22,9 @@ import type { ActiveSessionRef } from "../game_sessions/game_session_state";
 
 type MoveLookupDeps = {
   sessionRef: ActiveSessionRef;
-  buildMovePositionByIdFn: (pgnModel: PgnModelForMoves) => MovePositionIndex;
+  buildMovePositionByIdFn: (pgnModel: PgnModel) => MovePositionIndex;
   resolveMovePositionByIdFn: (
-    pgnModel: PgnModelForMoves,
+    pgnModel: PgnModel,
     moveId: string,
   ) => MovePositionResolved | null;
 };
@@ -53,7 +53,7 @@ export const createMoveLookupCapabilities = (
   ): MovePositionRecord | MovePositionResolved | null => {
     if (!moveId) return null;
     const g = sessionRef.current;
-    const pgnModel = g.pgnModel as PgnModelForMoves;
+    const pgnModel = g.pgnModel as PgnModel;
 
     let target: MovePositionRecord | MovePositionResolved | undefined = g.movePositionById?.[moveId];
     if (!target) {

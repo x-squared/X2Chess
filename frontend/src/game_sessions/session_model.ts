@@ -3,6 +3,52 @@ import type { Move } from "chess.js";
 import type { GameSessionState } from "./game_session_state";
 import type { MovePositionIndex } from "../board/move_position";
 import { normalizeForChessJs } from "../../../parts/pgnparser/src/pgn_headers";
+import { log } from "../logger";
+
+/** Walk mainline entries from pgnModel.root and return their SANs. */
+const extractMainlineSans = (pgnModel: unknown): string[] => {
+  const entries = (pgnModel as { root?: { entries?: Array<{ type?: string; san?: string }> } })
+    ?.root?.entries ?? [];
+  const sans: string[] = [];
+  for (const entry of entries) {
+    if (entry.type === "move" && entry.san) sans.push(entry.san);
+  }
+  return sans;
+};
+
+/**
+ * Apply SANs one-by-one from a FEN start and return the 0-based index of the
+ * first move chess.js rejects, or -1 when the FEN itself is the problem.
+ */
+const findFirstFailingSan = (fenHeader: string, mainlineSans: string[]): number => {
+  let probe: Chess;
+  try {
+    probe = fenHeader === "(none)" ? new Chess() : new Chess(fenHeader);
+  } catch {
+    return -1;
+  }
+  for (let i = 0; i < mainlineSans.length; i++) {
+    try { probe.move(mainlineSans[i]); } catch { return i; }
+  }
+  return -1;
+};
+
+/** Log a detailed diagnostic when chess.js rejects a PGN both raw and stripped. */
+const logChessJsRejection = (pgnModel: unknown, primaryErr: unknown, fallbackErr: unknown): void => {
+  const fenHeader = (pgnModel as { headers?: Array<{ key: string; value: string }> })
+    ?.headers?.find(h => h.key === "FEN")?.value ?? "(none)";
+  const mainlineSans = extractMainlineSans(pgnModel);
+  const firstFailIndex = findFirstFailingSan(fenHeader, mainlineSans);
+  const failDetail = firstFailIndex >= 0
+    ? `move index ${firstFailIndex} ("${mainlineSans[firstFailIndex]}")`
+    : "FEN itself rejected";
+  log.warn(
+    "session_model",
+    `createSessionFromPgnText: chess.js rejected the PGN (both attempts failed). ` +
+    `FEN="${fenHeader}" primaryErr="${String(primaryErr)}" fallbackErr="${String(fallbackErr)}" ` +
+    `mainlineSans=[${mainlineSans.join(", ")}] firstFail=${failDetail}.`,
+  );
+};
 
 /**
  * Session Model module.
@@ -94,14 +140,35 @@ export const createGameSessionModel = ({
       parser.loadPgn(normalizeForChessJs(normalizedPgnText));
       moves = parser.history();
       verboseMoves = parser.history({ verbose: true });
-    } catch {
+      const mainlineCount = Object.values(movePositionById).filter(r => r.mainlinePly !== null).length;
+      if (moves.length !== mainlineCount) {
+        log.warn(
+          "session_model",
+          `createSessionFromPgnText (primary): chess.js mainline move count (${moves.length}) differs from ` +
+          `movePositionById mainline entry count (${mainlineCount}). ` +
+          `Likely cause: [FEN] game where chess.js and the custom parser disagree on moves. ` +
+          `gotoPly() will clamp clicks to chess.js move count — some mainline moves will not navigate.`,
+        );
+      }
+    } catch (primaryErr) {
       try {
         const parser: Chess = new Chess();
         parser.loadPgn(normalizeForChessJs(stripAnnotationsForBoardParserFn(normalizedPgnText)));
         moves = parser.history();
         verboseMoves = parser.history({ verbose: true });
-      } catch {
+        const mainlineCountFallback = Object.values(movePositionById).filter(r => r.mainlinePly !== null).length;
+        if (moves.length !== mainlineCountFallback) {
+          log.warn(
+            "session_model",
+            `createSessionFromPgnText (fallback): chess.js mainline move count (${moves.length}) differs from ` +
+            `movePositionById mainline entry count (${mainlineCountFallback}). ` +
+            `Likely cause: [FEN] game where chess.js and the custom parser disagree on moves. ` +
+            `gotoPly() will clamp clicks to chess.js move count — some mainline moves will not navigate.`,
+          );
+        }
+      } catch (fallbackErr) {
         errorMessage = t("pgn.error", "Unable to parse PGN.");
+        logChessJsRejection(pgnModel, primaryErr, fallbackErr);
       }
     }
     return {

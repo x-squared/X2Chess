@@ -51,6 +51,7 @@ import type { MoveHint } from "../../board/move_hints";
 import { attachDrawableGestures } from "../../board/drawable_gestures";
 import { attachHoverListener } from "../../board/hover_listener";
 import { computeMoveHints } from "../../board/move_hints";
+import { log } from "../../logger";
 
 type ChessgroundApi = ReturnType<typeof Chessground>;
 
@@ -107,7 +108,15 @@ const buildGameAtPly = (ply: number, sanMoves: string[], startFen?: string): Che
   const game: Chess = startFen ? new Chess(startFen) : new Chess();
   const limit: number = Math.min(ply, sanMoves.length);
   for (let i: number = 0; i < limit; i += 1) {
-    game.move(sanMoves[i]);
+    try {
+      game.move(sanMoves[i]);
+    } catch (err) {
+      log.warn(
+        "board",
+        `buildGameAtPly: move failed at index ${i} san="${sanMoves[i]}" fen="${game.fen()}" err="${String(err)}"`,
+      );
+      break;
+    }
   }
   return game;
 };

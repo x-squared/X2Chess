@@ -1,6 +1,6 @@
 # X2Chess User Manual
 
-Last updated: 2026-03-28
+Last updated: 2026-04-10
 
 ## Who this manual is for
 
@@ -173,18 +173,19 @@ so you can open each branch with a short description.
 1. e4 e5 2. Nf3 ...
 ```
 
-### Formatting markers (`[[br]]` and `[[indent]]`)
+### Formatting markers (`[[br]]`, `[[indent]]`, and `[[deindent]]`)
 
-These two markers are only processed in **Text** mode; they are stored as plain
-text in the PGN file and are visible but greyed out in Tree mode.
+These markers are processed in both **Text** and **Tree** modes. The raw
+markers remain stored in the PGN file, but the editor renders their effect
+instead of showing marker literals in the comment text.
 
-| Marker | Effect in Text mode |
+| Marker | Effect in Text and Tree modes |
 |---|---|
 | `[[br]]` | Inserts a line break at that point in the comment. |
-| `[[indent]]` | Nests the comment (and the variation it belongs to) one level deeper, adding a left indent guide. |
+| `[[indent]]` | Increases indentation level by 1 for all following content (comments and moves, including mainline). |
+| `[[deindent]]` | Decreases indentation level by 1 for all following content (minimum level is 0). |
 
-Multiple `[[indent]]` markers in the same comment increase the nesting level
-further.
+Multiple indentation markers in the same comment apply cumulatively.
 
 ### Adding and editing comments
 
@@ -199,6 +200,9 @@ further.
 ### Move action popup
 
 - Clicking a half-move opens a small popup with **insert comment before**, **Q/A**, and **insert comment after** actions.
+- The same popup also includes **Insert null move after** to add a single `--` move after the selected move.
+- For a null move (`--`), the same popup also provides **Delete this null move** to remove only that single null move.
+- If a null move has exactly one continuation variation and no competing continuation, deleting that null move merges that continuation back into the mainline automatically.
 - The popup is rendered above nearby move tokens and comment text in both **Text** and **Tree** layouts.
 
 ### Move symbols and evaluation symbols (NAG picker)
@@ -228,17 +232,27 @@ content with three rows of annotation buttons:
 Symbols are stored as standard NAG codes in the PGN (`$1`, `$2`, etc.) and
 are fully compatible with other chess software.
 
-### Formatting within comments (Text mode)
+### Formatting within comments (Text and Tree modes)
 
-In Text layout mode, comments support two directives:
+In Text and Tree layout modes, comments support persistent directives:
 
 - `[[br]]` — inserts a line break at that point in the narrative.
-- `[[indent]]` — indents the text that follows, useful for nested variation
-  annotations.
+- `[[indent]]` — increases indentation level for all following content.
+- `[[deindent]]` — decreases indentation level for all following content.
 
-Use the toolbar buttons **Insert line break** and **Insert indent** to insert
-these at the cursor position. **Default indent** applies standard indentation
+Use the toolbar buttons **Insert line break**, **Insert indent**, and
+**Insert deindent** to insert these at the cursor position. **Default indent** applies standard indentation
 across variation boundaries automatically.
+
+### Editor style options for comments and variations
+
+Open **Menu → Editor style** to configure PGN editor rendering:
+
+- **Comment line breaks**:
+  - **Mainline only** — comments on the mainline start a new line; variation comments stay inline.
+  - **Always** — every comment starts on a new line.
+- **Variation move colour** — changes move text colour for variation moves.
+- **Comment text colour** — changes colour for comment text in text/tree modes.
 
 ### Q/A annotations
 
@@ -604,13 +618,15 @@ Enable **Developer Tools** in the menu to access diagnostic panels.
 ### Developer Dock
 
 Click **Open Developer Dock** (or use the toggle in the menu) to open a
-fixed bottom dock with three tabs:
+fixed bottom dock with two tabs:
 
 - **AST** — the internal parse tree for the current PGN.
-- **DOM** — the rendered document object model of the editor.
-- **Raw PGN** — the raw PGN text; edits here feed back into the parse pipeline.
+- **Raw PGN** — the current game as PGN text. You can edit the text and click
+  **Apply to session** to replace the open game everywhere in the app (board,
+  editor, navigation). This updates only memory: it does **not** save to disk
+  automatically, and it clears undo history for that session.
 
-The dock always reflects the same game and position as the main editor.
+The dock always reflects the same game and position as the main editor after you apply.
 
 ---
 

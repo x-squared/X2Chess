@@ -19,6 +19,7 @@ export type TauriWindowLike = Window & {
 };
 
 export const isTauriRuntime = (): boolean => {
+  if (globalThis.window === undefined) return false;
   const runtimeWindow = window as TauriWindowLike;
   return Boolean(runtimeWindow.__TAURI_INTERNALS__ || runtimeWindow.__TAURI__);
 };

@@ -2,7 +2,9 @@
  * PGN Commands module.
  *
  * Integration API:
- * - Primary exports from this module: `setCommentTextById`, `removeCommentById`,
+ * - Primary exports from this module: `setCommentTextById` (removes the comment
+ *   when the new body is empty or only whitespace / `[[br]]` markers),
+ *   `removeCommentById`,
  *   `getFirstCommentMetadata`, `setFirstCommentIntroRole`, `toggleFirstCommentIntroRole`,
  *   `resolveOwningMoveIdForCommentId`, `findExistingCommentIdAroundMove`,
  *   `applyDefaultIndentDirectives`, `applyDefaultLayout`, `insertCommentAroundMove`,
@@ -66,8 +68,26 @@ export const getCommentRawById = (model: unknown, commentId: string): string | n
   return found;
 };
 
+/**
+ * True when a comment body should be treated as empty for persistence.
+ * An empty `contentEditable` often serialises as a lone newline, which the
+ * editor maps to `[[br]]`; that must not become a visible comment body.
+ *
+ * @param rawText - Candidate comment text (may include `[[br]]`, spaces, CR/LF).
+ */
+const isCommentBodyEffectivelyEmpty = (rawText: unknown): boolean => {
+  const normalized: string = String(rawText ?? "")
+    .replace(/\r\n/g, "\n")
+    .trim();
+  if (normalized.length === 0) return true;
+  return /^(\s|\[\[br\]\])+$/i.test(normalized);
+};
+
 export const setCommentTextById = (model: unknown, commentId: string, rawText: string): PgnModel => {
   const typedModel = model as PgnModel;
+  if (isCommentBodyEffectivelyEmpty(rawText)) {
+    return removeCommentById(typedModel, commentId);
+  }
   const next = cloneModel(typedModel);
   if (!next.root) return typedModel;
   visitVariation(

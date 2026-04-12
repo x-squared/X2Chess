@@ -26,7 +26,7 @@ export const selectLocale = (state: AppStoreState): string => state.locale;
 export const selectDevToolsEnabled = (state: AppStoreState): boolean =>
   state.isDeveloperToolsEnabled;
 export const selectDevDockOpen = (state: AppStoreState): boolean => state.isDevDockOpen;
-export const selectActiveDevTab = (state: AppStoreState): "ast" | "dom" | "pgn" =>
+export const selectActiveDevTab = (state: AppStoreState): "ast" | "pgn" =>
   state.activeDevTab;
 export const selectIsMenuOpen = (state: AppStoreState): boolean => state.isMenuOpen;
 
@@ -73,7 +73,7 @@ export const selectRedoDepth = (state: AppStoreState): number => state.redoDepth
  * Returns the value of the `FEN` header when present and non-empty, which
  * indicates the game begins from a custom position.  Falls back to an empty
  * string (callers treat empty as standard initial position) when no FEN header
- * is present.  `SetUp` is intentionally not checked — see `PgnModelForMoves`.
+ * is present.  `SetUp` is intentionally not checked — many producers omit it even with a custom FEN.
  */
 export const selectStartingFen = (state: AppStoreState): string =>
   state.pgnModel?.headers?.find((h) => h.key === "FEN")?.value?.trim() ?? "";

@@ -29,3 +29,4 @@ See dev/check/00_README.md. These rules must be strictly adhered to when this fi
 - [ ] **BOARD-7** — Hint button highlights the next move on the board.
 - [ ] **BOARD-8** — Illegal move attempt: piece snaps back; no move is added.
 - [ ] **BOARD-9** — Last move is highlighted with a subtle tint after navigation.
+- [ ] **BOARD-10** — In a game that starts from a custom FEN and includes `--` null moves, clicking mainline and variation moves still updates the board position without crashing.

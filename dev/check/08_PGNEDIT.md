@@ -14,7 +14,10 @@ area: PGN text editor (plain / text / tree modes, comments, NAGs, eval pills, TO
 - `frontend/src/components/AnchorBadge.tsx` — `[%anchor]` badge
 - `frontend/src/components/HoverPositionPopup.tsx` — hover mini-board popup
 - `frontend/src/components/GamePickerDialog.tsx` — game picker dialog for link insertion
-- `frontend/src/components/TruncationMenu.tsx` — truncate-here menu
+- `frontend/src/components/game_editor/TruncationMenu.tsx` — truncate-here menu
+- `parts/pgnparser/src/pgn_move_ops.ts` — single-move delete, null-move merge, move-number cleanup
+- `parts/pgnparser/src/pgn_model.ts` — PGN movetext tokenisation into the edit model
+- `parts/pgnparser/src/pgn_commands.ts` — `setCommentTextById` / comment removal semantics
 - `frontend/src/editor/text_editor_plan.ts` — plain/text/tree rendering plan
 - `frontend/src/editor/tree_numbering.ts` — tree-mode branch labelling (A / B / A.1)
 - `frontend/src/editor/useTodoDialog.ts` — TODO annotation dialog logic
@@ -22,6 +25,9 @@ area: PGN text editor (plain / text / tree modes, comments, NAGs, eval pills, TO
 - `frontend/src/editor/comment_url_utils.ts` — URL detection and text segmentation
 - `frontend/src/resources/open_url.ts` — platform-aware external URL opener
 - `frontend/src/editor/useQaDialog.ts` — Q/A annotation dialog logic
+- `frontend/src/components/settings/EditorStyleDialog.tsx` — editor-style configuration UI (line-break policy, colours)
+- `frontend/src/components/game_editor/PgnEditorPreview.tsx` — preview renderer used by style/default-layout dialogs
+- `frontend/src/runtime/editor_style_prefs.ts` — persisted editor-style preferences + CSS variable mapping
 - `dev/plans/tree_text_editor_convergence_5ac46f02.plan.md` — plain/text/tree convergence
 - `dev/plans/text_mode_layout_example_f7a8b9c0.plan.md` — `[[br]]`/`[[indent]]` layout markers
 - `dev/plans/game_links_f1a2b3c4.plan.md` — `[%link]` chip rendering and navigation
@@ -98,3 +104,26 @@ See dev/check/00_README.md. These rules must be strictly adhered to when this fi
 - [ ] **PGNEDIT-63** — Clicking non-URL text in the comment activates the `contentEditable` editor as before.
 - [ ] **PGNEDIT-64** — Clicking away (blur) from an active comment editor returns it to view mode; URL links are visible again.
 - [ ] **PGNEDIT-65** — A newly inserted comment (via "Add comment") opens directly in edit mode, bypassing the static view.
+- [ ] **PGNEDIT-66** — Clicking a mainline move in a game that starts from a custom FEN and includes null moves (`--`) updates the board position without crashing, even when SAN tokens include checks/checkmates (e.g. `Nd4+`).
+- [ ] **PGNEDIT-67** — In text mode, repeatedly clicking between intro comment and later move comments never shows transient duplicated comment text; each comment renders exactly once while focused and while unfocused.
+- [ ] **PGNEDIT-68** — When the selected move token is flush against the left edge in text mode, the selection highlight remains fully visible inside the editor (no clipped left border/background).
+- [ ] **PGNEDIT-69** — Intro comment blocks in text/tree mode span the full available editor row width (not content-width inline boxes), while retaining intro background and sidebar styling.
+- [ ] **PGNEDIT-70** — Selected-move highlight and hover highlight use the same compact box footprint around SAN tokens (selection no longer expands to a larger outer box).
+- [ ] **PGNEDIT-71** — In tree mode, `[[br]]` and `[[indent]]` markers are interpreted like text mode (line breaks/indent effect) and are not displayed as literal marker text in comment content.
+- [ ] **PGNEDIT-72** — For equivalent mainline comments, tree mode and text mode use the same left text start position (no extra left inset in tree mode depth-1 blocks).
+- [ ] **PGNEDIT-73** — Intro comment typography (font weight/appearance) is identical between text mode and tree mode for the same content.
+- [ ] **PGNEDIT-74** — The sidebar has an **Insert indent** button directly before **Default Layout**; clicking it inserts `[[indent]]` at the current comment caret.
+- [ ] **PGNEDIT-75** — Context-menu actions (insert/delete/promote/comment tools) fire reliably on click; **Insert comment before/after** always opens an editable comment block even when the inserted comment text is initially empty.
+- [ ] **PGNEDIT-76** — In text/tree mode, `[[indent]]` increases persistent indentation level for all following comments and moves (including mainline) until reduced.
+- [ ] **PGNEDIT-77** — The sidebar has an **Insert deindent** button; clicking it inserts `[[deindent]]` at the current comment caret and reduces subsequent indentation by one level.
+- [ ] **PGNEDIT-78** — In **Editor style**, comment line-break policy can be switched between **Always** and **Mainline only**; in **Mainline only**, variation comments stay inline.
+- [ ] **PGNEDIT-79** — In **Editor style**, changing **Variation move colour** and **Comment text colour** updates text/tree rendering and preview immediately.
+- [ ] **PGNEDIT-80** — After inserting then deleting an in-between comment (`4. Nf3 {…} 4... Nc6`), the editor no longer renders duplicated black move numbers (`4....`); it shows `4. Nf3 Nc6`.
+- [ ] **PGNEDIT-81** — After deleting an empty in-between comment, adjacent move-only `text-editor-block` rows collapse back together (no stray split between `4. Nf3` and `Nc6`).
+- [ ] **PGNEDIT-82** — Right-clicking a null move token (`--`) shows **Delete this null move**; selecting it removes only that move and keeps neighbouring moves intact.
+- [ ] **PGNEDIT-83** — Right-clicking any move shows **Insert null move after**; selecting it inserts a single `--` move directly after the chosen move.
+- [ ] **PGNEDIT-84** — Deleting a null move with exactly one continuation variation (`-- ( ... )`) merges that continuation into the mainline when no competing mainline continuation exists.
+- [ ] **PGNEDIT-85** — Inserting a null move and deleting it again does not leave a stray move-number token in the editor row/DOM.
+- [ ] **PGNEDIT-86** — After **Delete this null move** on `--` between a white half-move and the black reply on the same move number (e.g. `5. h6 -- 5... Ne5`), the stored PGN merges into one move pair (`5. h6 Ne5`) with no redundant `5...` before `Ne5`.
+- [ ] **PGNEDIT-87** — Clear an in-movetext comment in the editor (select all, delete, blur); the `{…}` block disappears from the stored PGN and no lone `{[[br]]}` placeholder remains.
+- [ ] **PGNEDIT-88** — In a line like `3. h5 Ne3 4. Kg5`, insert null after `Ne3` then delete it; the stored PGN returns to a single `4.` before `Kg5` (no extra clock token such as `4. 4.` or `2. 4.`).

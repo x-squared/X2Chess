@@ -49,6 +49,7 @@ import type { AppStoreState } from "../state/app_reducer";
 import type { Dispatch } from "react";
 import type { ServicesBundle } from "./createAppServices";
 import { log } from "../logger";
+import { dispatchSessionStateSnapshot } from "./session_state_sync";
 
 // ── Module-level helpers ──────────────────────────────────────────────────────
 
@@ -59,27 +60,6 @@ const lastLocatorSegment = (locator: string | null | undefined, fallback: string
     if (segments[i]) return segments[i];
   }
   return fallback;
-};
-
-/**
- * Resolve the selected move ID for the current ply when not in board-preview mode.
- * Walks `movePositionById` to find the entry whose `mainlinePly` matches.
- *
- * @param g Active game session state.
- * @returns The matched move ID, or `null` at ply 0.
- */
-export const resolveSelectedMoveId = (g: GameSessionState): string | null => {
-  const bp = g.boardPreview as { fen?: string } | null;
-  if (bp?.fen) return g.selectedMoveId;
-  const ply: number = Number(g.currentPly) || 0;
-  if (ply === 0) return null;
-  const positions = g.movePositionById as Record<string, { mainlinePly?: unknown }> | null;
-  if (positions) {
-    for (const [moveId, record] of Object.entries(positions)) {
-      if (record.mainlinePly === ply) return moveId;
-    }
-  }
-  return g.selectedMoveId;
 };
 
 // ── Factory ───────────────────────────────────────────────────────────────────
@@ -102,12 +82,7 @@ export const createSessionOrchestrator = (
   // onSessionsChanged/onTabsChanged service callbacks automatically.
   const flushSessionState = (): void => {
     const g: GameSessionState = bundle.activeSessionRef.current;
-    const bp = g.boardPreview as { fen?: string; lastMove?: [string, string] | null } | null;
-    const d = dispatchRef.current;
-    d({ type: "set_pgn_state", pgnText: g.pgnText, pgnModel: g.pgnModel as PgnModel | null, moves: Array.isArray(g.moves) ? g.moves : [], pgnTextLength: g.pgnText.length, moveCount: Array.isArray(g.moves) ? g.moves.length : 0 });
-    d({ type: "set_navigation", currentPly: Number(g.currentPly) || 0, selectedMoveId: resolveSelectedMoveId(g), boardPreview: bp?.fen ? { fen: String(bp.fen), lastMove: bp.lastMove ?? null } : null });
-    d({ type: "set_undo_redo_depth", undoDepth: Array.isArray(g.undoStack) ? g.undoStack.length : 0, redoDepth: Array.isArray(g.redoStack) ? g.redoStack.length : 0 });
-    d({ type: "set_pending_focus", commentId: g.pendingFocusCommentId });
+    dispatchSessionStateSnapshot(g, dispatchRef.current);
   };
 
   return {
@@ -125,21 +100,30 @@ export const createSessionOrchestrator = (
       void bundle.navigation.gotoPly(bundle.activeSessionRef.current.moves.length);
     },
     gotoMoveById: (moveId: string): void => {
-      const g: GameSessionState = bundle.activeSessionRef.current;
-      const pos = g.movePositionById?.[moveId] as
-        | { mainlinePly?: number | null; fen?: string; lastMove?: [string, string] | null }
-        | undefined;
-      if (pos && typeof pos.mainlinePly === "number") {
-        g.selectedMoveId = moveId;
-        g.boardPreview = null;
-        flushSessionState();
-        void bundle.navigation.gotoPly(pos.mainlinePly, { animate: false });
-      } else {
+      try {
+        const g: GameSessionState = bundle.activeSessionRef.current;
+        const pos = g.movePositionById?.[moveId] as
+          | { mainlinePly?: number | null; fen?: string; lastMove?: [string, string] | null }
+          | undefined;
+        if (pos && typeof pos.mainlinePly === "number") {
+          g.selectedMoveId = moveId;
+          g.boardPreview = null;
+          flushSessionState();
+          void bundle.navigation.gotoPly(pos.mainlinePly, { animate: false }).catch((err: unknown): void => {
+            const message: string = err instanceof Error ? err.message : String(err);
+            log.error("session_orchestrator", `gotoMoveById/gotoPly failed: ${message}`);
+          });
+          return;
+        }
         g.selectedMoveId = moveId;
         g.boardPreview = pos?.fen
           ? ({ fen: pos.fen, lastMove: pos.lastMove ?? null } as unknown as BoardPreviewLike)
           : null;
         flushSessionState();
+      } catch (err: unknown) {
+        const message: string = err instanceof Error ? err.message : String(err);
+        log.error("session_orchestrator", `gotoMoveById failed: ${message}`);
+        dispatchRef.current({ type: "set_error_message", message });
       }
     },
     handleEditorArrowHotkey: (event: KeyboardEvent): boolean =>
@@ -175,6 +159,43 @@ export const createSessionOrchestrator = (
       bundle.pgnRuntime.syncChessParseState(pgnText);
       bundle.sessionStore.updateActiveSessionMeta({ dirtyState: "dirty" });
       flushSessionState();
+    },
+    /**
+     * Apply raw PGN from the Developer Dock: replaces the in-memory game, flushes UI,
+     * clears undo/redo, and marks the session dirty without scheduling autosave.
+     *
+     * @param pgnText - Full PGN string to parse and load.
+     * @returns True when parsing and sync succeeded; false when the session is left unchanged.
+     */
+    applyDeveloperDockRawPgn: (pgnText: string): boolean => {
+      const g: GameSessionState = bundle.activeSessionRef.current;
+      let nextModel: PgnModel;
+      try {
+        nextModel = ensureRequiredPgnHeaders(parsePgnToModel(pgnText)) as PgnModel;
+      } catch (err: unknown) {
+        const message: string = err instanceof Error ? err.message : String(err);
+        log.error("session_orchestrator", `applyDeveloperDockRawPgn: parse failed: ${message}`);
+        dispatchRef.current({ type: "set_error_message", message });
+        return false;
+      }
+      g.pgnText = pgnText;
+      g.pgnModel = nextModel;
+      g.currentPly = 0;
+      g.selectedMoveId = null;
+      g.pendingFocusCommentId = null;
+      g.boardPreview = null;
+      g.undoStack = [];
+      g.redoStack = [];
+      bundle.pgnRuntime.syncChessParseState(pgnText);
+      bundle.sessionStore.updateActiveSessionMeta({ dirtyState: "dirty" });
+      flushSessionState();
+      dispatchRef.current({ type: "set_board_flipped", flipped: deriveInitialBoardFlipped(g.pgnModel) });
+      // [log: may downgrade to debug once dev-dock raw PGN apply is stable]
+      log.info(
+        "session_orchestrator",
+        "applyDeveloperDockRawPgn: session replaced from dev dock (undo cleared; no autosave scheduled)",
+      );
+      return true;
     },
     insertComment: (moveId: string, position: "before" | "after"): { id: string; rawText: string } | null => {
       const g: GameSessionState = bundle.activeSessionRef.current;
@@ -518,12 +539,22 @@ export const createSessionOrchestrator = (
     setDevDockOpen: (open: boolean): void => {
       if (open && !stateRef.current.isDeveloperToolsEnabled) {
         dispatchRef.current({ type: "set_dev_tools_enabled", enabled: true });
+        shellPrefsStore.write({ ...shellPrefsStore.read(), developerToolsEnabled: true });
       }
       dispatchRef.current({ type: "set_dev_dock_open", open });
+      // Menu panel stacks above the dock (z-index); close it so the dock is visible immediately.
+      if (open) {
+        dispatchRef.current({ type: "set_is_menu_open", open: false });
+      }
     },
-    setActiveDevTab: (_tab: "ast"): void => {
-      dispatchRef.current({ type: "set_active_dev_tab", tab: "ast" });
+    setActiveDevTab: (tab: "ast" | "pgn"): void => {
+      dispatchRef.current({ type: "set_active_dev_tab", tab });
       dispatchRef.current({ type: "set_dev_dock_open", open: true });
+      if (!stateRef.current.isDeveloperToolsEnabled) {
+        dispatchRef.current({ type: "set_dev_tools_enabled", enabled: true });
+        shellPrefsStore.write({ ...shellPrefsStore.read(), developerToolsEnabled: true });
+      }
+      dispatchRef.current({ type: "set_is_menu_open", open: false });
     },
     setLayoutMode: (mode: "plain" | "text" | "tree"): void => {
       bundle.activeSessionRef.current.pgnLayoutMode = mode;
@@ -553,6 +584,13 @@ export const createSessionOrchestrator = (
     setDeveloperToolsEnabled: (enabled: boolean): void => {
       dispatchRef.current({ type: "set_dev_tools_enabled", enabled });
       shellPrefsStore.write({ ...shellPrefsStore.read(), developerToolsEnabled: enabled });
+      if (!enabled) {
+        dispatchRef.current({ type: "set_dev_dock_open", open: false });
+        return;
+      }
+      // Turning dev tools on should show the dock (checkbox alone used to leave it hidden).
+      dispatchRef.current({ type: "set_dev_dock_open", open: true });
+      dispatchRef.current({ type: "set_is_menu_open", open: false });
     },
     setShapePrefs: (prefs: ShapePrefs): void => {
       writeShapePrefs(prefs);

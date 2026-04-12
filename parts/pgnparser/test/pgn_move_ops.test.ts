@@ -6,6 +6,7 @@ import {
   insertVariation,
   replaceMove,
   truncateAfter,
+  deleteSingleMove,
   truncateBefore,
   deleteVariation,
   promoteToMainline,
@@ -21,6 +22,15 @@ const mainlineSans = (model: PgnModel): string[] => {
   const result: string[] = [];
   for (const entry of model.root.entries) {
     if (entry.type === "move") result.push((entry as PgnMoveNode).san);
+  }
+  return result;
+};
+
+/** Returns move-number token texts from the mainline in order. */
+const mainlineMoveNumbers = (model: PgnModel): string[] => {
+  const result: string[] = [];
+  for (const entry of model.root.entries) {
+    if (entry.type === "move_number") result.push(entry.text);
   }
   return result;
 };
@@ -72,6 +82,34 @@ test("appendMove — returns a cursor pointing to the new move", () => {
   assert.equal(newCursor.moveId, d4Entry.id);
 });
 
+test("appendMove — supports inserting a null move", () => {
+  const model = parsePgnToModel("[Event \"?\"]\n\n1. Nf3 Nc6 *");
+  const [updated] = appendMove(model, lastMoveCursor(model), "--");
+  assert.deepEqual(mainlineSans(updated), ["Nf3", "Nc6", "--"]);
+});
+
+test("appendMove — null after black does not insert duplicate white move number", () => {
+  const model = parsePgnToModel("[Event \"?\"]\n\n3. h5 Ne3 4. Kg5 *");
+  const ne3 = model.root.entries.filter((e) => e.type === "move").find((m) => (m as PgnMoveNode).san === "Ne3") as PgnMoveNode;
+  const cursor: PgnCursor = findCursorForMoveId(model, ne3.id) as PgnCursor;
+  const [updated] = appendMove(model, cursor, "--");
+  assert.deepEqual(mainlineMoveNumbers(updated), ["3.", "4."]);
+  assert.deepEqual(mainlineSans(updated), ["h5", "Ne3", "--", "Kg5"]);
+});
+
+test("appendMove — null after black skips clock insert when next SAN embeds move number", () => {
+  const model = parsePgnToModel("[Event \"?\"]\n\n3.h5 Ne3 4.Kg5 *");
+  const ne3 = model.root.entries.filter((e) => e.type === "move").find((m) => (m as PgnMoveNode).san === "Ne3") as PgnMoveNode;
+  const cursor: PgnCursor = findCursorForMoveId(model, ne3.id) as PgnCursor;
+  const [updated] = appendMove(model, cursor, "--");
+  const nums: string[] = [];
+  for (const e of updated.root.entries) {
+    if (e.type === "move_number") nums.push((e as { text: string }).text);
+  }
+  assert.deepEqual(nums, []);
+  assert.deepEqual(mainlineSans(updated), ["3.h5", "Ne3", "--", "4.Kg5"]);
+});
+
 // ── replaceMove ────────────────────────────────────────────────────────────────
 
 test("replaceMove — replaces the first move and removes following moves", () => {
@@ -102,6 +140,79 @@ test("truncateAfter — does not mutate the original", () => {
   const cursor = lastMoveCursor(model);
   truncateAfter(model, cursor);
   assert.equal(mainlineSans(model).length, 2);
+});
+
+test("deleteSingleMove — removes only the targeted move", () => {
+  const model = parsePgnToModel("[Event \"?\"]\n\n1. Nf3 -- Nc6 *");
+  const moves = model.root.entries.filter((e) => e.type === "move") as PgnMoveNode[];
+  const nullMove = moves.find((m) => m.san === "--") as PgnMoveNode;
+  const [updated] = deleteSingleMove(model, nullMove.id);
+  const sans = mainlineSans(updated);
+  assert.deepEqual(sans, ["Nf3", "Nc6"]);
+});
+
+test("deleteSingleMove — removes dangling move-number after deleting inserted null move", () => {
+  const model = parsePgnToModel("[Event \"?\"]\n\n1. Nf3 Nc6 2. -- *");
+  const moves = model.root.entries.filter((e) => e.type === "move") as PgnMoveNode[];
+  const nullMove = moves.find((m) => m.san === "--") as PgnMoveNode;
+  const [updated] = deleteSingleMove(model, nullMove.id);
+  assert.deepEqual(mainlineSans(updated), ["Nf3", "Nc6"]);
+  assert.deepEqual(mainlineMoveNumbers(updated), ["1."]);
+});
+
+test("deleteSingleMove — promotes sole null-move continuation variation into mainline", () => {
+  const model = parsePgnToModel("[Event \"?\"]\n\n1. Nf3 -- (1... Nc6) *");
+  const moves = model.root.entries.filter((e) => e.type === "move") as PgnMoveNode[];
+  const nullMove = moves.find((m) => m.san === "--") as PgnMoveNode;
+  const [updated] = deleteSingleMove(model, nullMove.id);
+  assert.deepEqual(mainlineSans(updated), ["Nf3", "Nc6"]);
+  assert.deepEqual(mainlineMoveNumbers(updated), ["1."]);
+});
+
+test("deleteSingleMove — removes duplicate white move-number after null move removal", () => {
+  const model = parsePgnToModel("[Event \"?\"]\n\n3... Ne3 4. -- 4. Kg5 *");
+  const moves = model.root.entries.filter((e) => e.type === "move") as PgnMoveNode[];
+  const nullMove = moves.find((m) => m.san === "--") as PgnMoveNode;
+  const [updated] = deleteSingleMove(model, nullMove.id);
+  assert.deepEqual(mainlineSans(updated), ["Ne3", "Kg5"]);
+  assert.deepEqual(mainlineMoveNumbers(updated), ["3...", "4."]);
+});
+
+test("deleteSingleMove — merges null continuation without leaving split black move number", () => {
+  const model = parsePgnToModel("[Event \"?\"]\n\n4... Nc4 5. h6 -- (5... Ne5 6. h7 Nf7+ 7. Kg6 Nh8+ 8. Kg7) *");
+  const moves = model.root.entries.filter((e) => e.type === "move") as PgnMoveNode[];
+  const nullMove = moves.find((m) => m.san === "--") as PgnMoveNode;
+  const [updated] = deleteSingleMove(model, nullMove.id);
+  assert.deepEqual(mainlineSans(updated), ["Nc4", "h6", "Ne5", "h7", "Nf7+", "Kg6", "Nh8+", "Kg7"]);
+  assert.deepEqual(mainlineMoveNumbers(updated), ["4...", "5.", "6.", "7.", "8."]);
+});
+
+test("deleteSingleMove — strips continuation move-number even when continuation starts with comment", () => {
+  const model = parsePgnToModel("[Event \"?\"]\n\n4... Nc4 5. h6 -- ({x} 5... Ne5 6. h7) *");
+  const moves = model.root.entries.filter((e) => e.type === "move") as PgnMoveNode[];
+  const nullMove = moves.find((m) => m.san === "--") as PgnMoveNode;
+  const [updated] = deleteSingleMove(model, nullMove.id);
+  assert.deepEqual(mainlineSans(updated), ["Nc4", "h6", "Ne5", "h7"]);
+  assert.deepEqual(mainlineMoveNumbers(updated), ["4...", "5.", "6."]);
+});
+
+test("deleteSingleMove — mainline after null: joins half-moves (no duplicate black number)", () => {
+  const model = parsePgnToModel("[Event \"?\"]\n\n4... Nc4 5. h6 -- 5... Ne5 *");
+  const moves = model.root.entries.filter((e) => e.type === "move") as PgnMoveNode[];
+  const nullMove = moves.find((m) => m.san === "--") as PgnMoveNode;
+  const [updated] = deleteSingleMove(model, nullMove.id);
+  assert.deepEqual(mainlineSans(updated), ["Nc4", "h6", "Ne5"]);
+  assert.deepEqual(mainlineMoveNumbers(updated), ["4...", "5."]);
+});
+
+test("deleteSingleMove — Unicode black move number after null is merged away", () => {
+  const ellipsis = "\u2026";
+  const model = parsePgnToModel(`[Event "?"]\n\n4... Nc4 5. h6 -- 5${ellipsis} Ne5 *`);
+  const moves = model.root.entries.filter((e) => e.type === "move") as PgnMoveNode[];
+  const nullMove = moves.find((m) => m.san === "--") as PgnMoveNode;
+  const [updated] = deleteSingleMove(model, nullMove.id);
+  assert.deepEqual(mainlineSans(updated), ["Nc4", "h6", "Ne5"]);
+  assert.deepEqual(mainlineMoveNumbers(updated), ["4...", "5."]);
 });
 
 // ── truncateBefore ─────────────────────────────────────────────────────────────

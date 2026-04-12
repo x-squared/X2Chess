@@ -12,10 +12,10 @@ import type { PlanState, PgnComment, PgnModel } from "./types";
 import {
   addCommentToken,
   addSpace,
+  applyPersistentIndentDelta,
+  buildRichCommentView,
   nextBlock,
   buildVariationWalker,
-  getIndentDirectiveDepth,
-  stripIndentDirectives,
 } from "./types";
 
 const emitTextComment = (
@@ -23,28 +23,29 @@ const emitTextComment = (
   comment: PgnComment,
   rawText: string,
   applyIntroStyling: boolean,
+  variationDepth: number,
 ): void => {
-  // Apply [[indent]] directive for block indentation.
-  // [[br]] markers are converted to newlines so the contentEditable shows
-  // visual line breaks (WYSIWYG). On save, newlines are normalised back to [[br]].
-  const indentDirectiveDepth: number = getIndentDirectiveDepth(comment);
-  const hasIndent: boolean = indentDirectiveDepth > 0;
-  const strippedText: string = hasIndent ? stripIndentDirectives(rawText) : rawText;
-  const visibleText: string = strippedText.replace(/\[\[br\]\]/gi, "\n");
+  // Apply shared rich-mode marker handling.
+  const view = buildRichCommentView(comment, rawText);
+  applyPersistentIndentDelta(state, view.indentDelta);
   addCommentToken(
     state,
     comment,
-    visibleText,
+    view.visibleText,
     rawText,
-    hasIndent,
-    indentDirectiveDepth,
+    view.hasIndentDirective,
+    view.indentDirectiveDepth,
     applyIntroStyling,
     false,
     applyIntroStyling,
+    variationDepth,
   );
   // The intro comment occupies its own block so the first move starts on a
   // new line rather than immediately following the intro text.
-  if (applyIntroStyling) {
+  const shouldBreakAfterComment: boolean = applyIntroStyling
+    || state.commentLineBreakPolicy === "always"
+    || (state.commentLineBreakPolicy === "mainline_only" && variationDepth === 0);
+  if (shouldBreakAfterComment) {
     nextBlock(state);
   } else {
     addSpace(state);

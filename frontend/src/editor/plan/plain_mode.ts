@@ -14,8 +14,9 @@ const emitPlainComment = (
   comment: PgnComment,
   rawText: string,
   _applyIntroStyling: boolean,
+  variationDepth: number,
 ): void => {
-  addCommentToken(state, comment, rawText, rawText, false, 0, false, true, false);
+  addCommentToken(state, comment, rawText, rawText, false, 0, false, true, false, variationDepth);
   addSpace(state);
 };
 

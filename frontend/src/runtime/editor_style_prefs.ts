@@ -58,6 +58,12 @@ export type EditorStylePrefs = {
   fontSizePx: number;
   /** Line height multiplier (e.g. 1.45). */
   lineHeight: number;
+  /** Comment line-break policy in text/tree renderers. */
+  commentLineBreakPolicy: "always" | "mainline_only";
+  /** Text color of variation moves in text/tree modes. */
+  variationMoveColor: string;
+  /** Text color of comments in text/tree modes. */
+  commentTextColor: string;
 
   // ── Intro section (text + tree mode) ─────────────────────────────────────
   intro: {
@@ -102,6 +108,9 @@ export const DEFAULT_EDITOR_STYLE_PREFS: EditorStylePrefs = {
   fontFamily: "inherit",
   fontSizePx: 14,
   lineHeight: 1.45,
+  commentLineBreakPolicy: "mainline_only",
+  variationMoveColor: "#1f2937",
+  commentTextColor: "#243244",
   intro: {
     sidebar: { enabled: true, widthPx: 3, color: "#7c98c8" },
     backgroundColor: "#f4f8ff",
@@ -151,6 +160,9 @@ export const editorStyleToCssVars = (
   "--editor-font-family": prefs.fontFamily,
   "--editor-font-size": `${prefs.fontSizePx}px`,
   "--text-editor-line-height": String(prefs.lineHeight),
+  "--editor-comment-linebreak-policy": prefs.commentLineBreakPolicy,
+  "--editor-variation-move-color": prefs.variationMoveColor,
+  "--editor-comment-text-color": prefs.commentTextColor,
   // Intro
   "--editor-intro-bg": prefs.intro.backgroundColor || "transparent",
   "--editor-intro-sidebar-color": prefs.intro.sidebar.enabled
@@ -195,12 +207,36 @@ export const editorStyleToCssVars = (
 
 export const EDITOR_STYLE_PREFS_KEY = "x2chess.editorStylePrefs.v1";
 
+const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const migrateV1ToV2 = (from: unknown): unknown => {
+  if (!isObjectRecord(from)) return null;
+  const base: EditorStylePrefs = {
+    ...DEFAULT_EDITOR_STYLE_PREFS,
+    ...(from as Partial<EditorStylePrefs>),
+    intro: {
+      ...DEFAULT_EDITOR_STYLE_PREFS.intro,
+      ...(isObjectRecord(from["intro"]) ? (from["intro"] as Partial<EditorStylePrefs["intro"]>) : {}),
+    },
+    text: {
+      ...DEFAULT_EDITOR_STYLE_PREFS.text,
+      ...(isObjectRecord(from["text"]) ? (from["text"] as Partial<EditorStylePrefs["text"]>) : {}),
+    },
+    tree: {
+      ...DEFAULT_EDITOR_STYLE_PREFS.tree,
+      ...(isObjectRecord(from["tree"]) ? (from["tree"] as Partial<EditorStylePrefs["tree"]>) : {}),
+    },
+  };
+  return base;
+};
+
 export const editorStylePrefsStore: VersionedStore<EditorStylePrefs> =
   createVersionedStore<EditorStylePrefs>({
     key: EDITOR_STYLE_PREFS_KEY,
-    version: 1,
+    version: 2,
     defaultValue: DEFAULT_EDITOR_STYLE_PREFS,
-    migrations: [],
+    migrations: [migrateV1ToV2],
   });
 
 /** Read persisted preferences, falling back to defaults for any missing field. */

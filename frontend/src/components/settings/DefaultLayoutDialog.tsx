@@ -198,6 +198,7 @@ export const DefaultLayoutDialog = ({
               <PgnEditorPreview
                 pgnModel={previewModel}
                 layoutMode={previewMode}
+                commentLineBreakPolicy="mainline_only"
                 styleVars={{}}
               />
             </div>

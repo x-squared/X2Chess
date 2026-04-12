@@ -24,16 +24,12 @@ type EditorSnapshot = {
   pgnLayoutMode: string;
 };
 
-type BoardPreviewValue = { fen: string; lastMove?: [string, string] | null } | null;
-
 type EditorHistoryDeps = {
   sessionRef: ActiveSessionRef;
   pgnInput: Element | null;
   onSyncChessParseState: (source: string) => void;
-  /** Called after undo/redo restores PGN model and text. */
+  /** Called after undo/redo restores PGN/session state and should mirror to React. */
   onPgnChange: (pgnText: string, pgnModel: unknown, moves: string[]) => void;
-  /** Called after undo/redo restores navigation state. */
-  onNavigationChange: (currentPly: number, selectedMoveId: string | null, boardPreview: BoardPreviewValue) => void;
   /** Called whenever the undo or redo stack depth changes. */
   onUndoRedoDepthChange: (undoDepth: number, redoDepth: number) => void;
   historyLimit?: number;
@@ -44,7 +40,6 @@ export const createEditorHistoryCapabilities = ({
   pgnInput,
   onSyncChessParseState,
   onPgnChange,
-  onNavigationChange,
   onUndoRedoDepthChange,
   historyLimit = 200,
 }: EditorHistoryDeps) => {
@@ -89,7 +84,6 @@ export const createEditorHistoryCapabilities = ({
     if (pgnInput instanceof HTMLTextAreaElement) pgnInput.value = g.pgnText;
     onSyncChessParseState(g.pgnText);
     onPgnChange(g.pgnText, g.pgnModel, g.moves);
-    onNavigationChange(g.currentPly, g.selectedMoveId, null);
   };
 
   const performUndo = (): void => {

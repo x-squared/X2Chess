@@ -49,7 +49,6 @@ import { readDefaultLayoutPrefs } from "../runtime/default_layout_prefs";
 import { useAppContext } from "../state/app_context";
 import type { AppStartupServices } from "../state/ServiceContext";
 import type { AppAction } from "../state/actions";
-import type { PgnModel } from "../../../parts/pgnparser/src/pgn_model";
 import type { GameSessionState } from "../game_sessions/game_session_state";
 import type { AppStoreState } from "../state/app_reducer";
 import type { Dispatch } from "react";
@@ -59,8 +58,8 @@ import {
 } from "./createAppServices";
 import {
   createSessionOrchestrator,
-  resolveSelectedMoveId,
 } from "./session_orchestrator";
+import { dispatchSessionStateSnapshot } from "./session_state_sync";
 import { useTauriMenu } from "./useTauriMenu";
 import { log } from "../logger";
 
@@ -75,11 +74,7 @@ type LayoutMode = "plain" | "text" | "tree";
  * Called once at the end of the mount effect after sessions are restored.
  */
 const dispatchInitialSessionState = (g: GameSessionState, dispatch: Dispatch<AppAction>): void => {
-  const bp = g.boardPreview as { fen?: string; lastMove?: [string, string] | null } | null;
-  dispatch({ type: "set_pgn_state", pgnText: g.pgnText, pgnModel: g.pgnModel as PgnModel | null, moves: Array.isArray(g.moves) ? g.moves : [], pgnTextLength: g.pgnText.length, moveCount: Array.isArray(g.moves) ? g.moves.length : 0 });
-  dispatch({ type: "set_navigation", currentPly: Number(g.currentPly) || 0, selectedMoveId: resolveSelectedMoveId(g), boardPreview: bp?.fen ? { fen: String(bp.fen), lastMove: bp.lastMove ?? null } : null });
-  dispatch({ type: "set_undo_redo_depth", undoDepth: Array.isArray(g.undoStack) ? g.undoStack.length : 0, redoDepth: Array.isArray(g.redoStack) ? g.redoStack.length : 0 });
-  dispatch({ type: "set_pending_focus", commentId: g.pendingFocusCommentId });
+  dispatchSessionStateSnapshot(g, dispatch);
 };
 
 /**

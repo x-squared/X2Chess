@@ -14,11 +14,12 @@ import { nagGlyph } from "../../../../parts/pgnparser/src/nag_defs";
 /** Matches any break marker variant (canonical + legacy aliases). */
 const NEWLINE_PATTERN: RegExp = /(?:\[\[br\]\]|<br\s*\/?>|\\n|\n)/gi;
 
-/**
- * Matches one or more indent directives at the start of a comment string.
- * Canonical: `[[indent]]`  Legacy alias: `\i`
- */
-const INDENT_BLOCK_DIRECTIVE_PREFIX: RegExp = /^\s*(?:(?:\[\[indent\]\]|\\i)(?:\s+|$))+/;
+/** Matches all indent directives (`[[indent]]` and legacy `\i`). */
+const INDENT_DIRECTIVE_GLOBAL: RegExp = /\[\[indent\]\]|\\i/gi;
+/** Matches all deindent directives (`[[deindent]]` and legacy `\o`). */
+const DEINDENT_DIRECTIVE_GLOBAL: RegExp = /\[\[deindent\]\]|\\o/gi;
+/** Matches all indent-state directives for visible-text stripping. */
+const INDENT_STATE_DIRECTIVE_GLOBAL: RegExp = /\[\[indent\]\]|\[\[deindent\]\]|\\i|\\o/gi;
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -50,6 +51,7 @@ export type CommentToken = {
   introStyling: boolean;
   plainLiteralComment: boolean;
   focusFirstCommentAtStart: boolean;
+  variationDepth: number;
   text: string;
 };
 
@@ -132,6 +134,7 @@ export type PlanState = {
   /** True once the first move token has been emitted; used to gate intro styling. */
   firstMoveEmitted: boolean;
   layoutMode: LayoutMode;
+  commentLineBreakPolicy: "always" | "mainline_only";
 };
 
 type MoveNumberInfo = {
@@ -169,7 +172,10 @@ export const createBlock = (index: number, indentDepth: number = 0): PlanBlock =
   tokens: [],
 });
 
-export const createPlanState = (layoutMode: LayoutMode = "text"): PlanState => ({
+export const createPlanState = (
+  layoutMode: LayoutMode = "text",
+  commentLineBreakPolicy: "always" | "mainline_only" = "mainline_only",
+): PlanState => ({
   blocks: [createBlock(0, 0)],
   blockIndex: 0,
   tokenIndex: 0,
@@ -177,6 +183,7 @@ export const createPlanState = (layoutMode: LayoutMode = "text"): PlanState => (
   firstCommentId: null,
   firstMoveEmitted: false,
   layoutMode,
+  commentLineBreakPolicy,
 });
 
 export const currentBlock = (state: PlanState): PlanBlock => state.blocks[state.blocks.length - 1];
@@ -256,9 +263,28 @@ export const parseMoveNumberToken = (raw: unknown): MoveNumberInfo => {
   const text: string = String(raw ?? "");
   const white: RegExpMatchArray | null = text.match(/^(\d+)\.$/);
   if (white) return { displayText: white[1], side: "white", simplified: true };
-  const black: RegExpMatchArray | null = text.match(/^(\d+)\.\.\.?$/);
+  const black: RegExpMatchArray | null =
+    text.match(/^(\d+)\.{3,}$/) ?? text.match(/^(\d+)…$/);
   if (black) return { displayText: black[1], side: "black", simplified: true };
   return { displayText: text, side: "raw", simplified: false };
+};
+
+/**
+ * Suppress redundant black move-number tokens when they directly follow a move
+ * in the same block (e.g. render `4.Kg5 Nc4` instead of `4.Kg5 4...Nc4`).
+ */
+export const shouldSuppressMoveNumberToken = (
+  state: PlanState,
+  parsed: MoveNumberInfo,
+): boolean => {
+  if (parsed.side !== "black") return false;
+  const tokens: PlanToken[] = currentBlock(state).tokens;
+  for (let idx: number = tokens.length - 1; idx >= 0; idx -= 1) {
+    const token: PlanToken = tokens[idx];
+    if (token.kind === "inline" && token.tokenType === "space") continue;
+    return token.kind === "inline" && token.tokenType === "move";
+  }
+  return false;
 };
 
 export const addCommentToken = (
@@ -271,6 +297,7 @@ export const addCommentToken = (
   introStyling: boolean = false,
   plainLiteralComment: boolean = false,
   focusFirstCommentAtStart: boolean = false,
+  variationDepth: number = 0,
 ): void => {
   const block: PlanBlock = currentBlock(state);
   block.tokens.push({
@@ -284,6 +311,7 @@ export const addCommentToken = (
     introStyling,
     plainLiteralComment,
     focusFirstCommentAtStart,
+    variationDepth,
     text,
   });
 };
@@ -292,19 +320,60 @@ export const addCommentToken = (
 
 export const getIndentDirectiveDepth = (comment: PgnComment): number => {
   const raw: string = String(comment?.raw ?? "");
-  const match: RegExpMatchArray | null = raw.match(INDENT_BLOCK_DIRECTIVE_PREFIX);
-  if (!match) return 0;
-  const tokens: RegExpMatchArray | null = match[0].match(/\[\[indent\]\]|\\i/g);
+  const tokens: RegExpMatchArray | null = raw.match(INDENT_DIRECTIVE_GLOBAL);
   return tokens ? tokens.length : 0;
 };
+
+export const getDeindentDirectiveDepth = (comment: PgnComment): number => {
+  const raw: string = String(comment?.raw ?? "");
+  const tokens: RegExpMatchArray | null = raw.match(DEINDENT_DIRECTIVE_GLOBAL);
+  return tokens ? tokens.length : 0;
+};
+
+export const getIndentDelta = (comment: PgnComment): number =>
+  getIndentDirectiveDepth(comment) - getDeindentDirectiveDepth(comment);
 
 export const hasIndentBlockDirective = (comment: PgnComment): boolean =>
   getIndentDirectiveDepth(comment) > 0;
 
 export const stripIndentDirectives = (rawText: string): string =>
   String(rawText ?? "")
-    .replace(INDENT_BLOCK_DIRECTIVE_PREFIX, "")
+    .replace(INDENT_STATE_DIRECTIVE_GLOBAL, "")
     .replace(/^\s+/, "");
+
+export type RichCommentView = {
+  hasIndentDirective: boolean;
+  indentDirectiveDepth: number;
+  indentDelta: number;
+  visibleText: string;
+};
+
+/**
+ * Build the visible comment payload for rich editor modes (text + tree).
+ *
+ * - Leading `[[indent]]` markers are removed from visible text but retained in raw text.
+ * - `[[br]]` markers are rendered as line breaks in the editor view.
+ */
+export const buildRichCommentView = (comment: PgnComment, rawText: string): RichCommentView => {
+  const indentDelta: number = getIndentDelta(comment);
+  const indentDirectiveDepth: number = getIndentDirectiveDepth(comment);
+  const hasIndentDirective: boolean = indentDelta !== 0;
+  const strippedText: string = hasIndentDirective ? stripIndentDirectives(rawText) : rawText;
+  const visibleText: string = strippedText.replace(/\[\[br\]\]/gi, "\n");
+  return { hasIndentDirective, indentDirectiveDepth, indentDelta, visibleText };
+};
+
+/** Apply persistent indent-state delta for all subsequent content. */
+export const applyPersistentIndentDelta = (state: PlanState, delta: number): void => {
+  if (!Number.isFinite(delta) || delta === 0) return;
+  const nextDepth: number = Math.max(0, state.indentDepth + delta);
+  if (nextDepth === state.indentDepth) return;
+  state.indentDepth = nextDepth;
+  const block: PlanBlock = currentBlock(state);
+  if (block.tokens.length === 0) {
+    block.indentDepth = state.indentDepth;
+  }
+};
 
 export const emitIndentedBlock = (state: PlanState, levels: number, emitContent: () => void): void => {
   const previousDepth: number = state.indentDepth;
@@ -327,6 +396,7 @@ export type CommentEmitter = (
   comment: PgnComment,
   rawText: string,
   applyIntroStyling: boolean,
+  variationDepth: number,
 ) => void;
 
 /**
@@ -344,12 +414,12 @@ export const buildVariationWalker = (
   emitVariation: (variation: PgnVariation, state: PlanState, registry: StrategyRegistry) => void;
   strategyRegistry: StrategyRegistry;
 } => {
-  const internalAddComment = (state: PlanState, comment: PgnComment): void => {
+  const internalAddComment = (state: PlanState, comment: PgnComment, variationDepth: number): void => {
     const rawText: string = String(comment.raw ?? "");
     const isFirstComment: boolean = !state.firstCommentId;
     if (isFirstComment) state.firstCommentId = comment.id;
     const applyIntroStyling: boolean = isFirstComment && !state.firstMoveEmitted;
-    emitComment(state, comment, rawText, applyIntroStyling);
+    emitComment(state, comment, rawText, applyIntroStyling, variationDepth);
   };
 
   // Forward declaration — `emitMove` and `emitVariation` are mutually recursive.
@@ -364,7 +434,7 @@ export const buildVariationWalker = (
       ? `text-editor-main-move move-${moveSide}`
       : `text-editor-variation-move move-${moveSide}`;
     if (!flow.hoistedBeforeCommentMoveIds.has(entry.id)) {
-      entry.commentsBefore.forEach((c: PgnComment): void => internalAddComment(state, c));
+      entry.commentsBefore.forEach((c: PgnComment): void => internalAddComment(state, c, variation.depth));
     }
     addTextWithBreaks(state, entry.san, moveClass, "move", {
       nodeId: entry.id,
@@ -382,16 +452,7 @@ export const buildVariationWalker = (
       for (let idx: number = 0; idx < entry.postItems.length; idx += 1) {
         const item: PgnPostItem = entry.postItems[idx];
         if (item.type === "comment" && item.comment) {
-          const nextItem: PgnPostItem | undefined = entry.postItems[idx + 1];
-          if (nextItem?.type === "rav" && nextItem.rav && hasIndentBlockDirective(item.comment)) {
-            emitIndentedBlock(state, getIndentDirectiveDepth(item.comment), (): void => {
-              internalAddComment(state, item.comment!);
-              emitVariation(nextItem.rav!, state, registry);
-            });
-            idx += 1;
-            continue;
-          }
-          internalAddComment(state, item.comment);
+          internalAddComment(state, item.comment, variation.depth);
           continue;
         }
         if (item.type === "rav" && item.rav) {
@@ -399,7 +460,7 @@ export const buildVariationWalker = (
         }
       }
     } else {
-      entry.commentsAfter.forEach((c: PgnComment): void => internalAddComment(state, c));
+      entry.commentsAfter.forEach((c: PgnComment): void => internalAddComment(state, c, variation.depth));
       entry.ravs.forEach((child: PgnVariation): void => emitVariation(child, state, registry));
     }
   };
@@ -416,18 +477,6 @@ export const buildVariationWalker = (
         continue;
       }
       const nextEntry: PgnEntry | undefined = variation.entries[idx + 1];
-      if (
-        entry.type === "comment" &&
-        nextEntry?.type === "variation" &&
-        hasIndentBlockDirective(entry)
-      ) {
-        emitIndentedBlock(state, getIndentDirectiveDepth(entry), (): void => {
-          internalAddComment(state, entry as PgnComment);
-          emitVariation(nextEntry as PgnVariation, state, registry);
-        });
-        idx += 1;
-        continue;
-      }
       if (entry.type === "move_number") {
         const lookahead: PgnEntry | undefined = variation.entries[idx + 1];
         if (
@@ -435,7 +484,7 @@ export const buildVariationWalker = (
           Array.isArray(lookahead.commentsBefore) &&
           lookahead.commentsBefore.length > 0
         ) {
-          lookahead.commentsBefore.forEach((c: PgnComment): void => internalAddComment(state, c));
+          lookahead.commentsBefore.forEach((c: PgnComment): void => internalAddComment(state, c, variation.depth));
           flow.hoistedBeforeCommentMoveIds.add(lookahead.id);
         }
         const parsedForFlow = parseMoveNumberToken(entry.text);
@@ -450,17 +499,18 @@ export const buildVariationWalker = (
         flow.nextMoveSide = flow.nextMoveSide === "white" ? "black" : "white";
       }
     }
-    variation.trailingComments.forEach((c: PgnComment): void => internalAddComment(state, c));
+    variation.trailingComments.forEach((c: PgnComment): void => internalAddComment(state, c, variation.depth));
   };
 
   const strategyRegistry: StrategyRegistry = {
     comment: (entry: PgnEntry, _variation: PgnVariation, state: PlanState): void => {
       if (entry.type !== "comment") return;
-      internalAddComment(state, entry);
+      internalAddComment(state, entry, _variation.depth);
     },
     move_number: (entry: PgnEntry, variation: PgnVariation, state: PlanState): void => {
       if (entry.type !== "move_number") return;
       const parsed = parseMoveNumberToken(entry.text);
+      if (shouldSuppressMoveNumberToken(state, parsed)) return;
       addTextWithBreaks(
         state,
         parsed.displayText,

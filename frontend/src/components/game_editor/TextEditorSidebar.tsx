@@ -16,6 +16,8 @@
  *
  * Communication API:
  * - `onSetLayoutMode(mode)` — fires when a layout mode button is clicked.
+ * - `onInsertIndentMarker()` — inserts `[[indent]]` at the current comment caret.
+ * - `onInsertDeindentMarker()` — inserts `[[deindent]]` at the current comment caret.
  * - `onApplyDefaultIndent()` — fires when the Default Layout button is clicked.
  * - `onOpenDefaultLayoutConfig()` — fires when the Default Layout configure button is clicked.
  * - `onSave()` — fires when the save button is clicked.
@@ -35,6 +37,8 @@ type TextEditorSidebarProps = {
   showEvalPills: boolean;
   t: (key: string, fallback?: string) => string;
   onSetLayoutMode: (mode: "plain" | "text" | "tree") => void;
+  onInsertIndentMarker: () => void;
+  onInsertDeindentMarker: () => void;
   onApplyDefaultIndent: () => void;
   onOpenDefaultLayoutConfig: () => void;
   onSave: () => void;
@@ -53,6 +57,8 @@ export const TextEditorSidebar = ({
   showEvalPills,
   t,
   onSetLayoutMode,
+  onInsertIndentMarker,
+  onInsertDeindentMarker,
   onApplyDefaultIndent,
   onOpenDefaultLayoutConfig,
   onSave,
@@ -108,6 +114,27 @@ export const TextEditorSidebar = ({
     </div>
 
     <div className="text-editor-sidebar-sep" />
+
+    <button
+      id="btn-insert-indent-marker"
+      className="icon-button"
+      type="button"
+      title={t("pgn.insertIndentMarker", "Insert indent marker ([[indent]])")}
+      onMouseDown={(e): void => { e.preventDefault(); }}
+      onClick={onInsertIndentMarker}
+    >
+      <img src="/icons/toolbar/indent.svg" alt={t("pgn.insertIndentMarkerShort", "Insert indent")} />
+    </button>
+    <button
+      id="btn-insert-deindent-marker"
+      className="icon-button"
+      type="button"
+      title={t("pgn.insertDeindentMarker", "Insert deindent marker ([[deindent]])")}
+      onMouseDown={(e): void => { e.preventDefault(); }}
+      onClick={onInsertDeindentMarker}
+    >
+      <img src="/icons/toolbar/default-indent.svg" alt={t("pgn.insertDeindentMarkerShort", "Insert deindent")} />
+    </button>
 
     <button
       id="btn-default-layout"

@@ -65,6 +65,20 @@ export const createBoardNavigationCapabilities = ({
   let animationRunId = 0;
   let isAnimating = false;
 
+  /** Best-effort logger that never throws back into navigation flow. */
+  const safeLog = (level: "debug" | "error", message: string | (() => string)): void => {
+    try {
+      if (level === "debug") {
+        log.debug("navigation", message);
+        return;
+      }
+      const resolved: string = typeof message === "function" ? message() : message;
+      log.error("navigation", resolved);
+    } catch {
+      // Keep navigation resilient even if logging backend fails.
+    }
+  };
+
   const dispatchNavigation = (): void => {
     const g = sessionRef.current;
     const bp = g.boardPreview as BoardPreviewValue;
@@ -122,45 +136,52 @@ export const createBoardNavigationCapabilities = ({
     nextPly: number,
     { animate = true }: { animate?: boolean } = {},
   ): Promise<void> => {
-    const g = sessionRef.current;
-    const bounded = Math.max(0, Math.min(nextPly, g.moves.length));
-    log.debug("navigation", `gotoPly: nextPly=${nextPly} g.moves.length=${g.moves.length} bounded=${bounded} g.currentPly=${g.currentPly} → ${bounded === g.currentPly ? "EARLY RETURN" : "advance"}`);
-    if (bounded === g.currentPly) return;
-
-    if (!animate) {
-      animationRunId += 1;
-      isAnimating = false;
-      g.boardPreview = null;
-      g.currentPly = bounded;
-      dispatchNavigation();
-      return;
-    }
-
-    const direction = bounded > g.currentPly ? 1 : -1;
-    const runId = ++animationRunId;
-    g.boardPreview = null;
-    isAnimating = true;
-    dispatchNavigation();
-
     try {
-      while (sessionRef.current.currentPly !== bounded) {
-        if (runId !== animationRunId) return;
-        sessionRef.current.currentPly += direction;
+      const g = sessionRef.current;
+      const moveCount: number = Array.isArray(g.moves) ? g.moves.length : 0;
+      const bounded = Math.max(0, Math.min(nextPly, moveCount));
+      safeLog("debug", () => `gotoPly: nextPly=${nextPly} g.moves.length=${moveCount} bounded=${bounded} g.currentPly=${g.currentPly} → ${bounded === g.currentPly ? "EARLY_RETURN" : "advance"}`);
+      if (bounded === g.currentPly) return;
+
+      if (!animate) {
+        animationRunId += 1;
+        isAnimating = false;
+        g.boardPreview = null;
+        g.currentPly = bounded;
         dispatchNavigation();
-        const movedSan = direction > 0
-          ? sessionRef.current.moves[sessionRef.current.currentPly - 1]
-          : sessionRef.current.moves[sessionRef.current.currentPly];
-        const soundType = resolveMoveSoundType(direction, movedSan, sessionRef.current.currentPly);
-        await playMoveSound(soundType);
-        if (getDelayMs() > 0) {
-          await sleep(getDelayMs());
+        return;
+      }
+
+      const direction = bounded > g.currentPly ? 1 : -1;
+      const runId = ++animationRunId;
+      g.boardPreview = null;
+      isAnimating = true;
+      dispatchNavigation();
+
+      try {
+        while (sessionRef.current.currentPly !== bounded) {
+          if (runId !== animationRunId) return;
+          sessionRef.current.currentPly += direction;
+          dispatchNavigation();
+          const movedSan = direction > 0
+            ? sessionRef.current.moves[sessionRef.current.currentPly - 1]
+            : sessionRef.current.moves[sessionRef.current.currentPly];
+          const soundType = resolveMoveSoundType(direction, movedSan, sessionRef.current.currentPly);
+          await playMoveSound(soundType);
+          if (getDelayMs() > 0) {
+            await sleep(getDelayMs());
+          }
+        }
+      } finally {
+        if (runId === animationRunId) {
+          isAnimating = false;
+          dispatchNavigation();
         }
       }
-    } finally {
-      if (runId === animationRunId) {
-        isAnimating = false;
-        dispatchNavigation();
-      }
+    } catch (err: unknown) {
+      isAnimating = false;
+      const message: string = err instanceof Error ? err.message : String(err);
+      safeLog("error", `gotoPly failed: ${message}`);
     }
   };
 

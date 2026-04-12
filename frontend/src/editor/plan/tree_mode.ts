@@ -16,9 +16,12 @@ import {
   addInlineToken,
   addSpace,
   addTextWithBreaks,
+  applyPersistentIndentDelta,
+  buildRichCommentView,
   currentBlock,
   nextBlock,
   parseMoveNumberToken,
+  shouldSuppressMoveNumberToken,
 } from "./types";
 
 // ── Variation numbering ───────────────────────────────────────────────────────
@@ -61,11 +64,28 @@ const emitTreeComment = (
   comment: PgnComment,
   rawText: string,
   applyIntroStyling: boolean,
+  variationDepth: number,
 ): void => {
-  // Show raw text literally — markers survive edits and are greyed via CSS.
-  addCommentToken(state, comment, rawText, rawText, false, 0, applyIntroStyling, true, applyIntroStyling);
+  // Match text-mode marker behaviour in tree mode via shared formatter.
+  const view = buildRichCommentView(comment, rawText);
+  applyPersistentIndentDelta(state, view.indentDelta);
+  addCommentToken(
+    state,
+    comment,
+    view.visibleText,
+    rawText,
+    view.hasIndentDirective,
+    view.indentDirectiveDepth,
+    applyIntroStyling,
+    false,
+    applyIntroStyling,
+    variationDepth,
+  );
   // Intro comments occupy their own line before the branch moves.
-  if (applyIntroStyling) {
+  const shouldBreakAfterComment: boolean = applyIntroStyling
+    || state.commentLineBreakPolicy === "always"
+    || (state.commentLineBreakPolicy === "mainline_only" && variationDepth === 0);
+  if (shouldBreakAfterComment) {
     nextBlock(state);
   } else {
     addSpace(state);
@@ -74,12 +94,12 @@ const emitTreeComment = (
 
 // ── Tree-local addComment (manages intro-styling state per variation) ─────────
 
-const addComment = (state: PlanState, comment: PgnComment): void => {
+const addComment = (state: PlanState, comment: PgnComment, variationDepth: number): void => {
   const rawText: string = String(comment.raw ?? "");
   const isFirstComment: boolean = !state.firstCommentId;
   if (isFirstComment) state.firstCommentId = comment.id;
   const applyIntroStyling: boolean = isFirstComment && !state.firstMoveEmitted;
-  emitTreeComment(state, comment, rawText, applyIntroStyling);
+  emitTreeComment(state, comment, rawText, applyIntroStyling, variationDepth);
 };
 
 // ── Tree variation traversal ──────────────────────────────────────────────────
@@ -129,7 +149,7 @@ const emitTreeVariation = (
     }
 
     if (entry.type === "comment") {
-      addComment(state, entry);
+      addComment(state, entry, variation.depth);
       continue;
     }
 
@@ -140,11 +160,14 @@ const emitTreeVariation = (
         Array.isArray((lookahead as PgnMove).commentsBefore) &&
         (lookahead as PgnMove).commentsBefore.length > 0
       ) {
-        (lookahead as PgnMove).commentsBefore.forEach((c: PgnComment): void => addComment(state, c));
+        (lookahead as PgnMove).commentsBefore.forEach((c: PgnComment): void => addComment(state, c, variation.depth));
         hoistedBeforeCommentMoveIds.add((lookahead as PgnMove).id);
       }
       const parsed = parseMoveNumberToken(entry.text);
       if (parsed.side === "white" || parsed.side === "black") moveSide = parsed.side;
+      if (shouldSuppressMoveNumberToken(state, parsed)) {
+        continue;
+      }
       addTextWithBreaks(
         state,
         parsed.displayText,
@@ -175,7 +198,7 @@ const emitTreeVariation = (
         : `text-editor-variation-move move-${side}`;
 
       if (!hoistedBeforeCommentMoveIds.has(entry.id)) {
-        entry.commentsBefore.forEach((c: PgnComment): void => addComment(state, c));
+        entry.commentsBefore.forEach((c: PgnComment): void => addComment(state, c, variation.depth));
       }
       addTextWithBreaks(state, entry.san, moveClass, "move", {
         nodeId: entry.id,
@@ -191,11 +214,11 @@ const emitTreeVariation = (
 
       if (Array.isArray(entry.postItems) && entry.postItems.length > 0) {
         for (const item of entry.postItems) {
-          if (item.type === "comment" && item.comment) addComment(state, item.comment);
+          if (item.type === "comment" && item.comment) addComment(state, item.comment, variation.depth);
           else if (item.type === "rav" && item.rav) childRavs.push(item.rav);
         }
       } else {
-        entry.commentsAfter.forEach((c: PgnComment): void => addComment(state, c));
+        entry.commentsAfter.forEach((c: PgnComment): void => addComment(state, c, variation.depth));
         entry.ravs.forEach((rav: PgnVariation): void => { childRavs.push(rav); });
       }
 
@@ -203,7 +226,7 @@ const emitTreeVariation = (
     }
   }
 
-  variation.trailingComments.forEach((c: PgnComment): void => addComment(state, c));
+  variation.trailingComments.forEach((c: PgnComment): void => addComment(state, c, variation.depth));
 
   // Recursively emit child variations as new blocks (DFS).
   for (let i: number = 0; i < childRavs.length; i += 1) {

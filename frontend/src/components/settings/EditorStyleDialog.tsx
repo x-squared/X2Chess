@@ -31,6 +31,7 @@ import type {
 } from "../../runtime/editor_style_prefs";
 import { editorStyleToCssVars } from "../../runtime/editor_style_prefs";
 import { PgnEditorPreview } from "../game_editor/PgnEditorPreview";
+import { useTranslator } from "../../hooks/useTranslator";
 
 // ── Options ───────────────────────────────────────────────────────────────────
 
@@ -199,6 +200,7 @@ export const EditorStyleDialog = ({
   onSave,
   onClose,
 }: EditorStyleDialogProps): ReactElement => {
+  const t: (key: string, fallback?: string) => string = useTranslator();
   const [local, setLocal] = useState<EditorStylePrefs>(prefs);
   const [previewMode, setPreviewMode] = useState<"plain" | "text" | "tree">(initialLayoutMode);
   const [activeTextLevel, setActiveTextLevel] = useState<1 | 2 | 3>(1);
@@ -317,6 +319,44 @@ export const EditorStyleDialog = ({
                   }}
                 />
                 <span className="editor-style-value-badge">{local.lineHeight.toFixed(2)}</span>
+              </LabeledRow>
+              <LabeledRow
+                label={t("editorStyle.commentLineBreakPolicy", "Comment line breaks")}
+                hint={t(
+                  "editorStyle.commentLineBreakPolicy.hint",
+                  "Always: every comment starts a new line. Mainline only: variation comments stay inline.",
+                )}
+              >
+                <select
+                  value={local.commentLineBreakPolicy}
+                  onChange={(e: ChangeEvent<HTMLSelectElement>): void => {
+                    set({
+                      commentLineBreakPolicy:
+                        e.target.value === "always" ? "always" : "mainline_only",
+                    });
+                  }}
+                >
+                  <option value="mainline_only">{t("editorStyle.commentLineBreakPolicy.mainlineOnly", "Mainline only")}</option>
+                  <option value="always">{t("editorStyle.commentLineBreakPolicy.always", "Always")}</option>
+                </select>
+              </LabeledRow>
+              <LabeledRow label={t("editorStyle.variationMoveColor", "Variation move colour")}>
+                <input
+                  type="color"
+                  value={cssColorToHex(local.variationMoveColor)}
+                  onChange={(e: ChangeEvent<HTMLInputElement>): void => {
+                    set({ variationMoveColor: e.target.value });
+                  }}
+                />
+              </LabeledRow>
+              <LabeledRow label={t("editorStyle.commentTextColor", "Comment text colour")}>
+                <input
+                  type="color"
+                  value={cssColorToHex(local.commentTextColor)}
+                  onChange={(e: ChangeEvent<HTMLInputElement>): void => {
+                    set({ commentTextColor: e.target.value });
+                  }}
+                />
               </LabeledRow>
             </div>
 
@@ -468,6 +508,7 @@ export const EditorStyleDialog = ({
             <PgnEditorPreview
               pgnModel={pgnModel}
               layoutMode={previewMode}
+              commentLineBreakPolicy={local.commentLineBreakPolicy}
               styleVars={styleVars}
             />
           </div>

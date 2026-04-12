@@ -2,11 +2,11 @@
  * PGN editor plan — public API.
  *
  * Integration API:
- * - `buildTextEditorPlan(pgnModel, { layoutMode, numberingStrategy })` — converts a
+ * - `buildTextEditorPlan(pgnModel, { layoutMode, numberingStrategy, commentLineBreakPolicy })` — converts a
  *   PGN model into a flat `PlanBlock[]` suitable for rendering by `PgnTextEditor`.
  * - `layoutMode`:
  *   - `plain`  — literal comment text, no marker processing.
- *   - `text`   — `[[indent]]` drives block indentation; `[[br]]` becomes a newline
+ *   - `text`   — `[[indent]]`/`[[deindent]]` drive persistent indentation; `[[br]]` becomes a newline
  *                in the contentEditable; first comment receives intro styling.
  *   - `tree`   — one block per variation (DFS); markers shown as greyed literal text;
  *                first comment of each variation receives intro styling independently.
@@ -16,17 +16,57 @@
 export type { InlineToken, CommentToken, PlanToken, PlanBlock } from "./types";
 export type { VariationNumberingStrategy } from "./tree_mode";
 
-import type { LayoutMode, PgnModel } from "./types";
+import type { LayoutMode, PgnModel, PlanToken, PlanBlock } from "./types";
 import { createBlock, createPlanState } from "./types";
 import type { VariationNumberingStrategy } from "./tree_mode";
 import { alphaNumericPathStrategy, buildTreeEditorPlan } from "./tree_mode";
 import { buildPlainEditorPlan } from "./plain_mode";
 import { buildTextModeEditorPlan } from "./text_mode";
-import type { PlanBlock } from "./types";
+
+const normalizeMoveNumberTokens = (blocks: PlanBlock[]): PlanBlock[] =>
+  blocks.map((block: PlanBlock): PlanBlock => {
+    const normalizedTokens: PlanToken[] = [];
+    const tokens: PlanToken[] = block.tokens;
+    for (let i: number = 0; i < tokens.length; i += 1) {
+      const token: PlanToken = tokens[i];
+      if (!(token.kind === "inline" && token.tokenType === "move_number")) {
+        normalizedTokens.push(token);
+        continue;
+      }
+      const side: string = String(token.dataset?.moveNumberSide ?? "");
+      if (side === "black") {
+        let suppressBlack: boolean = false;
+        for (let k: number = normalizedTokens.length - 1; k >= 0; k -= 1) {
+          const prev: PlanToken = normalizedTokens[k];
+          if (prev.kind === "inline" && prev.tokenType === "space") continue;
+          if (prev.kind === "comment") continue;
+          suppressBlack = prev.kind === "inline" && prev.tokenType === "move";
+          break;
+        }
+        if (suppressBlack) continue;
+      }
+      let hasFollowingMoveNumber: boolean = false;
+      for (let j: number = i + 1; j < tokens.length; j += 1) {
+        const lookahead: PlanToken = tokens[j];
+        if (lookahead.kind === "comment") continue;
+        if (lookahead.kind !== "inline") break;
+        if (lookahead.tokenType === "space") continue;
+        hasFollowingMoveNumber = lookahead.tokenType === "move_number";
+        break;
+      }
+      if (hasFollowingMoveNumber) continue;
+      normalizedTokens.push(token);
+    }
+    return { ...block, tokens: normalizedTokens };
+  });
 
 export const buildTextEditorPlan = (
   pgnModel: unknown,
-  options: { layoutMode?: LayoutMode; numberingStrategy?: VariationNumberingStrategy } = {},
+  options: {
+    layoutMode?: LayoutMode;
+    numberingStrategy?: VariationNumberingStrategy;
+    commentLineBreakPolicy?: "always" | "mainline_only";
+  } = {},
 ): PlanBlock[] => {
   const layoutMode: LayoutMode =
     options.layoutMode === "plain" ||
@@ -35,9 +75,11 @@ export const buildTextEditorPlan = (
       ? options.layoutMode
       : "plain";
 
-  const state = createPlanState(layoutMode);
+  const commentLineBreakPolicy: "always" | "mainline_only" =
+    options.commentLineBreakPolicy === "always" ? "always" : "mainline_only";
+  const state = createPlanState(layoutMode, commentLineBreakPolicy);
   const model: PgnModel | null = (pgnModel as PgnModel | null) ?? null;
-  if (!model || !model.root) return state.blocks;
+  if (!model?.root) return state.blocks;
 
   if (layoutMode === "tree") {
     const numbering: VariationNumberingStrategy =
@@ -60,5 +102,6 @@ export const buildTextEditorPlan = (
       break;
     }
   }
-  return state.blocks.slice(firstNonEmpty, lastNonEmpty + 1);
+  const trimmedBlocks: PlanBlock[] = state.blocks.slice(firstNonEmpty, lastNonEmpty + 1);
+  return normalizeMoveNumberTokens(trimmedBlocks);
 };

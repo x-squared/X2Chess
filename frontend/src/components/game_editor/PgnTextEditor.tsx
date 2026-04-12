@@ -40,11 +40,13 @@ import {
 } from "../../state/selectors";
 import { editorStyleToCssVars } from "../../runtime/editor_style_prefs";
 import { useHoverPreview } from "../board/HoverPreviewContext";
-import { resolveMovePositionById, type PgnModelForMoves } from "../../board/move_position";
+import { resolveMovePositionById } from "../../board/move_position";
 import { useServiceContext } from "../../state/ServiceContext";
 import { useTranslator } from "../../hooks/useTranslator";
 import {
+  appendMove,
   truncateAfter,
+  deleteSingleMove,
   truncateBefore,
   deleteVariation,
   deleteVariationsAfter,
@@ -109,6 +111,7 @@ import { AnchorDefDialog } from "../anchors/AnchorDefDialog";
 import { AnchorPickerDialog } from "../anchors/AnchorPickerDialog";
 import { GUIDE_IDS } from "../../guide/guide_ids";
 import type { PgnModel } from "../../../../parts/pgnparser/src/pgn_model";
+import { log } from "../../logger";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -300,12 +303,14 @@ const CommentBlock = ({ token, isFocused, onEdit, onFocusHandled }: CommentBlock
   if (isEditMode) {
     return (
       <div
+        key={`comment_edit_${token.commentId}`}
         ref={ref}
         contentEditable
         suppressContentEditableWarning
         className={className}
         data-kind="comment"
         data-comment-id={token.commentId}
+        data-variation-depth={String(token.variationDepth)}
         data-focus-first-comment-at-start={token.focusFirstCommentAtStart ? "true" : undefined}
         onInput={handleInput}
         onKeyDown={handleKeyDown}
@@ -318,9 +323,11 @@ const CommentBlock = ({ token, isFocused, onEdit, onFocusHandled }: CommentBlock
   const segments: CommentSegment[] = splitCommentUrls(token.text);
   return (
     <div
+      key={`comment_view_${token.commentId}`}
       className={className}
       data-kind="comment"
       data-comment-id={token.commentId}
+      data-variation-depth={String(token.variationDepth)}
       data-focus-first-comment-at-start={token.focusFirstCommentAtStart ? "true" : undefined}
       onClick={(): void => { setIsEditMode(true); }}
     >
@@ -378,7 +385,12 @@ const MoveSpan = ({
   const moveId: string = String(token.dataset.nodeId ?? "");
 
   const handleClick = useCallback((): void => {
-    onMoveClick(moveId);
+    try {
+      onMoveClick(moveId);
+    } catch (err: unknown) {
+      const message: string = err instanceof Error ? err.message : String(err);
+      log.error("PgnTextEditor", `MoveSpan.handleClick failed: moveId=${moveId} err="${message}"`);
+    }
   }, [moveId, onMoveClick]);
 
   const handleMouseDown = useCallback(
@@ -486,6 +498,30 @@ type TokenViewProps = {
 };
 
 /**
+ * Resolve whether a comment block should be rendered.
+ *
+ * A focused comment must be rendered even when its display text is empty so a
+ * freshly inserted empty comment can enter edit mode immediately.
+ *
+ * @param hasDisplayText True when stripped comment text is non-empty.
+ * @param hasRawCommentText True when the underlying raw comment text is non-empty.
+ * @param commentId Current comment id token.
+ * @param pendingFocusCommentId Pending focus id from session state.
+ * @param consumedFocusCommentId Last focus id already consumed by the editor.
+ * @returns True when the comment block should be present in the DOM.
+ */
+export const shouldRenderCommentBlock = (
+  hasDisplayText: boolean,
+  hasRawCommentText: boolean,
+  commentId: string,
+  pendingFocusCommentId: string | null,
+  consumedFocusCommentId: string | null,
+): boolean => {
+  if (hasDisplayText || !hasRawCommentText) return true;
+  return commentId === pendingFocusCommentId && pendingFocusCommentId !== consumedFocusCommentId;
+};
+
+/**
  * Dispatches a plan token to the appropriate sub-component.
  *
  * - `comment` tokens → `<CommentBlock>` (with optional `<QaBadge>` in text/tree mode)
@@ -562,6 +598,16 @@ const TokenView = ({
       displayText = ct.text;
     }
     const hasDisplayText: boolean = displayText.trim().length > 0;
+    const shouldFocusComment: boolean =
+      ct.commentId === pendingFocusCommentId &&
+      pendingFocusCommentId !== consumedFocusCommentId;
+    const shouldRenderCommentBlockValue: boolean = shouldRenderCommentBlock(
+      hasDisplayText,
+      ct.rawText.trim().length > 0,
+      ct.commentId,
+      pendingFocusCommentId,
+      consumedFocusCommentId,
+    );
     const displayToken: CommentToken = anyBadge ? { ...ct, text: displayText } : ct;
     // Extract moveId from dataset (set by text_mode when emitting the move token before this comment).
     const moveIdForAnchor: string = ct.commentId;
@@ -650,13 +696,10 @@ const TokenView = ({
             onDeleteAll={onDeleteAllEvals}
           />
         )}
-        {hasDisplayText && (
+        {shouldRenderCommentBlockValue && (
           <CommentBlock
             token={displayToken}
-            isFocused={
-              ct.commentId === pendingFocusCommentId &&
-              pendingFocusCommentId !== consumedFocusCommentId
-            }
+            isFocused={shouldFocusComment}
             onFocusHandled={onCommentFocusHandled}
             onEdit={onCommentEdit}
           />
@@ -723,11 +766,13 @@ type TokenRenderDeps = {
   t: (key: string, fallback?: string) => string;
 };
 
-const tokenStableKey = (token: PlanToken): string => (
-  token.kind === "comment"
-    ? `comment_${(token as CommentToken).commentId}`
-    : token.key
-);
+const tokenStableKey = (token: PlanToken): string => {
+  if (token.kind === "comment") {
+    return `comment_${(token as CommentToken).commentId}`;
+  }
+  const nodeId: string = String(token.dataset?.nodeId ?? "");
+  return `${token.key}_${token.tokenType}_${token.text}_${nodeId}`;
+};
 
 const renderToken = (token: PlanToken, deps: TokenRenderDeps): ReactElement => (
   <TokenView
@@ -765,6 +810,89 @@ const renderToken = (token: PlanToken, deps: TokenRenderDeps): ReactElement => (
   />
 );
 
+type CommentVisibilityFlags = {
+  showQaBadge: boolean;
+  showTrainBadge: boolean;
+  showTodoBadge: boolean;
+  showLinkBadge: boolean;
+  showAnchorBadge: boolean;
+  showAnchorRefChips: boolean;
+  showEvalBadge: boolean;
+  hasAnyEval: boolean;
+};
+
+const getCommentVisibilityFlags = (token: CommentToken, deps: TokenRenderDeps): CommentVisibilityFlags => {
+  const inBadgeMode: boolean = deps.layoutMode !== "plain";
+  const hasEval: boolean = inBadgeMode && hasEvalAnnotations(token.rawText);
+  return {
+    showQaBadge: inBadgeMode && hasQaAnnotations(token.rawText),
+    showTrainBadge: inBadgeMode && hasTrainAnnotation(token.rawText),
+    showTodoBadge: inBadgeMode && hasTodoAnnotations(token.rawText),
+    showLinkBadge: inBadgeMode && hasLinkAnnotations(token.rawText),
+    showAnchorBadge: inBadgeMode && hasAnchorAnnotations(token.rawText),
+    showAnchorRefChips: inBadgeMode && hasAnchorRefAnnotations(token.rawText),
+    showEvalBadge: inBadgeMode && deps.showEvalPills && hasEval,
+    hasAnyEval: hasEval,
+  };
+};
+
+const buildVisibleCommentText = (token: CommentToken, flags: CommentVisibilityFlags): string => {
+  if (
+    !flags.showQaBadge
+    && !flags.showTrainBadge
+    && !flags.showTodoBadge
+    && !flags.showLinkBadge
+    && !flags.showAnchorBadge
+    && !flags.showAnchorRefChips
+    && !flags.hasAnyEval
+  ) {
+    return token.text;
+  }
+  let stripped: string = token.rawText;
+  if (flags.showQaBadge) stripped = stripQaAnnotations(stripped);
+  if (flags.showTrainBadge) stripped = stripTrainAnnotation(stripped);
+  if (flags.showTodoBadge) stripped = stripTodoAnnotations(stripped);
+  if (flags.showLinkBadge) stripped = stripLinkAnnotations(stripped);
+  if (flags.showAnchorBadge) stripped = stripAnchorAnnotations(stripped);
+  if (flags.showAnchorRefChips) stripped = stripAnchorRefAnnotations(stripped);
+  if (flags.hasAnyEval) stripped = stripEvalAnnotations(stripped);
+  return stripped;
+};
+
+const isCommentTokenVisible = (token: CommentToken, deps: TokenRenderDeps): boolean => {
+  const flags: CommentVisibilityFlags = getCommentVisibilityFlags(token, deps);
+  const hasVisibleBadge: boolean =
+    flags.showQaBadge
+    || flags.showTrainBadge
+    || flags.showTodoBadge
+    || flags.showLinkBadge
+    || flags.showAnchorBadge
+    || flags.showAnchorRefChips
+    || flags.showEvalBadge;
+  const displayText: string = buildVisibleCommentText(token, flags);
+  const hasDisplayText: boolean = displayText.trim().length > 0;
+  const shouldRenderComment: boolean = shouldRenderCommentBlock(
+    hasDisplayText,
+    token.rawText.trim().length > 0,
+    token.commentId,
+    deps.pendingFocusCommentId,
+    deps.consumedFocusCommentId,
+  );
+  return hasVisibleBadge || shouldRenderComment;
+};
+
+const hasVisibleTokenInBlock = (block: PlanBlock, deps: TokenRenderDeps): boolean => {
+  for (const token of block.tokens) {
+    if (token.kind === "comment") {
+      if (isCommentTokenVisible(token, deps)) return true;
+      continue;
+    }
+    if (token.tokenType === "space") continue;
+    return true;
+  }
+  return false;
+};
+
 type LinearModeViewProps = {
   blocks: PlanBlock[];
   deps: TokenRenderDeps;
@@ -772,7 +900,9 @@ type LinearModeViewProps = {
 
 const LinearModeView = ({ blocks, deps }: LinearModeViewProps): ReactElement => (
   <>
-    {blocks.map((block: PlanBlock): ReactElement => (
+    {blocks
+      .filter((block: PlanBlock): boolean => hasVisibleTokenInBlock(block, deps))
+      .map((block: PlanBlock): ReactElement => (
       <div
         key={block.key}
         className="text-editor-block"
@@ -781,7 +911,7 @@ const LinearModeView = ({ blocks, deps }: LinearModeViewProps): ReactElement => 
       >
         {block.tokens.map((token: PlanToken): ReactElement => renderToken(token, deps))}
       </div>
-    ))}
+      ))}
   </>
 );
 
@@ -959,10 +1089,13 @@ export const PgnTextEditor = (): ReactElement => {
     [services],
   );
 
-  /** Recompute the token plan only when the model or layout mode changes. */
+  /** Recompute the token plan when model, layout mode, or break policy changes. */
   const blocks: PlanBlock[] = useMemo(
-    (): PlanBlock[] => buildTextEditorPlan(pgnModel, { layoutMode }),
-    [pgnModel, layoutMode],
+    (): PlanBlock[] => buildTextEditorPlan(pgnModel, {
+      layoutMode,
+      commentLineBreakPolicy: editorStylePrefs.commentLineBreakPolicy,
+    }),
+    [pgnModel, layoutMode, editorStylePrefs.commentLineBreakPolicy],
   );
 
   // ── Eval annotation handlers ──────────────────────────────────────────────────
@@ -1039,9 +1172,14 @@ export const PgnTextEditor = (): ReactElement => {
 
   const handleMoveClick = useCallback(
     (moveId: string): void => {
-      services.gotoMoveById(moveId);
-      // If an after-comment exists for this move, focus it for editing.
-      services.focusCommentAroundMove(moveId, "after");
+      try {
+        services.gotoMoveById(moveId);
+        // If an after-comment exists for this move, focus it for editing.
+        services.focusCommentAroundMove(moveId, "after");
+      } catch (err: unknown) {
+        const message: string = err instanceof Error ? err.message : String(err);
+        log.error("PgnTextEditor", `handleMoveClick failed: moveId=${moveId} err="${message}"`);
+      }
     },
     [services],
   );
@@ -1049,8 +1187,7 @@ export const PgnTextEditor = (): ReactElement => {
   const handleMoveHover = useCallback(
     (moveId: string, rect: DOMRect): void => {
       if (!positionPreviewOnHover || !pgnModel) return;
-      // Cast is safe: PgnModel is structurally compatible at runtime.
-      const resolved = resolveMovePositionById(pgnModel as unknown as PgnModelForMoves, moveId);
+      const resolved = resolveMovePositionById(pgnModel, moveId);
       if (!resolved) return;
       showPreview(resolved.fen, resolved.lastMove, rect);
     },
@@ -1077,6 +1214,8 @@ export const PgnTextEditor = (): ReactElement => {
         case "insert_comment_after":
           handleInsertComment(action.moveId, "after");
           return;
+        case "insert_null_move_after":
+          break;
         case "insert_qa":
           handleInsertQa(action.moveId);
           return;
@@ -1104,8 +1243,14 @@ export const PgnTextEditor = (): ReactElement => {
       let newModel: import("../../../../parts/pgnparser/src/pgn_model").PgnModel;
       let newCursor: import("../../../../parts/pgnparser/src/pgn_move_ops").PgnCursor | null;
       switch (action.type) {
+        case "insert_null_move_after":
+          [newModel, newCursor] = appendMove(pgnModel, cursor, "--");
+          break;
         case "delete_from_here":
           [newModel, newCursor] = truncateAfter(pgnModel, cursor);
+          break;
+        case "delete_null_move":
+          [newModel, newCursor] = deleteSingleMove(pgnModel, action.moveId);
           break;
         case "delete_before_here":
           [newModel, newCursor] = truncateBefore(pgnModel, cursor);
@@ -1175,7 +1320,13 @@ export const PgnTextEditor = (): ReactElement => {
   }
 
   return (
-      <div className="text-editor" data-guide-id={GUIDE_IDS.EDITOR_PGN_TEXT} data-layout-mode={layoutMode} style={editorStyleVars as CSSProperties}>
+      <div
+        className="text-editor"
+        data-guide-id={GUIDE_IDS.EDITOR_PGN_TEXT}
+        data-layout-mode={layoutMode}
+        data-comment-linebreak-policy={editorStylePrefs.commentLineBreakPolicy}
+        style={editorStyleVars as CSSProperties}
+      >
       {layoutMode === "tree" ? (
         <TreeModeView
           blocks={blocks}

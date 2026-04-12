@@ -68,7 +68,7 @@ export type AppStoreState = {
   /** Whether the developer dock panel is open. */
   isDevDockOpen: boolean;
   /** Which tab is active in the developer dock. */
-  activeDevTab: "ast";
+  activeDevTab: "ast" | "pgn";
   /** Whether the main menu overlay is open. */
   isMenuOpen: boolean;
 

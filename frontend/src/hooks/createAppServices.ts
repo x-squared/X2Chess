@@ -15,8 +15,9 @@
  * - Outbound: Service callbacks dispatch fine-grained actions directly.
  *   Session-list changes are dispatched by `onSessionsChanged`.
  *   Resource-viewer changes are dispatched by `onTabsChanged`.
- *   PGN/navigation/undo/focus state is dispatched by `onPgnChange`,
- *   `onNavigationChange`, `onUndoRedoDepthChange`, `onPendingFocusChange`.
+ *   PGN/session state is dispatched by `onPgnChange` via a canonical session
+ *   snapshot helper; navigation-only updates are dispatched by `onNavigationChange`.
+ *   Undo/redo depth-only updates are dispatched by `onUndoRedoDepthChange`.
  *   Workspace persistence is handled by a `useEffect` in `useAppStartup`.
  */
 
@@ -55,9 +56,9 @@ import {
 import { setResourceLoaderService } from "../services/resource_loader";
 import type { AppAction } from "../state/actions";
 import type { AppStoreState, SessionItemState, ResourceTabSnapshot } from "../state/app_reducer";
-import type { PgnModel } from "../../../parts/pgnparser/src/pgn_model";
 import type { Dispatch } from "react";
 import type { MovePositionRecord } from "../board/move_position";
+import { dispatchNavigationState, dispatchSessionStateSnapshot } from "./session_state_sync";
 
 // ── Internal service types ─────────────────────────────────────────────────────
 
@@ -81,9 +82,9 @@ type BoardPreviewValue = { fen: string; lastMove?: [string, string] | null } | n
  * Normalise a raw devTab value to the accepted union type.
  *
  * @param _raw Any raw value from persisted state.
- * @returns Always `"ast"` — the only supported dev tab.
+ * @returns `"ast"` or `"pgn"`; defaults to `"ast"` for unknown values.
  */
-export const toDevTab = (_raw: unknown): "ast" => "ast";
+export const toDevTab = (raw: unknown): "ast" | "pgn" => (raw === "pgn" ? "pgn" : "ast");
 
 type RawSession = {
   sessionId?: unknown;
@@ -216,15 +217,8 @@ export function createAppServicesBundle(
 
   // ── Shared typed dispatch callbacks ──────────────────────────────────────
 
-  const onPgnChange = (pgnText: string, pgnModel: unknown, moves: string[]): void => {
-    dispatchRef.current({
-      type: "set_pgn_state",
-      pgnText,
-      pgnModel: pgnModel as PgnModel | null,
-      moves,
-      pgnTextLength: pgnText.length,
-      moveCount: moves.length,
-    });
+  const onPgnChange = (_pgnText: string, _pgnModel: unknown, _moves: string[]): void => {
+    dispatchSessionStateSnapshot(activeSessionRef.current, dispatchRef.current);
   };
 
   const onNavigationChange = (
@@ -232,25 +226,12 @@ export function createAppServicesBundle(
     selectedMoveId: string | null,
     boardPreview: BoardPreviewValue,
   ): void => {
-    let resolvedMoveId = selectedMoveId;
-    if (!boardPreview?.fen) {
-      if (currentPly === 0) {
-        resolvedMoveId = null;
-      } else {
-        const positions = activeSessionRef.current.movePositionById as
-          | Record<string, { mainlinePly?: unknown }>
-          | null;
-        if (positions) {
-          for (const [moveId, record] of Object.entries(positions)) {
-            if (record.mainlinePly === currentPly) {
-              resolvedMoveId = moveId;
-              break;
-            }
-          }
-        }
-      }
-    }
-    dispatchRef.current({ type: "set_navigation", currentPly, selectedMoveId: resolvedMoveId, boardPreview });
+    dispatchNavigationState({
+      currentPly,
+      selectedMoveId,
+      boardPreview: boardPreview ? { fen: boardPreview.fen } : null,
+      movePositionById: activeSessionRef.current.movePositionById as Record<string, { mainlinePly?: unknown }> | null,
+    }, dispatchRef.current);
   };
 
   const onUndoRedoDepthChange = (undoDepth: number, redoDepth: number): void => {
@@ -263,10 +244,6 @@ export function createAppServicesBundle(
 
   const onErrorChange = (message: string): void => {
     dispatchRef.current({ type: "set_error_message", message });
-  };
-
-  const onPendingFocusChange = (commentId: string | null): void => {
-    dispatchRef.current({ type: "set_pending_focus", commentId });
   };
 
   // ── PGN runtime ──────────────────────────────────────────────────────────
@@ -286,9 +263,7 @@ export function createAppServicesBundle(
   // `buildMovePositionById` to do a full depth-first walk of the PGN tree and write
   // a fresh `MovePositionIndex` to `activeSessionRef.current.movePositionById`.
   // Swapping the registered function entirely replaces the indexing strategy without
-  // touching the runtime module.  The thin wrapper around `buildMovePositionById`
-  // exists only to satisfy the runtime's `unknown`-typed boundary while the call
-  // site holds the concrete `PgnModelForMoves` type.
+  // touching the runtime module.
   //
   // *Callback slots* (`onPgnChange`, `onNavigationChange`, `onRecordHistory`, …)
   // are the outbound half of the same pattern: the runtime calls them to report state
@@ -308,10 +283,8 @@ export function createAppServicesBundle(
       ) as Record<string, unknown>,
     stripAnnotationsForBoardParserFn: stripAnnotationsForBoardParser,
     onPgnChange,
-    onNavigationChange,
     onStatusChange,
     onErrorChange,
-    onPendingFocusChange,
     onRecordHistory: (): void => {
       const h: HistoryCapabilities | null = historyRef;
       if (!h) return;
@@ -337,7 +310,6 @@ export function createAppServicesBundle(
     pgnInput: null,
     onSyncChessParseState: pgnRuntime.syncChessParseState,
     onPgnChange,
-    onNavigationChange,
     onUndoRedoDepthChange,
   });
   historyRef = history;
@@ -488,7 +460,7 @@ export function createAppServicesBundle(
       findExistingCommentIdAroundMove(activeSessionRef.current.pgnModel, moveId, position),
     focusCommentById: (commentId: string): boolean => {
       activeSessionRef.current.pendingFocusCommentId = commentId;
-      onPendingFocusChange(commentId);
+      dispatchSessionStateSnapshot(activeSessionRef.current, dispatchRef.current);
       return true;
     },
     playMoveSound: moveSoundPlayer.playMoveSound,

@@ -1,6 +1,6 @@
 # X2Chess Architecture Manual
 
-Last updated: 2026-04-04
+Last updated: 2026-04-10
 
 ## 1) Goals
 
@@ -118,6 +118,7 @@ Environment and toolchain setup is documented in `doc/setup-manual.qmd`.
   - `Raw PGN`
 - The dock is user-opened and user-closed; enabling Developer-Tools does not force the dock open.
 - Dock views always reflect the same in-memory game/model state as the main Game-Viewer.
+- **Raw PGN** tab: users can edit text and apply it via `applyDeveloperDockRawPgn` in the session orchestrator. That path replaces `activeSessionRef` PGN text/model, runs `syncChessParseState`, dispatches a full session snapshot to React, clears per-session undo/redo, updates dirty metadata, and does **not** call `scheduleAutosaveForActiveSession`.
 - DEV-only convenience:
   - Automatic preload attempt from `run/DEV/games` (when available).
 
@@ -727,25 +728,29 @@ their state changes:
 
 | Callback | Action dispatched |
 |---|---|
-| `onPgnChange` | `set_pgn_state` |
+| `onPgnChange` | Full session snapshot: `set_pgn_state` + `set_navigation` + `set_undo_redo_depth` + `set_pending_focus` |
 | `onNavigationChange` | `set_navigation` |
 | `onUndoRedoDepthChange` | `set_undo_redo_depth` |
 | `onStatusChange` | `set_status_message` |
 | `onErrorChange` | `set_error_message` |
-| `onPendingFocusChange` | `set_pending_focus` |
 | `onSessionsChanged` | `set_sessions` |
 | `onTabsChanged` | `set_resource_viewer` |
 
 Callbacks close over `dispatchRef` (a mutable ref updated on every render) so
 they always use the current React dispatch without recreating service instances.
 
-#### flushSessionState (explicit, for direct mutations)
+#### Canonical sync helpers (explicit + shared)
 
 Operations in `SessionOrchestrator` that mutate `activeSessionRef.current`
 directly (e.g. `loadPgnText`, `switchSession`, `openPgnText`) call
-`flushSessionState()` afterwards. This helper reads the active session and
-dispatches `set_pgn_state`, `set_navigation`, `set_undo_redo_depth`, and
-`set_pending_focus` in one call.
+`flushSessionState()` afterwards. The implementation delegates to shared helpers
+in `hooks/session_state_sync.ts`:
+
+- `dispatchSessionStateSnapshot(session, dispatch)` — full sync of PGN +
+  navigation + undo/redo depth + pending focus.
+- `dispatchNavigationState(sessionLike, dispatch)` — fast path that emits only
+  `set_navigation` for high-frequency movement where PGN/editor slices did not
+  change.
 
 #### The mutable working store
 
@@ -782,8 +787,8 @@ The editor operates in one of three layout modes, stored per session in
 | Mode | Behaviour |
 |---|---|
 | `plain` | Raw PGN text; comment content is shown verbatim, no marker processing. |
-| `text` | `[[indent]]` drives block indentation; `[[br]]` becomes a visible line break in the `contentEditable`; the first comment before the first move receives *intro styling*. |
-| `tree` | One block per variation in DFS order; each non-mainline block opens with a labelled `branch_header` token; markers survive as greyed literal text; each variation's first comment receives intro styling independently. |
+| `text` | `[[indent]]`/`[[deindent]]` maintain a persistent indentation level for all following comments and moves (including mainline); `[[br]]` becomes a visible line break in the `contentEditable`; comment line breaks follow `EditorStylePrefs.commentLineBreakPolicy` (`always` / `mainline_only`); the first comment before the first move receives *intro styling*. |
+| `tree` | One block per variation in DFS order; each non-mainline block opens with a labelled `branch_header` token; `[[indent]]`/`[[deindent]]`/`[[br]]` markers are interpreted (as in text mode), while raw marker text remains in PGN storage; each variation's first comment receives intro styling independently. |
 
 #### Intro section (implicit detection)
 
@@ -822,7 +827,7 @@ default to the shipped design.
 
 #### Render-plan pipeline (`editor/plan/`)
 
-`buildTextEditorPlan(pgnModel, { layoutMode, numberingStrategy })` is the single
+`buildTextEditorPlan(pgnModel, { layoutMode, numberingStrategy, commentLineBreakPolicy })` is the single
 entry point (re-exported from `editor/text_editor_plan.ts`). It:
 
 1. Allocates a `PlanState` — a cursor over a growing `PlanBlock[]` plus tracking
@@ -831,9 +836,12 @@ entry point (re-exported from `editor/text_editor_plan.ts`). It:
    - `buildPlainEditorPlan` (`plan/plain_mode.ts`) — uses `buildVariationWalker` with
      a pass-through comment emitter that sets `plainLiteralComment = true`.
    - `buildTextModeEditorPlan` (`plan/text_mode.ts`) — uses `buildVariationWalker` with
-     a comment emitter that strips `[[indent]]` directives, converts `[[br]]` to
+     a comment emitter that strips `[[indent]]`/`[[deindent]]` directives, applies
+     persistent indentation delta state, converts `[[br]]` to
      `\n`, and calls `nextBlock()` after intro comments.
-   - `buildTreeEditorPlan` (`plan/tree_mode.ts`) — has its own DFS traversal;
+  - `buildTreeEditorPlan` (`plan/tree_mode.ts`) — has its own DFS traversal;
+    comment rendering mirrors text mode marker behaviour (strip `[[indent]]`/`[[deindent]]`,
+    apply persistent indentation delta state, render `[[br]]` as newline);
      collects child RAVs inline and emits them as new blocks after the parent
      block's content.
 3. Trims leading and trailing empty blocks before returning.
@@ -841,8 +849,9 @@ entry point (re-exported from `editor/text_editor_plan.ts`). It:
 **`buildVariationWalker`** (`plan/types.ts`) — a factory used by plain and text mode.
 It returns a mutually-recursive `emitVariation` / `emitMove` pair bound to a
 mode-specific `CommentEmitter`. The walker handles comment hoisting (a comment
-immediately before a move number is hoisted before that move's token), `[[indent]]`-
-gated RAV indentation, and `postItems` ordering from the parsed PGN model.
+immediately before a move number is hoisted before that move's token), persistent
+indentation state updates from `[[indent]]`/`[[deindent]]`, and `postItems`
+ordering from the parsed PGN model.
 
 **Token types** emitted into blocks:
 
@@ -866,13 +875,13 @@ The default `alphaNumericPathStrategy` maps the first segment to an uppercase le
 `createPgnRuntimeCapabilities` owns the lifecycle of the in-session PGN text:
 
 - **`loadPgn()`** — reads the raw PGN text from the editor input element, parses it
-  into a model, runs `syncChessParseState`, and calls `onPgnChange` +
-  `onNavigationChange`.
+  into a model, runs `syncChessParseState`, and calls `onPgnChange` (which
+  emits the canonical full session snapshot).
 - **`applyPgnModelUpdate(nextModel, focusCommentId?)`** — the primary mutation path
   for model-level edits (commands, move entry). Serializes the new model to text,
   pushes an undo snapshot if the text changed, syncs chess parse state, schedules
-  autosave, and calls `onPgnChange` + `onNavigationChange` + (if applicable)
-  `onPendingFocusChange`.
+  autosave, and calls `onPgnChange` (pending focus is included in that same
+  snapshot).
 - **`syncChessParseState(source)`** — feeds the PGN text to `chess.js` to populate
   `moves`, `verboseMoves`, and `movePositionById`. Falls back to a stripped
   (annotation-free) copy when annotations cause `chess.js` to reject the input.
@@ -884,9 +893,8 @@ The default `alphaNumericPathStrategy` maps the first segment to an uppercase le
 (capped at 200 entries) stored on `GameSessionState`. Each entry is an
 `EditorSnapshot` — a `structuredClone` of `pgnModel`, `pgnText`, `currentPly`,
 `selectedMoveId`, and `pgnLayoutMode`. Undo and redo restore the snapshot and call
-`onSyncChessParseState` + `onPgnChange` + `onNavigationChange` +
-`onUndoRedoDepthChange`; they do not go through `applyPgnModelUpdate` so they do
-not push further history entries.
+`onSyncChessParseState` + `onPgnChange` + `onUndoRedoDepthChange`; they do not go
+through `applyPgnModelUpdate` so they do not push further history entries.
 
 ### 7.5 The Metadata System
 
@@ -1007,7 +1015,258 @@ MetadataSchema (localStorage)
        used by: resource viewer column configuration, metadata editor dialog
 ```
 
-## 8) Constraints for Ongoing Work
+## 8) PGN — Format Reference and Glossary
+
+This chapter covers the PGN format as it is used in X2Chess, the terminology
+applied throughout the codebase, and a glossary of chess notation terms.
+
+### 8.1 What is PGN?
+
+**Portable Game Notation (PGN)** is the standard plain-text format for
+recording chess games.  A PGN file may contain one or more games, each
+consisting of two sections:
+
+1. **Tag pair section** — a block of `[Key "Value"]` header lines that carry
+   metadata about the game (players, event, date, result, etc.).
+2. **Move-text section** — the sequence of moves in SAN, optionally annotated
+   with comments, Numeric Annotation Glyphs (NAGs), and nested variations
+   (RAVs).
+
+```pgn
+[Event "World Chess Championship"]
+[Site "New York, USA"]
+[Date "1997.05.11"]
+[Round "6"]
+[White "Deep Blue"]
+[Black "Kasparov, Garry"]
+[Result "1-0"]
+
+1. e4 e6 2. d4 d5 3. Nc3 Nf6 { A French Defence } 4. Bg5 dxe4
+( 4... Be7 $5 { interesting alternative } 5. e5 ) 5. Nxe4 Be7 1-0
+```
+
+### 8.2 The Seven Tag Roster
+
+PGN mandates a minimum set of seven header tags, known as the **Seven Tag
+Roster (STR)**:
+
+| Tag | Description | Example |
+|---|---|---|
+| `Event` | Tournament or match name | `"World Chess Championship"` |
+| `Site` | Location (city, country) | `"New York, USA"` |
+| `Date` | Start date (`YYYY.MM.DD`; unknown fields use `?`) | `"1997.05.11"` |
+| `Round` | Round number (or `"?"`) | `"6"` |
+| `White` | White player (Last, First) | `"Deep Blue"` |
+| `Black` | Black player (Last, First) | `"Kasparov, Garry"` |
+| `Result` | Game result: `1-0`, `0-1`, `1/2-1/2`, or `*` | `"1-0"` |
+
+X2Chess extends the STR with additional standard tags such as `WhiteElo`,
+`BlackElo`, `ECO`, `Opening`, `TimeControl`, `Termination`, and `Annotator`.
+The full canonical list is `PGN_STANDARD_METADATA_KEYS` in
+`resource/domain/metadata.ts`.
+
+### 8.3 Move Text and Notation
+
+#### SAN — Standard Algebraic Notation
+
+**SAN (Standard Algebraic Notation)** is the notation used for individual
+moves in PGN.  Each move is identified by the piece moved and the destination
+square, using the minimum information needed to remove ambiguity.
+
+| Component | Meaning | Example |
+|---|---|---|
+| No prefix | Pawn move | `e4`, `dxe5` |
+| `N`, `B`, `R`, `Q`, `K` | Piece identifier | `Nf3`, `Qd8` |
+| `x` | Capture | `Bxe5`, `exd5` |
+| `+` | Check | `Qh5+` |
+| `#` | Checkmate | `Qf7#` |
+| `=` | Promotion piece | `e8=Q` |
+| `O-O` | Kingside castling | `O-O` |
+| `O-O-O` | Queenside castling | `O-O-O` |
+
+When two pieces of the same type can reach the same square, the file (column
+letter) or rank (row number) of the origin is added as a disambiguator, e.g.
+`Rfe1` or `N3d2`.
+
+In X2Chess, SAN strings are parsed and replayed using `chess.js`.
+`applySanWithFallback` in [board/move_position.ts](../frontend/src/board/move_position.ts)
+normalises raw SAN tokens before passing them to `chess.js`, tolerating common
+annotation-embedded notation such as `1.e4!` or `3...Nf6?`.
+
+#### UCI — Universal Chess Interface notation
+
+**UCI (Universal Chess Interface)** notation encodes a move as a four- or
+five-character string: origin square + destination square (+ promotion piece).
+Examples: `e2e4`, `g1f3`, `e7e8q`.  UCI is the format used for communicating
+moves with chess engines.  X2Chess stores UCI alongside SAN in the `move_edges`
+DB table to support engine-facing interfaces.
+
+#### FEN — Forsyth–Edwards Notation
+
+**FEN (Forsyth–Edwards Notation)** is a compact string that fully describes a
+chess position.  A FEN string has six space-separated fields:
+
+```
+rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
+│                                              │ │    │ │ └── Full-move number
+│                                              │ │    │ └──── Half-move clock (50-move rule)
+│                                              │ │    └────── En-passant target square (or -)
+│                                              │ └─────────── Castling availability (KQkq or -)
+│                                              └───────────── Side to move (w / b)
+└──────────────────────────────────────────────────────────── Piece placement (rank 8 down to rank 1)
+```
+
+Pieces are represented by letters: upper-case for White (`P B N R Q K`),
+lower-case for Black (`p b n r q k`).  Digits represent consecutive empty
+squares.  Ranks are separated by `/`.
+
+FEN is used throughout X2Chess:
+- `[FEN]` and `[SetUp "1"]` headers in PGN mark games that start from a
+  non-initial position.
+- Every `MovePositionRecord` (built by `buildMovePositionById`) stores the FEN
+  after the move, which the board renderer reads to display the correct
+  position.
+- Position search hashes are derived from a normalised FEN (first four fields
+  only, stripping half-move clock and full-move number) so that transpositions
+  collide correctly.
+
+### 8.4 Ply, Half-Move, and Full-Move
+
+| Term | Definition |
+|---|---|
+| **Ply** | A single move by one player.  White's first move is ply 1, Black's reply is ply 2, and so on.  Also called a **half-move**. |
+| **Half-move** | Synonymous with ply — one player's move in a two-sided exchange. |
+| **Full move** | A pair of plies: White's move plus Black's reply.  Full-move counting starts at 1 and increments after Black's move.  Encoded as the sixth field of FEN and as the move-number prefix in PGN (e.g. `3.` means White's third full move). |
+
+In X2Chess the active ply is stored as `currentPly` in `GameSessionState`.
+The `MovePositionRecord.mainlinePly` field is a 1-based ply count within the
+recorded mainline (not necessarily the chess-clock full-move number, because a
+game may begin from a custom FEN).
+
+### 8.5 Variations and RAVs
+
+A **variation (RAV — Recursive Annotation Variation)** is an alternative line
+of play embedded in the move text inside parentheses.  Variations can nest
+arbitrarily.  The outermost sequence of moves is the **mainline**; every
+parenthesised branch is a RAV.
+
+```pgn
+1. e4 e5 2. Nf3 Nc6 3. Bb5
+( 3. Bc4 Bc5 4. c3 ( 4. b4 Bb6 ) 4... Nf6 )
+3... a6 4. Ba4
+```
+
+The PGN model in X2Chess (`PgnModel`, `PgnVariationNode`, `PgnMoveNode`) is a
+recursive tree whose root is the mainline variation.  Each `PgnMoveNode` may
+carry a list of `ravs` (child `PgnVariationNode[]`), and these child variations
+can themselves contain further `ravs`.
+
+The move-position index built by `buildMovePositionById`
+([board/move_position.ts](../frontend/src/board/move_position.ts)) records
+navigation links (`previousMoveId`, `nextMoveId`, `variationFirstMoveIds`,
+`parentMoveId`) so the board can traverse both the mainline and any nested RAV
+without rescanning the model tree.
+
+### 8.6 PV — Principal Variation
+
+A **Principal Variation (PV)** is the sequence of best moves found by a chess
+engine from a given position.  It is represented as an ordered list of SAN (or
+UCI) moves.
+
+In X2Chess, `replayPvToPosition(startFen, pvSans, upToIndex)` in
+[board/move_position.ts](../frontend/src/board/move_position.ts) replays a PV
+from a starting FEN and returns the resulting FEN, enabling the engine analysis
+panel to display the board position at any point along the PV without writing
+the moves into the editable PGN model.
+
+### 8.7 NAG — Numeric Annotation Glyph
+
+**NAGs (Numeric Annotation Glyphs)** are a PGN-standard mechanism for
+annotating moves and positions with a single integer code prefixed by `$`.  They
+replace or supplement the informal `!`, `?`, `!!`, `??`, `!?`, and `?!` symbols
+(which are themselves defined as NAG $1–$6 by the PGN standard).
+
+X2Chess defines its supported NAG set in `parts/pgnparser/src/nag_defs.ts`,
+divided into three groups:
+
+| Group | Purpose | Examples |
+|---|---|---|
+| `move_quality` | Quality of the individual move | `$1` `!` Good, `$4` `??` Blunder |
+| `evaluation` | Position evaluation after the move | `$10` `=` Equal, `$18` `+-` Winning for White |
+| `positional` | Structural or strategic themes | `$20` `⊠` Zugzwang, `$146` `N` Novelty |
+
+Color-specific NAGs (e.g. $32/$33 for initiative, $36/$37 for attack) have a
+White and a Black variant; X2Chess selects the correct variant automatically
+based on the side to move.
+
+### 8.8 X2Chess PGN Extensions
+
+X2Chess uses a small set of non-standard PGN annotations inside comment blocks.
+These follow the convention established by other chess software of embedding
+structured data as `[%command arguments]` tokens within `{ }` comments.
+
+| Annotation | Syntax | Purpose |
+|---|---|---|
+| Board shapes | `[%csl Ge4,Rf7]` `[%cal Ge2e4]` | Square highlights and arrows on the board |
+| Engine eval | `[%eval 0.42]` | Centipawn evaluation from a chess engine |
+| Clock | `[%clk 1:25:00]` | Remaining clock time after the move |
+| Training tag | `[%train ...]` | Training mode metadata (acceptance signals) |
+| Anchor | `[%anchor id="..." text="..."]` | Named position anchor for cross-references |
+| Game link | `[%link recordId="..."]` | Reference to another game in the library |
+
+The `X2Style` PGN header is also an X2Chess extension:
+
+| Value | Meaning |
+|---|---|
+| `plain` | Display raw PGN text; no marker processing |
+| `text` | `[[indent]]`/`[[deindent]]`/`[[br]]` markers active; intro-comment styling applies |
+| `tree` | One block per variation in DFS order; each variation's first comment styled independently |
+
+Layout markers (`[[br]]`, `[[indent]]`, `[[deindent]]`) appear inside comment text and control
+the visual presentation of the PGN text editor; they have no effect on board
+navigation or the underlying move tree.
+
+`EditorStylePrefs` additionally governs comment flow and colours:
+- `commentLineBreakPolicy` (`always` / `mainline_only`)
+- `variationMoveColor`
+- `commentTextColor`
+
+### 8.9 Glossary
+
+| Term | Definition |
+|---|---|
+| **Algebraic notation** | See SAN. |
+| **Annotation** | Any comment, NAG, or inline extension (`[%...]`) added to a PGN move or position. |
+| **Blunder** | A serious mistake by a player; annotated `??` (NAG `$4`). |
+| **Book move** | A move found in opening theory; sometimes annotated `N` (NAG `$146`) when it departs from known theory. |
+| **CP / Centipawn** | Unit of chess evaluation equal to 1/100 of a pawn.  A positive value favours White; negative favours Black. |
+| **ECO** | Encyclopaedia of Chess Openings — a classification system (`A00`–`E99`) encoded in the `ECO` PGN header. |
+| **En passant** | A pawn capture in which a pawn that has just advanced two squares can be taken as if it had moved only one.  The target square is stored in FEN field 4. |
+| **EPD** | Extended Position Description — a text format for storing one position per line.  Used in X2Chess as an import source (see §5.4). |
+| **FEN** | See §8.3. |
+| **Full move** | See §8.4. |
+| **Game tree** | The complete branching structure of mainline moves plus all RAV variations. |
+| **Half-move** | See §8.4 (ply). |
+| **Mainline** | The primary sequence of moves in a PGN game, as opposed to RAV variations. |
+| **Material key** | An X2Chess-specific encoding of piece material for position games, e.g. `KQPPPvKRP`.  Derived from FEN and stored for endgame search. |
+| **Move ID** | A stable, unique string identifier (`moveId`) assigned by the PGN model parser to every `PgnMoveNode` in the game tree; used as the key for board-position lookup and navigation. |
+| **Move number** | The full-move counter printed before White's moves in PGN (`1.`, `2.`, …).  Black's reply uses an ellipsis (`1...`). |
+| **NAG** | See §8.7. |
+| **Novelty** | A new opening move not previously recorded in the literature; annotated `N` (NAG `$146`). |
+| **Piece placement** | Field 1 of FEN — the board description in rank-by-rank notation. |
+| **Ply** | See §8.4. |
+| **Position hash** | A 16-character hex FNV-1a hash of the normalised FEN (first four fields).  Transpositions produce the same hash.  Used in the `position_hashes` and `move_edges` tables. |
+| **PGN** | Portable Game Notation — the standard plain-text format for chess games (see §8.1). |
+| **PV** | See §8.6. |
+| **RAV** | Recursive Annotation Variation — a nested alternative line of play inside parentheses (see §8.5). |
+| **Result** | The outcome of the game: `1-0` (White wins), `0-1` (Black wins), `1/2-1/2` (draw), or `*` (game ongoing / unknown). |
+| **SAN** | See §8.3. |
+| **Seven Tag Roster** | See §8.2. |
+| **Tag pair** | A single PGN header line in the form `[Key "Value"]`. |
+| **UCI** | See §8.3. |
+| **Zugzwang** | A position in which the obligation to move is a disadvantage; annotated `⊠` (NAG `$20`). |
+
+## 9) Constraints for Ongoing Work
 
 - Keep browser fat-client as primary source of feature truth.
 - Keep reduced app-profile differences explicit and documented.

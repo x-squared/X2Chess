@@ -1,5 +1,6 @@
 import { Chess, type Move } from "chess.js";
 import type {
+  PgnModel,
   PgnVariationNode,
   PgnEntryNode,
   PgnMoveNode,
@@ -21,25 +22,6 @@ import { log } from "../logger";
  * - `stripAnnotationsForBoardParser(source)`
  * - `replayPvToPosition(startFen, pvSans, upToIndex)`
  */
-
-
-/**
- * Minimal model shape accepted by all move-position APIs.
- *
- * `PgnModel` satisfies this type structurally — pass the parsed model directly.
- * `headers` is optional so that test stubs that only supply `root` continue to
- * work; when absent the standard initial position is assumed.
- */
-export type PgnModelForMoves = {
-  /** The root variation of the parsed PGN game tree. */
-  root?: PgnVariationNode;
-  /**
-   * PGN tag-pair headers.  When a `FEN` entry is present its value is used as
-   * the starting position; `SetUp` is intentionally not checked because many
-   * PGN producers omit it even when a custom position is in use.
-   */
-  headers?: Array<{ key: string; value: string }>;
-};
 
 /**
  * Board-position metadata for a single move node in the PGN tree.
@@ -118,6 +100,30 @@ const cloneGame = (game: Chess): Chess => {
 };
 
 /**
+ * Detect PGN null/pass move SAN tokens (for example `--`, `1.--`, `...--`, `--?!`).
+ */
+const isNullMoveSan = (san: string): boolean => {
+  if (!san || typeof san !== "string") return false;
+  const normalized = san
+    .trim()
+    .replace(/^\d+\.(?:\.\.)?/, "")
+    .replace(/^(?:\.\.\.|…)+/, "")
+    .replaceAll(/[!?]+/g, "")
+    .trim();
+  return normalized === "--";
+};
+
+/** Apply a null/pass move to advance side-to-move without changing piece placement. */
+const applyNullMove = (game: Chess): boolean => {
+  try {
+    game.move("--");
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/**
  * Apply a SAN string to a `chess.js` game using tolerant normalization fallbacks.
  *
  * Tries the raw SAN first, then progressively strips move-number prefixes
@@ -133,6 +139,9 @@ export const applySanWithFallback = (game: Chess, san: string): Move | null => {
   if (!san || typeof san !== "string") return null;
   const raw = san.trim();
   if (!raw) return null;
+  // Reject null/pass moves (`--`). chess.js accepts them via game.move() internally
+  // but they are not real chess moves and must not be indexed or replayed on the board.
+  if (raw === "--") return null;
   const candidates = new Set([raw]);
   candidates.add(raw.replaceAll(/[!?]+/g, ""));
   candidates.add(raw.replace(/^\d+\.(?:\.\.)?/, "").trim());
@@ -245,8 +254,13 @@ const processMoveEntryForIndex = (
   parentMoveId: string | null,
 ): void => {
   const gameBeforeMove: Chess = cloneGame(game);
-  const moved: Move | null = applySanWithFallback(game, move.san);
-  if (!moved) {
+  const isNullMove: boolean = isNullMoveSan(move.san);
+  const moved: Move | null = isNullMove ? null : applySanWithFallback(game, move.san);
+  if (isNullMove && !applyNullMove(game)) {
+    log.warn("move_position", `processMoveEntryForIndex: null move rejected id="${move.id}" san="${move.san}"`);
+    return;
+  }
+  if (!moved && !isNullMove) {
     log.warn("move_position", `processMoveEntryForIndex: skipping move id="${move.id}" san="${move.san}"`);
     return;
   }
@@ -263,7 +277,7 @@ const processMoveEntryForIndex = (
 
   index[move.id] = {
     fen: game.fen(),
-    lastMove: moved.from && moved.to ? [moved.from, moved.to] : null,
+    lastMove: moved?.from && moved?.to ? [moved.from, moved.to] : null,
     mainlinePly: isMainline ? cursor.mainlinePly : null,
     parentMoveId: isMainline ? null : parentMoveId,
     isVariationStart: !isMainline && cursor.firstMoveId === move.id,
@@ -332,7 +346,7 @@ const walkVariationForIndex = (args: WalkVariationArgs): string | null => {
  * @param pgnModel - Parsed PGN game model exposing a `root` variation node.
  * @returns Index keyed by move ID; empty object when `pgnModel.root` is absent.
  */
-export const buildMovePositionById = (pgnModel: PgnModelForMoves): MovePositionIndex => {
+export const buildMovePositionById = (pgnModel: PgnModel): MovePositionIndex => {
   const index: MovePositionIndex = {};
   if (!pgnModel?.root) return index;
 
@@ -363,7 +377,7 @@ export const buildMovePositionById = (pgnModel: PgnModelForMoves): MovePositionI
  *   or `null` when the move ID is not found or `pgnModel.root` is absent.
  */
 export const resolveMovePositionById = (
-  pgnModel: PgnModelForMoves,
+  pgnModel: PgnModel,
   moveId: string,
 ): MovePositionResolved | null => {
   if (!moveId || !pgnModel?.root) {
@@ -391,15 +405,19 @@ export const resolveMovePositionById = (
       parentMoveId: string | null
     ): MovePositionResolved | null => {
       const gameBeforeMove = cloneGame(game);
-      const moved = applySanWithFallback(game, entry.san);
-      if (!moved) {
+      const isNullMove: boolean = isNullMoveSan(String(entry?.san ?? ""));
+      const moved = isNullMove ? null : applySanWithFallback(game, entry.san);
+      if (isNullMove && !applyNullMove(game)) {
+        return null;
+      }
+      if (!moved && !isNullMove) {
         return null;
       }
       const nextPly = isMainline ? ply + 1 : ply;
 
       const resolved: MovePositionResolved = {
         fen: game.fen(),
-        lastMove: moved.from && moved.to ? [moved.from, moved.to] : null,
+        lastMove: moved?.from && moved?.to ? [moved.from, moved.to] : null,
         mainlinePly: isMainline ? nextPly : null,
         parentMoveId: isMainline ? null : parentMoveId,
       };
@@ -409,7 +427,6 @@ export const resolveMovePositionById = (
       // Check for sub-variations after this move
       const foundInSub = findInSubVariations(entry, gameBeforeMove, nextPly, entry.id);
       if (foundInSub) return foundInSub;
-      log.warn("move_position", `resolveMoveEntry: SAN failed id="${entry.id}" san="${entry.san}"`);
       return null;
     };
 
@@ -473,7 +490,7 @@ export const resolveMovePositionById = (
  * @param pgnModel - Parsed PGN game model exposing a `root` variation node.
  * @returns Map of move ID → sequential 1-based ply; empty object when `root` has no entries.
  */
-export const buildMainlinePlyByMoveId = (pgnModel: PgnModelForMoves): MainlinePlyByMoveId => {
+export const buildMainlinePlyByMoveId = (pgnModel: PgnModel): MainlinePlyByMoveId => {
   const byId: MainlinePlyByMoveId = {};
   const entries = pgnModel?.root?.entries;
   if (!Array.isArray(entries)) return byId;

@@ -23,6 +23,7 @@ import {
   useState,
   type ReactElement,
   type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
 } from "react";
 import { NagRow } from "./NagPicker";
 import { GUIDE_IDS } from "../../guide/guide_ids";
@@ -31,6 +32,7 @@ import { NAG_MOVE_QUALITY, NAG_EVALUATION, NAG_POSITIONAL } from "../../../../pa
 export type TruncationAction =
   | { type: "insert_comment_before"; moveId: string }
   | { type: "insert_comment_after"; moveId: string }
+  | { type: "insert_null_move_after"; moveId: string }
   | { type: "insert_qa"; moveId: string }
   | { type: "insert_train"; moveId: string }
   | { type: "insert_todo"; moveId: string }
@@ -38,6 +40,7 @@ export type TruncationAction =
   | { type: "insert_anchor"; moveId: string; san: string }
   | { type: "toggle_nag"; moveId: string; nag: string }
   | { type: "delete_from_here"; moveId: string }
+  | { type: "delete_null_move"; moveId: string }
   | { type: "delete_before_here"; moveId: string }
   | { type: "delete_variation"; moveId: string }
   | { type: "delete_variations_after"; moveId: string }
@@ -100,7 +103,12 @@ export const TruncationMenu = ({
 
   useEffect((): (() => void) => {
     const handler = (e: MouseEvent): void => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      const menuEl: HTMLDivElement | null = menuRef.current;
+      if (!menuEl) return;
+      const path: EventTarget[] = typeof e.composedPath === "function" ? e.composedPath() : [];
+      const clickedInside: boolean = path.includes(menuEl)
+        || (e.target instanceof Node && menuEl.contains(e.target));
+      if (!clickedInside) {
         onClose();
       }
     };
@@ -126,6 +134,15 @@ export const TruncationMenu = ({
   const handleNagToggle = useCallback(
     (nag: string): void => { onAction({ type: "toggle_nag", moveId, nag }); },
     [onAction, moveId],
+  );
+
+  const handlePickMouseDown = useCallback(
+    (e: ReactMouseEvent<HTMLButtonElement>, action: TruncationAction): void => {
+      e.preventDefault();
+      e.stopPropagation();
+      pick(action);
+    },
+    [pick],
   );
 
   return (
@@ -156,7 +173,7 @@ export const TruncationMenu = ({
         type="button"
         className="truncation-menu-item"
         role="menuitem"
-        onClick={(): void => { pick({ type: "insert_comment_before", moveId }); }}
+        onMouseDown={(e): void => { handlePickMouseDown(e, { type: "insert_comment_before", moveId }); }}
       >
         {t("editor.insertBefore", "Insert comment before")}
       </button>
@@ -164,7 +181,7 @@ export const TruncationMenu = ({
         type="button"
         className="truncation-menu-item"
         role="menuitem"
-        onClick={(): void => { pick({ type: "insert_comment_after", moveId }); }}
+        onMouseDown={(e): void => { handlePickMouseDown(e, { type: "insert_comment_after", moveId }); }}
       >
         {t("editor.insertAfter", "Insert comment after")}
       </button>
@@ -172,7 +189,15 @@ export const TruncationMenu = ({
         type="button"
         className="truncation-menu-item"
         role="menuitem"
-        onClick={(): void => { pick({ type: "insert_qa", moveId }); }}
+        onMouseDown={(e): void => { handlePickMouseDown(e, { type: "insert_null_move_after", moveId }); }}
+      >
+        {t("editor.insertNullMoveAfter", "Insert null move after")}
+      </button>
+      <button
+        type="button"
+        className="truncation-menu-item"
+        role="menuitem"
+        onMouseDown={(e): void => { handlePickMouseDown(e, { type: "insert_qa", moveId }); }}
       >
         {t("editor.insertQa", "Add Q/A annotation")}
       </button>
@@ -180,7 +205,7 @@ export const TruncationMenu = ({
         type="button"
         className="truncation-menu-item"
         role="menuitem"
-        onClick={(): void => { pick({ type: "insert_train", moveId }); }}
+        onMouseDown={(e): void => { handlePickMouseDown(e, { type: "insert_train", moveId }); }}
       >
         {t("editor.insertTrain", "Add training tag")}
       </button>
@@ -188,7 +213,7 @@ export const TruncationMenu = ({
         type="button"
         className="truncation-menu-item"
         role="menuitem"
-        onClick={(): void => { pick({ type: "insert_todo", moveId }); }}
+        onMouseDown={(e): void => { handlePickMouseDown(e, { type: "insert_todo", moveId }); }}
       >
         {t("editor.insertTodo", "Add TODO")}
       </button>
@@ -196,7 +221,7 @@ export const TruncationMenu = ({
         type="button"
         className="truncation-menu-item"
         role="menuitem"
-        onClick={(): void => { pick({ type: "insert_link", moveId }); }}
+        onMouseDown={(e): void => { handlePickMouseDown(e, { type: "insert_link", moveId }); }}
       >
         {t("editor.insertGameLink", "Insert game link")}
       </button>
@@ -204,7 +229,7 @@ export const TruncationMenu = ({
         type="button"
         className="truncation-menu-item"
         role="menuitem"
-        onClick={(): void => { pick({ type: "insert_anchor", moveId, san }); }}
+        onMouseDown={(e): void => { handlePickMouseDown(e, { type: "insert_anchor", moveId, san }); }}
       >
         {t("editor.insertAnchor", "Add anchor")}
       </button>
@@ -213,22 +238,29 @@ export const TruncationMenu = ({
         type="button"
         className="truncation-menu-item truncation-menu-item--danger"
         role="menuitem"
-        onClick={(): void => {
-          pick({ type: "delete_from_here", moveId });
-        }}
+        onMouseDown={(e): void => { handlePickMouseDown(e, { type: "delete_from_here", moveId }); }}
       >
         {t("editor.trunc.deleteFrom", "Delete this move and all following")}
         {" "}
         <span className="truncation-menu-san">({san}…)</span>
       </button>
 
+      {san === "--" && (
+        <button
+          type="button"
+          className="truncation-menu-item truncation-menu-item--danger"
+          role="menuitem"
+          onMouseDown={(e): void => { handlePickMouseDown(e, { type: "delete_null_move", moveId }); }}
+        >
+          {t("editor.trunc.deleteNullMove", "Delete this null move")}
+        </button>
+      )}
+
       <button
         type="button"
         className="truncation-menu-item truncation-menu-item--danger"
         role="menuitem"
-        onClick={(): void => {
-          pick({ type: "delete_before_here", moveId });
-        }}
+        onMouseDown={(e): void => { handlePickMouseDown(e, { type: "delete_before_here", moveId }); }}
       >
         {t("editor.trunc.deleteBefore", "Delete all moves before this position")}
       </button>
@@ -239,9 +271,7 @@ export const TruncationMenu = ({
         type="button"
         className="truncation-menu-item"
         role="menuitem"
-        onClick={(): void => {
-          pick({ type: "delete_variations_after", moveId });
-        }}
+        onMouseDown={(e): void => { handlePickMouseDown(e, { type: "delete_variations_after", moveId }); }}
       >
         {t("editor.trunc.deleteVarsAfter", "Delete all variations from here")}
       </button>
@@ -254,9 +284,7 @@ export const TruncationMenu = ({
             type="button"
             className="truncation-menu-item truncation-menu-item--danger"
             role="menuitem"
-            onClick={(): void => {
-              pick({ type: "delete_variation", moveId });
-            }}
+            onMouseDown={(e): void => { handlePickMouseDown(e, { type: "delete_variation", moveId }); }}
           >
             {t("editor.trunc.deleteVar", "Delete this variation")}
           </button>
@@ -265,9 +293,7 @@ export const TruncationMenu = ({
             type="button"
             className="truncation-menu-item"
             role="menuitem"
-            onClick={(): void => {
-              pick({ type: "promote_to_mainline", moveId });
-            }}
+            onMouseDown={(e): void => { handlePickMouseDown(e, { type: "promote_to_mainline", moveId }); }}
           >
             {t("editor.trunc.promote", "Promote variation to mainline")}
           </button>

@@ -5,7 +5,7 @@ import {
   DEFAULT_RESOURCE_VIEWER_HEIGHT_PX,
   DEFAULT_BOARD_COLUMN_WIDTH_PX,
 } from "../../src/app/shell/model/app_state.js";
-import { initialAppStoreState } from "../../src/state/app_reducer.js";
+import { initialAppStoreState } from "../../src/core/state/app_reducer.js";
 
 /** Read the contents of both the global stylesheet and the main component stylesheet. */
 const readAllCss = async (): Promise<string> => {

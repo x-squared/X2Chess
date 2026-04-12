@@ -28,7 +28,7 @@ import type { CommentSegment } from "../model/comment_url_utils";
 import { openExternalUrl } from "../../../resources/open_url";
 import { buildTextEditorPlan } from "../model/text_editor_plan";
 import type { PlanBlock, PlanToken, InlineToken, CommentToken } from "../model/text_editor_plan";
-import { useAppContext } from "../../../state/app_context";
+import { useAppContext } from "../../../app/providers/AppStateProvider";
 import {
   selectPgnModel,
   selectLayoutMode,
@@ -37,11 +37,11 @@ import {
   selectPositionPreviewOnHover,
   selectShowEvalPills,
   selectEditorStylePrefs,
-} from "../../../state/selectors";
+} from "../../../core/state/selectors";
 import { editorStyleToCssVars } from "../../../runtime/editor_style_prefs";
 import { useHoverPreview } from "../../../components/board/HoverPreviewContext";
 import { resolveMovePositionById } from "../../../board/move_position";
-import { useServiceContext } from "../../../state/ServiceContext";
+import { useServiceContext } from "../../../app/providers/ServiceProvider";
 import { useTranslator } from "../../../app/hooks/useTranslator";
 import {
   appendMove,

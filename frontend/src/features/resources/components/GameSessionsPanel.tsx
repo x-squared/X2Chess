@@ -20,10 +20,10 @@
 
 import type { ReactElement } from "react";
 import { useCallback } from "react";
-import { useAppContext } from "../../../state/app_context";
-import { selectSessions } from "../../../state/selectors";
-import { useServiceContext } from "../../../state/ServiceContext";
-import type { SessionItemState } from "../../../state/app_reducer";
+import { useAppContext } from "../../../app/providers/AppStateProvider";
+import { selectSessions } from "../../../core/state/selectors";
+import { useServiceContext } from "../../../app/providers/ServiceProvider";
+import type { SessionItemState } from "../../../core/state/app_reducer";
 import { GameTabs } from "../../../app/shell/components/GameTabs";
 
 /** Sessions panel: renders the game tab bar, wired to session service. */

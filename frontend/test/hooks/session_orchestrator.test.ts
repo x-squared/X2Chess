@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createSessionOrchestrator } from "../../src/core/services/session_orchestrator.js";
 import { createEmptyGameSessionState } from "../../src/features/sessions/services/game_session_state.js";
-import type { AppAction } from "../../src/state/actions.js";
+import type { AppAction } from "../../src/core/state/actions.js";
 
 type DispatchRef = { current: (action: AppAction) => void };
 

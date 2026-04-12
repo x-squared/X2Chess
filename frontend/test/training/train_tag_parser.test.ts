@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseTrainTag } from "../../src/training/domain/train_tag_parser.js";
+import { parseTrainTag } from "../../src/features/resources/services/train_tag_parser.js";
 
 test("parseTrainTag — returns null when no tag present", () => {
   assert.equal(parseTrainTag("A normal comment with no tag."), null);

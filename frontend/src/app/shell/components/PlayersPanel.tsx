@@ -20,7 +20,7 @@
  */
 
 import { useState, useEffect, useCallback, type ReactElement, type ChangeEvent, type KeyboardEvent } from "react";
-import { useServiceContext } from "../../../state/ServiceContext";
+import { useServiceContext } from "../../providers/ServiceProvider";
 import type { PlayerRecord } from "../model/app_state";
 import { formatPlayerRecordName } from "../../../features/editor/model/game_info";
 import { GUIDE_IDS } from "../../../features/guide/model/guide_ids";

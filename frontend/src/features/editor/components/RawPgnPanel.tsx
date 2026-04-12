@@ -17,9 +17,9 @@
 
 import type { ChangeEvent, ReactElement } from "react";
 import { useEffect, useState } from "react";
-import { useAppContext } from "../../../state/app_context";
-import { selectActiveSessionId, selectPgnText } from "../../../state/selectors";
-import { useServiceContext } from "../../../state/ServiceContext";
+import { useAppContext } from "../../../app/providers/AppStateProvider";
+import { selectActiveSessionId, selectPgnText } from "../../../core/state/selectors";
+import { useServiceContext } from "../../../app/providers/ServiceProvider";
 import { useTranslator } from "../../../app/hooks/useTranslator";
 
 /** Editable raw PGN area with explicit apply (no autosave). */

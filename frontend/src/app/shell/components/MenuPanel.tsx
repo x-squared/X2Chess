@@ -23,7 +23,7 @@
 import { useEffect, useState } from "react";
 import type { ReactElement, ChangeEvent } from "react";
 import { SUPPORTED_LOCALES } from "../../i18n";
-import { useAppContext } from "../../../state/app_context";
+import { useAppContext } from "../../providers/AppStateProvider";
 import {
   selectIsMenuOpen,
   selectLocale,
@@ -33,14 +33,14 @@ import {
   selectSessions,
   selectPositionPreviewOnHover,
   selectStorageImportPending,
-} from "../../../state/selectors";
-import { useServiceContext } from "../../../state/ServiceContext";
+} from "../../../core/state/selectors";
+import { useServiceContext } from "../../providers/ServiceProvider";
 import { useTranslator } from "../../hooks/useTranslator";
 import { useUpdateCheck } from "../../hooks/useUpdateCheck";
 import { UpdateBanner } from "./UpdateBanner";
 import { StorageImportDialog } from "./StorageImportDialog";
 import { WebImportRulesPanel } from "../../../features/resources/components/WebImportRulesPanel";
-import type { SessionItemState } from "../../../state/app_reducer";
+import type { SessionItemState } from "../../../core/state/app_reducer";
 
 /** Reads the build timestamp injected by Vite at build time (falls back to "dev"). */
 const resolveBuildLabel = (): string => {

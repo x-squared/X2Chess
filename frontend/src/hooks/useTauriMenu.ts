@@ -21,7 +21,7 @@
 import { useEffect } from "react";
 import { Menu, Submenu, MenuItem, PredefinedMenuItem, type PredefinedMenuItemOptions } from "@tauri-apps/api/menu";
 import { invoke } from "@tauri-apps/api/core";
-import type { AppStartupServices } from "../state/ServiceContext";
+import type { AppStartupServices } from "../core/contracts/app_services";
 import {
   APP_MENU_DEFINITION,
   type MenuActionId,

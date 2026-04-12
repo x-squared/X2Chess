@@ -6,7 +6,7 @@ import {
   dispatchSessionStateSnapshot,
   resolveSelectedMoveIdForSync,
 } from "../../src/hooks/session_state_sync.js";
-import type { AppAction } from "../../src/state/actions.js";
+import type { AppAction } from "../../src/core/state/actions.js";
 
 test("resolveSelectedMoveIdForSync returns mainline move id at current ply", (): void => {
   const session = createEmptyGameSessionState();

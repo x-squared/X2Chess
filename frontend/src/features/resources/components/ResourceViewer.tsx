@@ -36,15 +36,15 @@ import {
   type FormEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { useAppContext } from "../../../state/app_context";
+import { useAppContext } from "../../../app/providers/AppStateProvider";
 import {
   selectResourceViewerTabs,
   selectActiveResourceTabId,
-} from "../../../state/selectors";
-import type { ResourceTabSnapshot } from "../../../state/app_reducer";
+} from "../../../core/state/selectors";
+import type { ResourceTabSnapshot } from "../../../core/state/app_reducer";
 import { useTranslator } from "../../../app/hooks/useTranslator";
 import { getResourceLoaderService } from "../../../services/resource_loader";
-import { useServiceContext } from "../../../state/ServiceContext";
+import { useServiceContext } from "../../../app/providers/ServiceProvider";
 import {
   clampWidth,
   readPrefsMap,

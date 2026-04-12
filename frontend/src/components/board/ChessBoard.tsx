@@ -34,7 +34,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Chess } from "chess.js";
 import { Chessground } from "chessground";
-import { useAppContext } from "../../state/app_context";
+import { useAppContext } from "../../app/providers/AppStateProvider";
 import {
   selectBoardFlipped,
   selectBoardPreview,
@@ -43,7 +43,7 @@ import {
   selectMoves,
   selectAnnotationShapes,
   selectStartingFen,
-} from "../../state/selectors";
+} from "../../core/state/selectors";
 import type { BoardKey, BoardShape, ShapeColor, ShapePresets } from "../../board/board_shapes";
 import { isBoardKey, DEFAULT_PRESETS } from "../../board/board_shapes";
 import type { SquareStyleMode } from "../../runtime/shape_prefs";

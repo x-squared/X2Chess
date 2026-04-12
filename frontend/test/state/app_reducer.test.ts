@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { appReducer, initialAppStoreState } from "../../src/state/app_reducer.js";
-import type { SessionItemState, ResourceTabSnapshot } from "../../src/state/app_reducer.js";
+import { appReducer, initialAppStoreState } from "../../src/core/state/app_reducer.js";
+import type { SessionItemState, ResourceTabSnapshot } from "../../src/core/state/app_reducer.js";
 import { parsePgnToModel } from "../../../parts/pgnparser/src/pgn_model.js";
 
 const s = initialAppStoreState;

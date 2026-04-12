@@ -22,7 +22,7 @@
  */
 
 import type { ReactElement } from "react";
-import type { SessionItemState } from "../../../state/app_reducer";
+import type { SessionItemState } from "../../../core/state/app_reducer";
 import { useTranslator } from "../../hooks/useTranslator";
 
 /** Props for the GameTabs component. */

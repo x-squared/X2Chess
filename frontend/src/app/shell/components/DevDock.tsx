@@ -19,9 +19,9 @@
  */
 
 import type { ReactElement } from "react";
-import { useAppContext } from "../../../state/app_context";
-import { selectActiveDevTab, selectDevDockOpen } from "../../../state/selectors";
-import { useServiceContext } from "../../../state/ServiceContext";
+import { useAppContext } from "../../providers/AppStateProvider";
+import { selectActiveDevTab, selectDevDockOpen } from "../../../core/state/selectors";
+import { useServiceContext } from "../../providers/ServiceProvider";
 import { useTranslator } from "../../hooks/useTranslator";
 import { AstPanel } from "../../../features/editor/components/AstPanel";
 import { RawPgnPanel } from "../../../features/editor/components/RawPgnPanel";

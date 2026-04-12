@@ -19,7 +19,7 @@
  */
 
 import type { GameSessionState } from "../features/sessions/services/game_session_state";
-import type { AppAction } from "../state/actions";
+import type { AppAction } from "../core/state/actions";
 
 type BoardPreviewSnapshot = { fen: string; lastMove?: [string, string] | null } | null;
 type DispatchAction = (action: AppAction) => void;

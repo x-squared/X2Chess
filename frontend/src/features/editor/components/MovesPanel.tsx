@@ -17,8 +17,8 @@
 
 import type { ReactElement } from "react";
 import { useMemo } from "react";
-import { useAppContext } from "../../../state/app_context";
-import { selectMoves, selectPgnModel } from "../../../state/selectors";
+import { useAppContext } from "../../../app/providers/AppStateProvider";
+import { selectMoves, selectPgnModel } from "../../../core/state/selectors";
 import { useTranslator } from "../../../app/hooks/useTranslator";
 
 // ── Types ─────────────────────────────────────────────────────────────────────

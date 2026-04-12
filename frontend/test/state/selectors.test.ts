@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { initialAppStoreState } from "../../src/state/app_reducer.js";
-import type { AppStoreState } from "../../src/state/app_reducer.js";
+import { initialAppStoreState } from "../../src/core/state/app_reducer.js";
+import type { AppStoreState } from "../../src/core/state/app_reducer.js";
 import {
   selectLocale,
   selectDevToolsEnabled,
@@ -39,7 +39,7 @@ import {
   selectResourceViewerTabs,
   selectBoardPreview,
   selectAnnotationShapes,
-} from "../../src/state/selectors.js";
+} from "../../src/core/state/selectors.js";
 import { parsePgnToModel } from "../../../parts/pgnparser/src/pgn_model.js";
 
 const s = initialAppStoreState;

@@ -1,6 +1,6 @@
 # X2Chess User Manual
 
-Last updated: 2026-04-10
+Last updated: 2026-04-14
 
 ## Who this manual is for
 
@@ -625,6 +625,18 @@ fixed bottom dock with two tabs:
   **Apply to session** to replace the open game everywhere in the app (board,
   editor, navigation). This updates only memory: it does **not** save to disk
   automatically, and it clears undo history for that session.
+- The Raw PGN tab also shows a **PGN quality** panel:
+  - **OK** (green pill) — PGN is fully supported.
+  - **Warning** (yellow pill) — issues exist, but the app can still use the PGN with recovery.
+  - **Critical** (red pill) — PGN cannot be parsed reliably and may not be usable.
+- When strict parsing fails, the panel lists detected issues with line/column
+  hints so you can locate non-standard or faulty notation quickly.
+- Use **Copy diagnostics** to copy the current status and issue list to your
+  clipboard for bug reports or external review.
+- Click an issue line to jump to and highlight the relevant line in the Raw PGN editor.
+- Use **Preview auto-fix** to inspect a before/after preview, then click
+  **Apply fixes** to run safe PGN compatibility repairs (legacy X2 header
+  renames and missing `SetUp` insertion for FEN games).
 
 The dock always reflects the same game and position as the main editor after you apply.
 

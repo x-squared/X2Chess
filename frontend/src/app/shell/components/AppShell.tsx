@@ -45,8 +45,6 @@ import {
   selectActiveSessionId,
   selectDevToolsEnabled,
   selectShapePrefs,
-  selectEditorStylePrefs,
-  selectDefaultLayoutPrefs,
   selectPositionPreviewOnHover,
 } from "../../../core/state/selectors";
 import { useTranslator } from "../../hooks/useTranslator";
@@ -54,16 +52,11 @@ import { useAppStartup } from "../../startup/useAppStartup";
 import { useEngineAnalysis } from "../../../features/analysis/hooks/useEngineAnalysis";
 import { useOpeningExplorer } from "../../../features/analysis/hooks/useOpeningExplorer";
 import { useExtDatabaseSettings } from "../../../features/resources/hooks/useExtDatabaseSettings";
-import { ExtDatabaseSettingsDialog } from "../../../features/settings/components/ExtDatabaseSettingsDialog";
-import { EditorStyleDialog } from "../../../features/settings/components/EditorStyleDialog";
-import { DefaultLayoutDialog } from "../../../features/settings/components/DefaultLayoutDialog";
 import { useTablebaseProbe } from "../../../features/analysis/hooks/useTablebaseProbe";
 import { useVsEngine } from "../../../features/analysis/hooks/useVsEngine";
 import { useGameAnnotation } from "../../../features/analysis/hooks/useGameAnnotation";
 import { useMoveEntry } from "../../../features/editor/hooks/useMoveEntry";
 import { useWebImport } from "../../../features/resources/hooks/useWebImport";
-import { WebImportBrowserPanel } from "../../../features/resources/components/WebImportBrowserPanel";
-import { collectStudyItems } from "../../../model/study_items";
 import { getHeaderValue } from "../../../../../parts/pgnparser/src/pgn_headers";
 import { STANDARD_STARTING_FEN } from "../../../features/editor/model/fen_utils";
 import { ServiceContextProvider } from "../../providers/ServiceProvider";
@@ -84,24 +77,18 @@ import { ToolbarRow } from "./ToolbarRow";
 import { TextEditorSidebar } from "../../../features/editor/components/TextEditorSidebar";
 import { RightPanelStack } from "./RightPanelStack";
 import type { PanelId } from "./RightPanelStack";
-import { PlayVsEngineDialog } from "../../../components/dialogs/PlayVsEngineDialog";
-import { AnnotateGameDialog } from "../../../components/dialogs/AnnotateGameDialog";
-import { DisambiguationDialog } from "../../../components/board/DisambiguationDialog";
-import { PromotionPicker } from "../../../components/board/PromotionPicker";
-import { ExtractPositionDialog } from "../../../components/dialogs/ExtractPositionDialog";
-import { EditStartPositionDialog } from "../../../components/dialogs/EditStartPositionDialog";
+import { AppShellOverlays } from "./AppShellOverlays";
 import { StudyOverlay } from "../../../features/guide/components/StudyOverlay";
 import { useTrainingSession } from "../../../training/hooks/useTrainingSession";
 import { REPLAY_PROTOCOL } from "../../../training/protocols/replay_protocol";
 import { OPENING_PROTOCOL } from "../../../training/protocols/opening_protocol";
 import { TrainingHistoryStrip } from "../../../training/components/TrainingHistoryStrip";
-import { TrainingHistoryPanel } from "../../../training/components/TrainingHistoryPanel";
-import { TrainingLauncher } from "../../../training/components/TrainingLauncher";
-import { CurriculumPanel } from "../../../training/components/CurriculumPanel";
 import { TrainingOverlay } from "../../../training/components/TrainingOverlay";
 import { MoveOutcomeHint } from "../../../training/components/MoveOutcomeHint";
-import { TrainingResult } from "../../../training/components/TrainingResult";
 import { useBoardColumnResize } from "../hooks/useBoardColumnResize";
+import { useStudyMode } from "../hooks/useStudyMode";
+import { useInsertMarkers } from "../hooks/useInsertMarkers";
+import { useAppShellKeyboard } from "../hooks/useAppShellKeyboard";
 import { useNavigateGuard } from "../../../features/sessions/guards/useNavigateGuard";
 import { useTrainingDialogState } from "../../../features/training/hooks/useTrainingDialogState";
 import { buildFenAtPly } from "../fen_at_ply";
@@ -212,16 +199,6 @@ export const AppShell = (): ReactElement => {
   // UV5: extract position dialog
   const [showExtractDialog, setShowExtractDialog] = useState(false);
 
-  // UV12: study mode state (callbacks below, after rawServices)
-  const studyItems = useMemo(
-    () => collectStudyItems(selectPgnModel(state)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [state.pgnModel],
-  );
-  const [studyActive, setStudyActive] = useState(false);
-  const [studyItemIndex, setStudyItemIndex] = useState(0);
-  const [studyAnnotIndex, setStudyAnnotIndex] = useState(0);
-
   // G7: best-move hint — extract first move of top variation, clear when ply changes.
   const [hintShapes, setHintShapes] = useState<BoardShape[]>([]);
   useEffect((): void => { setHintShapes([]); }, [currentPly]);
@@ -268,45 +245,7 @@ export const AppShell = (): ReactElement => {
     onMovePlayed(uci.slice(0, 2), uci.slice(2, 4));
   }, [onMovePlayed]);
 
-  /** Insert `[[indent]]` at the current caret in the active comment editor. */
-  const handleInsertIndentMarker = useCallback((): void => {
-    const selection: Selection | null = globalThis.getSelection();
-    if (!selection || selection.rangeCount === 0) return;
-    const anchorNode: Node | null = selection.anchorNode;
-    const anchorElement: Element | null = anchorNode instanceof Element
-      ? anchorNode
-      : anchorNode?.parentElement ?? null;
-    const editableHost: HTMLElement | null = anchorElement?.closest("[contenteditable='true']") as HTMLElement | null;
-    if (!editableHost) return;
-    const range: Range = selection.getRangeAt(0);
-    range.deleteContents();
-    const markerNode: Text = document.createTextNode("[[indent]] ");
-    range.insertNode(markerNode);
-    range.setStartAfter(markerNode);
-    range.collapse(true);
-    selection.removeAllRanges();
-    selection.addRange(range);
-  }, []);
-
-  /** Insert `[[deindent]]` at the current caret in the active comment editor. */
-  const handleInsertDeindentMarker = useCallback((): void => {
-    const selection: Selection | null = globalThis.getSelection();
-    if (!selection || selection.rangeCount === 0) return;
-    const anchorNode: Node | null = selection.anchorNode;
-    const anchorElement: Element | null = anchorNode instanceof Element
-      ? anchorNode
-      : anchorNode?.parentElement ?? null;
-    const editableHost: HTMLElement | null = anchorElement?.closest("[contenteditable='true']") as HTMLElement | null;
-    if (!editableHost) return;
-    const range: Range = selection.getRangeAt(0);
-    range.deleteContents();
-    const markerNode: Text = document.createTextNode("[[deindent]] ");
-    range.insertNode(markerNode);
-    range.setStartAfter(markerNode);
-    range.collapse(true);
-    selection.removeAllRanges();
-    selection.addRange(range);
-  }, []);
+  const { handleInsertIndentMarker, handleInsertDeindentMarker } = useInsertMarkers();
 
   const handleSearchPlayer = useCallback((query: string): void => {
     setActiveRightPanel("text-search");
@@ -410,33 +349,17 @@ export const AppShell = (): ReactElement => {
     closeSession: navigateGuard.closeSession,
   };
 
-  // UV12: study callbacks (after rawServices so navigation is available)
-  const currentStudyItem = studyActive ? studyItems[studyItemIndex] : null;
-
-  const handleStartStudy = useCallback((): void => {
-    if (studyItems.length === 0) return;
-    setStudyItemIndex(0);
-    setStudyAnnotIndex(0);
-    setStudyActive(true);
-    rawServices.gotoMoveById(studyItems[0].moveId);
-  }, [studyItems, rawServices]);
-
-  const handleStudyNext = useCallback((): void => {
-    const item = studyItems[studyItemIndex];
-    if (!item) return;
-    if (studyAnnotIndex + 1 < item.annotations.length) {
-      setStudyAnnotIndex((i) => i + 1);
-      return;
-    }
-    const nextIdx = studyItemIndex + 1;
-    if (nextIdx < studyItems.length) {
-      setStudyItemIndex(nextIdx);
-      setStudyAnnotIndex(0);
-      rawServices.gotoMoveById(studyItems[nextIdx].moveId);
-    } else {
-      setStudyActive(false);
-    }
-  }, [studyItems, studyItemIndex, studyAnnotIndex, rawServices]);
+  // UV12: study mode (after rawServices so navigation is available)
+  const {
+    studyItems,
+    studyActive,
+    setStudyActive,
+    studyItemIndex,
+    studyAnnotIndex,
+    currentStudyItem,
+    handleStartStudy,
+    handleStudyNext,
+  } = useStudyMode(pgnModel, rawServices);
 
   const isAtStart: boolean = currentPly <= 0;
   const isAtEnd: boolean = currentPly >= moveCount;
@@ -456,48 +379,7 @@ export const AppShell = (): ReactElement => {
     resolveUrl,
   });
 
-  // Guard app close when any session has unsaved edits (M9).
-  // A ref carries the current value so the handler registered once always reads
-  // the latest state without needing to re-register.
-  const hasUnsavedRef = useRef(false);
-  useEffect((): void => {
-    hasUnsavedRef.current = sessions.some(
-      (s) => s.dirtyState === "dirty" || s.dirtyState === "error",
-    );
-  }, [sessions]);
-  useEffect((): (() => void) => {
-    const handler = (e: BeforeUnloadEvent): void => {
-      if (!hasUnsavedRef.current) return;
-      e.preventDefault();
-      // returnValue is required for the browser dialog to appear.
-      e.returnValue = "";
-    };
-    window.addEventListener("beforeunload", handler);
-    return (): void => { window.removeEventListener("beforeunload", handler); };
-  }, []);
-
-  // Ctrl/Cmd+S — save active game.
-  // Ctrl/Cmd+Z — undo.  Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y — redo.  (M5)
-  useEffect((): (() => void) => {
-    const handler = (e: KeyboardEvent): void => {
-      const withMeta = e.metaKey || e.ctrlKey;
-      if (!withMeta) return;
-      if (e.key === "s") {
-        e.preventDefault();
-        services.saveActiveGameNow();
-      } else if (e.key === "z" && !e.shiftKey) {
-        e.preventDefault();
-        services.undo();
-      } else if ((e.key === "z" && e.shiftKey) || e.key === "y") {
-        e.preventDefault();
-        services.redo();
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return (): void => { window.removeEventListener("keydown", handler); };
-  // services ref is stable for the lifetime of the component.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useAppShellKeyboard(sessions, services);
 
   const trainingGameTitle = activeSession?.title ?? t("training.launcher.untitled", "Untitled game");
   const trainingSourceRef = activeSession?.sourceGameRef || activeSession?.sessionId || "";
@@ -716,259 +598,50 @@ export const AppShell = (): ReactElement => {
         {/* ── Guide inspector (developer tool — Alt+Shift+G) ── */}
         <GuideInspector />
 
-        {/* ── Move entry dialogs ── */}
-        {pendingFork && (
-          <DisambiguationDialog
-            playedSan={pendingFork.san}
-            existingSan={pendingFork.existingNextSan}
-            t={t}
-            onDecide={handleForkDecide}
-            onCancel={handleCancel}
-          />
-        )}
-        {pendingPromotion && (
-          <PromotionPicker
-            color={pendingPromotion.color}
-            t={t}
-            onPick={handlePromotionPick}
-            onCancel={handleCancel}
-          />
-        )}
-
-        {/* ── Edit starting position dialog (NG7) ── */}
-        {showEditStartPos && (
-          <EditStartPositionDialog
-            initialFen={currentStartingFen}
-            t={t}
-            onSave={(fen): void => {
-              setShowEditStartPos(false);
-              services.updateGameInfoHeader("SetUp", "1");
-              services.updateGameInfoHeader("FEN", fen);
-            }}
-            onClose={(): void => { setShowEditStartPos(false); }}
-          />
-        )}
-
-        {/* ── Extract position dialog (UV5) ── */}
-        {showExtractDialog && (
-          <ExtractPositionDialog
-            fen={currentFen}
-            ply={currentPly}
-            sanMoves={moves}
-            metadata={{
-              white: activeSession?.white,
-              black: activeSession?.black,
-              event: activeSession?.event,
-              date: activeSession?.date,
-            }}
-            t={t}
-            onCreate={(pgn): void => {
-              setShowExtractDialog(false);
-              services.openPgnText(pgn);
-            }}
-            onClose={(): void => { setShowExtractDialog(false); }}
-          />
-        )}
-
-        {/* ── Navigate-away guard (M8) ── */}
-        {navigateGuard.pendingNavigate && (
-          <dialog
-            ref={confirmDialogRef}
-            className="confirm-dialog"
-            onClose={navigateGuard.clearPendingNavigate}
-          >
-            <div className="confirm-dialog-content">
-              <p className="confirm-dialog-message">
-                {t("editor.unsavedChanges", "You have unsaved changes. Save before leaving?")}
-              </p>
-              <div className="confirm-dialog-actions">
-                <button
-                  type="button"
-                  className="confirm-dialog-btn confirm-dialog-btn--discard"
-                  onClick={(): void => {
-                    const nav = navigateGuard.pendingNavigate;
-                    navigateGuard.clearPendingNavigate();
-                    if (!nav) return;
-                    if (nav.kind === "switch") rawServices.switchSession(nav.sessionId);
-                    else rawServices.closeSession(nav.sessionId);
-                  }}
-                >
-                  {t("editor.discardChanges", "Discard")}
-                </button>
-                <button
-                  type="button"
-                  className="confirm-dialog-btn"
-                  onClick={(): void => {
-                    rawServices.saveActiveGameNow();
-                    const nav = navigateGuard.pendingNavigate;
-                    navigateGuard.clearPendingNavigate();
-                    if (!nav) return;
-                    if (nav.kind === "switch") rawServices.switchSession(nav.sessionId);
-                    else rawServices.closeSession(nav.sessionId);
-                  }}
-                >
-                  {t("editor.saveAndLeave", "Save & Leave")}
-                </button>
-                <button
-                  type="button"
-                  className="confirm-dialog-btn confirm-dialog-btn--cancel"
-                  onClick={navigateGuard.clearPendingNavigate}
-                >
-                  {t("editor.cancelLeave", "Cancel")}
-                </button>
-              </div>
-            </div>
-          </dialog>
-        )}
-
-        {/* ── Editor style dialog ── */}
-        {showEditorStyleDialog && (
-          <EditorStyleDialog
-            prefs={selectEditorStylePrefs(state)}
-            pgnModel={selectPgnModel(state)}
-            initialLayoutMode={layoutMode}
-            onSave={(prefs): void => { services.setEditorStylePrefs(prefs); }}
-            onClose={(): void => { setShowEditorStyleDialog(false); }}
-          />
-        )}
-
-        {/* ── Default Layout dialog ── */}
-        {showDefaultLayoutDialog && (
-          <DefaultLayoutDialog
-            prefs={selectDefaultLayoutPrefs(state)}
-            onSave={(prefs): void => { services.setDefaultLayoutPrefs(prefs); }}
-            onClose={(): void => { setShowDefaultLayoutDialog(false); }}
-          />
-        )}
-
-        {/* ── Training dialogs ── */}
-        {showExtDbSettings && (
-          <ExtDatabaseSettingsDialog
-            settings={extDbSettings.settings}
-            onSave={(speeds, ratings): void => {
-              extDbSettings.setOpeningExplorerSpeeds(speeds);
-              extDbSettings.setOpeningExplorerRatings(ratings);
-            }}
-            onClose={(): void => { setShowExtDbSettings(false); }}
-            t={t}
-          />
-        )}
-        {training.showTrainingHistory && (
-          <TrainingHistoryPanel
-            sourceGameRef={trainingSourceRef}
-            onClose={(): void => { training.setShowTrainingHistory(false); }}
-            onTrainAgain={(): void => { training.setShowTrainingHistory(false); training.setShowTrainingLauncher(true); }}
-            t={t}
-          />
-        )}
-        {training.showTrainingLauncher && (
-          <TrainingLauncher
-            gameTitle={trainingGameTitle}
-            pgnText={pgnText}
-            sourceRef={trainingSourceRef}
-            t={t}
-            onStart={(config): void => {
-              training.setShowTrainingLauncher(false);
-              trainingControls.start(config);
-            }}
-            onCancel={(): void => { training.setShowTrainingLauncher(false); }}
-          />
-        )}
-        {training.pendingTrainingPromotion && (
-          <PromotionPicker
-            color={
-              trainingControls.sessionState?.position.fen.split(" ")[1] === "b"
-                ? "b"
-                : "w"
-            }
-            t={t}
-            onPick={training.handleTrainingPromotionPick}
-            onCancel={(): void => { training.setPendingTrainingPromotion(null); }}
-          />
-        )}
-        {trainingControls.phase === "reviewing" &&
-          trainingControls.summary &&
-          trainingControls.transcript && (
-            <TrainingResult
-              summary={trainingControls.summary}
-              transcript={trainingControls.transcript}
-              t={t}
-              onMerge={training.handleMergeResult}
-              onDiscard={trainingControls.confirmResult}
-            />
-          )}
-        {/* ── Annotate game dialog (G9) ── */}
-        {showAnnotateDialog && (
-          <AnnotateGameDialog
-            phase={gameAnnotation.phase}
-            progress={gameAnnotation.progress}
-            annotatedModel={gameAnnotation.annotatedModel}
-            engineName={engineName}
-            t={t}
-            onStart={(opts): void => { gameAnnotation.start(selectPgnModel(state) ?? (() => { throw new Error(); })(), opts); }}
-            onApply={(model): void => {
-              setShowAnnotateDialog(false);
-              rawServices.applyPgnModelEdit(model, null);
-            }}
-            onCancel={gameAnnotation.cancel}
-            onClose={(): void => { setShowAnnotateDialog(false); }}
-          />
-        )}
-
-        {/* ── Play vs engine dialogs (G8) ── */}
-        {showVsEngineDialog && (
-          <PlayVsEngineDialog
-            engineName={engineName}
-            t={t}
-            onStart={(config): void => {
-              setShowVsEngineDialog(false);
-              vsEngine.start(config);
-            }}
-            onCancel={(): void => { setShowVsEngineDialog(false); }}
-          />
-        )}
-        {vsEngine.active && vsEngine.gameOver && (
-          <dialog open className="vs-engine-gameover-dialog">
-            <div className="vs-engine-gameover-content">
-              <p className="vs-engine-gameover-message">
-                {vsEngine.gameOver.winner === "draw"
-                  ? t("vsEngine.draw", "Draw")
-                  : vsEngine.gameOver.winner === vsEngine.playerSide
-                    ? t("vsEngine.youWon", "You won!")
-                    : t("vsEngine.engineWon", "Engine wins")}
-                {" "}
-                <span className="vs-engine-gameover-reason">
-                  ({vsEngine.gameOver.reason})
-                </span>
-              </p>
-              <button
-                type="button"
-                className="vs-engine-gameover-btn"
-                onClick={(): void => { vsEngine.stop(); }}
-              >
-                {t("vsEngine.close", "Close")}
-              </button>
-            </div>
-          </dialog>
-        )}
-        {/* ── Training curriculum panel ── */}
-        {training.showCurriculumPanel && (
-          <CurriculumPanel
-            onClose={(): void => { training.setShowCurriculumPanel(false); }}
-            onLaunchTask={training.handleLaunchTaskFromCurriculum}
-            t={t}
-          />
-        )}
-        {/* ── Web import browser panel (W4 — Tier 3) ── */}
-        {browserPanelState !== null && (
-          <WebImportBrowserPanel
-            gateway={browserPanelState.gateway}
-            url={browserPanelState.url}
-            captureScript={browserPanelState.captureScript}
-            onCaptureResult={handleCaptureResult}
-            onClose={closeBrowserPanel}
-          />
-        )}
+        {/* ── All modal dialogs and overlay panels ── */}
+        <AppShellOverlays
+          moveEntry={{ pendingFork, pendingPromotion, onMovePlayed, handleForkDecide, handlePromotionPick, handleCancel: handleCancelMove }}
+          onMoveCancel={handleCancel}
+          showEditStartPos={showEditStartPos}
+          onCloseEditStartPos={(): void => { setShowEditStartPos(false); }}
+          currentStartingFen={currentStartingFen}
+          activeSessionId={activeSessionId}
+          showExtractDialog={showExtractDialog}
+          onCloseExtractDialog={(): void => { setShowExtractDialog(false); }}
+          currentFen={currentFen}
+          currentPly={currentPly}
+          sanMoves={moves}
+          activeSession={activeSession}
+          navigateGuard={navigateGuard}
+          confirmDialogRef={confirmDialogRef}
+          rawServices={rawServices}
+          showEditorStyleDialog={showEditorStyleDialog}
+          onCloseEditorStyleDialog={(): void => { setShowEditorStyleDialog(false); }}
+          showDefaultLayoutDialog={showDefaultLayoutDialog}
+          onCloseDefaultLayoutDialog={(): void => { setShowDefaultLayoutDialog(false); }}
+          layoutMode={layoutMode}
+          state={state}
+          showExtDbSettings={showExtDbSettings}
+          onCloseExtDbSettings={(): void => { setShowExtDbSettings(false); }}
+          extDbSettings={extDbSettings}
+          training={training}
+          trainingControls={trainingControls}
+          trainingSourceRef={trainingSourceRef}
+          trainingGameTitle={trainingGameTitle}
+          pgnText={pgnText}
+          showAnnotateDialog={showAnnotateDialog}
+          onCloseAnnotateDialog={(): void => { setShowAnnotateDialog(false); }}
+          gameAnnotation={gameAnnotation}
+          engineName={engineName}
+          showVsEngineDialog={showVsEngineDialog}
+          onCloseVsEngineDialog={(): void => { setShowVsEngineDialog(false); }}
+          vsEngine={vsEngine}
+          browserPanelState={browserPanelState}
+          onCaptureResult={handleCaptureResult}
+          onCloseBrowserPanel={closeBrowserPanel}
+          services={services}
+          t={t}
+        />
       </main>
     </ServiceContextProvider>
   );

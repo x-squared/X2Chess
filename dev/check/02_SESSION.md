@@ -31,6 +31,12 @@ See dev/check/00_README.md. These rules must be strictly adhered to when this fi
   Restoring the sedssion seems to work well. Almost too well: You slaos seem to restore unsaved edits. This is uncommon behaviour. Argue why we should keep this behaviour. Do not change yet.
 - [ ] **SESSION-12** — On next launch, all resource viewer tabs that were open are restored (kind + locator), and the tab that was active is selected.
 - [ ] **SESSION-13** — On first launch (no snapshot), a single blank default session is opened. No leftover resource viewer tabs appear.
+- [?] **SESSION-14** — Editing the active game's `Date` header updates the date shown in its session pill immediately.
+  > The active game shows a date in game info, but the session pill still shows `?`.
+  >> Fixed: session-pill projection now refreshes on PGN model changes (`onPgnChange`) in addition to session-meta updates, so header edits are reflected immediately.
+- [?] **SESSION-15** — Opening the same source game twice should focus the existing session tab instead of creating a duplicate tab.
+  > I can open the same game twice.
+  >> Fixed: session identity dedupe now uses `kind|locator|recordId` in both `openGameFromRef` and `session_store.openSession`, so repeated open requests activate the existing session.
 
 - [?] **SESSION-2** — Clicking a different tab switches to that game and restores its board position and PGN.
   > That does not happen as a rule, it may happen, but after changing once, I could not change again.

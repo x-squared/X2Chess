@@ -16,6 +16,7 @@
 import type { SourceRefLike } from "../../../runtime/bootstrap_shared";
 import type { SessionSnap } from "../../../runtime/workspace_snapshot_store";
 import type { ActiveSessionRef, GameSessionState } from "./game_session_state";
+import { log } from "../../../logger";
 
 type SaveMode = "auto" | "manual";
 
@@ -58,6 +59,21 @@ type SessionStoreDeps = {
   onSessionsChanged?: (sessions: GameSession[], activeSessionId: string | null) => void;
 };
 
+const normalizeSourceRefRecordId = (value: unknown): string => {
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return "";
+};
+
+const sourceRefIdentityKey = (sourceRef: SourceRefLike | null | undefined): string => {
+  if (!sourceRef) return "";
+  const kind: string = String(sourceRef.kind ?? "").trim();
+  const locator: string = String(sourceRef.locator ?? "").trim();
+  const recordId: string = normalizeSourceRefRecordId(sourceRef.recordId);
+  if (!kind || !locator) return "";
+  return `${kind}|${locator}|${recordId}`;
+};
+
 export const createGameSessionStore = ({
   activeSessionRef,
   onSessionsChanged,
@@ -71,8 +87,32 @@ export const createGameSessionStore = ({
   const getActiveSession = (): GameSession | null =>
     getSessions().find((session: GameSession): boolean => session.sessionId === activeSessionId) || null;
 
+  const getSessionById = (sessionId: string): GameSession | null =>
+    getSessions().find((session: GameSession): boolean => session.sessionId === sessionId) || null;
+
   const notifyChanged = (): void => {
     onSessionsChanged?.(getSessions(), activeSessionId);
+  };
+
+  const headerValue = (state: GameSessionState, key: string): string => {
+    const headers = state.pgnModel?.headers;
+    if (!Array.isArray(headers)) return "";
+    const found = headers.find((h): boolean => h?.key === key);
+    return String(found?.value ?? "");
+  };
+
+  const summarizeSessionHeaders = (session: GameSession): string =>
+    `${session.sessionId}[W="${headerValue(session.ownState, "White")}" ` +
+    `B="${headerValue(session.ownState, "Black")}" ` +
+    `E="${headerValue(session.ownState, "Event")}" ` +
+    `D="${headerValue(session.ownState, "Date")}"]`;
+
+  const logSessionsSnapshot = (reason: string): void => {
+    const snapshot = getSessions().map(summarizeSessionHeaders).join(" | ");
+    log.info(
+      "session_store",
+      `${reason}: active="${activeSessionId ?? "null"}" sessions=${snapshot || "(none)"}`,
+    );
   };
 
   const openSession = ({
@@ -83,6 +123,19 @@ export const createGameSessionStore = ({
     revisionToken = "",
     saveMode = "auto",
   }: OpenSessionInput): GameSession => {
+    const requestedSourceKey: string = sourceRefIdentityKey(sourceRef);
+    if (requestedSourceKey) {
+      const existing: GameSession | undefined = getSessions().find((session: GameSession): boolean =>
+        sourceRefIdentityKey(session.sourceRef) === requestedSourceKey,
+      );
+      if (existing) {
+        activeSessionId = existing.sessionId;
+        activeSessionRef.current = existing.ownState;
+        logSessionsSnapshot(`openSession(reuse ${existing.sessionId})`);
+        notifyChanged();
+        return existing;
+      }
+    }
     const currentSessionSeq: number = nextSessionSeq;
     nextSessionSeq += 1;
     const session: GameSession = {
@@ -98,6 +151,7 @@ export const createGameSessionStore = ({
     getSessions().push(session);
     activeSessionId = session.sessionId;
     activeSessionRef.current = ownState;
+    logSessionsSnapshot(`openSession(${session.sessionId})`);
     notifyChanged();
     return session;
   };
@@ -110,6 +164,7 @@ export const createGameSessionStore = ({
     if (!target) return false;
     activeSessionId = target.sessionId;
     activeSessionRef.current = target.ownState;
+    logSessionsSnapshot(`switchToSession(${sessionId})`);
     notifyChanged();
     return true;
   };
@@ -121,6 +176,7 @@ export const createGameSessionStore = ({
     sessions.splice(index, 1);
     if (sessions.length === 0) {
       activeSessionId = null;
+      logSessionsSnapshot(`closeSession(${sessionId})/empty`);
       notifyChanged();
       return { closed: true, emptyAfterClose: true };
     }
@@ -128,6 +184,7 @@ export const createGameSessionStore = ({
     const next: GameSession = sessions[nextIndex];
     activeSessionId = next.sessionId;
     activeSessionRef.current = next.ownState;
+    logSessionsSnapshot(`closeSession(${sessionId})`);
     notifyChanged();
     return { closed: true, emptyAfterClose: false };
   };
@@ -182,6 +239,7 @@ export const createGameSessionStore = ({
   return {
     closeSession,
     getActiveSession,
+    getSessionById,
     getActiveSessionId,
     buildSessionSnapshots,
     hasUnsavedSessions,

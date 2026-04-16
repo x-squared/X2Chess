@@ -44,6 +44,9 @@ import {
 } from "@tauri-apps/plugin-log";
 import { isTauriRuntime } from "./platform/desktop/tauri/tauri_gateways";
 
+type LogFieldValue = string | number | boolean | null;
+type LogFields = Readonly<Record<string, LogFieldValue>>;
+
 /**
  * True in Vite dev builds (`import.meta.env.DEV`).
  * Used to gate debug-string construction so expensive template literals are
@@ -165,8 +168,26 @@ export const initLogger = async (): Promise<void> => {
   await attachConsole();
 };
 
-const fmt = (level: string, module: string, message: string): string =>
-  `[${level}] [${module}] ${message}`;
+const serializeLogFieldValue = (value: LogFieldValue): string => {
+  if (typeof value === "string") return JSON.stringify(value);
+  if (value === null) return "null";
+  return String(value);
+};
+
+const formatLogFields = (fields: LogFields | undefined): string => {
+  if (!fields) return "";
+  const entries: [string, LogFieldValue][] = Object.entries(fields);
+  if (entries.length === 0) return "";
+  const sortedEntries: [string, LogFieldValue][] = [...entries].sort(
+    (a: [string, LogFieldValue], b: [string, LogFieldValue]): number => a[0].localeCompare(b[0]),
+  );
+  const serializedEntries: string[] = sortedEntries
+    .map(([key, value]: [string, LogFieldValue]): string => `${key}=${serializeLogFieldValue(value)}`);
+  return ` | ${serializedEntries.join(" ")}`;
+};
+
+const fmt = (level: string, module: string, message: string, fields?: LogFields): string =>
+  `[${level}] [${module}] ${message}${formatLogFields(fields)}`;
 
 /**
  * Structured log facade.
@@ -174,6 +195,8 @@ const fmt = (level: string, module: string, message: string): string =>
  * Each method is fire-and-forget (returns `void`).
  * Pass the calling module name as the first argument to make entries
  * easy to filter: `log.info("useAppStartup", "App ready")`.
+ * Optionally pass a third `fields` argument with name-value pairs for
+ * structured diagnostics: `log.info("session", "Opened", { sessionId })`.
  *
  * `log.debug` accepts a plain string or a factory function `() => string`.
  * Always use the factory form when the message involves any non-trivial
@@ -185,38 +208,38 @@ const fmt = (level: string, module: string, message: string): string =>
  * See the module-level documentation for how to configure the filter.
  */
 export const log = {
-  debug: (module: string, message: string | (() => string)): void => {
+  debug: (module: string, message: string | (() => string), fields?: LogFields): void => {
     if (!debugEnabled) return;
     if (!isModuleEnabled(module)) return;
     const msg: string = typeof message === "function" ? message() : message;
     if (isTauriRuntime()) {
-      void tauriDebug(fmt("DEBUG", module, msg));
+      void tauriDebug(fmt("DEBUG", module, msg, fields));
     } else {
-      console.debug(fmt("DEBUG", module, msg));
+      console.debug(fmt("DEBUG", module, msg, fields));
     }
   },
 
-  info: (module: string, message: string): void => {
+  info: (module: string, message: string, fields?: LogFields): void => {
     if (isTauriRuntime()) {
-      void tauriInfo(fmt("INFO", module, message));
+      void tauriInfo(fmt("INFO", module, message, fields));
     } else {
-      console.info(fmt("INFO", module, message));
+      console.info(fmt("INFO", module, message, fields));
     }
   },
 
-  warn: (module: string, message: string): void => {
+  warn: (module: string, message: string, fields?: LogFields): void => {
     if (isTauriRuntime()) {
-      void tauriWarn(fmt("WARN", module, message));
+      void tauriWarn(fmt("WARN", module, message, fields));
     } else {
-      console.warn(fmt("WARN", module, message));
+      console.warn(fmt("WARN", module, message, fields));
     }
   },
 
-  error: (module: string, message: string): void => {
+  error: (module: string, message: string, fields?: LogFields): void => {
     if (isTauriRuntime()) {
-      void tauriError(fmt("ERROR", module, message));
+      void tauriError(fmt("ERROR", module, message, fields));
     } else {
-      console.error(fmt("ERROR", module, message));
+      console.error(fmt("ERROR", module, message, fields));
     }
   },
 };

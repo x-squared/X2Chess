@@ -1,6 +1,6 @@
 # X2Chess Architecture Manual
 
-Last updated: 2026-04-10
+Last updated: 2026-04-14
 
 ## 1) Goals
 
@@ -930,7 +930,7 @@ raw PGN text:
   | `Date` | `PgnDateValue` (`{ raw, year, month, day }`) — `?` fields become `null` |
   | `WhiteElo`, `BlackElo` | `number` (via `parseInt`; non-numeric → `undefined`) |
   | `Result` | `PgnResultValue` union (`"1-0" \| "0-1" \| "1/2-1/2" \| "*"`) |
-  | `X2Style` | `X2StyleValue` union (`"plain" \| "text" \| "tree"`) |
+  | `XTwoChessStyle` | `X2StyleValue` union (`"plain" \| "text" \| "tree"`) |
   | All other known keys | `string` |
   | Unknown keys | `string` (pass-through) |
 
@@ -944,7 +944,7 @@ Three ordered key lists define projection scopes:
 | Constant | Content |
 |---|---|
 | `PGN_STANDARD_METADATA_KEYS` | 14 keys — the Seven Tag Roster plus ECO, Opening, WhiteElo, BlackElo, TimeControl, Termination, Annotator |
-| `KNOWN_PGN_METADATA_KEYS` | Standard keys plus `X2Style` and `Material` |
+| `KNOWN_PGN_METADATA_KEYS` | Standard keys plus `XTwoChessStyle` and `Material` |
 | `DEFAULT_RESOURCE_VIEWER_METADATA_KEYS` | 7-key default column set for the resource viewer: White, Black, Date, Event, ECO, Opening, Result |
 
 The `METADATA_KEY` const object mirrors `PgnMetadataKnownValues` as string constants so
@@ -1214,7 +1214,8 @@ structured data as `[%command arguments]` tokens within `{ }` comments.
 | Anchor | `[%anchor id="..." text="..."]` | Named position anchor for cross-references |
 | Game link | `[%link recordId="..."]` | Reference to another game in the library |
 
-The `X2Style` PGN header is also an X2Chess extension:
+The `XTwoChessStyle` PGN header is also an X2Chess extension (legacy `X2Style`
+is still read for backward compatibility):
 
 | Value | Meaning |
 |---|---|

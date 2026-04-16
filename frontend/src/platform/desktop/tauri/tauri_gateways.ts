@@ -35,6 +35,14 @@ export const buildTauriFsGateway = (): FsGateway => ({
   },
 });
 
+/** Opens the Tauri webview developer tools panel. No-op if the invoke API is unavailable. */
+export const openDevTools = async (): Promise<void> => {
+  const runtimeWindow = globalThis.window as TauriWindowLike | undefined;
+  const invokeFn = runtimeWindow?.__TAURI__?.core?.invoke;
+  if (typeof invokeFn !== "function") return;
+  await invokeFn("open_devtools").catch(() => {});
+};
+
 export const buildTauriDbGateway = (dbPath: string): DbGateway => {
   const invoke = (): ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) => {
     const runtimeWindow = window as TauriWindowLike;

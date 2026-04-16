@@ -1,9 +1,11 @@
 import {
   DEFAULT_RESOURCE_VIEWER_METADATA_KEYS,
+  LEGACY_X2_STYLE_METADATA_KEY,
   KNOWN_PGN_METADATA_KEYS,
   METADATA_KEY,
   PGN_METADATA_SCHEMA,
   PGN_STANDARD_METADATA_KEYS,
+  X2CHESS_STYLE_METADATA_KEY,
   type HybridPgnMetadata,
 } from "./metadata_schema";
 
@@ -31,6 +33,15 @@ export {
   PGN_STANDARD_METADATA_KEYS,
 };
 export type { HybridPgnMetadata };
+
+const resolveRawHeaderValue = (headers: Record<string, string>, key: string): string => {
+  const directValue: string = String(headers[key] || "").trim();
+  if (directValue) return directValue;
+  if (key === X2CHESS_STYLE_METADATA_KEY) {
+    return String(headers[LEGACY_X2_STYLE_METADATA_KEY] || "").trim();
+  }
+  return directValue;
+};
 
 /**
  * Parse bracket header lines from PGN text.
@@ -92,7 +103,7 @@ export const extractPgnMetadata = (
     const key: string = String(fieldKey || "").trim();
     if (!key) return;
     availableMetadataKeys.push(key);
-    metadata[key] = String(headers[key] || "").trim();
+    metadata[key] = resolveRawHeaderValue(headers, key);
   });
   return { metadata, availableMetadataKeys };
 };
@@ -101,7 +112,7 @@ export const extractPgnMetadata = (
  * Extract selected metadata fields using canonical typed schema when available.
  *
  * Hybrid strategy:
- * - Known keys are parsed into typed values (`Date`, ratings, `Result`, `X2Style`, ...).
+ * - Known keys are parsed into typed values (`Date`, ratings, `Result`, `XTwoChessStyle`, ...).
  * - Unknown keys are preserved as strings.
  *
  * @param pgnText PGN source text.
@@ -119,7 +130,7 @@ export const extractHybridPgnMetadata = (
     const key: string = String(fieldKey || "").trim();
     if (!key) return;
     availableMetadataKeys.push(key);
-    const rawValue: string = String(headers[key] || "").trim();
+    const rawValue: string = resolveRawHeaderValue(headers, key);
     const schemaEntry = PGN_METADATA_SCHEMA[key];
     if (schemaEntry) {
       const parsed = schemaEntry.parse(rawValue);

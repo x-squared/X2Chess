@@ -16,6 +16,7 @@
 import {
   ECO_OPENING_CODES,
   REQUIRED_PGN_TAG_DEFAULTS,
+  X2_STYLE_HEADER_KEY,
   X2_BOARD_ORIENTATION_HEADER_KEY,
   getHeaderValue,
   normalizeX2StyleValue,
@@ -147,14 +148,14 @@ export const GAME_INFO_HEADER_FIELDS: readonly GameInfoField[] = [
     placeholder: "Last-name, First-name : Last-name, First-name",
   },
   {
-    key: "X2Style",
-    label: "X2Style",
+    key: X2_STYLE_HEADER_KEY,
+    label: X2_STYLE_HEADER_KEY,
     control: "select",
     options: ["plain", "text", "tree"],
   },
   {
     key: X2_BOARD_ORIENTATION_HEADER_KEY,
-    label: "X2BoardOrientation",
+    label: X2_BOARD_ORIENTATION_HEADER_KEY,
     control: "select",
     options: ["", "white", "black"],
     optionLabels: { "": "Default Orientation" },
@@ -537,7 +538,7 @@ export const syncGameInfoEditorValues = ({
     if (key === "Opening" && !nextValue) {
       nextValue = resolveEcoOpeningName(eco);
     }
-    if (key === "X2Style") {
+    if (key === X2_STYLE_HEADER_KEY) {
       nextValue = normalizeX2StyleValue(nextValue);
     }
     if (input.value !== nextValue) input.value = nextValue;

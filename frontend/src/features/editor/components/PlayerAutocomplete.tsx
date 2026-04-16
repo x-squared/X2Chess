@@ -83,17 +83,24 @@ export const PlayerAutocomplete = ({
   const services = useServiceContext();
   const [value, setValue] = useState<string>(defaultVal);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [isDirty, setIsDirty] = useState<boolean>(false);
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>): void => {
     const raw: string = e.target.value;
     setValue(raw);
+    setIsDirty(true);
     setSuggestions(services.getPlayerNameSuggestions(currentEntryQuery(fieldKey, raw)));
   };
 
   const handleBlur = (): void => {
+    if (!isDirty) {
+      setSuggestions([]);
+      return;
+    }
     const normalized: string = normalizeGameInfoHeaderValue(fieldKey, value);
     setValue(normalized);
     setSuggestions([]);
+    setIsDirty(false);
     onCommit(fieldKey, normalized);
   };
 
@@ -101,6 +108,7 @@ export const PlayerAutocomplete = ({
     const newValue: string = withSuggestionApplied(fieldKey, value, name);
     setValue(newValue);
     setSuggestions([]);
+    setIsDirty(false);
     onCommit(fieldKey, newValue);
   };
 

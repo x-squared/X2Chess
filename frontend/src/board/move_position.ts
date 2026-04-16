@@ -4,6 +4,7 @@ import type {
   PgnVariationNode,
   PgnEntryNode,
   PgnMoveNode,
+  PgnPostItem,
 } from "../../../parts/pgnparser/src/pgn_model";
 import { log } from "../logger";
 
@@ -163,7 +164,7 @@ export const applySanWithFallback = (game: Chess, san: string): Move | null => {
       // Try next candidate.
     }
   }
-  log.warn("move_position", `applySanWithFallback: all candidates failed san="${san}"`);
+  // Intentionally silent: SAN replay misses are frequent in imported side-variations.
   return null;
 };
 
@@ -398,8 +399,8 @@ export const resolveMovePositionById = (
 
     // Helper to resolve mainline move and test for match
     const resolveMoveEntry = (
-      entry: any,
-      game: any,
+      entry: PgnMoveNode,
+      game: Chess,
       ply: number,
       isMainline: boolean,
       parentMoveId: string | null
@@ -432,13 +433,13 @@ export const resolveMovePositionById = (
 
     // Helper to traverse postItems/ravs variations for a move, used after resolving main move entry
     const findInSubVariations = (
-      entry: any,
-      gameBeforeMove: any,
+      entry: PgnMoveNode,
+      gameBeforeMove: Chess,
       ply: number,
       parentMoveId: string | null
     ): MovePositionResolved | null => {
       const ravsToCheck = Array.isArray(entry.postItems)
-        ? entry.postItems.filter((item: any) => item.type === "rav" && item.rav).map((item: any) => item.rav)
+        ? entry.postItems.flatMap((item: PgnPostItem) => item.type === "rav" && item.rav ? [item.rav] : [])
         : (() => {
             if (Array.isArray(entry.ravs)) {
               return entry.ravs;

@@ -6,6 +6,7 @@ Important files:
 
 - `game_info.ts`: PGN header normalization, player-name helpers, and game-info field definitions.
 - `fen_utils.ts`: FEN validation and related utilities.
+- `pgn_validation.ts`: strict/normalized/fallback PGN diagnostics for Developer Dock quality reporting.
 - `history.ts` and `pgn_runtime.ts`: editor/runtime capabilities and history integration.
 - `resolveAnchors.ts`: anchor discovery from editor comments.
 - `text_editor_plan.ts` and `plan/`: plain/text/tree editor plan generation.

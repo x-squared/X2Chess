@@ -43,7 +43,8 @@ export const REQUIRED_PGN_TAG_DEFAULTS: Record<string, string> = {
  * Custom tag: editor layout mode for this game (not standard PGN Seven Tag Roster).
  * Values: `plain` | `text` | `tree`. If the tag is missing, treat as `plain`.
  */
-export const X2_STYLE_HEADER_KEY = "X2Style";
+export const X2_STYLE_HEADER_KEY = "XTwoChessStyle";
+export const LEGACY_X2_STYLE_HEADER_KEY = "X2Style";
 
 /**
  * Custom tag: board orientation override for default-position and Chess960 games.
@@ -51,7 +52,8 @@ export const X2_STYLE_HEADER_KEY = "X2Style";
  * Ignored for games that start from a custom position — those always show the
  * side to move first at the bottom.
  */
-export const X2_BOARD_ORIENTATION_HEADER_KEY = "X2BoardOrientation";
+export const X2_BOARD_ORIENTATION_HEADER_KEY = "XTwoChessBoardOrientation";
+export const LEGACY_X2_BOARD_ORIENTATION_HEADER_KEY = "X2BoardOrientation";
 
 const X2_STYLE_VALUES: ReadonlySet<string> = new Set<string>(["plain", "text", "tree"]);
 
@@ -87,7 +89,11 @@ export const getHeaderValue = (model: unknown, key: string, fallback: string = "
  * @returns {"plain"|"text"|"tree"} Style; missing/invalid header -> `plain`.
  */
 export const getX2StyleFromModel = (model: unknown): X2StyleValue => {
-  const raw: string = getHeaderValue(model, X2_STYLE_HEADER_KEY, "");
+  const raw: string = getHeaderValue(
+    model,
+    X2_STYLE_HEADER_KEY,
+    getHeaderValue(model, LEGACY_X2_STYLE_HEADER_KEY, ""),
+  );
   return normalizeX2StyleValue(raw);
 };
 
@@ -105,9 +111,28 @@ export const getX2StyleFromModel = (model: unknown): X2StyleValue => {
  */
 export const setHeaderValue = (model: unknown, key: string, value: string): PgnModel => {
   const next: PgnModel = cloneModel((model as PgnModel | null) ?? {});
+  let canonicalKey: string = key;
+  if (key === LEGACY_X2_STYLE_HEADER_KEY) {
+    canonicalKey = X2_STYLE_HEADER_KEY;
+  } else if (key === LEGACY_X2_BOARD_ORIENTATION_HEADER_KEY) {
+    canonicalKey = X2_BOARD_ORIENTATION_HEADER_KEY;
+  }
   const normalizedValue: string = String(value ?? "").trim();
+
+  const removeHeaderByKey = (headerKey: string): void => {
+    if (!Array.isArray(next.headers)) return;
+    next.headers = next.headers.filter((header: PgnHeader): boolean => header?.key !== headerKey);
+  };
+
+  if (canonicalKey === X2_STYLE_HEADER_KEY) {
+    removeHeaderByKey(LEGACY_X2_STYLE_HEADER_KEY);
+  }
+  if (canonicalKey === X2_BOARD_ORIENTATION_HEADER_KEY) {
+    removeHeaderByKey(LEGACY_X2_BOARD_ORIENTATION_HEADER_KEY);
+  }
+
   const existingIndex: number = Array.isArray(next.headers)
-    ? next.headers.findIndex((header: PgnHeader): boolean => header?.key === key)
+    ? next.headers.findIndex((header: PgnHeader): boolean => header?.key === canonicalKey)
     : -1;
 
   if (!Array.isArray(next.headers)) {
@@ -124,7 +149,7 @@ export const setHeaderValue = (model: unknown, key: string, value: string): PgnM
     return next;
   }
 
-  next.headers.push({ key, value: normalizedValue });
+  next.headers.push({ key: canonicalKey, value: normalizedValue });
   return next;
 };
 
@@ -153,11 +178,17 @@ export const ensureRequiredPgnHeaders = (
  *
  * Applies two normalizations:
  *
- * 1. **Null-move stripping** — `--` (pass/null move) is used in endgame studies
+ * 1. **Custom-header stripping** — chess.js rejects some non-standard custom
+ *    tag names used by X2Chess (for example `XTwoChessStyle`,
+ *    `XTwoChessBoardOrientation`, plus legacy `X2Style`, `X2BoardOrientation`)
+ *    because they contain digits. These headers are UI metadata only and are
+ *    removed for chess.js parsing.
+ *
+ * 2. **Null-move stripping** — `--` (pass/null move) is used in endgame studies
  *    to demonstrate zugzwang but is not valid chess.js PGN syntax.  All ` --`
  *    tokens are removed so chess.js can parse the preceding moves.
  *
- * 2. **SetUp injection** — chess.js requires `[SetUp "1"]` alongside `[FEN "..."]`
+ * 3. **SetUp injection** — chess.js requires `[SetUp "1"]` alongside `[FEN "..."]`
  *    to recognise a custom starting position.  Many PGN producers omit `[SetUp]`
  *    even when a FEN header is present; without it chess.js ignores the FEN,
  *    starts from the standard initial position, and throws on the first move.
@@ -171,9 +202,18 @@ export const ensureRequiredPgnHeaders = (
  * @returns {string} PGN string with null moves stripped and `[SetUp "1"]` injected when needed.
  */
 export const normalizeForChessJs = (source: string): string => {
+  const strippedCustomHeaders: string = source
+    .split("\n")
+    .filter(
+      (line: string): boolean =>
+        !/^\[(?:XTwoChessStyle|XTwoChessBoardOrientation|X2Style|X2BoardOrientation)\s+"[^"]*"\]\s*$/i.test(
+          line.trim(),
+        ),
+    )
+    .join("\n");
   // Strip `--` null/pass moves. They appear as ` --` in the movetext and are
   // never valid inside header values (which are quoted) or FEN strings.
-  const stripped = source.replaceAll(" --", "");
+  const stripped: string = strippedCustomHeaders.replaceAll(" --", "");
   if (/\[SetUp\s+"[^"]*"\]/i.test(stripped)) return stripped;
   if (!/\[FEN\s+"[^"]*"\]/i.test(stripped)) return stripped;
   return stripped.replace(/(\[FEN\s+"[^"]*"\])/i, '[SetUp "1"]\n$1');
@@ -188,7 +228,8 @@ export const normalizeForChessJs = (source: string): string => {
  *   `SetUp` is intentionally not checked: many PGN producers omit it even when a
  *   custom position is in use, so the presence of the `FEN` header is the
  *   authoritative signal.
- * - **Default-position and Chess960 games**: honour the `X2BoardOrientation`
+ * - **Default-position and Chess960 games**: honour the
+ *   `XTwoChessBoardOrientation` header (legacy `X2BoardOrientation` is also read)
  *   header (`"black"` → flipped). If the header is absent, white is at the
  *   bottom (not flipped).
  *
@@ -207,7 +248,11 @@ export const deriveInitialBoardFlipped = (model: unknown): boolean => {
   }
 
   // Default / Chess960: use explicit flag, fallback to white at bottom.
-  const orientation: string = getHeaderValue(model, X2_BOARD_ORIENTATION_HEADER_KEY, "")
+  const orientation: string = getHeaderValue(
+    model,
+    X2_BOARD_ORIENTATION_HEADER_KEY,
+    getHeaderValue(model, LEGACY_X2_BOARD_ORIENTATION_HEADER_KEY, ""),
+  )
     .trim()
     .toLowerCase();
   return orientation === "black";

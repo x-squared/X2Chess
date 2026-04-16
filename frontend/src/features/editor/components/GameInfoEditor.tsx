@@ -24,9 +24,21 @@
 import { useMemo, useState } from "react";
 import type { ReactElement, ChangeEvent } from "react";
 import { GAME_INFO_HEADER_FIELDS, PLAYER_NAME_HEADER_KEYS, normalizeGameInfoHeaderValue } from "../model/game_info";
-import { getHeaderValue, REQUIRED_PGN_TAG_DEFAULTS, X2_BOARD_ORIENTATION_HEADER_KEY, resolveEcoOpeningName, normalizeX2StyleValue } from "../../../model";
+import {
+  getHeaderValue,
+  REQUIRED_PGN_TAG_DEFAULTS,
+  X2_STYLE_HEADER_KEY,
+  X2_BOARD_ORIENTATION_HEADER_KEY,
+  resolveEcoOpeningName,
+  normalizeX2StyleValue,
+} from "../../../model";
 import { useAppContext } from "../../../app/providers/AppStateProvider";
-import { selectIsGameInfoEditorOpen, selectPgnModel, selectBoardFlipped } from "../../../core/state/selectors";
+import {
+  selectActiveSessionId,
+  selectIsGameInfoEditorOpen,
+  selectPgnModel,
+  selectBoardFlipped,
+} from "../../../core/state/selectors";
 import { useServiceContext } from "../../../app/providers/ServiceProvider";
 import { useTranslator } from "../../../app/hooks/useTranslator";
 import { PlayerAutocomplete } from "./PlayerAutocomplete";
@@ -77,7 +89,7 @@ const resolveFieldValue = (model: PgnModel | null, field: GameInfoFieldDef): str
   if (field.key === "Opening" && !normalized) {
     normalized = resolveEcoOpeningName(getHeaderValue(model, "ECO", ""));
   }
-  if (field.key === "X2Style") {
+  if (field.key === X2_STYLE_HEADER_KEY) {
     normalized = normalizeX2StyleValue(normalized);
   }
   return normalized;
@@ -103,6 +115,7 @@ export const FieldInput = ({ field, defaultVal, onCommit }: FieldInputProps): Re
   const id: string = `game-info-${field.key.toLowerCase()}`;
   const [value, setValue] = useState<string>(defaultVal);
   const [isInvalid, setIsInvalid] = useState<boolean>(false);
+  const [isDirty, setIsDirty] = useState<boolean>(false);
 
   const handleSelectChange = (e: ChangeEvent<HTMLSelectElement>): void => {
     const raw: string = e.target.value;
@@ -112,13 +125,16 @@ export const FieldInput = ({ field, defaultVal, onCommit }: FieldInputProps): Re
 
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>): void => {
     setValue(e.target.value);
+    setIsDirty(true);
     if (isInvalid) setIsInvalid(false);
   };
 
   const handleInputBlur = (): void => {
+    if (!isDirty) return;
     const normalized: string = normalizeGameInfoHeaderValue(field.key, value);
     setValue(normalized);
     setIsInvalid(field.validate ? !field.validate(normalized) : false);
+    setIsDirty(false);
     onCommit(field.key, normalized);
   };
 
@@ -165,6 +181,7 @@ export const GameInfoEditor = (): ReactElement => {
   const pgnModel: PgnModel | null = selectPgnModel(state);
   const isOpen: boolean = selectIsGameInfoEditorOpen(state);
   const boardFlipped: boolean = selectBoardFlipped(state);
+  const activeSessionId: string | null = selectActiveSessionId(state);
   const t: (key: string, fallback?: string) => string = useTranslator();
 
   const playersSummary: string = useMemo((): string => {
@@ -191,10 +208,12 @@ export const GameInfoEditor = (): ReactElement => {
   }, [pgnModel]);
 
   /**
-   * `formKey` forces a full remount of the form fields when the active game
-   * changes, resetting all `defaultValue` props to the new game's header values.
+   * `formKey` forces a full remount of the form fields when the active session
+   * changes, resetting all local input state to the new session's header values.
+   * Session ID is used instead of `pgnModel.id` because model IDs are not
+   * guaranteed to be globally unique across independently parsed sessions.
    */
-  const formKey: string = pgnModel?.id ?? "no-game";
+  const formKey: string = activeSessionId ?? pgnModel?.id ?? "no-game";
 
   return (
     <section className={["game-info-card", isOpen ? "editor-open" : ""].filter(Boolean).join(" ")}>
@@ -261,7 +280,7 @@ export const GameInfoEditor = (): ReactElement => {
             const id: string = `game-info-${field.key.toLowerCase()}`;
             const isPlayer: boolean =
               (PLAYER_NAME_HEADER_KEYS as readonly string[]).includes(field.key);
-            // X2BoardOrientation is derived from the live boardFlipped state so
+            // XTwoChessBoardOrientation is derived from the live boardFlipped state so
             // that the select always reflects the current board orientation, and
             // remounts (via key) whenever the board is flipped programmatically.
             let defaultVal: string = resolveFieldValue(pgnModel, field);
@@ -282,13 +301,19 @@ export const GameInfoEditor = (): ReactElement => {
                     id={id}
                     defaultVal={defaultVal}
                     placeholder={field.placeholder}
-                    onCommit={services.updateGameInfoHeader}
+                    onCommit={(key: string, value: string): void => {
+                      if (!activeSessionId) return;
+                      services.updateGameInfoHeader(activeSessionId, key, value);
+                    }}
                   />
                 ) : (
                   <FieldInput
                     field={field}
                     defaultVal={defaultVal}
-                    onCommit={services.updateGameInfoHeader}
+                    onCommit={(key: string, value: string): void => {
+                      if (!activeSessionId) return;
+                      services.updateGameInfoHeader(activeSessionId, key, value);
+                    }}
                   />
                 )}
               </label>

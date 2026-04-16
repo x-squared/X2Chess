@@ -28,13 +28,11 @@
 import {
   useState,
   useEffect,
-  useRef,
   useCallback,
   useId,
   useMemo,
   type ReactElement,
   type FormEvent,
-  type PointerEvent as ReactPointerEvent,
 } from "react";
 import { useAppContext } from "../../../app/providers/AppStateProvider";
 import {
@@ -51,15 +49,14 @@ import {
   writePrefsMap,
   persistTabPrefs,
   reconcileColumns,
-  readGroupByState,
-  writeGroupByState,
   DEFAULT_METADATA_KEYS,
   type TabState,
   type TabPrefs,
   type ResourceRef,
-  type GroupByState,
   type SortConfig,
 } from "../services/viewer_utils";
+import { useColumnInteraction } from "../hooks/useColumnInteraction";
+import { useGroupBy } from "../hooks/useGroupBy";
 import { GUIDE_IDS } from "../../guide/model/guide_ids";
 import { ResourceTabBar } from "./ResourceTabBar";
 import { ResourceTable } from "./ResourceTable";
@@ -76,14 +73,6 @@ import type { MetadataSchema } from "../../../../../parts/resource/src/domain/me
 import { BUILT_IN_SCHEMA } from "../../../../../parts/resource/src/domain/metadata_schema";
 import { loadBadgesForRefs } from "../../../training/transcript_storage";
 import type { TrainingBadge } from "../../../training/transcript_storage";
-
-// ── Local types ───────────────────────────────────────────────────────────────
-
-type ColumnResizeState = {
-  key: string;
-  startX: number;
-  startWidth: number;
-};
 
 // ── Row hydration ─────────────────────────────────────────────────────────────
 
@@ -205,12 +194,8 @@ export const ResourceViewer = (): ReactElement => {
   const [dialogKey, setDialogKey] = useState<number>(0);
   // Per-tab column filter strings; keyed by tabId.
   const [columnFiltersMap, setColumnFiltersMap] = useState<Record<string, Record<string, string>>>({});
-  // Per-tab group-by state; keyed by tabId.
-  const [groupByMap, setGroupByMap] = useState<Record<string, GroupByState>>({});
   // Per-tab sort config; keyed by tabId.
   const [sortMap, setSortMap] = useState<Record<string, SortConfig | null>>({});
-  // Currently-dragged column key (pointer-based, not HTML5 DnD).
-  const [colDragActiveKey, setColDragActiveKey] = useState<string>("");
   // User-defined metadata schemas.
   const [schemas, setSchemas] = useState<MetadataSchema[]>(() => loadSchemas());
   // Per-tab selected schema ID (null = built-in).
@@ -218,9 +203,6 @@ export const ResourceViewer = (): ReactElement => {
   const [schemaEditorOpen, setSchemaEditorOpen] = useState<boolean>(false);
   const [editingSchema, setEditingSchema] = useState<MetadataSchema | null>(null);
   const [newGameDialogOpen, setNewGameDialogOpen] = useState<boolean>(false);
-
-  const columnResizeRef = useRef<ColumnResizeState | null>(null);
-  const colDragKeyRef = useRef<string>("");
 
   // ── Sync tab list from state snapshot ─────────────────────────────────
 
@@ -240,17 +222,6 @@ export const ResourceViewer = (): ReactElement => {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabSnapshots, activeTabIdFromState]);
-
-  // ── Load group-by from localStorage when a tab first becomes active ───
-
-  useEffect((): void => {
-    if (!activeTabId) return;
-    setGroupByMap((prev): Record<string, GroupByState> => {
-      if (prev[activeTabId]) return prev;
-      const loaded = readGroupByState(activeTabId);
-      return { ...prev, [activeTabId]: loaded };
-    });
-  }, [activeTabId]);
 
   // ── Row loading ────────────────────────────────────────────────────────
 
@@ -301,57 +272,33 @@ export const ResourceViewer = (): ReactElement => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTabId, t]);
 
-  // ── Column resize (window pointer events for pointer capture) ─────────
-
-  useEffect((): (() => void) => {
-    const onMove = (e: PointerEvent): void => {
-      const resize: ColumnResizeState | null = columnResizeRef.current;
-      if (!resize || !activeTabId) return;
-      const newWidth: number = clampWidth(resize.startWidth + (e.clientX - resize.startX));
-      setTabs((prev: TabState[]): TabState[] =>
-        prev.map((t: TabState): TabState =>
-          t.tabId !== activeTabId
-            ? t
-            : { ...t, columnWidths: { ...t.columnWidths, [resize.key]: newWidth } },
-        ),
-      );
-    };
-
-    const onUp = (): void => {
-      if (columnResizeRef.current) {
-        const key: string = columnResizeRef.current.key;
-        columnResizeRef.current = null;
-        setTabs((prev: TabState[]): TabState[] => {
-          const tab: TabState | undefined = prev.find((t: TabState): boolean => t.tabId === activeTabId);
-          if (tab && key) persistTabPrefs(tab);
-          return prev;
-        });
-      }
-      // Also clear any column drag that was in progress.
-      if (colDragKeyRef.current) {
-        colDragKeyRef.current = "";
-        setColDragActiveKey("");
-      }
-    };
-
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-    window.addEventListener("pointercancel", onUp);
-    return (): void => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-      window.removeEventListener("pointercancel", onUp);
-    };
-  }, [activeTabId]);
-
   // ── Derived values ────────────────────────────────────────────────────
 
   const activeTab: TabState | null =
     tabs.find((t: TabState): boolean => t.tabId === activeTabId) ?? null;
 
   const columnFilters: Record<string, string> = columnFiltersMap[activeTabId ?? ""] ?? {};
-  const groupByState: GroupByState = groupByMap[activeTabId ?? ""] ?? { fields: [], collapsedKeys: [] };
   const sortConfig: SortConfig | null = sortMap[activeTabId ?? ""] ?? null;
+
+  // ── Column interaction (resize + pointer drag-to-reorder) ─────────────
+
+  const {
+    colDragActiveKey,
+    handleResizeStart,
+    handleColDragStart,
+    handleColDrop,
+  } = useColumnInteraction(activeTabId, activeTab, setTabs);
+
+  // ── Group-by state ─────────────────────────────────────────────────────
+
+  const {
+    groupByState,
+    handleGroupByAdd,
+    handleGroupByRemove,
+    handleGroupByMoveUp,
+    handleGroupByClear,
+    handleToggleGroup,
+  } = useGroupBy(activeTabId);
 
   const supportsReorder: boolean = activeTab?.resourceRef.kind === "db";
 
@@ -398,51 +345,6 @@ export const ResourceViewer = (): ReactElement => {
     services.openGameFromRef(row.sourceRef);
   }, [activeTab, services]);
 
-  const handleResizeStart = useCallback(
-    (key: string, e: ReactPointerEvent<HTMLSpanElement>): void => {
-      if (!activeTab) return;
-      e.preventDefault();
-      (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-      columnResizeRef.current = {
-        key,
-        startX: e.clientX,
-        startWidth: clampWidth(activeTab.columnWidths[key]),
-      };
-    },
-    [activeTab],
-  );
-
-  // ── Pointer-based column drag (UV1) ───────────────────────────────────
-
-  const handleColDragStart = useCallback((key: string): void => {
-    colDragKeyRef.current = key;
-    setColDragActiveKey(key);
-  }, []);
-
-  const handleColDrop = useCallback(
-    (targetKey: string): void => {
-      const fromKey: string = colDragKeyRef.current;
-      colDragKeyRef.current = "";
-      setColDragActiveKey("");
-      if (!fromKey || fromKey === targetKey || !activeTabId) return;
-      setTabs((prev: TabState[]): TabState[] =>
-        prev.map((t: TabState): TabState => {
-          if (t.tabId !== activeTabId) return t;
-          const order: string[] = [...t.metadataColumnOrder];
-          const from: number = order.indexOf(fromKey);
-          const to: number = order.indexOf(targetKey);
-          if (from < 0 || to < 0) return t;
-          order.splice(from, 1);
-          order.splice(to, 0, fromKey);
-          const updated: TabState = { ...t, metadataColumnOrder: order };
-          persistTabPrefs(updated);
-          return updated;
-        }),
-      );
-    },
-    [activeTabId],
-  );
-
   // ── Sort (UV4) ────────────────────────────────────────────────────────
 
   const handleSortChange = useCallback((key: string): void => {
@@ -457,66 +359,6 @@ export const ResourceViewer = (): ReactElement => {
       } else {
         next = null;
       }
-      return { ...prev, [activeTabId]: next };
-    });
-  }, [activeTabId]);
-
-  // ── Group-by (UV3) ────────────────────────────────────────────────────
-
-  const handleGroupByAdd = useCallback((field: string): void => {
-    if (!activeTabId) return;
-    setGroupByMap((prev): Record<string, GroupByState> => {
-      const current: GroupByState = prev[activeTabId] ?? { fields: [], collapsedKeys: [] };
-      if (current.fields.includes(field)) return prev;
-      const next: GroupByState = { ...current, fields: [...current.fields, field] };
-      writeGroupByState(activeTabId, next);
-      return { ...prev, [activeTabId]: next };
-    });
-  }, [activeTabId]);
-
-  const handleGroupByRemove = useCallback((field: string): void => {
-    if (!activeTabId) return;
-    setGroupByMap((prev): Record<string, GroupByState> => {
-      const current: GroupByState = prev[activeTabId] ?? { fields: [], collapsedKeys: [] };
-      const next: GroupByState = { ...current, fields: current.fields.filter((f) => f !== field) };
-      writeGroupByState(activeTabId, next);
-      return { ...prev, [activeTabId]: next };
-    });
-  }, [activeTabId]);
-
-  const handleGroupByMoveUp = useCallback((field: string): void => {
-    if (!activeTabId) return;
-    setGroupByMap((prev): Record<string, GroupByState> => {
-      const current: GroupByState = prev[activeTabId] ?? { fields: [], collapsedKeys: [] };
-      const idx = current.fields.indexOf(field);
-      if (idx <= 0) return prev;
-      const fields = [...current.fields];
-      [fields[idx - 1], fields[idx]] = [fields[idx], fields[idx - 1]];
-      const next: GroupByState = { ...current, fields };
-      writeGroupByState(activeTabId, next);
-      return { ...prev, [activeTabId]: next };
-    });
-  }, [activeTabId]);
-
-  const handleGroupByClear = useCallback((): void => {
-    if (!activeTabId) return;
-    const next: GroupByState = { fields: [], collapsedKeys: [] };
-    writeGroupByState(activeTabId, next);
-    setGroupByMap((prev) => ({ ...prev, [activeTabId]: next }));
-  }, [activeTabId]);
-
-  const handleToggleGroup = useCallback((groupKey: string): void => {
-    if (!activeTabId) return;
-    setGroupByMap((prev): Record<string, GroupByState> => {
-      const current: GroupByState = prev[activeTabId] ?? { fields: [], collapsedKeys: [] };
-      const collapsed = new Set(current.collapsedKeys);
-      if (collapsed.has(groupKey)) {
-        collapsed.delete(groupKey);
-      } else {
-        collapsed.add(groupKey);
-      }
-      const next: GroupByState = { ...current, collapsedKeys: [...collapsed] };
-      writeGroupByState(activeTabId, next);
       return { ...prev, [activeTabId]: next };
     });
   }, [activeTabId]);

@@ -65,14 +65,30 @@ Every `catch` block, rejected promise, and unexpected `null` result must
 emit `log.error` with the module name and error message **before** any UI
 dispatch or rethrow.
 
+## Structured fields (name-value pairs)
+
+Use the optional third `fields` argument for structured diagnostics:
+
+```typescript
+log.info("session_orchestrator", "switchSession: activated", { sessionId });
+log.error("resource_loader", "Failed to load game", { kind, locator, recordId, message });
+```
+
+- Prefer structured fields for `info` and `error` logs on lifecycle/resource/session paths.
+- Keep message text human-readable; put stable machine-queryable values in `fields`.
+- Keep field keys stable (`sessionId`, `recordId`, `kind`, `locator`, `title`, `phase`, etc.).
+- Field values must be primitive-safe (`string | number | boolean | null`) and non-sensitive.
+- Do not duplicate huge payloads in fields; log identifiers and compact context only.
+
 ## Call convention
 
 ```typescript
 import { log } from "../logger"; // adjust relative path as needed
 
 log.info("myModule", `Session opened: title="${title}"`);
+log.info("myModule", "Session opened", { title, sessionId });
 log.warn("myModule", "sourceRef missing — falling back to active session");
-log.error("myModule", `Failed to load game: ${message}`);
+log.error("myModule", "Failed to load game", { message, recordId });
 log.debug("myModule", "entered loadGame");
 log.debug("myModule", () => `loadGame: recordId=${recordId} size=${content.length}`);
 ```
@@ -81,6 +97,7 @@ log.debug("myModule", () => `loadGame: recordId=${recordId} size=${content.lengt
   (no dynamic values).  This makes log output grep-friendly.
 - Second argument: a short, human-readable message.  Include the key
   variable values inline so a single log line is self-contained.
+- Third argument (optional): structured fields for stable filtering/querying.
 - Never log sensitive user data (passwords, PII).  File paths and game
   content are acceptable.
 
@@ -106,6 +123,6 @@ resource adapters, and the Rust backend (`log::info!`, `log::warn!`, etc.).
 - Capability: `log:default` in `src-tauri/capabilities/default.json`
 - Log file location (macOS): `~/Library/Logs/com.x2chess.app/`
 - Log level: `Debug` in dev builds, `Info` in release builds
-- Log format: `[LEVEL] [module] message`
+- Log format: `[LEVEL] [module] message | key=value ...` (fields suffix optional)
 - `attachConsole()` is awaited at startup, so all entries are also visible
   in the WebKit inspector console.

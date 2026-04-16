@@ -20,7 +20,6 @@
 
 import { useEffect } from "react";
 import { Menu, Submenu, MenuItem, PredefinedMenuItem, type PredefinedMenuItemOptions } from "@tauri-apps/api/menu";
-import { invoke } from "@tauri-apps/api/core";
 import type { AppStartupServices } from "../core/contracts/app_services";
 import {
   APP_MENU_DEFINITION,
@@ -28,7 +27,7 @@ import {
   type MenuNode,
   type MenuSubmenuNode,
 } from "../app/shell/menu_definition";
-import { isTauriRuntime } from "../platform/desktop/tauri/tauri_gateways";
+import { isTauriRuntime, openDevTools } from "../platform/desktop/tauri/tauri_gateways";
 
 // ── Action handlers ───────────────────────────────────────────────────────────
 
@@ -120,7 +119,7 @@ export const useTauriMenu = (services: AppStartupServices): void => {
         e.key === "F12";
       if (!isInspectorShortcut) return;
       e.preventDefault();
-      void invoke("open_devtools").catch(() => {});
+      openDevTools().catch(() => {});
     };
     document.addEventListener("keydown", handler);
     return (): void => { document.removeEventListener("keydown", handler); };

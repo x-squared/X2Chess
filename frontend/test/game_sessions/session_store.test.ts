@@ -52,3 +52,28 @@ test("closing session selects adjacent session and updates ref", () => {
   // After closing B, the ref must point at A's state.
   assert.equal(activeSessionRef.current.pgnText, "A");
 });
+
+test("opening same sourceRef reuses existing session", () => {
+  const activeSessionRef: ActiveSessionRef = { current: createEmptyGameSessionState() };
+  const store = createGameSessionStore({ activeSessionRef });
+
+  const stateA = createEmptyGameSessionState();
+  stateA.pgnText = "Game A";
+  const first = store.openSession({
+    ownState: stateA,
+    title: "A",
+    sourceRef: { kind: "directory", locator: "/games", recordId: "Game-1.pgn" },
+  });
+  const stateB = createEmptyGameSessionState();
+  stateB.pgnText = "Game B";
+  const second = store.openSession({
+    ownState: stateB,
+    title: "B",
+    sourceRef: { kind: "directory", locator: "/games", recordId: "Game-1.pgn" },
+  });
+
+  assert.equal(first.sessionId, second.sessionId);
+  assert.equal(store.listSessions().length, 1);
+  assert.equal(store.getActiveSessionId(), first.sessionId);
+  assert.equal(activeSessionRef.current.pgnText, "Game A");
+});

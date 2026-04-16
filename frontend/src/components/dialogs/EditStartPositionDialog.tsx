@@ -21,7 +21,7 @@ import {
   type ReactElement,
 } from "react";
 import { STANDARD_STARTING_FEN, validateFenStructure, validateKings } from "../../features/editor/model/fen_utils";
-import { PositionSetupBoard } from "./NewGameDialog";
+import { PositionSetupBoard } from "./PositionSetupBoard";
 
 type EditStartPositionDialogProps = {
   /** Current starting FEN of the game. */

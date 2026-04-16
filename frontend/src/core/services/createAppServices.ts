@@ -59,6 +59,7 @@ import type { AppStoreState, SessionItemState, ResourceTabSnapshot } from "../st
 import type { Dispatch } from "react";
 import type { MovePositionRecord } from "../../board/move_position";
 import { dispatchNavigationState, dispatchSessionStateSnapshot } from "../../hooks/session_state_sync";
+import { log } from "../../logger";
 
 // ── Internal service types ─────────────────────────────────────────────────────
 
@@ -379,6 +380,15 @@ export function createAppServicesBundle(
           toSessionItem(raw, activeSessionId, g.pgnModel ?? null),
         )
         .filter((item: SessionItemState): boolean => item.sessionId !== "");
+      const activeItem: SessionItemState | undefined = sessionItems.find(
+        (item: SessionItemState): boolean => item.sessionId === activeSessionId,
+      );
+      log.info(
+        "createAppServices",
+        `onSessionsChanged: count=${sessionItems.length} active="${activeSessionId ?? "null"}" ` +
+          `activeHeaders=White:"${activeItem?.white ?? ""}" Black:"${activeItem?.black ?? ""}" ` +
+          `Event:"${activeItem?.event ?? ""}" Date:"${activeItem?.date ?? ""}"`,
+      );
       dispatchRef.current({ type: "set_sessions", sessions: sessionItems, activeSessionId });
     },
   });

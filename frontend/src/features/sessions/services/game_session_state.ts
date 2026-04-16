@@ -35,7 +35,7 @@ export type GameSessionState = {
   moves: string[];
   verboseMoves: Array<{ flags?: string; from?: string; to?: string }>;
   movePositionById: MovePositionIndex;
-  /** PGN editor layout — scoped per session (stored in [X2Style] header). */
+  /** PGN editor layout — scoped per session (stored in [XTwoChessStyle] header). */
   pgnLayoutMode: string;
 
   // Navigation

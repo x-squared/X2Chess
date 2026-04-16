@@ -12,6 +12,8 @@
  */
 
 export type X2StyleValue = "plain" | "text" | "tree";
+export const X2CHESS_STYLE_METADATA_KEY = "XTwoChessStyle";
+export const LEGACY_X2_STYLE_METADATA_KEY = "X2Style";
 
 export type PgnResultValue = "1-0" | "0-1" | "1/2-1/2" | "*";
 
@@ -37,7 +39,7 @@ export type PgnMetadataKnownValues = {
   TimeControl?: string;
   Termination?: string;
   Annotator?: string;
-  X2Style?: X2StyleValue;
+  XTwoChessStyle?: X2StyleValue;
   /** Derived material-balance key for position games, e.g. `"KQPPPvKRP"`. */
   Material?: string;
 };
@@ -119,7 +121,7 @@ export const METADATA_KEY = {
   TimeControl: "TimeControl",
   Termination: "Termination",
   Annotator: "Annotator",
-  X2Style: "X2Style",
+  XTwoChessStyle: X2CHESS_STYLE_METADATA_KEY,
   Material: "Material",
 } as const satisfies Readonly<Record<keyof PgnMetadataKnownValues, string>>;
 
@@ -152,7 +154,7 @@ export const DEFAULT_RESOURCE_VIEWER_METADATA_KEYS = Object.freeze([
 
 export const KNOWN_PGN_METADATA_KEYS = Object.freeze([
   ...PGN_STANDARD_METADATA_KEYS,
-  "X2Style",
+  X2CHESS_STYLE_METADATA_KEY,
   "Material",
 ]);
 
@@ -244,6 +246,7 @@ export const PGN_METADATA_SCHEMA: Readonly<Record<string, MetadataFieldSchemaEnt
   TimeControl: { key: "TimeControl", parse: parseStringValue },
   Termination: { key: "Termination", parse: parseStringValue },
   Annotator: { key: "Annotator", parse: parseStringValue },
-  X2Style: { key: "X2Style", parse: parseX2StyleValue },
+  XTwoChessStyle: { key: X2CHESS_STYLE_METADATA_KEY, parse: parseX2StyleValue },
+  X2Style: { key: X2CHESS_STYLE_METADATA_KEY, parse: parseX2StyleValue },
   Material: { key: "Material", parse: parseStringValue },
 });

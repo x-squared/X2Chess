@@ -90,6 +90,48 @@
   color: var(--text-primary);
 }
 
+.raw-pgn-validation-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.raw-pgn-validation-title,
+.raw-pgn-validation-status,
+.raw-pgn-validation-issues-title {
+  margin: 0;
+}
+
+.raw-pgn-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.raw-pgn-status-pill-ok {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #166534;
+}
+
+.raw-pgn-status-pill-warning {
+  background: #fef3c7;
+  border-color: #fcd34d;
+  color: #92400e;
+}
+
+.raw-pgn-status-pill-critical {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+
 .raw-pgn-editor {
   width: 100%;
   min-height: 12rem;
@@ -100,4 +142,53 @@
   border-radius: 4px;
   background: var(--surface-base, #fff);
   box-sizing: border-box;
+}
+
+.raw-pgn-editor[data-issue-highlighted="true"] {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.25);
+}
+
+.raw-pgn-issue-jump {
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: rgba(59, 130, 246, 0.5);
+}
+
+.raw-pgn-issue-jump:hover {
+  text-decoration-color: rgba(59, 130, 246, 1);
+}
+
+.raw-pgn-fix-preview {
+  border: 1px solid var(--border-subtle, #d1d5db);
+  border-radius: 6px;
+  padding: 0.5rem;
+  background: var(--surface-elevated, #f9fafb);
+}
+
+.raw-pgn-fix-preview-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.raw-pgn-fix-preview-text {
+  margin: 0;
+  padding: 0.4rem;
+  max-height: 12rem;
+  overflow: auto;
+  border: 1px solid var(--border-subtle, #d1d5db);
+  border-radius: 4px;
+  background: var(--surface-base, #fff);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  word-break: break-word;
 }

@@ -139,8 +139,10 @@ export const createResourcesCapabilities = ({
       locator: String(sourceRef.locator || ""),
       recordId: sourceRef.recordId === undefined ? undefined : String(sourceRef.recordId),
     });
-    if (pgnInput) pgnInput.value = payload.pgnText;
-    if (typeof onLoadPgn === "function") onLoadPgn();
+    if (pgnInput) {
+      pgnInput.value = payload.pgnText;
+      if (typeof onLoadPgn === "function") onLoadPgn();
+    }
     onSetSaveStatus("", "");
     return payload;
   };

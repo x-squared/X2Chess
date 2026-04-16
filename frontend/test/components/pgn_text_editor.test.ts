@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { shouldRenderCommentBlock } from "../../src/features/editor/components/PgnTextEditor.js";
+import { shouldRenderCommentBlock } from "../../src/features/editor/components/PgnEditorTokenView.js";
 
 test("shouldRenderCommentBlock renders non-empty comments", () => {
   const result: boolean = shouldRenderCommentBlock(true, true, "c1", null, null);

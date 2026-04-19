@@ -108,7 +108,7 @@ export const createNavOps = (
     const isChess960: boolean =
       getHeaderValue(g.pgnModel, "Variant", "").trim().toLowerCase() === "chess960";
     if (!isSetUp || isChess960) {
-      // Default / Chess960: persist as XTwoChessBoardOrientation header.
+      // Default / Chess960: persist as XSqrChessBoardOrientation header.
       // Empty value removes the header (= white, the default).
       const newModel = setHeaderValue(
         g.pgnModel as PgnModel,

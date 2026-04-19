@@ -12,6 +12,8 @@
  * Communication API:
  * - `onCreate(pgn: string)` — called with the new game's PGN on confirm.
  * - `onClose()` — called when the dialog is dismissed without creating.
+ * - Custom position tab: secondary modal explains FEN fields (info button beside
+ *   the FEN input; brief hover delay or click opens it).
  */
 
 import {
@@ -124,6 +126,9 @@ type Tab = "position" | "metadata";
 export const NewGameDialog = ({ onCreate, onClose }: NewGameDialogProps): ReactElement => {
   const t = useTranslator();
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const fenHelpDialogRef = useRef<HTMLDialogElement>(null);
+  const fenHelpHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [fenHelpDialogOpen, setFenHelpDialogOpen] = useState<boolean>(false);
   const [tab, setTab] = useState<Tab>("position");
   const [useCustom, setUseCustom] = useState<boolean>(false);
   const [fen, setFen] = useState<string>(STANDARD_STARTING_FEN);
@@ -143,6 +148,67 @@ export const NewGameDialog = ({ onCreate, onClose }: NewGameDialogProps): ReactE
   });
 
   useEffect((): void => { dialogRef.current?.showModal(); }, []);
+
+  const clearFenHelpHoverTimer = useCallback((): void => {
+    if (fenHelpHoverTimerRef.current !== null) {
+      clearTimeout(fenHelpHoverTimerRef.current);
+      fenHelpHoverTimerRef.current = null;
+    }
+  }, []);
+
+  useEffect((): (() => void) => {
+    return (): void => {
+      clearFenHelpHoverTimer();
+    };
+  }, [clearFenHelpHoverTimer]);
+
+  const openFenHelpDialog = useCallback((): void => {
+    const dlg: HTMLDialogElement | null = fenHelpDialogRef.current;
+    if (dlg === null || dlg.open) {
+      return;
+    }
+    dlg.showModal();
+    setFenHelpDialogOpen(true);
+  }, []);
+
+  const closeFenHelpDialog = useCallback((): void => {
+    const dlg: HTMLDialogElement | null = fenHelpDialogRef.current;
+    if (dlg === null || !dlg.open) {
+      return;
+    }
+    dlg.close();
+    setFenHelpDialogOpen(false);
+  }, []);
+
+  const handleFenHelpDialogClose = useCallback((): void => {
+    setFenHelpDialogOpen(false);
+  }, []);
+
+  const toggleFenHelpDialog = useCallback((): void => {
+    const dlg: HTMLDialogElement | null = fenHelpDialogRef.current;
+    if (dlg === null) {
+      return;
+    }
+    if (dlg.open) {
+      closeFenHelpDialog();
+    } else {
+      openFenHelpDialog();
+    }
+  }, [openFenHelpDialog, closeFenHelpDialog]);
+
+  const FEN_HELP_HOVER_MS: number = 280;
+
+  const onFenHelpButtonMouseEnter = useCallback((): void => {
+    clearFenHelpHoverTimer();
+    fenHelpHoverTimerRef.current = setTimeout((): void => {
+      fenHelpHoverTimerRef.current = null;
+      openFenHelpDialog();
+    }, FEN_HELP_HOVER_MS);
+  }, [clearFenHelpHoverTimer, openFenHelpDialog]);
+
+  const onFenHelpButtonMouseLeave = useCallback((): void => {
+    clearFenHelpHoverTimer();
+  }, [clearFenHelpHoverTimer]);
 
   const chess960Detected = useMemo(
     (): boolean => useCustom && !fenError ? detectChess960(fen) : false,
@@ -185,6 +251,7 @@ export const NewGameDialog = ({ onCreate, onClose }: NewGameDialogProps): ReactE
   const canCreate = !useCustom || !fenError;
 
   return (
+    <>
     <dialog ref={dialogRef} className="newgame-dialog x2-dialog" onClose={onClose}>
       <div className="x2-dialog-body">
         <p className="x2-dialog-title">{t("newgame.title", "New Game")}</p>
@@ -251,9 +318,12 @@ export const NewGameDialog = ({ onCreate, onClose }: NewGameDialogProps): ReactE
             {useCustom && (
               <>
                 <div className="newgame-fen-row">
-                  <label className="newgame-fen-label">
+                  <label className="newgame-fen-label" htmlFor="newgame-fen-input">
                     {t("newgame.fen", "FEN:")}
+                  </label>
+                  <div className="newgame-fen-input-row">
                     <input
+                      id="newgame-fen-input"
                       className={`newgame-fen-input${fenError ? " error" : ""}`}
                       value={fenInput}
                       onChange={(e: ChangeEvent<HTMLInputElement>): void => {
@@ -261,7 +331,36 @@ export const NewGameDialog = ({ onCreate, onClose }: NewGameDialogProps): ReactE
                       }}
                       spellCheck={false}
                     />
-                  </label>
+                    {/* FEN notation — opens help on click or after brief hover */}
+                    <button
+                      type="button"
+                      className="newgame-fen-info-btn"
+                      aria-label={t("newgame.fenHelp.buttonAria", "FEN notation explained")}
+                      aria-expanded={fenHelpDialogOpen}
+                      aria-haspopup="dialog"
+                      aria-controls="newgame-fen-help-dialog"
+                      onClick={toggleFenHelpDialog}
+                      onMouseEnter={onFenHelpButtonMouseEnter}
+                      onMouseLeave={onFenHelpButtonMouseLeave}
+                    >
+                      <svg
+                        className="newgame-fen-info-icon"
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 16v-4" />
+                        <path d="M12 8h.01" />
+                      </svg>
+                    </button>
+                  </div>
                   {fenError ? (
                     <span className="newgame-fen-error">{fenError}</span>
                   ) : (
@@ -423,5 +522,86 @@ export const NewGameDialog = ({ onCreate, onClose }: NewGameDialogProps): ReactE
         </div>
       </div>
     </dialog>
+
+    {/* FEN notation — nested modal (above New Game in top layer) */}
+    <dialog
+      id="newgame-fen-help-dialog"
+      ref={fenHelpDialogRef}
+      className="newgame-fen-help-dialog x2-dialog"
+      onClose={handleFenHelpDialogClose}
+    >
+      <div className="newgame-fen-help-inner">
+        <p className="x2-dialog-title newgame-fen-help-title">
+          {t("newgame.fenHelp.title", "About FEN")}
+        </p>
+        <div className="newgame-fen-help-sections">
+          <section className="newgame-fen-help-section">
+            <h3 className="newgame-fen-help-section-title">
+              {t("newgame.fenHelp.section.placement", "Piece placement")}
+            </h3>
+            <ul className="newgame-fen-help-list">
+              <li>{t("newgame.fenHelp.placement.l1", "The board is written rank by rank from the 8th rank to the 1st.")}</li>
+              <li>{t("newgame.fenHelp.placement.l2", "Within each rank, files run from a to h.")}</li>
+              <li>{t("newgame.fenHelp.placement.l3", "Pieces use letters: uppercase for White, lowercase for Black.")}</li>
+              <li>{t("newgame.fenHelp.placement.l4", "Empty squares are compressed as numbers.")}</li>
+              <li>{t("newgame.fenHelp.placement.l5", "Slashes separate ranks.")}</li>
+            </ul>
+          </section>
+          <section className="newgame-fen-help-section">
+            <h3 className="newgame-fen-help-section-title">
+              {t("newgame.fenHelp.section.sideToMove", "Side to move")}
+            </h3>
+            <ul className="newgame-fen-help-list">
+              <li>{t("newgame.fenHelp.sideToMove.l1", "w means White to move.")}</li>
+              <li>{t("newgame.fenHelp.sideToMove.l2", "b means Black to move.")}</li>
+            </ul>
+          </section>
+          <section className="newgame-fen-help-section">
+            <h3 className="newgame-fen-help-section-title">
+              {t("newgame.fenHelp.section.castling", "Castling rights")}
+            </h3>
+            <ul className="newgame-fen-help-list">
+              <li>{t("newgame.fenHelp.castling.l1", "K — White can castle kingside.")}</li>
+              <li>{t("newgame.fenHelp.castling.l2", "Q — White can castle queenside.")}</li>
+              <li>{t("newgame.fenHelp.castling.l3", "k — Black can castle kingside.")}</li>
+              <li>{t("newgame.fenHelp.castling.l4", "q — Black can castle queenside.")}</li>
+              <li>{t("newgame.fenHelp.castling.l5", "- means no castling is available.")}</li>
+            </ul>
+          </section>
+          <section className="newgame-fen-help-section">
+            <h3 className="newgame-fen-help-section-title">
+              {t("newgame.fenHelp.section.enPassant", "En passant target square")}
+            </h3>
+            <ul className="newgame-fen-help-list">
+              <li>{t("newgame.fenHelp.enPassant.l1", "If a pawn just advanced two squares, this field shows the square behind it.")}</li>
+              <li>{t("newgame.fenHelp.enPassant.l2", "If no en passant capture is possible, use -.")}</li>
+            </ul>
+          </section>
+          <section className="newgame-fen-help-section">
+            <h3 className="newgame-fen-help-section-title">
+              {t("newgame.fenHelp.section.halfmove", "Halfmove clock")}
+            </h3>
+            <ul className="newgame-fen-help-list">
+              <li>{t("newgame.fenHelp.halfmove.l1", "Counts half-moves since the last pawn move or capture.")}</li>
+              <li>{t("newgame.fenHelp.halfmove.l2", "Used for the 50-move draw rule.")}</li>
+            </ul>
+          </section>
+          <section className="newgame-fen-help-section">
+            <h3 className="newgame-fen-help-section-title">
+              {t("newgame.fenHelp.section.fullmove", "Fullmove number")}
+            </h3>
+            <ul className="newgame-fen-help-list">
+              <li>{t("newgame.fenHelp.fullmove.l1", "Starts at 1 and increases after Black's move.")}</li>
+            </ul>
+          </section>
+        </div>
+        <div className="newgame-fen-help-footer">
+          <button type="button" className="x2-dialog-btn x2-dialog-btn--primary" onClick={closeFenHelpDialog}>
+            {t("newgame.fenHelp.close", "Close")}
+          </button>
+        </div>
+      </div>
+    </dialog>
+    </>
   );
 };

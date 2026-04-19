@@ -1,6 +1,6 @@
 # X2Chess User Manual
 
-Last updated: 2026-04-14
+Last updated: 2026-04-19
 
 ## Who this manual is for
 
@@ -48,6 +48,8 @@ X2Chess has three main areas:
 - The New Game dialog opens. Choose:
   - **Standard** — starts from the normal starting position.
   - **Custom FEN** — enter any FEN string to start from a specific position.
+    Use the **information** button beside the FEN field for a short guide to
+    each FEN field (opens after a brief hover or when clicked).
   - **Chess960** — tick the Chess960 checkbox to generate a random starting
     position following Chess960 rules.
 - Click **Create** to open the new game in the editor.
@@ -89,10 +91,15 @@ browser version.
 ## Game info and metadata
 
 The game info bar sits above the board. It shows the players, event, date, and
-result for the active game.
+opening line for the active game.
 
-- Click any field to edit it directly.
-- Metadata fields depend on the active schema (see **Metadata schemas** below).
+- Use the **▼** control on the game info card to open the full header editor.
+- Standard tags (players, ratings, event, date, result, …) are editable there.
+- **XSqr head** shows the main line as **moves only** (move numbers and piece
+  moves, no comments or symbols) up to the first variation or the end of the main
+  line. It is read-only in the UI (you can select and copy the text); when you save
+  the game, that text is stored in the PGN tag `[XSqrHead "..."]`.
+- Metadata fields in lists also depend on the active schema (see **Metadata schemas** below).
 - The **Result** field accepts `1-0`, `0-1`, `½-½`, or `*`.
 
 ---
@@ -590,6 +597,14 @@ A schema defines which metadata fields appear in the game info bar and the
 resource table.
 
 - The **Schema** selector in the resource toolbar switches the active schema.
+- For **Standard PGN**, default table columns list White first, then Black, then
+  other tags; **Result** appears before **ECO**. The resource type “Source” is
+  not offered as a column.
+- Use **Add metadata…** (dropdown next to **Manage schemas…**) to append any
+  field from the full **known** PGN list (including X2 tags such as style,
+  `Material`, `XSqrHead`) plus any extra header keys discovered in loaded games.
+  Entries are sorted **alphabetically** by name. Columns are inserted in canonical order next to related tags.
+  Click **×** on a column header (except **Game**) to remove that column from the table.
 - Click **Manage schemas…** to open the **Schema Editor**:
   - Add, rename, or remove custom schemas.
   - For each schema, define fields: name, type (text, number, flag, select),

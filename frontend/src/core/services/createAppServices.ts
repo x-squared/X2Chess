@@ -27,9 +27,14 @@ import {
   findExistingCommentIdAroundMove,
   getHeaderValue,
   normalizeX2StyleValue,
+  setHeaderValue,
 } from "../../model";
 import { parsePgnToModel } from "../../../../parts/pgnparser/src/pgn_model";
-import { serializeModelToPgn } from "../../../../parts/pgnparser/src/pgn_serialize";
+import {
+  serializeModelToPgn,
+  serializeXsqrHeadMovetext,
+  XSQR_HEAD_HEADER_KEY,
+} from "../../../../parts/pgnparser/src/pgn_serialize";
 import {
   buildMovePositionById,
   resolveMovePositionById,
@@ -408,27 +413,67 @@ export function createAppServicesBundle(
     updateActiveSessionMeta: sessionStore.updateActiveSessionMeta as Parameters<
       typeof createSessionPersistenceService
     >[0]["updateActiveSessionMeta"],
-    getPgnText: (): string => activeSessionRef.current.pgnText,
+    getPgnText: (): string => {
+      const g = activeSessionRef.current;
+      const model = g.pgnModel;
+      if (!model) return g.pgnText || "";
+      try {
+        const xsqrHeadFragment: string = serializeXsqrHeadMovetext(model);
+        const withXsqrHead: unknown = setHeaderValue(model, XSQR_HEAD_HEADER_KEY, xsqrHeadFragment);
+        return serializeModelToPgn(withXsqrHead);
+      } catch (error: unknown) {
+        log.error("createAppServices", "getPgnText: XSqrHead serialization failed", {
+          message: error instanceof Error ? error.message : String(error),
+        });
+        return g.pgnText || "";
+      }
+    },
     saveBySourceRef: resources.saveGameBySourceRef as Parameters<
       typeof createSessionPersistenceService
     >[0]["saveBySourceRef"],
     ensureSourceForActiveSession: async (
-      _session: unknown,
+      session: unknown,
       pgnText: string,
     ): Promise<{ sourceRef?: unknown; revisionToken?: string } | null> => {
       const activeTabId = resourceViewer.getActiveTabId();
       const activeRef = resourceViewer.getActiveResourceRef();
+      log.info("createAppServices", "ensureSourceForActiveSession: active resource tab", {
+        activeTabId: activeTabId ?? "",
+        resourceKind: typeof activeRef?.kind === "string" ? activeRef.kind : "",
+        hasLocator: typeof activeRef?.locator === "string" && activeRef.locator.length > 0,
+      });
       if (!activeTabId || !activeRef?.locator) {
         throw new Error(getTranslator()("pgn.save.noResource", "Open a resource folder or database first to save into"));
       }
+      log.info("createAppServices", "ensureSourceForActiveSession: creating new game record in resource", {
+        resourceKind: String(activeRef.kind || ""),
+      });
+      const parsedForTitle = sessionModel.createSessionFromPgnText(pgnText);
+      const sessionRecord = session as { sessionId?: string };
+      const sessionSlug: string =
+        typeof sessionRecord.sessionId === "string"
+          ? sessionRecord.sessionId.replace(/^session-/i, "").replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "")
+          : "";
+      const uniqueness: string = sessionSlug || String(Date.now());
+      const derivedTitle: string = sessionModel.deriveSessionTitle(parsedForTitle.pgnModel, "game");
+      const titleHint: string = `${derivedTitle}-${uniqueness}`;
       const created = await resources.createGameInResource(
         { kind: activeRef.kind, locator: activeRef.locator },
         pgnText,
+        titleHint,
       );
+      log.info("createAppServices", "ensureSourceForActiveSession: createGameInResource finished", {
+        hasSourceRef: Boolean(created.sourceRef),
+        recordId:
+          created.sourceRef && typeof created.sourceRef.recordId === "string" ? created.sourceRef.recordId : "",
+      });
       return { sourceRef: created.sourceRef, revisionToken: String(created.revisionToken || "") };
     },
     onSetSaveStatus: (status?: string, _kind?: string): void => {
       onStatusChange(status ?? "");
+    },
+    onAfterSuccessfulSave: (): void => {
+      void resourceViewer.refreshActiveTabRows();
     },
   });
   sessionPersistenceRef = sessionPersistence;

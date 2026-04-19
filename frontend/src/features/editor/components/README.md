@@ -5,7 +5,7 @@ UI components for PGN editing and editor support surfaces.
 Most important components:
 
 - `PgnTextEditor.tsx`: main rich editor surface.
-- `GameInfoEditor.tsx`: PGN header editing UI.
+- `GameInfoEditor.tsx`: PGN header editing UI (includes readonly **XSqr head** movetext).
 - `MovesPanel.tsx`, `TextEditorSidebar.tsx`, `RawPgnPanel.tsx`, `AstPanel.tsx`
 - `PgnEditorPreview.tsx`: read-only preview surface reused by settings dialogs.
 

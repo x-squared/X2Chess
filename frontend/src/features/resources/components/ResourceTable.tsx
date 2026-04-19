@@ -5,10 +5,17 @@
  *
  * Column header drag uses pointer events (not HTML5 DnD) to avoid
  * activating the browser's native file-drop machinery (UV1).
+ *
+ * Inspection: table regions use `data-ui-id` from `UI_IDS` in `core/model/ui_ids.ts`; each
+ * data row repeats the same `data-ui-id` for the table row part with a unique
+ * `data-resource-row-index` for the row’s source index.
+ *
+ * Metadata columns (not `game`) show a remove control (×) in the header to drop the column.
  */
 
 import {
   type ReactElement,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type ChangeEvent,
 } from "react";
@@ -21,6 +28,7 @@ import type {
 } from "../services/viewer_utils";
 import type { MetadataSchema, MetadataFieldDefinition } from "../../../../../parts/resource/src/domain/metadata_schema";
 import type { TrainingBadge } from "../../../training/transcript_storage";
+import { UI_IDS } from "../../../core/model/ui_ids";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -47,6 +55,8 @@ type ResourceTableProps = {
   onColDrop: (targetKey: string) => void;
   onSortChange: (key: string) => void;
   onToggleGroup: (groupKey: string) => void;
+  /** Remove a metadata column (not `game`) from the table. */
+  onRemoveMetadataColumn: (key: string) => void;
   /** Training badges keyed by `"kind:locator:recordId"` composite ref (T14). */
   trainingBadges?: Map<string, TrainingBadge>;
 };
@@ -132,6 +142,11 @@ const KindBadge = ({
 }): ReactElement => (
   <span
     className={`resource-kind-badge resource-kind-badge--${kind}`}
+    data-ui-id={
+      kind === "position"
+        ? UI_IDS.RESOURCES_TABLE_KIND_BADGE_POSITION
+        : UI_IDS.RESOURCES_TABLE_KIND_BADGE_GAME
+    }
     title={
       kind === "position"
         ? t("resources.kind.position", "Position")
@@ -162,6 +177,7 @@ const rowSourceGameRef = (row: ResourceRow): string => {
 const TrainingBadgeChip = ({ badge }: { badge: TrainingBadge }): ReactElement => (
   <span
     className="training-badge"
+    data-ui-id={UI_IDS.RESOURCES_TABLE_TRAINING_BADGE}
     title={`${badge.sessionCount} session${badge.sessionCount === 1 ? "" : "s"}, best ${badge.bestScore}%`}
   >
     <span className="training-badge__score">{badge.bestScore}%</span>
@@ -228,6 +244,7 @@ export const ResourceTable = ({
   onColDrop,
   onSortChange,
   onToggleGroup,
+  onRemoveMetadataColumn,
   trainingBadges,
 }: ResourceTableProps): ReactElement => {
   const allRows = activeTab?.rows ?? [];
@@ -275,24 +292,27 @@ export const ResourceTable = ({
     .map((item) => item.row);
 
   return (
-    <div className="resource-table-wrap">
+    <div className="resource-table-wrap" data-ui-id={UI_IDS.RESOURCES_TABLE}>
       {!activeTab ? (
-        <p className="resource-viewer-empty">
+        <p className="resource-viewer-empty" data-ui-id={UI_IDS.RESOURCES_TABLE_EMPTY}>
           {t("resources.noTabs", "No resource tab is open.")}
         </p>
       ) : activeTab.errorMessage ? (
-        <p className="resource-viewer-error">{activeTab.errorMessage}</p>
+        <p className="resource-viewer-error" data-ui-id={UI_IDS.RESOURCES_TABLE_ERROR}>
+          {activeTab.errorMessage}
+        </p>
       ) : activeTab.isLoading ? (
-        <p className="resource-viewer-empty">
+        <p className="resource-viewer-empty" data-ui-id={UI_IDS.RESOURCES_TABLE_LOADING}>
           {t("resources.loading", "Loading resource games...")}
         </p>
       ) : allRows.length === 0 ? (
-        <p className="resource-viewer-empty">
+        <p className="resource-viewer-empty" data-ui-id={UI_IDS.RESOURCES_TABLE_EMPTY}>
           {t("resources.empty", "No games found in this resource.")}
         </p>
       ) : (
-        <table className="resource-games-table">
-          <colgroup>
+        <div className="resource-table-scroll" data-ui-id={UI_IDS.RESOURCES_TABLE_SCROLL}>
+          <table className="resource-games-table" data-ui-id={UI_IDS.RESOURCES_TABLE_GRID}>
+          <colgroup data-ui-id={UI_IDS.RESOURCES_TABLE_COLGROUP}>
             {activeTab.metadataColumnOrder.map((key: string): ReactElement => (
               <col
                 key={key}
@@ -301,7 +321,7 @@ export const ResourceTable = ({
               />
             ))}
           </colgroup>
-          <thead>
+          <thead data-ui-id={UI_IDS.RESOURCES_TABLE_HEAD}>
             <tr>
               {activeTab.metadataColumnOrder.map((key: string): ReactElement => {
                 const isSortedAsc = sortConfig?.key === key && sortConfig.dir === "asc";
@@ -342,6 +362,24 @@ export const ResourceTable = ({
                         {isSortedAsc && <span className="resource-sort-indicator" aria-hidden="true">↑</span>}
                         {isSortedDesc && <span className="resource-sort-indicator" aria-hidden="true">↓</span>}
                       </button>
+                      {key !== "game" && (
+                        <button
+                          type="button"
+                          className="resource-col-remove-btn"
+                          data-ui-id={`${UI_IDS.RESOURCES_TABLE_HEAD}.remove.${key}`}
+                          aria-label={t("resources.table.removeColumn", "Remove column")}
+                          title={t("resources.table.removeColumn", "Remove column")}
+                          onPointerDown={(e: ReactPointerEvent<HTMLButtonElement>): void => {
+                            e.stopPropagation();
+                          }}
+                          onClick={(e: ReactMouseEvent<HTMLButtonElement>): void => {
+                            e.stopPropagation();
+                            onRemoveMetadataColumn(key);
+                          }}
+                        >
+                          ×
+                        </button>
+                      )}
                       <span
                         className="resource-col-resize-handle"
                         aria-hidden="true"
@@ -354,7 +392,7 @@ export const ResourceTable = ({
                 );
               })}
             </tr>
-            <tr className="resource-filter-row">
+            <tr className="resource-filter-row" data-ui-id={UI_IDS.RESOURCES_TABLE_FILTER_ROW}>
               {activeTab.metadataColumnOrder.map((key: string, idx: number): ReactElement => {
                 const fieldDef = fieldDefMap.get(key);
                 const filterVal = columnFilters[key] ?? "";
@@ -435,13 +473,15 @@ export const ResourceTable = ({
               })}
             </tr>
           </thead>
-          <tbody>
+          <tbody data-ui-id={UI_IDS.RESOURCES_TABLE_BODY}>
             {tableItems.map((item: TableItem, i: number): ReactElement => {
               if (item.kind === "groupHeader") {
                 return (
                   <tr
                     key={`group-${item.groupKey}`}
                     className={`resource-group-header resource-group-header--depth${item.depth}`}
+                    data-ui-id={UI_IDS.RESOURCES_TABLE_GROUP_ROW}
+                    data-resource-group-key={item.groupKey}
                     onClick={(): void => { onToggleGroup(item.groupKey); }}
                   >
                     <td
@@ -465,6 +505,8 @@ export const ResourceTable = ({
                 <tr
                   key={i}
                   className="resource-game-row"
+                  data-ui-id={UI_IDS.RESOURCES_TABLE_ROW}
+                  data-resource-row-index={String(item.originalIndex)}
                   onClick={(): void => { onRowOpen(item.originalIndex); }}
                   onDoubleClick={(): void => { onRowOpen(item.originalIndex); }}
                   onKeyDown={(e): void => {
@@ -524,6 +566,7 @@ export const ResourceTable = ({
             })}
           </tbody>
         </table>
+        </div>
       )}
     </div>
   );

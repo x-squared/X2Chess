@@ -132,6 +132,7 @@ export const createSessionOrchestrator = (
     },
 
     saveActiveGameNow: (): void => {
+      log.info("session_orchestrator", "saveActiveGameNow: invoked");
       void bundle.sessionPersistence.persistActiveSessionNow();
     },
 

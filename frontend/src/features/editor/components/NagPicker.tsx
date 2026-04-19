@@ -34,7 +34,7 @@ import {
   type NagDef,
   type NagGroup,
 } from "../../../../../parts/pgnparser/src/nag_defs";
-import { GUIDE_IDS } from "../../guide/model/guide_ids";
+import { UI_IDS } from "../../../core/model/ui_ids";
 
 // ── Shared row component ───────────────────────────────────────────────────────
 
@@ -137,7 +137,7 @@ export const NagPicker = ({
     <div
       className="nag-picker"
       ref={containerRef}
-      data-guide-id={GUIDE_IDS.NAG_ANNOTATION_BUTTONS}
+      data-ui-id={UI_IDS.NAG_ANNOTATION_BUTTONS}
     >
       {GROUPS.map(({ group, defs, defaultGlyph, label }) => {
         const activeDef = defs.find((def): boolean => {

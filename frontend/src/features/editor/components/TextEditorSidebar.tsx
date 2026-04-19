@@ -30,7 +30,7 @@
 
 import { useState } from "react";
 import type { ReactElement } from "react";
-import { GUIDE_IDS } from "../../guide/model/guide_ids";
+import { UI_IDS } from "../../../core/model/ui_ids";
 import type { CommentFormat } from "./comment_markdown_format";
 
 // ── LayoutModeGroup ───────────────────────────────────────────────────────────
@@ -61,11 +61,11 @@ const LayoutModeGroup = ({ layoutMode, t, onSetLayoutMode }: LayoutModeGroupProp
     className="text-editor-sidebar-group"
     role="radiogroup"
     aria-label={t("toolbar.pgnLayout.group", "PGN layout")}
-    data-guide-id={GUIDE_IDS.EDITOR_SIDEBAR_LAYOUT_GROUP}
+    data-ui-id={UI_IDS.EDITOR_SIDEBAR_LAYOUT_GROUP}
   >
     <button
       id="btn-pgn-layout-plain"
-      data-guide-id={GUIDE_IDS.EDITOR_SIDEBAR_LAYOUT_PLAIN}
+      data-ui-id={UI_IDS.EDITOR_SIDEBAR_LAYOUT_PLAIN}
       type="button"
       data-pgn-layout="plain"
       className={`icon-button${layoutMode === "plain" ? " active" : ""}`}
@@ -79,7 +79,7 @@ const LayoutModeGroup = ({ layoutMode, t, onSetLayoutMode }: LayoutModeGroupProp
       id="btn-pgn-layout-text"
       type="button"
       data-pgn-layout="text"
-      data-guide-id={GUIDE_IDS.EDITOR_SIDEBAR_LAYOUT_TEXT}
+      data-ui-id={UI_IDS.EDITOR_SIDEBAR_LAYOUT_TEXT}
       className={`icon-button${layoutMode === "text" ? " active" : ""}`}
       title={t("toolbar.pgnLayout.text", "Text — narrative layout")}
       aria-pressed={layoutMode === "text" ? "true" : "false"}
@@ -91,7 +91,7 @@ const LayoutModeGroup = ({ layoutMode, t, onSetLayoutMode }: LayoutModeGroupProp
       id="btn-pgn-layout-tree"
       type="button"
       data-pgn-layout="tree"
-      data-guide-id={GUIDE_IDS.EDITOR_SIDEBAR_LAYOUT_TREE}
+      data-ui-id={UI_IDS.EDITOR_SIDEBAR_LAYOUT_TREE}
       className={`icon-button${layoutMode === "tree" ? " active" : ""}`}
       title={t("toolbar.pgnLayout.tree", "Tree — structured view")}
       aria-pressed={layoutMode === "tree" ? "true" : "false"}
@@ -217,7 +217,7 @@ export const TextEditorSidebar = ({
   const evalPillsActive: boolean = layoutMode !== "plain" && showEvalPills;
 
   return (
-  <div className="text-editor-sidebar" data-guide-id={GUIDE_IDS.EDITOR_SIDEBAR}>
+  <div className="text-editor-sidebar" data-ui-id={UI_IDS.EDITOR_SIDEBAR}>
     {/* Layout mode group */}
     <LayoutModeGroup layoutMode={layoutMode} t={t} onSetLayoutMode={onSetLayoutMode} />
 
@@ -274,7 +274,7 @@ export const TextEditorSidebar = ({
         type="button"
         title={t("toolbar.commentFormat", "Comment formatting")}
         disabled={!commentFormatEnabled}
-        data-guide-id={GUIDE_IDS.EDITOR_SIDEBAR_FORMAT_COMMENT}
+        data-ui-id={UI_IDS.EDITOR_SIDEBAR_FORMAT_COMMENT}
         onMouseDown={(e): void => { e.preventDefault(); }}
         onClick={(): void => { setFormatDropdownOpen((v: boolean): boolean => !v); }}
       >
@@ -350,7 +350,7 @@ export const TextEditorSidebar = ({
       className="icon-button"
       type="button"
       title={t("toolbar.boardSettings", "Board settings")}
-      data-guide-id={GUIDE_IDS.EDITOR_SIDEBAR_BOARD_SETTINGS}
+      data-ui-id={UI_IDS.EDITOR_SIDEBAR_BOARD_SETTINGS}
       onClick={onOpenBoardSettings}
     >
       ⚙

@@ -43,7 +43,9 @@ export const REQUIRED_PGN_TAG_DEFAULTS: Record<string, string> = {
  * Custom tag: editor layout mode for this game (not standard PGN Seven Tag Roster).
  * Values: `plain` | `text` | `tree`. If the tag is missing, treat as `plain`.
  */
-export const X2_STYLE_HEADER_KEY = "XTwoChessStyle";
+export const X2_STYLE_HEADER_KEY = "XSqrChessStyle";
+/** Transitional name used in older builds; still read when loading PGN. */
+export const LEGACY_XTWOCHESS_STYLE_HEADER_KEY = "XTwoChessStyle";
 export const LEGACY_X2_STYLE_HEADER_KEY = "X2Style";
 
 /**
@@ -52,7 +54,9 @@ export const LEGACY_X2_STYLE_HEADER_KEY = "X2Style";
  * Ignored for games that start from a custom position — those always show the
  * side to move first at the bottom.
  */
-export const X2_BOARD_ORIENTATION_HEADER_KEY = "XTwoChessBoardOrientation";
+export const X2_BOARD_ORIENTATION_HEADER_KEY = "XSqrChessBoardOrientation";
+/** Transitional name used in older builds; still read when loading PGN. */
+export const LEGACY_XTWOCHESS_BOARD_ORIENTATION_HEADER_KEY = "XTwoChessBoardOrientation";
 export const LEGACY_X2_BOARD_ORIENTATION_HEADER_KEY = "X2BoardOrientation";
 
 const X2_STYLE_VALUES: ReadonlySet<string> = new Set<string>(["plain", "text", "tree"]);
@@ -92,7 +96,11 @@ export const getX2StyleFromModel = (model: unknown): X2StyleValue => {
   const raw: string = getHeaderValue(
     model,
     X2_STYLE_HEADER_KEY,
-    getHeaderValue(model, LEGACY_X2_STYLE_HEADER_KEY, ""),
+    getHeaderValue(
+      model,
+      LEGACY_XTWOCHESS_STYLE_HEADER_KEY,
+      getHeaderValue(model, LEGACY_X2_STYLE_HEADER_KEY, ""),
+    ),
   );
   return normalizeX2StyleValue(raw);
 };
@@ -112,9 +120,9 @@ export const getX2StyleFromModel = (model: unknown): X2StyleValue => {
 export const setHeaderValue = (model: unknown, key: string, value: string): PgnModel => {
   const next: PgnModel = cloneModel((model as PgnModel | null) ?? {});
   let canonicalKey: string = key;
-  if (key === LEGACY_X2_STYLE_HEADER_KEY) {
+  if (key === LEGACY_X2_STYLE_HEADER_KEY || key === LEGACY_XTWOCHESS_STYLE_HEADER_KEY) {
     canonicalKey = X2_STYLE_HEADER_KEY;
-  } else if (key === LEGACY_X2_BOARD_ORIENTATION_HEADER_KEY) {
+  } else if (key === LEGACY_X2_BOARD_ORIENTATION_HEADER_KEY || key === LEGACY_XTWOCHESS_BOARD_ORIENTATION_HEADER_KEY) {
     canonicalKey = X2_BOARD_ORIENTATION_HEADER_KEY;
   }
   const normalizedValue: string = String(value ?? "").trim();
@@ -126,9 +134,11 @@ export const setHeaderValue = (model: unknown, key: string, value: string): PgnM
 
   if (canonicalKey === X2_STYLE_HEADER_KEY) {
     removeHeaderByKey(LEGACY_X2_STYLE_HEADER_KEY);
+    removeHeaderByKey(LEGACY_XTWOCHESS_STYLE_HEADER_KEY);
   }
   if (canonicalKey === X2_BOARD_ORIENTATION_HEADER_KEY) {
     removeHeaderByKey(LEGACY_X2_BOARD_ORIENTATION_HEADER_KEY);
+    removeHeaderByKey(LEGACY_XTWOCHESS_BOARD_ORIENTATION_HEADER_KEY);
   }
 
   const existingIndex: number = Array.isArray(next.headers)
@@ -179,8 +189,9 @@ export const ensureRequiredPgnHeaders = (
  * Applies two normalizations:
  *
  * 1. **Custom-header stripping** — chess.js rejects some non-standard custom
- *    tag names used by X2Chess (for example `XTwoChessStyle`,
- *    `XTwoChessBoardOrientation`, plus legacy `X2Style`, `X2BoardOrientation`)
+ *    tag names used by X2Chess (for example `XSqrChessStyle`,
+ *    `XSqrChessBoardOrientation`, transitional `XTwoChessStyle` / `XTwoChessBoardOrientation`,
+ *    plus legacy `X2Style`, `X2BoardOrientation`)
  *    because they contain digits. These headers are UI metadata only and are
  *    removed for chess.js parsing.
  *
@@ -206,7 +217,7 @@ export const normalizeForChessJs = (source: string): string => {
     .split("\n")
     .filter(
       (line: string): boolean =>
-        !/^\[(?:XTwoChessStyle|XTwoChessBoardOrientation|X2Style|X2BoardOrientation)\s+"[^"]*"\]\s*$/i.test(
+        !/^\[(?:XSqrChessStyle|XSqrChessBoardOrientation|XTwoChessStyle|XTwoChessBoardOrientation|X2Style|X2BoardOrientation)\s+"[^"]*"\]\s*$/i.test(
           line.trim(),
         ),
     )
@@ -228,9 +239,9 @@ export const normalizeForChessJs = (source: string): string => {
  *   `SetUp` is intentionally not checked: many PGN producers omit it even when a
  *   custom position is in use, so the presence of the `FEN` header is the
  *   authoritative signal.
- * - **Default-position and Chess960 games**: honour the
- *   `XTwoChessBoardOrientation` header (legacy `X2BoardOrientation` is also read)
- *   header (`"black"` → flipped). If the header is absent, white is at the
+ * - **Default-position and Chess960 games**: honour `XSqrChessBoardOrientation`
+ *   (`"black"` → flipped); transitional `XTwoChessBoardOrientation` and legacy
+ *   `X2BoardOrientation` are read the same way. If the header is absent, white is at the
  *   bottom (not flipped).
  *
  * @param {unknown} model - PGN model.
@@ -251,7 +262,11 @@ export const deriveInitialBoardFlipped = (model: unknown): boolean => {
   const orientation: string = getHeaderValue(
     model,
     X2_BOARD_ORIENTATION_HEADER_KEY,
-    getHeaderValue(model, LEGACY_X2_BOARD_ORIENTATION_HEADER_KEY, ""),
+    getHeaderValue(
+      model,
+      LEGACY_XTWOCHESS_BOARD_ORIENTATION_HEADER_KEY,
+      getHeaderValue(model, LEGACY_X2_BOARD_ORIENTATION_HEADER_KEY, ""),
+    ),
   )
     .trim()
     .toLowerCase();

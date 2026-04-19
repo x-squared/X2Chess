@@ -65,7 +65,7 @@ import { useHoverPreview } from "../../../components/board/HoverPreviewContext";
 import { replayPvToPosition } from "../../../board/move_position";
 import { MenuPanel } from "./MenuPanel";
 import { GuideInspector } from "../../../features/guide/components/GuideInspector";
-import { GUIDE_IDS } from "../../../features/guide/model/guide_ids";
+import { UI_IDS } from "../../../core/model/ui_ids";
 import { GameInfoEditor } from "../../../features/editor/components/GameInfoEditor";
 import { GameSessionsPanel } from "../../../features/resources/components/GameSessionsPanel";
 import { ChessBoard } from "../../../components/board/ChessBoard";
@@ -444,7 +444,7 @@ export const AppShell = (): ReactElement => {
           </div>
 
           {/* ── Game tabs card ── */}
-          <section className="game-tabs-card" data-guide-id={GUIDE_IDS.SESSIONS_PANEL}>
+          <section className="game-tabs-card" data-ui-id={UI_IDS.SESSIONS_PANEL}>
             {/* Menu open trigger — centred on top border of this card */}
             <button
               id="btn-menu"
@@ -483,10 +483,10 @@ export const AppShell = (): ReactElement => {
           <GameInfoEditor />
 
           {/* ── Board / editor split pane ── */}
-          <div ref={boardEditorBoxRef} id="board-editor-box" className="board-editor-box" data-guide-id={GUIDE_IDS.BOARD_ROOT}>
+          <div ref={boardEditorBoxRef} id="board-editor-box" className="board-editor-box" data-ui-id={UI_IDS.BOARD_ROOT}>
             {/* Chessboard — elevated above the training backdrop when training is active */}
             <div
-              data-guide-id={GUIDE_IDS.CHESS_BOARD}
+              data-ui-id={UI_IDS.CHESS_BOARD}
               className={boardWrapperClass}
               style={trainingControls.phase === "in_progress"
                 ? { "--training-board-scale": String(trainingBoardScale) } as CSSProperties
@@ -528,7 +528,7 @@ export const AppShell = (): ReactElement => {
             />
 
             {/* ── Editor pane (toolbar + PGN text editor) ── */}
-            <div className="text-editor-wrap board-editor-pane" data-guide-id={GUIDE_IDS.EDITOR_PANE}>
+            <div className="text-editor-wrap board-editor-pane" data-ui-id={UI_IDS.EDITOR_PANE}>
               <ToolbarRow
                 isAtStart={isAtStart}
                 isAtEnd={isAtEnd}
@@ -595,7 +595,7 @@ export const AppShell = (): ReactElement => {
           </div>
 
           {/* ── Right panel stack (analysis, explorer, search, resources) ── */}
-          {/* data-guide-id is set on the inner .right-panel-stack div via RightPanelStack */}
+          {/* `data-ui-id` is set on the inner .right-panel-stack div via RightPanelStack */}
           <RightPanelStack
             devToolsEnabled={devToolsEnabled}
             variations={variations}

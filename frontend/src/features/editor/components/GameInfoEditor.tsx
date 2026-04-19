@@ -19,6 +19,8 @@
  * - Inbound: re-renders when `pgnModel` or `isGameInfoEditorOpen` change.
  *   The form remounts (via `key`) when the active PGN model ID changes so
  *   `defaultValue` props reflect the newly loaded game.
+ * - **XSqr head** — readonly **moves-only** preview (`serializeXsqrHeadMovetext`); not written
+ *   via `updateGameInfoHeader`; persisted only when the game is saved (`[XSqrHead]`).
  */
 
 import { useMemo, useState } from "react";
@@ -31,6 +33,7 @@ import {
   X2_BOARD_ORIENTATION_HEADER_KEY,
   resolveEcoOpeningName,
   normalizeX2StyleValue,
+  serializeXsqrHeadMovetext,
 } from "../../../model";
 import { useAppContext } from "../../../app/providers/AppStateProvider";
 import {
@@ -43,7 +46,7 @@ import { useServiceContext } from "../../../app/providers/ServiceProvider";
 import { useTranslator } from "../../../app/hooks/useTranslator";
 import { PlayerAutocomplete } from "./PlayerAutocomplete";
 import type { PgnModel } from "../../../../../parts/pgnparser/src/pgn_model";
-import { GUIDE_IDS } from "../../guide/model/guide_ids";
+import { UI_IDS } from "../../../core/model/ui_ids";
 
 // ── Summary helpers ────────────────────────────────────────────────────────────
 
@@ -207,6 +210,11 @@ export const GameInfoEditor = (): ReactElement => {
     return [eco, name].filter(Boolean).join(" ").trim();
   }, [pgnModel]);
 
+  const xsqrHeadDisplay: string = useMemo((): string => {
+    if (!pgnModel) return "";
+    return serializeXsqrHeadMovetext(pgnModel);
+  }, [pgnModel]);
+
   /**
    * `formKey` forces a full remount of the form fields when the active session
    * changes, resetting all local input state to the new session's header values.
@@ -218,7 +226,7 @@ export const GameInfoEditor = (): ReactElement => {
   return (
     <section className={["game-info-card", isOpen ? "editor-open" : ""].filter(Boolean).join(" ")}>
       {/* ── Compact summary row ── */}
-      <div className="game-info-summary-row" data-guide-id={GUIDE_IDS.GAME_INFO_SUMMARY}>
+      <div className="game-info-summary-row" data-ui-id={UI_IDS.GAME_INFO_SUMMARY}>
         <div className="game-info-summary-grid">
           <p className="game-info-item">
             <span className="game-info-label">{t("gameInfo.players", "Players")}</span>
@@ -268,7 +276,7 @@ export const GameInfoEditor = (): ReactElement => {
       <div
         id="game-info-editor"
         className={["game-info-editor", isOpen ? "open" : ""].filter(Boolean).join(" ")}
-        data-guide-id={GUIDE_IDS.GAME_INFO_EDITOR}
+        data-ui-id={UI_IDS.GAME_INFO_EDITOR}
         hidden={!isOpen}
       >
         {/*
@@ -280,7 +288,7 @@ export const GameInfoEditor = (): ReactElement => {
             const id: string = `game-info-${field.key.toLowerCase()}`;
             const isPlayer: boolean =
               (PLAYER_NAME_HEADER_KEYS as readonly string[]).includes(field.key);
-            // XTwoChessBoardOrientation is derived from the live boardFlipped state so
+            // XSqrChessBoardOrientation is derived from the live boardFlipped state so
             // that the select always reflects the current board orientation, and
             // remounts (via key) whenever the board is flipped programmatically.
             let defaultVal: string = resolveFieldValue(pgnModel, field);
@@ -319,6 +327,23 @@ export const GameInfoEditor = (): ReactElement => {
               </label>
             );
           })}
+          {/* XSqrHead — moves-only preview (readonly); single grid column like other fields */}
+          <label className="game-info-editor-field" htmlFor="game-info-xsqr-head">
+            <span>{t("gameInfo.xsqrHead", "XSqr head")}</span>
+            <textarea
+              id="game-info-xsqr-head"
+              className="game-info-xsqr-head"
+              readOnly
+              aria-readonly="true"
+              tabIndex={0}
+              rows={1}
+              wrap="off"
+              spellCheck={false}
+              data-ui-id={UI_IDS.GAME_INFO_XSQR_HEAD}
+              value={xsqrHeadDisplay}
+              title={t("gameInfo.xsqrHead.hint", "Main line moves only (no comments or symbols), up to the first variation or end of game (saved as XSqrHead)")}
+            />
+          </label>
         </div>
       </div>
     </section>

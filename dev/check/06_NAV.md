@@ -21,4 +21,4 @@ See dev/check/00_README.md. These rules must be strictly adhered to when this fi
 - [ ] **NAV-3** — Left/Right arrow keys navigate when the board or editor is focused.
 - [ ] **NAV-4** — Clicking a move token in the text editor navigates to that move.
 - [ ] **NAV-5** — Clicking a move in a variation navigates into the variation (board preview if off-mainline).
-- [ ] **NAV-6** — PGNs with `XTwoChessStyle` / `XTwoChessBoardOrientation` headers (and legacy `X2Style` / `X2BoardOrientation`) still allow move-click navigation and board updates.
+- [ ] **NAV-6** — PGNs with `XSqrChessStyle` / `XSqrChessBoardOrientation` headers (and transitional `XTwoChessStyle` / `XTwoChessBoardOrientation`, legacy `X2Style` / `X2BoardOrientation`) still allow move-click navigation and board updates.

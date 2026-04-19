@@ -41,8 +41,8 @@ test("autoFixPgnCompatibility — renames legacy X2 headers", () => {
   const source = `[Event "?"]\n[X2Style "tree"]\n[X2BoardOrientation "black"]\n\n1. e4 *`;
   const fixed = autoFixPgnCompatibility(source);
   assert.equal(fixed.changed, true);
-  assert.ok(fixed.fixedPgn.includes('[XTwoChessStyle "tree"]'));
-  assert.ok(fixed.fixedPgn.includes('[XTwoChessBoardOrientation "black"]'));
+  assert.ok(fixed.fixedPgn.includes('[XSqrChessStyle "tree"]'));
+  assert.ok(fixed.fixedPgn.includes('[XSqrChessBoardOrientation "black"]'));
   assert.ok(!fixed.fixedPgn.includes("[X2Style "));
   assert.ok(!fixed.fixedPgn.includes("[X2BoardOrientation "));
 });

@@ -1,3 +1,7 @@
+/**
+ * PGN serialization: full game to PGN text, plus `serializeXsqrHeadMovetext` for
+ * the derived mainline-prefix header (`[XSqrHead "..."]`) used on save.
+ */
 import type {
   PgnCommentNode,
   PgnEntryNode,
@@ -84,4 +88,107 @@ export const serializeModelToPgn = (model: unknown): string => {
   const moveText: string = typedModel.root ? serializeVariation(typedModel.root) : "";
   if (headerLines.length === 0) return moveText;
   return `${headerLines.join("\n")}\n\n${moveText}`.trim();
+};
+
+/** PGN header key for the derived mainline-prefix snapshot (filled on save). */
+export const XSQR_HEAD_HEADER_KEY = "XSqrHead";
+
+/**
+ * True when `token` is a white move-number prefix (`1.`, `12.`) — not black (`12...`).
+ */
+const isWhiteMoveNumberToken = (token: string): boolean => /^\d+\.$/.test(String(token ?? "").trim());
+
+/**
+ * True when `token` looks like a SAN half-move (not a comment, NAG, or move number).
+ */
+const looksLikeSanHalfMove = (token: string): boolean => {
+  const s: string = String(token ?? "").trim();
+  if (!s || s.startsWith("{") || s.startsWith("$")) return false;
+  if (/^\d+\./.test(s)) return false;
+  return true;
+};
+
+/**
+ * Join XSqrHead fragments; glue white move numbers to the following SAN
+ * (`1.` + `e4` → `1.e4`) with no intervening space.
+ *
+ * @param parts - Ordered tokens — **move numbers and SAN half-moves only** (no comments or NAGs).
+ * @returns Single movetext string for `[XSqrHead "..."]`.
+ */
+export const joinXsqrHeadParts = (parts: string[]): string => {
+  const merged: string[] = [];
+  let i: number = 0;
+  while (i < parts.length) {
+    const cur: string = parts[i];
+    const next: string | undefined = parts[i + 1];
+    if (next !== undefined && isWhiteMoveNumberToken(cur) && looksLikeSanHalfMove(next)) {
+      merged.push(`${cur}${next}`);
+      i += 2;
+      continue;
+    }
+    merged.push(cur);
+    i += 1;
+  }
+  return merged
+    .map((part: string): string => String(part ?? ""))
+    .filter((part: string): boolean => part.length > 0)
+    .join(" ")
+    .trim();
+};
+
+/**
+ * Serialize the root mainline through the configured stop rule using **half-moves only**:
+ * move-number tokens (`1.`, `12...`) and SAN symbols — no comments, NAGs, or result.
+ *
+ * **Stop rule (initial):** continue until the end of the main trunk, or until the first
+ * nested variation (`( … )`) — either a sibling `variation` entry or the first RAV
+ * (`postItems` / `ravs`) after a move.
+ *
+ * @param model - Parsed `PgnModel`.
+ * @returns Movetext fragment only (no headers); empty when there is no root / no moves.
+ */
+export const serializeXsqrHeadMovetext = (model: unknown): string => {
+  const typedModel: PgnModel = model as PgnModel;
+  if (!typedModel?.root) return "";
+  return serializeXsqrHeadVariation(typedModel.root);
+};
+
+const serializeXsqrHeadVariation = (variation: PgnVariationNode): string => {
+  const parts: string[] = [];
+  let stopped: boolean = false;
+  const stop = (): void => {
+    stopped = true;
+  };
+
+  variation.entries.forEach((entry: PgnEntryNode): void => {
+    if (stopped) return;
+    if (entry.type === "variation") {
+      stop();
+      return;
+    }
+    /** Moves only: omit comments, NAGs, and game result. */
+    if (entry.type === "move_number") {
+      parts.push(entry.text);
+      return;
+    }
+    if (entry.type === "result" || entry.type === "nag" || entry.type === "comment") {
+      return;
+    }
+    if (entry.type !== "move") return;
+
+    const moveEntry: PgnMoveNode = entry;
+    parts.push(moveEntry.san);
+    if (Array.isArray(moveEntry.postItems) && moveEntry.postItems.length > 0) {
+      moveEntry.postItems.forEach((item: PgnPostItem): void => {
+        if (stopped) return;
+        if (item.type === "rav" && item.rav) {
+          stop();
+        }
+      });
+    } else if (Array.isArray(moveEntry.ravs) && moveEntry.ravs.length > 0) {
+      stop();
+    }
+  });
+
+  return joinXsqrHeadParts(parts);
 };

@@ -16,7 +16,7 @@
  */
 
 import { useState, useRef, useEffect, useCallback, type ReactElement } from "react";
-import { GUIDE_IDS } from "../../features/guide/model/guide_ids";
+import { UI_IDS } from "../../core/model/ui_ids";
 
 export type ForkChoice = "replace" | "variation" | "promote";
 
@@ -62,7 +62,7 @@ export const DisambiguationDialog = ({
     <dialog
       ref={dialogRef}
       className="disambiguation-dialog"
-      data-guide-id={GUIDE_IDS.DISAMBIGUATION_DIALOG}
+      data-ui-id={UI_IDS.DISAMBIGUATION_DIALOG}
       onClose={onCancel}
     >
       <div className="disambiguation-dialog-content">

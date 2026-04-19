@@ -13,22 +13,24 @@ test("normalizeX2StyleValue defaults invalid and empty to plain", () => {
   assert.equal(normalizeX2StyleValue(" Tree "), "tree");
 });
 
-test("getX2StyleFromModel reads X2Style header or plain when missing", () => {
+test("getX2StyleFromModel reads XSqrChessStyle, transitional XTwoChessStyle, or X2Style", () => {
   const noTag = { headers: [{ key: "Event", value: "?" }] };
   assert.equal(getX2StyleFromModel(noTag), "plain");
-  const withText = { headers: [{ key: "XTwoChessStyle", value: "text" }] };
-  assert.equal(getX2StyleFromModel(withText), "text");
+  const withXsqr = { headers: [{ key: "XSqrChessStyle", value: "text" }] };
+  assert.equal(getX2StyleFromModel(withXsqr), "text");
+  const withTransitional = { headers: [{ key: "XTwoChessStyle", value: "text" }] };
+  assert.equal(getX2StyleFromModel(withTransitional), "text");
   const withLegacyText = { headers: [{ key: "X2Style", value: "text" }] };
   assert.equal(getX2StyleFromModel(withLegacyText), "text");
 });
 
-test("setHeaderValue writes canonical XTwoChessStyle key", () => {
-  const withLegacyAndCanonical = {
+test("setHeaderValue writes canonical XSqrChessStyle key", () => {
+  const withLegacyAndTransitional = {
     headers: [
       { key: "X2Style", value: "plain" },
       { key: "XTwoChessStyle", value: "text" },
     ],
   };
-  const updated = setHeaderValue(withLegacyAndCanonical, "XTwoChessStyle", "tree");
-  assert.deepEqual(updated.headers, [{ key: "XTwoChessStyle", value: "tree" }]);
+  const updated = setHeaderValue(withLegacyAndTransitional, "XTwoChessStyle", "tree");
+  assert.deepEqual(updated.headers, [{ key: "XSqrChessStyle", value: "tree" }]);
 });

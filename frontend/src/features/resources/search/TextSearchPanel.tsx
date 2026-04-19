@@ -25,7 +25,7 @@ import { selectResourceViewerTabs } from "../../../core/state/selectors";
 import { isPgnResourceRef } from "../../../../../parts/resource/src/domain/resource_ref";
 import type { TextSearchHit } from "../../../../../parts/resource/src/client/search_coordinator";
 import type { PgnResourceRef } from "../../../../../parts/resource/src/domain/resource_ref";
-import { GUIDE_IDS } from "../../guide/model/guide_ids";
+import { UI_IDS } from "../../../core/model/ui_ids";
 
 type TextSearchPanelProps = {
   t: (key: string, fallback?: string) => string;
@@ -85,9 +85,9 @@ export const TextSearchPanel = ({ t, onOpenGame, externalSearch }: TextSearchPan
   }, [externalSearch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="text-search-panel" data-guide-id={GUIDE_IDS.TEXT_SEARCH_PANEL}>
+    <div className="text-search-panel" data-ui-id={UI_IDS.TEXT_SEARCH_PANEL}>
       {/* Header */}
-      <div className="text-search-panel-header" data-guide-id={GUIDE_IDS.TEXT_SEARCH_HEADER}>
+      <div className="text-search-panel-header" data-ui-id={UI_IDS.TEXT_SEARCH_HEADER}>
         <span className="text-search-panel-title">
           {t("textSearch.title", "Game Search")}
         </span>

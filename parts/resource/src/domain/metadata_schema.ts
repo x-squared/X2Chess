@@ -12,7 +12,9 @@
  */
 
 export type X2StyleValue = "plain" | "text" | "tree";
-export const X2CHESS_STYLE_METADATA_KEY = "XTwoChessStyle";
+export const X2CHESS_STYLE_METADATA_KEY = "XSqrChessStyle";
+/** Transitional header key from older builds; still recognized when parsing PGN. */
+export const LEGACY_XTWOCHESS_STYLE_METADATA_KEY = "XTwoChessStyle";
 export const LEGACY_X2_STYLE_METADATA_KEY = "X2Style";
 
 export type PgnResultValue = "1-0" | "0-1" | "1/2-1/2" | "*";
@@ -39,9 +41,11 @@ export type PgnMetadataKnownValues = {
   TimeControl?: string;
   Termination?: string;
   Annotator?: string;
-  XTwoChessStyle?: X2StyleValue;
+  XSqrChessStyle?: X2StyleValue;
   /** Derived material-balance key for position games, e.g. `"KQPPPvKRP"`. */
   Material?: string;
+  /** Derived mainline half-moves (move numbers + SAN only) through the XSqr stop rule (filled on save). */
+  XSqrHead?: string;
 };
 
 export type PgnMetadataScalar = string | number | PgnDateValue | X2StyleValue | PgnResultValue;
@@ -121,20 +125,21 @@ export const METADATA_KEY = {
   TimeControl: "TimeControl",
   Termination: "Termination",
   Annotator: "Annotator",
-  XTwoChessStyle: X2CHESS_STYLE_METADATA_KEY,
+  XSqrChessStyle: X2CHESS_STYLE_METADATA_KEY,
   Material: "Material",
+  XSqrHead: "XSqrHead",
 } as const satisfies Readonly<Record<keyof PgnMetadataKnownValues, string>>;
 
 export const PGN_STANDARD_METADATA_KEYS = Object.freeze([
-  "Event",
-  "Site",
-  "Round",
-  "Date",
   "White",
   "Black",
   "Result",
   "ECO",
   "Opening",
+  "Event",
+  "Site",
+  "Round",
+  "Date",
   "WhiteElo",
   "BlackElo",
   "TimeControl",
@@ -142,20 +147,23 @@ export const PGN_STANDARD_METADATA_KEYS = Object.freeze([
   "Annotator",
 ]);
 
+/** Default visible columns when no viewer prefs exist (players first; Result before ECO). */
 export const DEFAULT_RESOURCE_VIEWER_METADATA_KEYS = Object.freeze([
   "White",
   "Black",
   "Date",
   "Event",
+  "Result",
   "ECO",
   "Opening",
-  "Result",
 ]);
 
+/** All PGN header keys the app projects by default for hybrid extraction (standard + X2). Legacy style tags still parse via `PGN_METADATA_SCHEMA` but are not listed here. */
 export const KNOWN_PGN_METADATA_KEYS = Object.freeze([
   ...PGN_STANDARD_METADATA_KEYS,
   X2CHESS_STYLE_METADATA_KEY,
   "Material",
+  "XSqrHead",
 ]);
 
 // ── User-defined schema types (MD1) ───────────────────────────────────────────
@@ -202,32 +210,45 @@ export type MetadataSchema = {
 /**
  * Built-in read-only schema based on the PGN Seven Tag Roster plus common
  * extensions. Used when no user-defined schema is associated with a resource.
+ * Column order (`orderIndex`): White, Black, Result; ECO, Opening; then Event,
+ * Site, Round, Date; ratings and remaining tags; X2 fields last.
  */
 export const BUILT_IN_SCHEMA: MetadataSchema = Object.freeze({
   id: "builtin",
   name: "Standard PGN",
   version: 1,
   fields: [
-    { key: "Event",       label: "Event",        type: "text",   required: false, orderIndex: 10 },
-    { key: "Site",        label: "Site",         type: "text",   required: false, orderIndex: 20 },
-    { key: "Date",        label: "Date",         type: "date",   required: false, orderIndex: 30 },
-    { key: "Round",       label: "Round",        type: "text",   required: false, orderIndex: 40 },
-    { key: "White",       label: "White",        type: "text",   required: false, orderIndex: 50 },
-    { key: "Black",       label: "Black",        type: "text",   required: false, orderIndex: 60 },
+    { key: "White",       label: "White",        type: "text",   required: false, orderIndex: 10 },
+    { key: "Black",       label: "Black",        type: "text",   required: false, orderIndex: 20 },
     {
       key: "Result",
       label: "Result",
       type: "select",
       required: false,
-      orderIndex: 70,
+      orderIndex: 30,
       selectValues: ["1-0", "0-1", "1/2-1/2", "*"],
     },
-    { key: "WhiteElo",    label: "White Elo",    type: "number", required: false, orderIndex: 80 },
-    { key: "BlackElo",    label: "Black Elo",    type: "number", required: false, orderIndex: 90 },
-    { key: "ECO",         label: "ECO",          type: "text",   required: false, orderIndex: 100 },
-    { key: "Opening",     label: "Opening",      type: "text",   required: false, orderIndex: 110 },
+    { key: "ECO",         label: "ECO",          type: "text",   required: false, orderIndex: 40 },
+    { key: "Opening",     label: "Opening",      type: "text",   required: false, orderIndex: 50 },
+    { key: "Event",       label: "Event",        type: "text",   required: false, orderIndex: 60 },
+    { key: "Site",        label: "Site",         type: "text",   required: false, orderIndex: 70 },
+    { key: "Round",       label: "Round",        type: "text",   required: false, orderIndex: 80 },
+    { key: "Date",        label: "Date",         type: "date",   required: false, orderIndex: 90 },
+    { key: "WhiteElo",    label: "White Elo",    type: "number", required: false, orderIndex: 100 },
+    { key: "BlackElo",    label: "Black Elo",    type: "number", required: false, orderIndex: 110 },
     { key: "TimeControl", label: "Time Control", type: "text",   required: false, orderIndex: 120 },
+    { key: "Termination", label: "Termination",  type: "text",   required: false, orderIndex: 125 },
     { key: "Annotator",   label: "Annotator",    type: "text",   required: false, orderIndex: 130 },
+    {
+      key: X2CHESS_STYLE_METADATA_KEY,
+      label: "XSqr chess style",
+      type: "select",
+      required: false,
+      orderIndex: 135,
+      selectValues: ["plain", "text", "tree"],
+    },
+    { key: "Material", label: "Material", type: "text", required: false, orderIndex: 140 },
+    { key: "XSqrHead", label: "XSqr head", type: "text", required: false, orderIndex: 145 },
   ] as MetadataFieldDefinition[],
 });
 
@@ -246,7 +267,9 @@ export const PGN_METADATA_SCHEMA: Readonly<Record<string, MetadataFieldSchemaEnt
   TimeControl: { key: "TimeControl", parse: parseStringValue },
   Termination: { key: "Termination", parse: parseStringValue },
   Annotator: { key: "Annotator", parse: parseStringValue },
+  XSqrChessStyle: { key: X2CHESS_STYLE_METADATA_KEY, parse: parseX2StyleValue },
   XTwoChessStyle: { key: X2CHESS_STYLE_METADATA_KEY, parse: parseX2StyleValue },
   X2Style: { key: X2CHESS_STYLE_METADATA_KEY, parse: parseX2StyleValue },
   Material: { key: "Material", parse: parseStringValue },
+  XSqrHead: { key: "XSqrHead", parse: parseStringValue },
 });

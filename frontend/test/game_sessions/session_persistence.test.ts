@@ -105,3 +105,27 @@ test("missing source is created on first persist for unsaved session", async () 
   assert.equal(session.revisionToken, "rev-created-2");
   assert.equal(session.dirtyState, "clean");
 });
+
+test("onAfterSuccessfulSave runs after a successful save", async () => {
+  const session = {
+    sessionId: "session-1",
+    sourceRef: { kind: "file", locator: "root", recordId: "game1.pgn" },
+    revisionToken: "rev-1",
+    saveMode: "auto",
+  };
+  let afterCount = 0;
+  const service = createSessionPersistenceService({
+    t: (_key, fallback) => fallback ?? "",
+    getActiveSession: () => session,
+    updateActiveSessionMeta: (patch) => Object.assign(session, patch),
+    getPgnText: () => "1. e4 e5 *",
+    saveBySourceRef: async () => ({ revisionToken: "rev-2" }),
+    onSetSaveStatus: () => {},
+    onAfterSuccessfulSave: () => {
+      afterCount += 1;
+    },
+    autosaveDebounceMs: 10,
+  });
+  await service.persistActiveSessionNow();
+  assert.equal(afterCount, 1);
+});

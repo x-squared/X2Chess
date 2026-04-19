@@ -19,7 +19,12 @@ export type {
   CommentRun,
 } from "./pgn_model";
 
-export { serializeModelToPgn } from "./pgn_serialize";
+export {
+  serializeModelToPgn,
+  serializeXsqrHeadMovetext,
+  joinXsqrHeadParts,
+  XSQR_HEAD_HEADER_KEY,
+} from "./pgn_serialize";
 
 export {
   REQUIRED_PGN_TAG_DEFAULTS,
@@ -27,6 +32,8 @@ export {
   X2_BOARD_ORIENTATION_HEADER_KEY,
   LEGACY_X2_STYLE_HEADER_KEY,
   LEGACY_X2_BOARD_ORIENTATION_HEADER_KEY,
+  LEGACY_XTWOCHESS_STYLE_HEADER_KEY,
+  LEGACY_XTWOCHESS_BOARD_ORIENTATION_HEADER_KEY,
   normalizeX2StyleValue,
   getHeaderValue,
   getX2StyleFromModel,

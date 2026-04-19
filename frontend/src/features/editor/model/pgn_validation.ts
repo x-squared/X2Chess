@@ -123,8 +123,10 @@ export const validatePgnQuality = (source: string): PgnValidationReport => {
 
 const LEGACY_STYLE_HEADER = "X2Style";
 const LEGACY_ORIENTATION_HEADER = "X2BoardOrientation";
-const CANONICAL_STYLE_HEADER = "XTwoChessStyle";
-const CANONICAL_ORIENTATION_HEADER = "XTwoChessBoardOrientation";
+const TRANSITIONAL_STYLE_HEADER = "XTwoChessStyle";
+const TRANSITIONAL_ORIENTATION_HEADER = "XTwoChessBoardOrientation";
+const CANONICAL_STYLE_HEADER = "XSqrChessStyle";
+const CANONICAL_ORIENTATION_HEADER = "XSqrChessBoardOrientation";
 
 const HEADER_LINE_RE = /^\[(\w+)\s+"([^"]*)"\]\s*$/;
 const FEN_LINE_RE = /^\[FEN\s+"[^"]*"\]\s*$/i;
@@ -175,7 +177,16 @@ const applyLegacyHeaderRename = (
       return null;
     }
     state.hasCanonicalStyle = true;
-    changes.push("Renamed X2Style to XTwoChessStyle.");
+    changes.push("Renamed X2Style to XSqrChessStyle.");
+    return `[${CANONICAL_STYLE_HEADER} "${value}"]`;
+  }
+  if (key === TRANSITIONAL_STYLE_HEADER) {
+    if (state.hasCanonicalStyle) {
+      changes.push("Removed duplicate transitional XTwoChessStyle header.");
+      return null;
+    }
+    state.hasCanonicalStyle = true;
+    changes.push("Renamed XTwoChessStyle to XSqrChessStyle.");
     return `[${CANONICAL_STYLE_HEADER} "${value}"]`;
   }
   if (key === LEGACY_ORIENTATION_HEADER) {
@@ -184,7 +195,16 @@ const applyLegacyHeaderRename = (
       return null;
     }
     state.hasCanonicalOrientation = true;
-    changes.push("Renamed X2BoardOrientation to XTwoChessBoardOrientation.");
+    changes.push("Renamed X2BoardOrientation to XSqrChessBoardOrientation.");
+    return `[${CANONICAL_ORIENTATION_HEADER} "${value}"]`;
+  }
+  if (key === TRANSITIONAL_ORIENTATION_HEADER) {
+    if (state.hasCanonicalOrientation) {
+      changes.push("Removed duplicate transitional XTwoChessBoardOrientation header.");
+      return null;
+    }
+    state.hasCanonicalOrientation = true;
+    changes.push("Renamed XTwoChessBoardOrientation to XSqrChessBoardOrientation.");
     return `[${CANONICAL_ORIENTATION_HEADER} "${value}"]`;
   }
   return `[${key} "${value}"]`;

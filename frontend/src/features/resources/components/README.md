@@ -5,7 +5,8 @@ UI components for the resource feature.
 Most important files:
 
 - `ResourceViewer.tsx`: main resource viewer surface.
-- `ResourceTable.tsx`, `ResourceTabBar.tsx`, `ResourceToolbar.tsx`
+- `ResourceTable.tsx`, `ResourceTabBar.tsx`, `ResourceToolbar.tsx` (group-by, schema chooser, **Add metadata…**, column header × to remove a metadata column)
+- `core/model/ui_ids.ts` (`UI_IDS`): stable `data-ui-id` strings for the Resources right panel and the rest of the app (inspection, E2E hooks).
 - `CollectionExplorerPanel.tsx`, `GameSessionsPanel.tsx`
 - `WebImportBrowserPanel.tsx`, `WebImportRulesPanel.tsx`
 

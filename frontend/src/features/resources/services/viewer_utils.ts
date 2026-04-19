@@ -3,7 +3,8 @@
  *
  * Integration API:
  * - Exports: canonical `clampWidth`, `readPrefsMap`, `writePrefsMap`,
- *   `persistTabPrefs`, `reconcileColumns`, and shared types.
+ *   `persistTabPrefs`, `reconcileColumns`, `insertMetadataColumnFromSchema`,
+ *   `listAddableMetadataFields`, `resolveMergedFieldDefinition`, `removeMetadataColumnFromTab`, and shared types.
  * - Exports: `GroupByState`, `SortConfig`, and their localStorage helpers.
  *
  * Configuration API:
@@ -15,6 +16,23 @@
  * - All other exports are pure functions with no I/O.
  */
 
+import {
+  BUILT_IN_SCHEMA,
+  DEFAULT_RESOURCE_VIEWER_METADATA_KEYS,
+  LEGACY_X2_STYLE_METADATA_KEY,
+  LEGACY_XTWOCHESS_STYLE_METADATA_KEY,
+  X2CHESS_STYLE_METADATA_KEY,
+  type MetadataFieldDefinition,
+  type MetadataSchema,
+} from "../../../../../parts/resource/src/domain/metadata_schema";
+
+/** Legacy style header keys omitted from resource viewer column UI (Add metadata + dialog); parsing unchanged. */
+export const RESOURCE_VIEWER_OMIT_KEYS: ReadonlySet<string> = new Set<string>([
+  LEGACY_XTWOCHESS_STYLE_METADATA_KEY,
+  LEGACY_X2_STYLE_METADATA_KEY,
+]);
+import { createVersionedStore } from "../../../storage";
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 export const PREFS_STORAGE_KEY = "x2chess.resourceViewerColumnPrefs.v1";
@@ -23,21 +41,37 @@ export const DEFAULT_COL_WIDTH_PX = 160;
 export const MIN_COL_WIDTH_PX = 90;
 export const MAX_COL_WIDTH_PX = 560;
 
-/** Metadata columns shown when no user preference exists for a tab. */
-export const DEFAULT_METADATA_KEYS: readonly string[] = ["White", "Black", "Result", "Opening", "ECO", "Date"];
+/** Metadata columns shown when no user preference exists for a tab (aligned with `DEFAULT_RESOURCE_VIEWER_METADATA_KEYS`). */
+export const DEFAULT_METADATA_KEYS: readonly string[] = DEFAULT_RESOURCE_VIEWER_METADATA_KEYS;
 
 /**
  * Canonical display order for metadata keys.
  *
  * Keys appear in this order first, then any remaining keys alphabetically,
- * then the system keys (identifier, source, revision) last.
+ * then the system keys (identifier, revision) last.
  */
 export const METADATA_CANONICAL_ORDER: readonly string[] = [
-  "White", "WhiteElo", "Black", "BlackElo", "Result", "Material", "Opening", "ECO", "Event", "Date",
+  "White",
+  "Black",
+  "Result",
+  "ECO",
+  "Opening",
+  "Event",
+  "Site",
+  "Round",
+  "Date",
+  "WhiteElo",
+  "BlackElo",
+  "TimeControl",
+  "Termination",
+  "Annotator",
+  X2CHESS_STYLE_METADATA_KEY,
+  "Material",
+  "XSqrHead",
 ];
 
-/** System keys always placed last in the metadata catalog. */
-export const METADATA_LAST_KEYS: readonly string[] = ["identifier", "source", "revision"];
+/** System keys always placed last in the metadata catalog (`source` omitted — not offered as a column). */
+export const METADATA_LAST_KEYS: readonly string[] = ["identifier", "revision"];
 
 // ── Shared types ──────────────────────────────────────────────────────────────
 
@@ -96,8 +130,6 @@ export const clampWidth = (value: unknown): number => {
 };
 
 // ── Column-prefs localStorage helpers ────────────────────────────────────────
-
-import { createVersionedStore } from "../../../storage";
 
 const columnPrefsStore = createVersionedStore<Record<string, TabPrefs>>({
   key: PREFS_STORAGE_KEY,
@@ -158,17 +190,182 @@ export const writeGroupByState = (tabId: string, state: GroupByState): void => {
 // ── Column-order reconciliation ───────────────────────────────────────────────
 
 /**
+ * Built-in PGN + X2 field definitions overlaid with the active schema; optional
+ * resource-discovered header keys (tags seen in games but not in any schema) get
+ * a high `orderIndex` so they sort after known tags.
+ *
+ * @param schema Currently selected metadata schema.
+ * @param discoveredKeys Header keys reported by the resource loader for this tab (may include custom tags).
+ */
+const buildMergedFieldMap = (
+  schema: MetadataSchema,
+  discoveredKeys?: readonly string[],
+): Map<string, MetadataFieldDefinition> => {
+  const merged: Map<string, MetadataFieldDefinition> = new Map<string, MetadataFieldDefinition>();
+  for (const f of BUILT_IN_SCHEMA.fields) {
+    merged.set(f.key, f);
+  }
+  for (const f of schema.fields) {
+    if (RESOURCE_VIEWER_OMIT_KEYS.has(f.key)) continue;
+    merged.set(f.key, f);
+  }
+  for (const dk of discoveredKeys ?? []) {
+    const key: string = String(dk || "").trim();
+    if (!key || key === "game" || key === "source" || RESOURCE_VIEWER_OMIT_KEYS.has(key) || merged.has(key))
+      continue;
+    merged.set(key, {
+      key,
+      label: key,
+      type: "text",
+      required: false,
+      orderIndex: 50_000,
+    });
+  }
+  return merged;
+};
+
+/**
+ * Resolve a column definition for sorting and labels: active schema overrides built-in;
+ * unknown keys fall back to a text column at the end of canonical order.
+ *
+ * @param schema Active metadata schema.
+ * @param key Header tag name.
+ * @param discoveredKeys Optional keys observed on loaded records for this resource tab.
+ * @returns Field definition used for table ordering and type-aware filters.
+ */
+export const resolveMergedFieldDefinition = (
+  schema: MetadataSchema,
+  key: string,
+  discoveredKeys?: readonly string[],
+): MetadataFieldDefinition => {
+  const merged: Map<string, MetadataFieldDefinition> = buildMergedFieldMap(schema, discoveredKeys);
+  const hit: MetadataFieldDefinition | undefined = merged.get(key);
+  if (hit) return hit;
+  return {
+    key,
+    label: key,
+    type: "text",
+    required: false,
+    orderIndex: 50_000,
+  };
+};
+
+/**
+ * Every metadata column that can still be added to the table: full built-in catalog
+ * merged with the active schema, plus tags discovered on rows but not yet listed.
+ * Sorted **alphabetically by label** (then key).
+ *
+ * @param schema Active metadata schema.
+ * @param metadataColumnOrder Current column keys (includes `game` first when persisted).
+ * @param discoveredKeys Keys reported for this tab’s games.
+ */
+export const listAddableMetadataFields = (
+  schema: MetadataSchema,
+  metadataColumnOrder: readonly string[],
+  discoveredKeys?: readonly string[],
+): MetadataFieldDefinition[] => {
+  const merged: Map<string, MetadataFieldDefinition> = buildMergedFieldMap(schema, discoveredKeys);
+  const shown: Set<string> = new Set(
+    metadataColumnOrder.filter((k: string): boolean => k !== "game"),
+  );
+  const out: MetadataFieldDefinition[] = [...merged.values()].filter(
+    (f: MetadataFieldDefinition): boolean =>
+      !shown.has(f.key) && !RESOURCE_VIEWER_OMIT_KEYS.has(f.key),
+  );
+  out.sort((a: MetadataFieldDefinition, b: MetadataFieldDefinition): number => {
+    const byLabel: number = a.label.localeCompare(b.label, undefined, { sensitivity: "base" });
+    return byLabel !== 0 ? byLabel : a.key.localeCompare(b.key);
+  });
+  return out;
+};
+
+/**
+ * Insert a metadata column key using merged canonical + schema `orderIndex` relative to
+ * keys already visible, without reshuffling unrelated columns.
+ *
+ * @param tab Current tab state.
+ * @param fieldKey Header tag to add.
+ * @param schema Active metadata schema.
+ * @param discoveredKeys Optional keys from loaded rows (must match `listAddableMetadataFields` merge).
+ * @returns Updated tab with the column appended or unchanged if already present or unknown key.
+ */
+export const insertMetadataColumnFromSchema = <T extends TabState>(
+  tab: T,
+  fieldKey: string,
+  schema: MetadataSchema,
+  discoveredKeys?: readonly string[],
+): T => {
+  if (fieldKey === "game" || fieldKey === "source") return tab;
+  if (tab.visibleMetadataKeys.includes(fieldKey)) return tab;
+
+  const merged: Map<string, MetadataFieldDefinition> = buildMergedFieldMap(schema, discoveredKeys);
+  if (!merged.has(fieldKey)) return tab;
+
+  const newIdx: number = merged.get(fieldKey)?.orderIndex ?? 50_000;
+  const rank = (k: string): number => {
+    const d: MetadataFieldDefinition | undefined = merged.get(k);
+    if (d) return d.orderIndex;
+    return resolveMergedFieldDefinition(schema, k, discoveredKeys).orderIndex;
+  };
+
+  const nextVisible: string[] = [...tab.visibleMetadataKeys];
+  let insertPos: number = nextVisible.length;
+  for (let i = 0; i < nextVisible.length; i++) {
+    const keyAt: string | undefined = nextVisible[i];
+    if (keyAt === undefined) continue;
+    if (rank(keyAt) > newIdx) {
+      insertPos = i;
+      break;
+    }
+  }
+  nextVisible.splice(insertPos, 0, fieldKey);
+
+  const nextOrder: string[] = ["game", ...nextVisible];
+  return reconcileColumns({ ...tab, visibleMetadataKeys: nextVisible, metadataColumnOrder: nextOrder });
+};
+
+/**
+ * Remove one metadata column from prefs (not the `game` column). Applies `reconcileColumns`.
+ *
+ * @param tab Current tab.
+ * @param fieldKey Metadata / system column key to remove.
+ * @returns Updated tab state.
+ */
+export const removeMetadataColumnFromTab = <T extends TabState>(
+  tab: T,
+  fieldKey: string,
+): T => {
+  if (fieldKey === "game") return tab;
+  const visible: string[] = tab.visibleMetadataKeys.filter((k: string): boolean => k !== fieldKey);
+  const order: string[] = tab.metadataColumnOrder.filter((k: string): boolean => k !== fieldKey);
+  const columnWidths: Record<string, number> = { ...tab.columnWidths };
+  delete columnWidths[fieldKey];
+  return reconcileColumns({
+    ...tab,
+    visibleMetadataKeys: visible,
+    metadataColumnOrder: order,
+    columnWidths,
+  });
+};
+
+/**
  * Ensure `tab.visibleMetadataKeys`, `metadataColumnOrder`, and `columnWidths`
- * are internally consistent and clamped to valid ranges.
+ * are internally consistent and clamped to valid ranges. When
+ * `visibleMetadataKeys` is empty and the order is only `game`, no default
+ * metadata columns are implied (user removed all).
  *
  * @param tab Source tab state.
  * @returns New tab state with reconciled column fields.
  */
 export const reconcileColumns = <T extends TabState>(tab: T): T => {
-  const visible: string[] =
+  const nonGameCols: string[] = tab.metadataColumnOrder.filter((k: string): boolean => k !== "game");
+  const rawVisible: string[] =
     tab.visibleMetadataKeys.length > 0
-      ? [...tab.visibleMetadataKeys]
-      : [...DEFAULT_METADATA_KEYS];
+      ? [...tab.visibleMetadataKeys].filter((k: string): boolean => k !== "source")
+      : nonGameCols.length === 0
+        ? []
+        : [...DEFAULT_METADATA_KEYS];
+  const visible: string[] = rawVisible.filter((k: string): boolean => k !== "source");
   const allowed: string[] = ["game", ...visible];
   const seen = new Set<string>();
   const order: string[] = [];

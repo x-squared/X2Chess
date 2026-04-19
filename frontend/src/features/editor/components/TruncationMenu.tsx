@@ -26,7 +26,7 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from "react";
 import { NagRow } from "./NagPicker";
-import { GUIDE_IDS } from "../../guide/model/guide_ids";
+import { UI_IDS } from "../../../core/model/ui_ids";
 import { NAG_MOVE_QUALITY, NAG_EVALUATION, NAG_POSITIONAL } from "../../../../../parts/pgnparser/src/nag_defs";
 
 export type TruncationAction =
@@ -151,7 +151,7 @@ export const TruncationMenu = ({
       className="truncation-menu"
       style={style}
       role="menu"
-      data-guide-id={GUIDE_IDS.TRUNCATION_MENU}
+      data-ui-id={UI_IDS.TRUNCATION_MENU}
     >
       {/* ── NAG annotation ─── */}
       <div className="truncation-menu-nag-section">

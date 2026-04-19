@@ -1,10 +1,10 @@
 /**
- * GuideInspector — developer tool for identifying component guide IDs in the
+ * GuideInspector — developer tool for identifying component `data-ui-id` values in the
  * live UI by hovering and pressing Enter to copy the ID to the clipboard.
  *
  * Only active when developer tools are enabled (`isDeveloperToolsEnabled`).
  * Toggle with Alt+Shift+G.  While active, hovering over any element with a
- * `data-guide-id` attribute shows a highlight ring and label.  Pressing Enter
+ * `data-ui-id` attribute shows a highlight ring and label.  Pressing Enter
  * copies the hovered ID to the clipboard.  Escape deactivates.
  *
  * Integration API:
@@ -15,7 +15,7 @@
  * - No props.  Reads `isDeveloperToolsEnabled` from `AppStoreState`.
  *
  * Communication API:
- * - Outbound: `navigator.clipboard.writeText(guideId)` on Enter key.
+ * - Outbound: `navigator.clipboard.writeText(...)` on Enter key.
  * - Inbound: document `mousemove` and `keydown` listeners while active.
  */
 
@@ -27,7 +27,7 @@ import { useServiceContext } from "../../../app/providers/ServiceProvider";
 import { selectDevToolsEnabled } from "../../../core/state/selectors";
 
 type HoveredTarget = {
-  guideId: string;
+  uiId: string;
   rect: DOMRect;
 };
 
@@ -36,7 +36,7 @@ const TOGGLE_CODE = "KeyG";
 
 /** Renders an absolutely-positioned ring and label for the hovered element. */
 const HighlightOverlay = ({ target }: { target: HoveredTarget }): ReactElement => {
-  const { rect, guideId } = target;
+  const { rect, uiId } = target;
   const labelTop: number = rect.bottom + window.scrollY + 4;
   const labelLeft: number = rect.left + window.scrollX;
 
@@ -81,7 +81,7 @@ const HighlightOverlay = ({ target }: { target: HoveredTarget }): ReactElement =
         }}
         aria-hidden="true"
       >
-        {guideId}
+        {uiId}
         <span style={{ opacity: 0.6, marginLeft: "0.5em" }}>(↵ copy)</span>
       </div>
     </>,
@@ -115,7 +115,7 @@ const ActiveBadge = (): ReactElement =>
     document.body,
   );
 
-/** Developer component inspector — hover any guide-annotated element to identify it. */
+/** Developer component inspector — hover any `data-ui-id`-annotated element to identify it. */
 export const GuideInspector = (): ReactElement | null => {
   const { state } = useAppContext();
   const services = useServiceContext();
@@ -146,7 +146,7 @@ export const GuideInspector = (): ReactElement | null => {
         return;
       }
       if (e.key === "Enter" && hoveredRef.current) {
-        void navigator.clipboard.writeText(`{ui-id: ${hoveredRef.current.guideId}}`);
+        void navigator.clipboard.writeText(`{ui-id: ${hoveredRef.current.uiId}}`);
       }
     };
 
@@ -154,16 +154,16 @@ export const GuideInspector = (): ReactElement | null => {
     return (): void => { window.removeEventListener("keydown", handleKeyDown); };
   }, [devToolsEnabled, isActive, services]);
 
-  // Mouse: find nearest ancestor with data-guide-id on each mousemove.
+  // Mouse: find nearest ancestor with `data-ui-id` on each mousemove.
   useEffect((): (() => void) => {
     if (!isActive) return (): void => {};
 
     const handleMouseMove = (e: MouseEvent): void => {
       let el: Element | null = e.target as Element | null;
       while (el) {
-        const guideId: string | null = el.getAttribute("data-guide-id");
-        if (guideId) {
-          setHovered({ guideId, rect: el.getBoundingClientRect() });
+        const uiId: string | null = el.getAttribute("data-ui-id");
+        if (uiId) {
+          setHovered({ uiId, rect: el.getBoundingClientRect() });
           return;
         }
         el = el.parentElement;

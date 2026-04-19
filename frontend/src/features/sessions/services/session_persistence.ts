@@ -14,6 +14,7 @@
  */
 
 import type { SourceRefLike } from "../../../runtime/bootstrap_shared";
+import { log } from "../../../logger";
 import type { DirtyState } from "./session_store";
 
 type SaveMode = "auto" | "manual";
@@ -54,6 +55,8 @@ type SessionPersistenceDeps = {
   ) => Promise<Record<string, unknown>>;
   ensureSourceForActiveSession?: (session: unknown, pgnText: string) => Promise<unknown | null>;
   onSetSaveStatus: (message?: string, kind?: string) => void;
+  /** Called after a save completes successfully (clean revision applied). Used to refresh resource lists. */
+  onAfterSuccessfulSave?: () => void;
   autosaveDebounceMs?: number;
 };
 
@@ -66,6 +69,7 @@ export const createSessionPersistenceService = ({
   saveBySourceRef,
   ensureSourceForActiveSession,
   onSetSaveStatus,
+  onAfterSuccessfulSave,
   autosaveDebounceMs = 700,
 }: SessionPersistenceDeps) => {
   let saveRequestSeq = 0;
@@ -76,6 +80,7 @@ export const createSessionPersistenceService = ({
   const reportSaveError = (error: unknown): void => {
     updateActiveSessionMeta({ dirtyState: "error" });
     const detail: string = error instanceof Error ? error.message : String(error);
+    log.error("session_persistence", "save failed", { detail });
     onSetSaveStatus(`${t("pgn.save.error", "Autosave failed")}: ${detail}`.trim(), "error");
   };
 
@@ -88,19 +93,46 @@ export const createSessionPersistenceService = ({
     session: SessionLike,
     isStillActive: () => boolean,
   ): Promise<SourceRefLike | null | "stale"> => {
-    if (typeof ensureSourceForActiveSession !== "function") return null;
+    if (typeof ensureSourceForActiveSession !== "function") {
+      log.warn("session_persistence", "resolveSourceRef: ensureSourceForActiveSession not wired");
+      return null;
+    }
     try {
+      log.info("session_persistence", "resolveSourceRef: calling ensureSourceForActiveSession", {
+        sessionId: session.sessionId,
+      });
       const ensured: EnsureSourceResult = (await ensureSourceForActiveSession(session, getPgnText())) as EnsureSourceResult;
-      if (!isStillActive()) return "stale";
-      if (!ensured?.sourceRef) return null;
+      if (!isStillActive()) {
+        log.info("session_persistence", "resolveSourceRef: abandoned — session no longer active", {
+          sessionId: session.sessionId,
+        });
+        return "stale";
+      }
+      if (!ensured?.sourceRef) {
+        log.warn("session_persistence", "resolveSourceRef: ensure returned no sourceRef", {
+          sessionId: session.sessionId,
+        });
+        return null;
+      }
       updateActiveSessionMeta({
         sourceRef: ensured.sourceRef,
         pendingResourceRef: null,
         revisionToken: String(ensured.revisionToken || ""),
       });
+      log.info("session_persistence", "resolveSourceRef: ensured new sourceRef", {
+        sessionId: session.sessionId,
+        kind: typeof ensured.sourceRef.kind === "string" ? ensured.sourceRef.kind : "",
+        hasLocator: typeof ensured.sourceRef.locator === "string" && ensured.sourceRef.locator.length > 0,
+        hasRecordId: typeof ensured.sourceRef.recordId === "string" && ensured.sourceRef.recordId.length > 0,
+      });
       return ensured.sourceRef;
     } catch (error: unknown) {
-      if (!isStillActive()) return "stale";
+      if (!isStillActive()) {
+        log.info("session_persistence", "resolveSourceRef: error path abandoned — session no longer active", {
+          sessionId: session.sessionId,
+        });
+        return "stale";
+      }
       reportSaveError(error);
       return null;
     }
@@ -117,33 +149,78 @@ export const createSessionPersistenceService = ({
     isStillActive: () => boolean,
   ): Promise<void> => {
     try {
+      log.info("session_persistence", "executeSave: invoking saveBySourceRef", {
+        sessionId: session.sessionId,
+        requestId,
+        kind: typeof sourceRef.kind === "string" ? sourceRef.kind : "",
+        hasLocator: typeof sourceRef.locator === "string" && sourceRef.locator.length > 0,
+        hasRecordId: typeof sourceRef.recordId === "string" && sourceRef.recordId.length > 0,
+      });
       const saveResult: SaveResult = await saveBySourceRef(
         sourceRef,
         getPgnText(),
         String(session.revisionToken || ""),
         { sessionId: session.sessionId },
       );
-      if (requestId !== saveRequestSeq || !isStillActive()) return;
+      if (requestId !== saveRequestSeq || !isStillActive()) {
+        log.info("session_persistence", "executeSave: result ignored — stale request or inactive session", {
+          sessionId: session.sessionId,
+          requestId,
+          latestRequestId: saveRequestSeq,
+        });
+        return;
+      }
       updateActiveSessionMeta({
         dirtyState: "clean",
         revisionToken: String(saveResult.revisionToken || Date.now()),
       });
       onSetSaveStatus(t("pgn.save.saved", "Saved"), "saved");
+      log.info("session_persistence", "executeSave: completed", { sessionId: session.sessionId, requestId });
+      if (typeof onAfterSuccessfulSave === "function") {
+        onAfterSuccessfulSave();
+      }
     } catch (error: unknown) {
-      if (requestId !== saveRequestSeq || !isStillActive()) return;
+      if (requestId !== saveRequestSeq || !isStillActive()) {
+        log.info("session_persistence", "executeSave: error ignored — stale request or inactive session", {
+          sessionId: session.sessionId,
+          requestId,
+        });
+        return;
+      }
       reportSaveError(error);
     }
   };
 
   const persistActiveSessionNow = async (): Promise<void> => {
     const session: SessionLike | null = getActiveSession();
-    if (!session) return;
+    if (!session) {
+      log.warn("session_persistence", "persistActiveSessionNow: no active session");
+      return;
+    }
     const capturedSessionId: string = session.sessionId;
     const isStillActive = (): boolean => getActiveSession()?.sessionId === capturedSessionId;
+    const initialRef = session.sourceRef || null;
+    log.info("session_persistence", "persistActiveSessionNow: start", {
+      sessionId: capturedSessionId,
+      saveMode: session.saveMode || defaultSaveMode,
+      hasInitialSourceRef: Boolean(initialRef),
+      initialKind: typeof initialRef?.kind === "string" ? initialRef.kind : "",
+    });
     let activeSourceRef: SourceRefLike | null = session.sourceRef || null;
     if (!activeSourceRef) {
       const resolved = await resolveSourceRef(session, isStillActive);
-      if (resolved === "stale" || resolved === null) return;
+      if (resolved === "stale") {
+        log.info("session_persistence", "persistActiveSessionNow: aborted after resolve (stale)", {
+          sessionId: capturedSessionId,
+        });
+        return;
+      }
+      if (resolved === null) {
+        log.warn("session_persistence", "persistActiveSessionNow: aborted — could not resolve sourceRef", {
+          sessionId: capturedSessionId,
+        });
+        return;
+      }
       activeSourceRef = resolved;
     }
     const requestId: number = ++saveRequestSeq;

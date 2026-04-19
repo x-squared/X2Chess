@@ -17,7 +17,7 @@
 
 import { useCallback, type ReactElement } from "react";
 import type { TbProbeResult, TbWdl, TbMoveEntry } from "../../../resources/ext_databases/endgame_types";
-import { GUIDE_IDS } from "../../guide/model/guide_ids";
+import { UI_IDS } from "../../../core/model/ui_ids";
 
 type TablebasePanelProps = {
   result: TbProbeResult | null;
@@ -130,9 +130,9 @@ export const TablebasePanel = ({
   const losingMoves   = result ? result.moves.filter((m) => m.wdl === "loss" || m.wdl === "unknown").sort(byDtzDesc)   : [];
 
   return (
-    <div className="tablebase-panel" data-guide-id={GUIDE_IDS.TABLEBASE_PANEL}>
+    <div className="tablebase-panel" data-ui-id={UI_IDS.TABLEBASE_PANEL}>
       {/* Header */}
-      <div className="tablebase-panel-header" data-guide-id={GUIDE_IDS.TABLEBASE_PANEL_HEADER}>
+      <div className="tablebase-panel-header" data-ui-id={UI_IDS.TABLEBASE_PANEL_HEADER}>
         <span className="tablebase-panel-title">
           {t("tablebase.panel.title", "Tablebase")}
         </span>
@@ -179,7 +179,7 @@ export const TablebasePanel = ({
           )}
 
           {!isLoading && result && (winningMoves.length > 0 || drawingMoves.length > 0 || losingMoves.length > 0) && (
-            <div className="tb-groups" data-guide-id={GUIDE_IDS.TABLEBASE_MOVES}>
+            <div className="tb-groups" data-ui-id={UI_IDS.TABLEBASE_MOVES}>
               <MoveGroup label={t("tablebase.group.winning", "Winning")} moves={winningMoves} wdl="win"  onMoveClick={onMoveClick} />
               <MoveGroup label={t("tablebase.group.drawing", "Drawing")} moves={drawingMoves} wdl="draw" onMoveClick={onMoveClick} />
               <MoveGroup label={t("tablebase.group.losing",  "Losing")}  moves={losingMoves}  wdl="loss" onMoveClick={onMoveClick} />

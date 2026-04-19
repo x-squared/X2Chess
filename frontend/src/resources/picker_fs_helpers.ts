@@ -136,6 +136,40 @@ export const pathBaseUnix = (pathValue: string): string =>
     .filter(Boolean)
     .pop() || "";
 
+/**
+ * Normalize a filesystem path for prefix checks (forward slashes, trim).
+ */
+const normalizePathForCompare = (pathValue: string): string =>
+  String(pathValue || "")
+    .trim()
+    .replace(/\\/g, "/")
+    .replace(/\/+$/, "");
+
+/**
+ * Choose the directory used for listing and saving `.pgn` games.
+ *
+ * When the resource tab still points at a library **root** but runtime state was
+ * resolved to a nested **`games`** folder (see `resolveTauriRootAndGamesDirectory`),
+ * `preferredLocator` is the root and `stateGamesPath` is `root/games`. Listing with
+ * only the root misses files stored under `games/` — prefer `stateGamesPath` when it
+ * is strictly nested under `preferredLocator`.
+ *
+ * @param preferredLocator Directory locator from the open resource tab (or empty).
+ * @param stateGamesPath Resolved `gameDirectoryPath` from the picker state (or empty).
+ * @returns Path string to pass to `list_pgn_files` / `save_game_file`.
+ */
+export const resolveEffectiveGamesDirectory = (preferredLocator: string, stateGamesPath: string): string => {
+  const pTrim: string = String(preferredLocator || "").trim();
+  const sTrim: string = String(stateGamesPath || "").trim();
+  if (!pTrim) return sTrim;
+  if (!sTrim) return pTrim;
+  const pn: string = normalizePathForCompare(pTrim);
+  const sn: string = normalizePathForCompare(sTrim);
+  if (sn === pn) return pTrim;
+  if (sn.startsWith(`${pn}/`)) return sTrim;
+  return pTrim;
+};
+
 // ── Directory handle utilities ────────────────────────────────────────────────
 
 export const asDirectoryHandle = (value: unknown): DirectoryHandleWithMethods | null => {

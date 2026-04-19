@@ -16,6 +16,7 @@
 import {
   X2_BOARD_ORIENTATION_HEADER_KEY,
   X2_STYLE_HEADER_KEY,
+  XSQR_HEAD_HEADER_KEY,
   ensureRequiredPgnHeaders,
   findExistingCommentIdAroundMove,
   findMoveNode,
@@ -227,6 +228,10 @@ export const createEditingOps = (
   // ── Game info headers ───────────────────────────────────────────────────────
 
   updateGameInfoHeader: (sessionId: string, key: string, rawValue: string): void => {
+    if (key === XSQR_HEAD_HEADER_KEY) {
+      log.info("session_editing_ops", "updateGameInfoHeader: ignored read-only XSqrHead");
+      return;
+    }
     const activeSessionId: string | null = bundle.sessionStore.getActiveSessionId();
     if (sessionId !== activeSessionId) {
       log.info(

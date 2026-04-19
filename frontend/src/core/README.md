@@ -5,6 +5,7 @@
 Important subdirectories:
 
 - `contracts/`: service contracts and shared capability types such as `AppStartupServices`.
+- `model/`: cross-cutting registries such as `ui_ids.ts` (`UI_IDS` for every `data-ui-id` in the tree).
 - `services/`: orchestration and service factories such as `createAppServices.ts` and `session_orchestrator.ts`.
 - `state/`: canonical re-export surface for store contracts/selectors used by app and services.
 

@@ -28,7 +28,7 @@ import type {
   ExtGameEntry,
   GameSearchQuery,
 } from "../../../resources/ext_databases/game_db_types";
-import { GUIDE_IDS } from "../../guide/model/guide_ids";
+import { UI_IDS } from "../../../core/model/ui_ids";
 
 // ── Registered adapters ────────────────────────────────────────────────────────
 
@@ -107,7 +107,7 @@ export const GameSearchPanel = ({ onImport, t }: GameSearchPanelProps): ReactEle
   );
 
   return (
-    <div className="game-search-panel" data-guide-id={GUIDE_IDS.GAME_SEARCH_PANEL}>
+    <div className="game-search-panel" data-ui-id={UI_IDS.GAME_SEARCH_PANEL}>
       <form className="game-search-form" onSubmit={handleSearch}>
 
         {/* Source selector */}

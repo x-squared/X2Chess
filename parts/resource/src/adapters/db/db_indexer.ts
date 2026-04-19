@@ -12,7 +12,7 @@
  */
 
 import type { DbGateway } from "../../io/db_gateway";
-import { extractMultiPgnMetadata, extractPgnMetadata } from "../../domain/metadata";
+import { extractMultiPgnMetadata, extractPgnMetadata, extractPgnMetadataFromSource } from "../../domain/metadata";
 import { materialKeyFromFen } from "../../domain/material_key";
 import { PGN_STANDARD_METADATA_KEYS } from "../../domain/metadata_schema";
 import type { BuildPositionIndex } from "./position_index";
@@ -153,16 +153,12 @@ const writeMaterialKey = async (
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
 /**
- * Extract all distinct header key names from PGN text, including standard keys.
- * Used to ensure both user-defined and standard keys are indexed.
+ * Distinct header key names for indexing — same bracket parse as SSOT extraction.
  */
 const allHeaderKeys = (pgnText: string): string[] => {
-  const source = String(pgnText || "").replaceAll("\r\n", "\n");
   const seen = new Set<string>(PGN_STANDARD_METADATA_KEYS);
-  const headerRe = /^\s*\[(\w+)\s+"/;
-  for (const line of source.split("\n")) {
-    const m = headerRe.exec(line);
-    if (m) seen.add(String(m[1]));
+  for (const key of Object.keys(extractPgnMetadataFromSource(pgnText).metadata)) {
+    seen.add(key);
   }
   return [...seen];
 };

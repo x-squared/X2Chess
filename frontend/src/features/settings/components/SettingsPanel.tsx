@@ -21,7 +21,7 @@
 import type { ReactElement } from "react";
 import type { ShapeColor } from "../../../board/board_shapes";
 import type { ShapePrefs, SquareStyleMode } from "../../../runtime/shape_prefs";
-import { GUIDE_IDS } from "../../guide/model/guide_ids";
+import { UI_IDS } from "../../../core/model/ui_ids";
 
 type SettingsPanelProps = {
   prefs: ShapePrefs;
@@ -84,7 +84,7 @@ export const SettingsPanel = ({
   };
 
   return (
-    <div className="settings-panel" data-guide-id={GUIDE_IDS.SETTINGS_PANEL}>
+    <div className="settings-panel" data-ui-id={UI_IDS.SETTINGS_PANEL}>
       {/* ── Board annotations ──────────────────────────────── */}
       <div className="settings-section">
         <h3 className="settings-section-title">

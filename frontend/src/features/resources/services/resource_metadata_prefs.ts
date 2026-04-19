@@ -63,7 +63,6 @@ type PersistedPrefsMap = Record<string, PersistedTabPrefs>;
 
 const BUILTIN_METADATA_FIELDS: ReadonlyArray<MetadataCatalogEntry> = Object.freeze([
   { key: "identifier", label: "Identifier" },
-  { key: "source", label: "Source" },
   { key: "revision", label: "Revision" },
   ...PGN_METADATA_FIELDS.map((field: string): MetadataCatalogEntry => ({ key: field, label: field })),
 ]);

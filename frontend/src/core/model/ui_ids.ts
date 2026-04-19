@@ -1,41 +1,33 @@
 /**
- * Guide IDs registry — typed constants for all semantic component targets.
- *
- * Every `data-guide-id` attribute in the component tree must reference a
- * constant from this object.  Raw string literals are disallowed to prevent
- * drift when components move.
+ * Canonical UI identifier registry — every `data-ui-id` in the component tree must
+ * reference a constant from `UI_IDS`. Raw string literals are disallowed so IDs do
+ * not drift when markup moves.
  *
  * Integration API:
- * - `import { GUIDE_IDS } from "../model/guide_ids"` then
- *   `<div data-guide-id={GUIDE_IDS.BOARD_ROOT}>`.
- *
- * Configuration API:
- * - Add new entries to `GUIDE_IDS` when a new guideable element is added.
- *   Remove the entry when the element is deleted; TypeScript flags all uses.
+ * - `import { UI_IDS } from "../../core/model/ui_ids"` then
+ *   `<div data-ui-id={UI_IDS.BOARD_ROOT}>`.
  *
  * Communication API:
- * - Read-only constant — no side effects.
+ * - Read-only constants — no side effects.
  */
 
-export const GUIDE_IDS = {
+export const UI_IDS = {
   // ── Application shell ────────────────────────────────────────────────────
   APP_MENU: "app.menu",
 
   // ── Session management ──────────────────────────────────────────────────
   SESSIONS_PANEL: "sessions.panel",
 
-  // ── Game info (header editor) ───────────────────────────────────────────
+  // ── Game info (header editor) ─────────────────────────────────────────
   GAME_INFO_SUMMARY: "game-info.summary",
   GAME_INFO_EDITOR: "game-info.editor",
+  /** XSqrHead movetext field inside the game-info editor region. */
+  GAME_INFO_XSQR_HEAD: "game-info.xsqr-head",
 
   // ── Chess board ─────────────────────────────────────────────────────────
-  /** Outer split-pane container (board + editor side by side). */
   BOARD_ROOT: "board.root",
-  /** The chessboard canvas itself. */
   CHESS_BOARD: "board.chess-board",
-  /** Toolbar strip above the PGN editor. */
   TOOLBAR: "editor.toolbar",
-  /** Editor pane wrapper (toolbar + text editor + sidebar). */
   EDITOR_PANE: "editor.pane",
 
   // ── Navigation toolbar ──────────────────────────────────────────────────
@@ -85,9 +77,7 @@ export const GUIDE_IDS = {
   RIGHT_PANEL_SETTINGS: "panel.settings",
 
   // ── Editor annotations ──────────────────────────────────────────────────
-  /** Compact three-button NAG annotation row shown when a move is selected. */
   NAG_ANNOTATION_BUTTONS: "editor.nag-buttons",
-  /** Right-click context menu on a move token. */
   TRUNCATION_MENU: "editor.context-menu",
 
   // ── Panel components ────────────────────────────────────────────────────
@@ -110,7 +100,34 @@ export const GUIDE_IDS = {
   PLAYERS_PANEL: "players.panel",
   PLAYERS_PANEL_LIST: "players.panel.list",
   SETTINGS_PANEL: "settings.panel",
+  /** Resources right-panel viewer root (`<section class="resource-viewer-card">`). */
   RESOURCE_VIEWER_PANEL: "resources.panel",
+
+  // ── Resources viewer (sub-regions of `RESOURCE_VIEWER_PANEL`) ────────────
+  RESOURCES_TAB_BAR: "resources.panel.tabBar",
+  RESOURCES_TAB_HEADER: "resources.panel.tabBar.header",
+  RESOURCES_TAB_STRIP: "resources.panel.tabBar.strip",
+  RESOURCES_TAB: "resources.panel.tabBar.tab",
+  RESOURCES_TOOLBAR: "resources.panel.toolbar",
+  RESOURCES_TABLE: "resources.panel.table",
+  RESOURCES_TABLE_EMPTY: "resources.panel.table.empty",
+  RESOURCES_TABLE_ERROR: "resources.panel.table.error",
+  RESOURCES_TABLE_LOADING: "resources.panel.table.loading",
+  RESOURCES_TABLE_SCROLL: "resources.panel.table.scroll",
+  RESOURCES_TABLE_GRID: "resources.panel.table.grid",
+  RESOURCES_TABLE_COLGROUP: "resources.panel.table.colgroup",
+  RESOURCES_TABLE_HEAD: "resources.panel.table.head",
+  RESOURCES_TABLE_FILTER_ROW: "resources.panel.table.filterRow",
+  RESOURCES_TABLE_BODY: "resources.panel.table.body",
+  /** Data rows — many `<tr>` elements share this `data-ui-id` value. */
+  RESOURCES_TABLE_ROW: "resources.panel.table.row",
+  /** Group header rows in grouped table view. */
+  RESOURCES_TABLE_GROUP_ROW: "resources.panel.table.groupRow",
+  /** Kind column badge for a full game row. */
+  RESOURCES_TABLE_KIND_BADGE_GAME: "resources.panel.table.kindBadge.game",
+  /** Kind column badge for a position row. */
+  RESOURCES_TABLE_KIND_BADGE_POSITION: "resources.panel.table.kindBadge.position",
+  RESOURCES_TABLE_TRAINING_BADGE: "resources.panel.table.trainingBadge",
 
   // ── Dialogs ─────────────────────────────────────────────────────────────
   DISAMBIGUATION_DIALOG: "dialog.disambiguation",
@@ -124,5 +141,5 @@ export const GUIDE_IDS = {
   RIGHT_PANEL_DEV_TOOLS: "panel.dev-tools",
 } as const;
 
-/** Union of all registered guide ID strings. */
-export type GuideId = (typeof GUIDE_IDS)[keyof typeof GUIDE_IDS];
+/** Union of all registered `data-ui-id` string values. */
+export type UiId = (typeof UI_IDS)[keyof typeof UI_IDS];

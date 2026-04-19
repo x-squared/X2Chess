@@ -25,7 +25,7 @@ import { useServiceContext } from "../../providers/ServiceProvider";
 import { useTranslator } from "../../hooks/useTranslator";
 import { AstPanel } from "../../../features/editor/components/AstPanel";
 import { RawPgnPanel } from "../../../features/editor/components/RawPgnPanel";
-import { GUIDE_IDS } from "../../../features/guide/model/guide_ids";
+import { UI_IDS } from "../../../core/model/ui_ids";
 
 /** Renders the developer tools dock with AST and Raw PGN tabs. */
 export const DevDock = (): ReactElement => {
@@ -39,7 +39,7 @@ export const DevDock = (): ReactElement => {
     <section
       id="developer-dock"
       className="developer-dock"
-      data-guide-id={GUIDE_IDS.DEV_DOCK}
+      data-ui-id={UI_IDS.DEV_DOCK}
       hidden={!isOpen}
     >
       {/* Resize handle */}

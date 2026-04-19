@@ -1,7 +1,11 @@
 import { PgnResourceError } from "../../domain/actions";
 import type { PgnResourceAdapter } from "../../domain/contracts";
 import type { PgnGameRef } from "../../domain/game_ref";
-import { extractPgnMetadata, PGN_STANDARD_METADATA_KEYS } from "../../domain/metadata";
+import {
+  extractPgnMetadata,
+  extractPgnMetadataFromSource,
+  mergeMetadataCatalogKeys,
+} from "../../domain/metadata";
 import type { PgnResourceRef } from "../../domain/resource_ref";
 import type { FsGateway } from "../../io/fs_gateway";
 
@@ -72,17 +76,20 @@ export const createFileAdapter = ({ fsGateway }: { fsGateway: FsGateway }): PgnR
     const sourceText = await fsGateway.readTextFile(locator);
     const games = splitPgnDatabaseGames(String(sourceText || ""));
     return {
-      entries: games.map((gameText: string, index: number) => ({
-        gameRef: {
-          kind: "file" as const,
-          locator,
-          recordId: String(index + 1),
-        },
-        title: deriveGameTitle(gameText, index),
-        revisionToken: "",
-        metadata: extractPgnMetadata(gameText).metadata,
-        availableMetadataKeys: [...PGN_STANDARD_METADATA_KEYS],
-      })),
+      entries: games.map((gameText: string, index: number) => {
+        const fromSource = extractPgnMetadataFromSource(gameText);
+        return {
+          gameRef: {
+            kind: "file" as const,
+            locator,
+            recordId: String(index + 1),
+          },
+          title: deriveGameTitle(gameText, index),
+          revisionToken: "",
+          metadata: fromSource.metadata,
+          availableMetadataKeys: mergeMetadataCatalogKeys(fromSource.discoveredKeysInOrder),
+        };
+      }),
     };
   },
   load: async (gameRef: PgnGameRef) => {

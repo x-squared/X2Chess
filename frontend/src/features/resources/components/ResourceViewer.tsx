@@ -10,6 +10,8 @@
  * Integration API:
  * - `<ResourceViewer />` — rendered by `AppShell` as the resource viewer card;
  *   no props required.
+ * - DOM inspection: root `data-ui-id="resources.panel"` (`UI_IDS.RESOURCE_VIEWER_PANEL`);
+ *   inner regions use `UI_IDS` (`ResourceTabBar`, `ResourceToolbar`, `ResourceTable`).
  *
  * Configuration API:
  * - No props.  Tab list flows from `AppStoreState.resourceViewerTabSnapshots`.
@@ -49,6 +51,9 @@ import {
   writePrefsMap,
   persistTabPrefs,
   reconcileColumns,
+  insertMetadataColumnFromSchema,
+  listAddableMetadataFields,
+  removeMetadataColumnFromTab,
   DEFAULT_METADATA_KEYS,
   type TabState,
   type TabPrefs,
@@ -57,7 +62,7 @@ import {
 } from "../services/viewer_utils";
 import { useColumnInteraction } from "../hooks/useColumnInteraction";
 import { useGroupBy } from "../hooks/useGroupBy";
-import { GUIDE_IDS } from "../../guide/model/guide_ids";
+import { UI_IDS } from "../../../core/model/ui_ids";
 import { ResourceTabBar } from "./ResourceTabBar";
 import { ResourceTable } from "./ResourceTable";
 import { ResourceMetadataDialog } from "./ResourceMetadataDialog";
@@ -69,8 +74,12 @@ import {
   saveSchemas,
   upsertSchema,
 } from "../services/schema_storage";
-import type { MetadataSchema } from "../../../../../parts/resource/src/domain/metadata_schema";
-import { BUILT_IN_SCHEMA } from "../../../../../parts/resource/src/domain/metadata_schema";
+import {
+  BUILT_IN_SCHEMA,
+  type MetadataFieldDefinition,
+  type MetadataSchema,
+} from "../../../../../parts/resource/src/domain/metadata_schema";
+import { log } from "../../../logger";
 import { loadBadgesForRefs } from "../../../training/transcript_storage";
 import type { TrainingBadge } from "../../../training/transcript_storage";
 
@@ -468,6 +477,54 @@ export const ResourceViewer = (): ReactElement => {
     setSchemaEditorOpen(true);
   }, []);
 
+  /** Append a column from the active schema’s field list (toolbar “Add metadata”). */
+  const handleAddMetadataField = useCallback((fieldKey: string): void => {
+    if (!activeTabId || !fieldKey) return;
+    setTabs((prev: TabState[]): TabState[] =>
+      prev.map((t: TabState): TabState => {
+        if (t.tabId !== activeTabId) return t;
+        const updated: TabState = insertMetadataColumnFromSchema(
+          t,
+          fieldKey,
+          activeSchema,
+          t.availableMetadataKeys,
+        );
+        if (updated === t) return t;
+        log.info("ResourceViewer", "Added metadata column", { fieldKey, schemaId: activeSchema.id });
+        persistTabPrefs(updated);
+        return updated;
+      }),
+    );
+  }, [activeTabId, activeSchema]);
+
+  /** Header × — drop a metadata column from this resource tab (not `game`). */
+  const handleRemoveMetadataColumn = useCallback((fieldKey: string): void => {
+    if (!activeTabId || fieldKey === "game") return;
+    setColumnFiltersMap((prev: Record<string, Record<string, string>>): Record<string, Record<string, string>> => {
+      const tabFilters: Record<string, string> | undefined = prev[activeTabId];
+      if (!tabFilters || !(fieldKey in tabFilters)) return prev;
+      const nextFilters: Record<string, string> = { ...tabFilters };
+      delete nextFilters[fieldKey];
+      return { ...prev, [activeTabId]: nextFilters };
+    });
+    setSortMap((prev: Record<string, SortConfig | null>): Record<string, SortConfig | null> => {
+      const cur: SortConfig | null = prev[activeTabId] ?? null;
+      if (cur?.key === fieldKey) {
+        return { ...prev, [activeTabId]: null };
+      }
+      return prev;
+    });
+    setTabs((prev: TabState[]): TabState[] =>
+      prev.map((t: TabState): TabState => {
+        if (t.tabId !== activeTabId) return t;
+        const updated: TabState = removeMetadataColumnFromTab(t, fieldKey);
+        log.info("ResourceViewer", "Removed resource table column", { fieldKey });
+        persistTabPrefs(updated);
+        return updated;
+      }),
+    );
+  }, [activeTabId]);
+
   const handleSchemaSave = useCallback((saved: MetadataSchema): void => {
     setSchemas((prev) => {
       const next = upsertSchema(prev, saved);
@@ -513,12 +570,16 @@ export const ResourceViewer = (): ReactElement => {
 
   const activeTabForTable: TabState | null = (() => {
     if (!activeTab || !schemaOrderedKeys) return activeTab;
-    const schemaSet = new Set(schemaOrderedKeys);
-    const rest = activeTab.metadataColumnOrder.filter(
-      (k: string): boolean => !schemaSet.has(k) && k !== "game",
+    const schemaSet: Set<string> = new Set<string>(schemaOrderedKeys);
+    const stillShownSchemaKeys: string[] = schemaOrderedKeys.filter((k: string): boolean =>
+      activeTab.metadataColumnOrder.includes(k),
     );
-    const newOrder = ["game", ...schemaOrderedKeys, ...rest];
-    return { ...activeTab, metadataColumnOrder: newOrder, visibleMetadataKeys: schemaOrderedKeys };
+    const extras: string[] = activeTab.metadataColumnOrder.filter(
+      (k: string): boolean => k !== "game" && !schemaSet.has(k),
+    );
+    const newOrder: string[] = ["game", ...stillShownSchemaKeys, ...extras];
+    const newVisible: string[] = [...stillShownSchemaKeys, ...extras];
+    return { ...activeTab, metadataColumnOrder: newOrder, visibleMetadataKeys: newVisible };
   })();
 
   // ── Available fields for group-by (exclude system keys and "game") ────
@@ -536,10 +597,20 @@ export const ResourceViewer = (): ReactElement => {
 
   const hasActiveFilters: boolean = Object.values(columnFilters).some((v) => Boolean(v));
 
+  /** Built-in + schema + discovered header tags not yet shown as columns (`game` excluded). */
+  const addableSchemaFields: MetadataFieldDefinition[] = useMemo((): MetadataFieldDefinition[] => {
+    if (!activeTab) return [];
+    return listAddableMetadataFields(
+      activeSchema,
+      activeTab.metadataColumnOrder,
+      activeTab.availableMetadataKeys,
+    );
+  }, [activeTab, activeSchema]);
+
   // ── Render ────────────────────────────────────────────────────────────
 
   return (
-    <section className="resource-viewer-card" data-guide-id={GUIDE_IDS.RESOURCE_VIEWER_PANEL}>
+    <section className="resource-viewer-card" data-ui-id={UI_IDS.RESOURCE_VIEWER_PANEL}>
       <ResourceTabBar
         tabs={tabs}
         activeTabId={activeTabId}
@@ -571,6 +642,8 @@ export const ResourceViewer = (): ReactElement => {
           onClearFilters={handleClearFilters}
           onSchemaSelect={handleSchemaSelect}
           onSchemaManage={handleSchemaManage}
+          addableSchemaFields={addableSchemaFields}
+          onAddMetadataField={handleAddMetadataField}
         />
       )}
 
@@ -593,6 +666,7 @@ export const ResourceViewer = (): ReactElement => {
         onColDrop={handleColDrop}
         onSortChange={handleSortChange}
         onToggleGroup={handleToggleGroup}
+        onRemoveMetadataColumn={handleRemoveMetadataColumn}
         trainingBadges={trainingBadges}
       />
 

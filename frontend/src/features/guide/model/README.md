@@ -1,13 +1,7 @@
 # `features/guide/model`
 
-Guide feature metadata and identifiers.
+Guide feature metadata (future onboarding/help flows).
 
-Important files:
+Stable DOM landmarks for the developer inspector live in `core/model/ui_ids.ts` (`UI_IDS`, single registry). Import `UI_IDS` there rather than duplicating string tables in this package.
 
-- `guide_ids.ts`: canonical DOM/feature guide identifiers used by shell and editor components.
-
-Use this package whenever guide code needs a stable identifier instead of hard-coded strings.
-
-Guide feature model definitions.
-
-Holds stable guide identifiers and guide-model helpers used by guide-aware UI across the app.
+Use this package when guide-specific model types or helpers are added that are not shared app-wide.

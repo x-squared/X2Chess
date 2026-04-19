@@ -1,5 +1,6 @@
 import { useRef, type ReactElement } from "react";
 import type { TabState } from "../services/viewer_utils";
+import { UI_IDS } from "../../../core/model/ui_ids";
 
 // ── Local helpers ─────────────────────────────────────────────────────────────
 
@@ -66,9 +67,9 @@ export const ResourceTabBar = ({
   };
 
   return (
-  <>
-    {/* Header row: title + actions */}
-    <div className="resource-viewer-header">
+    <div className="resource-viewer-tab-bar-region" data-ui-id={UI_IDS.RESOURCES_TAB_BAR}>
+      {/* Header row: title + actions */}
+      <div className="resource-viewer-header" data-ui-id={UI_IDS.RESOURCES_TAB_HEADER}>
       <div>
         <p className="resource-viewer-title">{t("resources.title", "Resources")}</p>
       </div>
@@ -131,9 +132,9 @@ export const ResourceTabBar = ({
       </div>
     </div>
 
-    {/* Tab strip */}
-    {tabs.length > 0 && (
-      <div className="resource-tabs-row">
+      {/* Tab strip */}
+      {tabs.length > 0 && (
+      <div className="resource-tabs-row" data-ui-id={UI_IDS.RESOURCES_TAB_STRIP}>
         <div
           className="resource-tabs"
           role="tablist"
@@ -149,6 +150,7 @@ export const ResourceTabBar = ({
                 aria-selected={isActive}
                 className={["resource-tab", isActive ? "active" : ""].filter(Boolean).join(" ")}
                 data-resource-tab-id={tab.tabId}
+                data-ui-id={UI_IDS.RESOURCES_TAB}
               >
                 <button
                   type="button"
@@ -174,7 +176,7 @@ export const ResourceTabBar = ({
           {t("resources.newGame", "+ New game")}
         </button>
       </div>
-    )}
-  </>
+      )}
+    </div>
   );
 };

@@ -9,6 +9,7 @@ import {
   type TabState,
   METADATA_CANONICAL_ORDER,
   METADATA_LAST_KEYS,
+  RESOURCE_VIEWER_OMIT_KEYS,
 } from "../services/viewer_utils";
 
 // ── Metadata catalog builder ──────────────────────────────────────────────────
@@ -18,16 +19,21 @@ type CatalogEntry = { key: string; label: string };
 /**
  * Build the ordered list of metadata keys available for column selection.
  *
- * Order: canonical first (White, WhiteElo, Black, BlackElo, Result, Opening, ECO, Event, Date),
- * then remaining keys alphabetically, then system keys (identifier, source, revision) last.
- * Keys not present in the data are omitted.
+ * Order: canonical first, then remaining keys alphabetically, then system keys last.
+ * Keys not present in the data are omitted. Legacy transitional style tags are omitted.
  */
 const buildMetadataCatalog = (tab: TabState): CatalogEntry[] => {
   // Collect all known keys from available list and row data.
   const all = new Set<string>();
-  tab.availableMetadataKeys.forEach((k: string): void => { all.add(k); });
+  tab.availableMetadataKeys.forEach((k: string): void => {
+    if (!RESOURCE_VIEWER_OMIT_KEYS.has(k)) all.add(k);
+  });
   tab.rows.forEach((row): void => {
-    if (row.metadata) Object.keys(row.metadata).forEach((k: string): void => { all.add(k); });
+    if (row.metadata) {
+      Object.keys(row.metadata).forEach((k: string): void => {
+        if (!RESOURCE_VIEWER_OMIT_KEYS.has(k)) all.add(k);
+      });
+    }
   });
 
   const lastSet = new Set<string>(METADATA_LAST_KEYS);
@@ -36,6 +42,7 @@ const buildMetadataCatalog = (tab: TabState): CatalogEntry[] => {
 
   // 1. Canonical order (only if present in data).
   METADATA_CANONICAL_ORDER.forEach((k: string): void => {
+    if (RESOURCE_VIEWER_OMIT_KEYS.has(k)) return;
     if (all.has(k) && !placed.has(k)) {
       catalog.push({ key: k, label: k });
       placed.add(k);

@@ -30,7 +30,16 @@
   --error: var(--danger);
   --success: #1f7a4f;
   --dev-dock-height: 320px;
+  /* Default height for standalone / non-embedded resource table chrome */
   --resource-viewer-height: 260px;
+  /*
+   * Resources panel: scroll inside `.resource-table-scroll` after ~7 games.
+   * 9 row-heights = 2 thead rows (labels + filters) + 7 game rows (same rhythm).
+   */
+  --resource-table-row-block: 2.2rem;
+  --resource-table-scroll-viewport-max: calc(9 * var(--resource-table-row-block));
+  /* Alias used by legacy rules */
+  --resource-table-max-height: var(--resource-table-scroll-viewport-max);
   --board-column-width: 520px;
 }
 

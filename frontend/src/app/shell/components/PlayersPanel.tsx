@@ -23,7 +23,7 @@ import { useState, useEffect, useCallback, type ReactElement, type ChangeEvent, 
 import { useServiceContext } from "../../providers/ServiceProvider";
 import type { PlayerRecord } from "../model/app_state";
 import { formatPlayerRecordName } from "../../../features/editor/model/game_info";
-import { GUIDE_IDS } from "../../../features/guide/model/guide_ids";
+import { UI_IDS } from "../../../core/model/ui_ids";
 
 type PlayersPanelProps = {
   t: (key: string, fallback?: string) => string;
@@ -127,7 +127,7 @@ export const PlayersPanel = ({ t, onSearchPlayer }: PlayersPanelProps): ReactEle
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="players-panel" data-guide-id={GUIDE_IDS.PLAYERS_PANEL}>
+    <div className="players-panel" data-ui-id={UI_IDS.PLAYERS_PANEL}>
       {/* Header */}
       <div className="players-panel-header">
         <span className="players-panel-title">
@@ -151,7 +151,7 @@ export const PlayersPanel = ({ t, onSearchPlayer }: PlayersPanelProps): ReactEle
       </div>
 
       {/* Player list */}
-      <ul className="players-panel-list" data-guide-id={GUIDE_IDS.PLAYERS_PANEL_LIST}>
+      <ul className="players-panel-list" data-ui-id={UI_IDS.PLAYERS_PANEL_LIST}>
         {players.length === 0 && !isAdding && (
           <li className="players-panel-empty">
             {t("players.empty", "No players yet.")}

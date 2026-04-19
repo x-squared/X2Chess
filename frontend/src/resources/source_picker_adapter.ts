@@ -1,4 +1,7 @@
-import { extractPgnMetadata, PGN_STANDARD_METADATA_KEYS } from "../../../parts/resource/src/domain/metadata";
+import {
+  extractPgnMetadataFromSource,
+  mergeMetadataCatalogKeys,
+} from "../../../parts/resource/src/domain/metadata";
 import { materialKeyFromFen } from "../../../parts/resource/src/domain/material_key";
 import type {
   SourceAdapter,
@@ -14,9 +17,11 @@ import {
   tauriInvoke,
   ensureFsPermission,
   pathBaseUnix,
+  pathJoinUnix,
   asDirectoryHandle,
   tryGetDirectoryHandle,
   resolveTauriRootAndGamesDirectory,
+  resolveEffectiveGamesDirectory,
   type PermissionHandleLike,
   type FileLike,
   type WritableLike,
@@ -25,6 +30,7 @@ import {
   type DirectoryHandleLike,
   type TauriRootResolution,
 } from "./picker_fs_helpers";
+import { log } from "../logger";
 
 // ── Picker-specific types ─────────────────────────────────────────────────────
 
@@ -74,7 +80,10 @@ type FileSourceRef = {
   createIfMissing?: boolean;
 };
 
-type MetadataPayload = ReturnType<typeof extractPgnMetadata>;
+type MetadataPayload = {
+  metadata: Record<string, string>;
+  availableMetadataKeys: string[];
+};
 
 // ── Small private helpers ─────────────────────────────────────────────────────
 
@@ -95,22 +104,21 @@ const sanitizeFileTitle = (rawTitle: string): string => {
 
 const defaultMetadataPayload = (): MetadataPayload => ({
   metadata: {},
-  availableMetadataKeys: [...PGN_STANDARD_METADATA_KEYS],
+  availableMetadataKeys: mergeMetadataCatalogKeys([]),
 });
 
-/** Augment a metadata payload with a derived `Material` key for position games. */
+/** Augment a metadata payload with a derived `Material` key for position games (still SSOT: FEN read from same header map). */
 const withMaterial = (pgnText: string, payload: MetadataPayload): MetadataPayload => {
   const isPosition: boolean = /\[SetUp\s+"1"\]/i.test(pgnText);
   if (!isPosition) return payload;
-  const { metadata: fenMeta } = extractPgnMetadata(pgnText, ["FEN"]);
-  const fenValue: string = String(fenMeta["FEN"] ?? "").trim();
+  const fenValue: string = String(payload.metadata["FEN"] ?? "").trim();
   const materialKey: string = fenValue ? materialKeyFromFen(fenValue) : "";
   if (!materialKey) return payload;
   const metadata: Record<string, string> = { ...payload.metadata, Material: materialKey };
-  const availableMetadataKeys: string[] = payload.availableMetadataKeys.includes("Material")
-    ? payload.availableMetadataKeys
-    : [...payload.availableMetadataKeys, "Material"];
-  return { metadata, availableMetadataKeys };
+  return {
+    metadata,
+    availableMetadataKeys: mergeMetadataCatalogKeys(Object.keys(metadata)),
+  };
 };
 
 // ── Adapter factory ───────────────────────────────────────────────────────────
@@ -157,10 +165,18 @@ export const createSourcePickerAdapter = ({ state }: SourcePickerDeps): SourceAd
       const selectedPathRaw: unknown = await tauriInvoke("pick_games_directory");
       const selectedPath: string = String(selectedPathRaw || "").trim();
       if (!selectedPath) return null;
+      const resolved: TauriRootResolution | null = await resolveTauriRootAndGamesDirectory(selectedPath);
+      if (!resolved) {
+        return {
+          kind: "tauri",
+          rootPath: selectedPath,
+          gamesPath: selectedPath,
+        };
+      }
       return {
         kind: "tauri",
-        rootPath: selectedPath,
-        gamesPath: selectedPath,
+        rootPath: resolved.rootPath,
+        gamesPath: resolved.gamesPath,
       };
     }
     throw new Error("Local folder access is not supported in this browser runtime.");
@@ -248,7 +264,11 @@ export const createSourcePickerAdapter = ({ state }: SourcePickerDeps): SourceAd
           if (typeof (entry as DirectoryEntryLike).getFile !== "function") continue;
           const file: FileLike = await (entry as DirectoryEntryLike).getFile!();
           const pgnText: string = await file.text();
-          metadataPayload = withMaterial(pgnText, extractPgnMetadata(pgnText));
+          const fromSource = extractPgnMetadataFromSource(pgnText);
+          metadataPayload = withMaterial(pgnText, {
+            metadata: fromSource.metadata,
+            availableMetadataKeys: mergeMetadataCatalogKeys(fromSource.discoveredKeysInOrder),
+          });
         } catch {
           // Keep listing robust; metadata is optional.
         }
@@ -264,12 +284,51 @@ export const createSourcePickerAdapter = ({ state }: SourcePickerDeps): SourceAd
       return entries;
     }
 
-    const effectiveDirectory: string = preferredLocator || state.gameDirectoryPath;
+    let stateGamesHint: string = String(state.gameDirectoryPath || "").trim();
+    if (!state.gameDirectoryHandle && preferredLocator && isTauriRuntime() && !stateGamesHint) {
+      const resolved: TauriRootResolution | null = await resolveTauriRootAndGamesDirectory(preferredLocator);
+      if (resolved?.gamesPath) {
+        stateGamesHint = resolved.gamesPath;
+        state.gameDirectoryPath = resolved.gamesPath;
+        state.gameRootPath = resolved.rootPath;
+        log.info("source_picker_adapter", "list: resolved games folder from tab locator (picker state was empty)", {
+          gamesPath: resolved.gamesPath,
+        });
+      }
+    }
+
+    let effectiveDirectory: string = resolveEffectiveGamesDirectory(preferredLocator, stateGamesHint);
+
     if (effectiveDirectory && isTauriRuntime()) {
-      const namesRaw: unknown = await tauriInvoke("list_pgn_files", { gamesDirectory: effectiveDirectory });
-      const normalizedNames: string[] = (Array.isArray(namesRaw) ? namesRaw : [])
+      let namesRaw: unknown = await tauriInvoke("list_pgn_files", { gamesDirectory: effectiveDirectory });
+      let normalizedNames: string[] = (Array.isArray(namesRaw) ? namesRaw : [])
         .map((name: unknown): string => String(name || ""))
         .filter(Boolean);
+
+      const prefEndsGames: boolean = preferredLocator.toLowerCase().endsWith("/games");
+      if (normalizedNames.length === 0 && preferredLocator && !prefEndsGames) {
+        const nestedGamesPath: string = pathJoinUnix(preferredLocator, "games");
+        if (nestedGamesPath !== effectiveDirectory) {
+          try {
+            const nestedRaw: unknown = await tauriInvoke("list_pgn_files", { gamesDirectory: nestedGamesPath });
+            const nestedNames: string[] = (Array.isArray(nestedRaw) ? nestedRaw : [])
+              .map((name: unknown): string => String(name || ""))
+              .filter(Boolean);
+            if (nestedNames.length > 0) {
+              log.info("source_picker_adapter", "list: using nested games/ folder (listing at library root was empty)", {
+                nestedGamesPath,
+              });
+              effectiveDirectory = nestedGamesPath;
+              normalizedNames = nestedNames;
+              state.gameDirectoryPath = nestedGamesPath;
+              state.gameRootPath = preferredLocator;
+            }
+          } catch {
+            // Nested `games/` may not exist or is unreadable.
+          }
+        }
+      }
+
       const results: SourceListEntry[] = [];
       for (const name of normalizedNames) {
         let metadataPayload: MetadataPayload = defaultMetadataPayload();
@@ -279,7 +338,11 @@ export const createSourcePickerAdapter = ({ state }: SourcePickerDeps): SourceAd
             fileName: name,
           });
           const pgnText: string = String(content || "");
-          metadataPayload = withMaterial(pgnText, extractPgnMetadata(pgnText));
+          const fromSource = extractPgnMetadataFromSource(pgnText);
+          metadataPayload = withMaterial(pgnText, {
+            metadata: fromSource.metadata,
+            availableMetadataKeys: mergeMetadataCatalogKeys(fromSource.discoveredKeysInOrder),
+          });
         } catch {
           // Continue listing when metadata extraction fails for a single file.
         }
@@ -382,7 +445,10 @@ export const createSourcePickerAdapter = ({ state }: SourcePickerDeps): SourceAd
     pgnText: string,
     titleHint: string = "",
   ): Promise<SourceCreateResult> => {
-    const locator: string = String(resourceRef?.locator || "").trim() || String(state.gameDirectoryPath || "").trim();
+    const refLoc: string = String(resourceRef?.locator || "").trim();
+    const stateLoc: string = String(state.gameDirectoryPath || "").trim();
+    const locator: string =
+      resolveEffectiveGamesDirectory(refLoc, stateLoc) || refLoc || stateLoc;
     if (!locator && !state.gameDirectoryHandle) {
       throw new Error("No active file resource is available to store imported text.");
     }

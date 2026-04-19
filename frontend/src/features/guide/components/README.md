@@ -2,8 +2,6 @@
 
 UI components for onboarding and guide presentation.
 
-These components consume `GUIDE_IDS` and other guide metadata to attach help flows to shell/editor landmarks.
+`GuideInspector` reads `data-ui-id` from the unified registry (`UI_IDS` in `core/model/ui_ids.ts`) and highlights the nearest annotated ancestor.
 
-Guide feature UI components.
-
-Contains components for guide inspection and guided overlays used to explain interface regions and study flows.
+Contains guide inspection and guided overlays used to explain interface regions and study flows.

@@ -1,6 +1,6 @@
 # X2Chess Architecture Manual
 
-Last updated: 2026-04-14
+Last updated: 2026-04-19
 
 ## 1) Goals
 
@@ -915,22 +915,33 @@ Every game carries its metadata inside its own PGN text as bracket header lines:
 The PGN text is always the authoritative record. Derived representations (the DB index,
 the viewer display) are computed from it and can be rebuilt at any time.
 
-#### Two extraction modes
+#### Extraction: SSOT parse, then narrow
 
-`resource/domain/metadata.ts` exposes two extraction functions that parse headers from
-raw PGN text:
+Bracket headers are parsed **once** per need into a full string map — no tag is dropped
+at parse time:
 
-- **`extractPgnMetadata(pgnText, keys?)`** — projects the requested header keys as plain
-  strings. Used where only display or storage is needed (listing, file/directory adapters).
-- **`extractHybridPgnMetadata(pgnText, keys?)`** — projects known keys through typed
-  parsers from `PGN_METADATA_SCHEMA`, yielding `HybridPgnMetadata`. Known types:
+- **`extractPgnMetadataFromSource(pgnText)`** — reads every unique `[Tag "..."]` line
+  (first occurrence per key), fills one `Record<string, string>`, enriches canonical
+  `XSqrChessStyle` from legacy style tags when needed, and returns `discoveredKeysInOrder`
+  for UI discovery. This is the shared parse used before any subset is taken.
+
+Narrowing (a **view** of the same map — storage on disk is unchanged):
+
+- **`extractPgnMetadata(pgnText, keys?)`** — returns only the requested keys as plain
+  strings (default key list: `PGN_STANDARD_METADATA_KEYS`). Use when a caller needs a
+  fixed roster (titles, legacy call sites).
+- **`mergeMetadataCatalogKeys(discoveredKeys)`** — sorted union of `KNOWN_PGN_METADATA_KEYS`
+  and keys seen in the file; used for resource viewer `availableMetadataKeys` on list rows.
+- **`extractHybridPgnMetadata(pgnText, keys?)`** — reads through `PGN_METADATA_SCHEMA`
+  typed parsers, yielding `HybridPgnMetadata`. Known types:
 
   | Key | Parsed type |
   |---|---|
   | `Date` | `PgnDateValue` (`{ raw, year, month, day }`) — `?` fields become `null` |
   | `WhiteElo`, `BlackElo` | `number` (via `parseInt`; non-numeric → `undefined`) |
   | `Result` | `PgnResultValue` union (`"1-0" \| "0-1" \| "1/2-1/2" \| "*"`) |
-  | `XTwoChessStyle` | `X2StyleValue` union (`"plain" \| "text" \| "tree"`) |
+  | `XSqrChessStyle` | `X2StyleValue` union (`"plain" \| "text" \| "tree"`) |
+  | `XSqrHead` | `string` — mainline **half-moves only** (move numbers + SAN) through the first branch (see `serializeXsqrHeadMovetext`); written on save |
   | All other known keys | `string` |
   | Unknown keys | `string` (pass-through) |
 
@@ -939,13 +950,14 @@ raw PGN text:
 
 #### Key lists
 
-Three ordered key lists define projection scopes:
+Three ordered key lists define default **narrowing** scopes for typed/hybrid utilities and
+the viewer’s default columns (not a limit on what exists in the PGN):
 
 | Constant | Content |
 |---|---|
 | `PGN_STANDARD_METADATA_KEYS` | 14 keys — the Seven Tag Roster plus ECO, Opening, WhiteElo, BlackElo, TimeControl, Termination, Annotator |
-| `KNOWN_PGN_METADATA_KEYS` | Standard keys plus `XTwoChessStyle` and `Material` |
-| `DEFAULT_RESOURCE_VIEWER_METADATA_KEYS` | 7-key default column set for the resource viewer: White, Black, Date, Event, ECO, Opening, Result |
+| `KNOWN_PGN_METADATA_KEYS` | Standard roster/supplemental tags plus X2 extensions (`XSqrChessStyle`, `Material`, `XSqrHead`); transitional style header names still parse in `PGN_METADATA_SCHEMA` but are not in this projection list |
+| `DEFAULT_RESOURCE_VIEWER_METADATA_KEYS` | 7-key default column set for the resource viewer: White, Black, Date, Event, Result, ECO, Opening (no Source column in defaults; `source` is not offered in the column picker) |
 
 The `METADATA_KEY` const object mirrors `PgnMetadataKnownValues` as string constants so
 that renaming a key in the type produces a compile error at every call site.
@@ -1001,13 +1013,16 @@ associated with a resource.
 ```
 PGN text (source of truth)
   │
-  ├─ extractPgnMetadata()       → plain string map
-  │    used by: file/directory adapters, db list display, db indexer
+  ├─ extractPgnMetadataFromSource() → full header map + key order
+  │    used by: directory/file list rows, mergeMetadataCatalogKeys, db indexer key set
   │
-  ├─ extractHybridPgnMetadata() → typed HybridPgnMetadata
+  ├─ extractPgnMetadata(keys?)    → plain subset map (narrowed)
+  │    used by: titles, callers that need only standard tags
+  │
+  ├─ extractHybridPgnMetadata()   → typed HybridPgnMetadata (narrowed)
   │    used by: resource viewer columns, typed field rendering
   │
-  └─ writeMetadata() [db only]  → game_metadata + metadata_keys rows
+  └─ writeMetadata() [db only]   → game_metadata + metadata_keys rows
        used by: text search, batch list loading
 
 MetadataSchema (localStorage)
@@ -1214,8 +1229,8 @@ structured data as `[%command arguments]` tokens within `{ }` comments.
 | Anchor | `[%anchor id="..." text="..."]` | Named position anchor for cross-references |
 | Game link | `[%link recordId="..."]` | Reference to another game in the library |
 
-The `XTwoChessStyle` PGN header is also an X2Chess extension (legacy `X2Style`
-is still read for backward compatibility):
+The `XSqrChessStyle` PGN header is also an X2Chess extension (transitional
+`XTwoChessStyle` and legacy `X2Style` are still read for backward compatibility):
 
 | Value | Meaning |
 |---|---|

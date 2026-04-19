@@ -10,13 +10,17 @@
  * Communication API:
  * - All interactions fire callbacks: `onGroupByAdd`, `onGroupByRemove`,
  *   `onGroupByMoveUp`, `onGroupByClear`, `onClearFilters`,
- *   `onSchemaSelect`, `onSchemaManage`.
+ *   `onSchemaSelect`, `onSchemaManage`, `onAddMetadataField`.
  */
 
 import type { ReactElement } from "react";
 import type { GroupByState } from "../services/viewer_utils";
-import type { MetadataSchema } from "../../../../../parts/resource/src/domain/metadata_schema";
-import { BUILT_IN_SCHEMA } from "../../../../../parts/resource/src/domain/metadata_schema";
+import {
+  BUILT_IN_SCHEMA,
+  type MetadataFieldDefinition,
+  type MetadataSchema,
+} from "../../../../../parts/resource/src/domain/metadata_schema";
+import { UI_IDS } from "../../../core/model/ui_ids";
 
 type ResourceToolbarProps = {
   groupByState: GroupByState;
@@ -32,6 +36,9 @@ type ResourceToolbarProps = {
   onClearFilters: () => void;
   onSchemaSelect: (id: string) => void;
   onSchemaManage: () => void;
+  /** Schema fields not yet shown as table columns (same order as schema editor). */
+  addableSchemaFields: MetadataFieldDefinition[];
+  onAddMetadataField: (fieldKey: string) => void;
 };
 
 export const ResourceToolbar = ({
@@ -48,8 +55,10 @@ export const ResourceToolbar = ({
   onClearFilters,
   onSchemaSelect,
   onSchemaManage,
+  addableSchemaFields,
+  onAddMetadataField,
 }: ResourceToolbarProps): ReactElement => (
-  <div className="resource-groupby-toolbar">
+  <div className="resource-groupby-toolbar" data-ui-id={UI_IDS.RESOURCES_TOOLBAR}>
     <span className="resource-groupby-label">
       {t("resources.groupby.label", "Group by:")}
     </span>
@@ -129,6 +138,28 @@ export const ResourceToolbar = ({
     <button type="button" className="resource-schema-manage-btn" onClick={onSchemaManage}>
       {t("resources.schema.manage", "Manage schemas…")}
     </button>
+
+    {/* Add metadata column — fields from active schema not yet in the table */}
+    {addableSchemaFields.length > 0 && (
+      <select
+        className="resource-metadata-add-field"
+        value=""
+        aria-label={t("resources.metadata.addField", "Add metadata column")}
+        onChange={(e): void => {
+          const sel: HTMLSelectElement = e.target;
+          const v: string = sel.value;
+          if (v) {
+            onAddMetadataField(v);
+            sel.value = "";
+          }
+        }}
+      >
+        <option value="">{t("resources.metadata.addFieldPlaceholder", "Add metadata…")}</option>
+        {addableSchemaFields.map((f: MetadataFieldDefinition) => (
+          <option key={f.key} value={f.key}>{f.label}</option>
+        ))}
+      </select>
+    )}
 
   </div>
 );

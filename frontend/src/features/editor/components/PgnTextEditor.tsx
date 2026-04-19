@@ -71,7 +71,7 @@ import { hasEvalAnnotations, stripEvalAnnotations, replaceEvalAnnotation } from 
 import type { ResolvedAnchor } from "../model/resolveAnchors";
 import { AnchorDefDialog } from "../../../components/anchors/AnchorDefDialog";
 import { AnchorPickerDialog } from "../../../components/anchors/AnchorPickerDialog";
-import { GUIDE_IDS } from "../../guide/model/guide_ids";
+import { UI_IDS } from "../../../core/model/ui_ids";
 import type { PgnModel } from "../../../../../parts/pgnparser/src/pgn_model";
 import { log } from "../../../logger";
 import { LinearModeView, TreeModeView, buildLastSiblingByParent } from "./PgnEditorModeViews";
@@ -406,7 +406,7 @@ export const PgnTextEditor = (): ReactElement => {
   return (
       <div
         className="text-editor"
-        data-guide-id={GUIDE_IDS.EDITOR_PGN_TEXT}
+        data-ui-id={UI_IDS.EDITOR_PGN_TEXT}
         data-layout-mode={layoutMode}
         data-comment-linebreak-policy={editorStylePrefs.commentLineBreakPolicy}
         style={editorStyleVars as CSSProperties}

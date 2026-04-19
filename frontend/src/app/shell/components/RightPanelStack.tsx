@@ -31,7 +31,7 @@ import { SettingsPanel } from "../../../features/settings/components/SettingsPan
 import { AstPanel } from "../../../features/editor/components/AstPanel";
 import { RawPgnPanel } from "../../../features/editor/components/RawPgnPanel";
 import type { ShapePrefs } from "../../../runtime/shape_prefs";
-import { GUIDE_IDS } from "../../../features/guide/model/guide_ids";
+import { UI_IDS } from "../../../core/model/ui_ids";
 
 export type PanelId =
   | "resources"
@@ -87,18 +87,18 @@ type RightPanelStackProps = {
   onOpenGame: (sourceRef: unknown) => void;
 };
 
-const PANEL_TABS: Array<{ id: PanelId; label: string; labelKey: string; tabGuideId: string; devOnly?: boolean }> = [
-  { id: "resources",       label: "Resources",    labelKey: "panel.resources",      tabGuideId: GUIDE_IDS.RIGHT_PANEL_TAB_RESOURCES },
-  { id: "analysis",        label: "Analysis",     labelKey: "panel.analysis",       tabGuideId: GUIDE_IDS.RIGHT_PANEL_TAB_ANALYSIS },
-  { id: "opening",         label: "Opening",      labelKey: "panel.opening",        tabGuideId: GUIDE_IDS.RIGHT_PANEL_TAB_OPENING },
-  { id: "tablebase",       label: "Endgame",      labelKey: "panel.tablebase",      tabGuideId: GUIDE_IDS.RIGHT_PANEL_TAB_TABLEBASE },
-  { id: "collection",      label: "Collection",   labelKey: "panel.collection",     tabGuideId: GUIDE_IDS.RIGHT_PANEL_TAB_COLLECTION },
-  { id: "game-search",     label: "Games",        labelKey: "panel.gameSearch",     tabGuideId: GUIDE_IDS.RIGHT_PANEL_TAB_GAME_SEARCH },
-  { id: "position-search", label: "Position",     labelKey: "panel.positionSearch", tabGuideId: GUIDE_IDS.RIGHT_PANEL_TAB_POSITION_SEARCH },
-  { id: "text-search",     label: "Text",         labelKey: "panel.textSearch",     tabGuideId: GUIDE_IDS.RIGHT_PANEL_TAB_TEXT_SEARCH },
-  { id: "players",         label: "Players",      labelKey: "panel.players",        tabGuideId: GUIDE_IDS.RIGHT_PANEL_TAB_PLAYERS },
-  { id: "settings",        label: "Settings",     labelKey: "panel.settings",       tabGuideId: GUIDE_IDS.RIGHT_PANEL_TAB_SETTINGS },
-  { id: "dev-tools",       label: "Dev Tools",    labelKey: "panel.devTools",       tabGuideId: GUIDE_IDS.RIGHT_PANEL_TAB_DEV_TOOLS, devOnly: true },
+const PANEL_TABS: Array<{ id: PanelId; label: string; labelKey: string; tabUiId: string; devOnly?: boolean }> = [
+  { id: "resources",       label: "Resources",    labelKey: "panel.resources",      tabUiId: UI_IDS.RIGHT_PANEL_TAB_RESOURCES },
+  { id: "analysis",        label: "Analysis",     labelKey: "panel.analysis",       tabUiId: UI_IDS.RIGHT_PANEL_TAB_ANALYSIS },
+  { id: "opening",         label: "Opening",      labelKey: "panel.opening",        tabUiId: UI_IDS.RIGHT_PANEL_TAB_OPENING },
+  { id: "tablebase",       label: "Endgame",      labelKey: "panel.tablebase",      tabUiId: UI_IDS.RIGHT_PANEL_TAB_TABLEBASE },
+  { id: "collection",      label: "Collection",   labelKey: "panel.collection",     tabUiId: UI_IDS.RIGHT_PANEL_TAB_COLLECTION },
+  { id: "game-search",     label: "Games",        labelKey: "panel.gameSearch",     tabUiId: UI_IDS.RIGHT_PANEL_TAB_GAME_SEARCH },
+  { id: "position-search", label: "Position",     labelKey: "panel.positionSearch", tabUiId: UI_IDS.RIGHT_PANEL_TAB_POSITION_SEARCH },
+  { id: "text-search",     label: "Text",         labelKey: "panel.textSearch",     tabUiId: UI_IDS.RIGHT_PANEL_TAB_TEXT_SEARCH },
+  { id: "players",         label: "Players",      labelKey: "panel.players",        tabUiId: UI_IDS.RIGHT_PANEL_TAB_PLAYERS },
+  { id: "settings",        label: "Settings",     labelKey: "panel.settings",       tabUiId: UI_IDS.RIGHT_PANEL_TAB_SETTINGS },
+  { id: "dev-tools",       label: "Dev Tools",    labelKey: "panel.devTools",       tabUiId: UI_IDS.RIGHT_PANEL_TAB_DEV_TOOLS, devOnly: true },
 ];
 
 export const RightPanelStack = ({
@@ -119,9 +119,9 @@ export const RightPanelStack = ({
   const visibleTabs = devToolsEnabled ? PANEL_TABS : PANEL_TABS.filter((tab) => !tab.devOnly);
 
   return (
-    <div className="right-panel-stack" data-guide-id={GUIDE_IDS.RIGHT_PANEL_STACK}>
+    <div className="right-panel-stack" data-ui-id={UI_IDS.RIGHT_PANEL_STACK}>
       {/* Tab bar */}
-      <div className="right-panel-tabs" role="tablist" data-guide-id={GUIDE_IDS.RIGHT_PANEL_TABS}>
+      <div className="right-panel-tabs" role="tablist" data-ui-id={UI_IDS.RIGHT_PANEL_TABS}>
         {visibleTabs.map((tab) => (
           <button
             key={tab.id}
@@ -130,7 +130,7 @@ export const RightPanelStack = ({
             aria-selected={activePanel === tab.id}
             aria-controls={`right-panel-${tab.id}`}
             className={`right-panel-tab${activePanel === tab.id ? " active" : ""}`}
-            data-guide-id={tab.tabGuideId}
+            data-ui-id={tab.tabUiId}
             onClick={(): void => { setActivePanel(tab.id); }}
           >
             {t(tab.labelKey, tab.label)}
@@ -139,13 +139,13 @@ export const RightPanelStack = ({
       </div>
 
       {/* Panel contents — only the active one is visible */}
-      <div className="right-panel-body" data-guide-id={GUIDE_IDS.RIGHT_PANEL_BODY}>
+      <div className="right-panel-body" data-ui-id={UI_IDS.RIGHT_PANEL_BODY}>
         <div
           id="right-panel-resources"
           role="tabpanel"
           hidden={activePanel !== "resources"}
           className="right-panel-content right-panel-content-resources"
-          data-guide-id={GUIDE_IDS.RIGHT_PANEL_RESOURCES}
+          data-ui-id={UI_IDS.RIGHT_PANEL_RESOURCES}
         >
           <ResourceViewer />
         </div>
@@ -155,7 +155,7 @@ export const RightPanelStack = ({
           role="tabpanel"
           hidden={activePanel !== "analysis"}
           className="right-panel-content"
-          data-guide-id={GUIDE_IDS.RIGHT_PANEL_ANALYSIS}
+          data-ui-id={UI_IDS.RIGHT_PANEL_ANALYSIS}
         >
           <AnalysisPanel
             variations={variations}
@@ -175,7 +175,7 @@ export const RightPanelStack = ({
           role="tabpanel"
           hidden={activePanel !== "opening"}
           className="right-panel-content"
-          data-guide-id={GUIDE_IDS.RIGHT_PANEL_OPENING}
+          data-ui-id={UI_IDS.RIGHT_PANEL_OPENING}
         >
           <OpeningExplorerPanel
             result={openingResult}
@@ -194,7 +194,7 @@ export const RightPanelStack = ({
           role="tabpanel"
           hidden={activePanel !== "tablebase"}
           className="right-panel-content"
-          data-guide-id={GUIDE_IDS.RIGHT_PANEL_TABLEBASE}
+          data-ui-id={UI_IDS.RIGHT_PANEL_TABLEBASE}
         >
           <TablebasePanel
             result={tbResult}
@@ -211,7 +211,7 @@ export const RightPanelStack = ({
           role="tabpanel"
           hidden={activePanel !== "collection"}
           className="right-panel-content"
-          data-guide-id={GUIDE_IDS.RIGHT_PANEL_COLLECTION}
+          data-ui-id={UI_IDS.RIGHT_PANEL_COLLECTION}
         >
           <CollectionExplorerPanel t={t} onMoveClick={onMoveClick} />
         </div>
@@ -221,7 +221,7 @@ export const RightPanelStack = ({
           role="tabpanel"
           hidden={activePanel !== "game-search"}
           className="right-panel-content"
-          data-guide-id={GUIDE_IDS.RIGHT_PANEL_GAME_SEARCH}
+          data-ui-id={UI_IDS.RIGHT_PANEL_GAME_SEARCH}
         >
           <GameSearchPanel onImport={onImportPgn} t={t} />
         </div>
@@ -231,7 +231,7 @@ export const RightPanelStack = ({
           role="tabpanel"
           hidden={activePanel !== "position-search"}
           className="right-panel-content"
-          data-guide-id={GUIDE_IDS.RIGHT_PANEL_POSITION_SEARCH}
+          data-ui-id={UI_IDS.RIGHT_PANEL_POSITION_SEARCH}
         >
           <PositionSearchPanel t={t} onOpenGame={onOpenGame} />
         </div>
@@ -241,7 +241,7 @@ export const RightPanelStack = ({
           role="tabpanel"
           hidden={activePanel !== "text-search"}
           className="right-panel-content"
-          data-guide-id={GUIDE_IDS.RIGHT_PANEL_TEXT_SEARCH}
+          data-ui-id={UI_IDS.RIGHT_PANEL_TEXT_SEARCH}
         >
           <TextSearchPanel t={t} onOpenGame={onOpenGame} externalSearch={textSearchTrigger} />
         </div>
@@ -251,7 +251,7 @@ export const RightPanelStack = ({
           role="tabpanel"
           hidden={activePanel !== "players"}
           className="right-panel-content"
-          data-guide-id={GUIDE_IDS.RIGHT_PANEL_PLAYERS}
+          data-ui-id={UI_IDS.RIGHT_PANEL_PLAYERS}
         >
           <PlayersPanel t={t} onSearchPlayer={onSearchPlayer} />
         </div>
@@ -261,7 +261,7 @@ export const RightPanelStack = ({
           role="tabpanel"
           hidden={activePanel !== "settings"}
           className="right-panel-content"
-          data-guide-id={GUIDE_IDS.RIGHT_PANEL_SETTINGS}
+          data-ui-id={UI_IDS.RIGHT_PANEL_SETTINGS}
         >
           <SettingsPanel prefs={shapePrefs} onPrefsChange={onShapePrefsChange} t={t} />
         </div>
@@ -272,7 +272,7 @@ export const RightPanelStack = ({
             role="tabpanel"
             hidden={activePanel !== "dev-tools"}
             className="right-panel-content"
-            data-guide-id={GUIDE_IDS.RIGHT_PANEL_DEV_TOOLS}
+            data-ui-id={UI_IDS.RIGHT_PANEL_DEV_TOOLS}
           >
             <div className="developer-dock-tabs" role="tablist" aria-label={t("controls.developerTools", "Developer Tools")}>
               <button

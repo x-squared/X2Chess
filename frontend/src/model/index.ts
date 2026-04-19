@@ -14,7 +14,11 @@
  */
 
 export { parsePgnToModel, parseCommentRuns } from "../../../parts/pgnparser/src/pgn_model";
-export { serializeModelToPgn } from "../../../parts/pgnparser/src/pgn_serialize";
+export {
+  serializeModelToPgn,
+  serializeXsqrHeadMovetext,
+  XSQR_HEAD_HEADER_KEY,
+} from "../../../parts/pgnparser/src/pgn_serialize";
 export { ECO_OPENING_CODES, resolveEcoOpeningName } from "./eco_openings";
 export {
   applyDefaultIndentDirectives,
@@ -47,6 +51,8 @@ export {
   X2_BOARD_ORIENTATION_HEADER_KEY,
   LEGACY_X2_STYLE_HEADER_KEY,
   LEGACY_X2_BOARD_ORIENTATION_HEADER_KEY,
+  LEGACY_XTWOCHESS_STYLE_HEADER_KEY,
+  LEGACY_XTWOCHESS_BOARD_ORIENTATION_HEADER_KEY,
   ensureRequiredPgnHeaders,
   getHeaderValue,
   getX2StyleFromModel,

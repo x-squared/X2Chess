@@ -349,6 +349,13 @@ export const PgnTextEditor = (): ReactElement => {
     [pgnModel, services, handleInsertComment, handleInsertQa, handleInsertTodo, handleInsertLink, handleOpenAnchorDefDialog],
   );
 
+  const handleCommentEditStart = useCallback(
+    (_commentId: string): void => {
+      services.recordHistorySnapshot();
+    },
+    [services],
+  );
+
   const handleCommentEdit = useCallback(
     (commentId: string, newText: string): void => {
       // Normalize any raw newlines (from Enter, paste, etc.) to [[br]] markers
@@ -417,6 +424,7 @@ export const PgnTextEditor = (): ReactElement => {
             layoutMode,
             onMoveClick: handleMoveClick,
             onCommentEdit: handleCommentEdit,
+            onCommentEditStart: handleCommentEditStart,
             onCommentFocusHandled: handleCommentFocusHandled,
             onEditQa: handleEditQa,
             onDeleteQa: handleDeleteQa,
@@ -452,6 +460,7 @@ export const PgnTextEditor = (): ReactElement => {
             layoutMode,
             onMoveClick: handleMoveClick,
             onCommentEdit: handleCommentEdit,
+            onCommentEditStart: handleCommentEditStart,
             onCommentFocusHandled: handleCommentFocusHandled,
             onEditQa: handleEditQa,
             onDeleteQa: handleDeleteQa,

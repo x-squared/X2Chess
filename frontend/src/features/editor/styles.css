@@ -661,3 +661,74 @@ span[data-kind="branch_header"] {
   background: rgba(219, 231, 255, 0.5);
   box-shadow: 0 0 0 1px rgba(42, 93, 202, 0.4);
 }
+
+/* ── Comment Markdown rendering ──────────────────────────────────────────── */
+
+/* Bold / italic / underline inside view-mode comment blocks */
+.text-editor-comment-block b  { font-weight: 600; }
+.text-editor-comment-block em { font-style: italic; }
+.text-editor-comment-block u  { text-decoration: underline; }
+
+/* Bullet and numbered lists inside comments */
+.text-editor-comment-block ul,
+.text-editor-comment-block ol {
+  margin: 0.2em 0 0.2em 1.4em;
+  padding: 0;
+}
+.text-editor-comment-block li { margin: 0.1em 0; }
+
+/* ── Comment-format toolbar button & dropdown ────────────────────────────── */
+
+/* Anchor element that contains the Aa button and the floating dropdown */
+.comment-format-anchor {
+  position: relative;
+}
+
+/* The "Aa" label inside the format button */
+.comment-format-btn-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+/* Floating dropdown panel — opens to the left of the sidebar strip */
+.comment-format-dropdown {
+  position: absolute;
+  right: calc(100% + 0.35rem);
+  top: 0;
+  background: var(--surface-1);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  min-width: 150px;
+  z-index: 200;
+  padding: 0.2rem 0;
+}
+
+/* Each item in the dropdown */
+.comment-format-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  gap: 1rem;
+  text-align: left;
+}
+
+.comment-format-dropdown-item:hover {
+  background: var(--accent-soft);
+}
+
+/* Keyboard shortcut hint shown right-aligned in each item */
+.comment-format-dropdown-shortcut {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}

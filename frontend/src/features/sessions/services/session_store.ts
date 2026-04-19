@@ -20,7 +20,7 @@ import { log } from "../../../logger";
 
 type SaveMode = "auto" | "manual";
 
-type DirtyState = "clean" | "dirty" | "saving" | "error" | (string & Record<never, never>);
+export type DirtyState = "clean" | "dirty" | "saving" | "error";
 
 type GameSession = {
   sessionId: string;
@@ -189,6 +189,15 @@ export const createGameSessionStore = ({
     return { closed: true, emptyAfterClose: false };
   };
 
+  const replaceActiveSessionOwnState = (newState: GameSessionState): void => {
+    const active: GameSession | null = getActiveSession();
+    if (!active) return;
+    active.ownState = newState;
+    active.dirtyState = "clean";
+    activeSessionRef.current = newState;
+    notifyChanged();
+  };
+
   const updateActiveSessionMeta = (patch: ActiveSessionPatch): void => {
     const active: GameSession | null = getActiveSession();
     if (!active || !patch || typeof patch !== "object") return;
@@ -196,7 +205,7 @@ export const createGameSessionStore = ({
     if ("sourceRef" in patch) active.sourceRef = patch.sourceRef || null;
     if ("pendingResourceRef" in patch) active.pendingResourceRef = patch.pendingResourceRef || null;
     if ("revisionToken" in patch) active.revisionToken = String(patch.revisionToken || "");
-    if ("dirtyState" in patch) active.dirtyState = String(patch.dirtyState || active.dirtyState);
+    if ("dirtyState" in patch) active.dirtyState = patch.dirtyState ?? active.dirtyState;
     if ("saveMode" in patch) active.saveMode = patch.saveMode === "manual" ? "manual" : "auto";
     notifyChanged();
   };
@@ -225,7 +234,7 @@ export const createGameSessionStore = ({
         saveMode: session.saveMode,
         currentPly: typeof ownState.currentPly === "number" ? ownState.currentPly : 0,
         selectedMoveId: typeof ownState.selectedMoveId === "string" ? ownState.selectedMoveId : null,
-        pgnLayoutMode: typeof ownState.pgnLayoutMode === "string" ? ownState.pgnLayoutMode : "plain",
+        pgnLayoutMode: ownState.pgnLayoutMode,
       };
     }).filter((s): s is SessionSnap => s !== null);
 
@@ -245,6 +254,7 @@ export const createGameSessionStore = ({
     hasUnsavedSessions,
     listSessions: (): GameSession[] => [...getSessions()],
     openSession,
+    replaceActiveSessionOwnState,
     switchToSession,
     updateActiveSessionMeta,
   };

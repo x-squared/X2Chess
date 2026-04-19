@@ -1,5 +1,6 @@
 import type { FsGateway } from "../../../../../parts/resource/src/io/fs_gateway";
 import type { DbGateway } from "../../../../../parts/resource/src/io/db_gateway";
+import type { FormatImportGateway } from "../../../../../parts/resource/src/adapters/import/format_import_types";
 
 export type TauriWindowLike = Window & {
   __TAURI_INTERNALS__?: unknown;
@@ -41,6 +42,25 @@ export const openDevTools = async (): Promise<void> => {
   const invokeFn = runtimeWindow?.__TAURI__?.core?.invoke;
   if (typeof invokeFn !== "function") return;
   await invokeFn("open_devtools").catch(() => {});
+};
+
+/** Build the production `FormatImportGateway` for Tauri desktop builds. */
+export const buildTauriFormatImportGateway = (): FormatImportGateway => {
+  const getInvoke = (): (cmd: string, args?: Record<string, unknown>) => Promise<unknown> => {
+    const runtimeWindow = window as TauriWindowLike;
+    const fn = runtimeWindow.__TAURI__?.core?.invoke;
+    if (typeof fn !== "function") throw new Error("Tauri invoke API is unavailable.");
+    return fn as (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
+  };
+
+  return {
+    readTextFile: async (path: string): Promise<string> => {
+      return String(await getInvoke()("load_text_file", { filePath: path }));
+    },
+    invokeTauriCommand: async <T>(cmd: string, args: Record<string, unknown>): Promise<T> => {
+      return getInvoke()(cmd, args) as Promise<T>;
+    },
+  };
 };
 
 export const buildTauriDbGateway = (dbPath: string): DbGateway => {

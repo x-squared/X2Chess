@@ -15,13 +15,14 @@
  */
 
 import type { ActiveSessionRef } from "../../sessions/services/game_session_state";
+import type { LayoutMode } from "./plan/types";
 
 type EditorSnapshot = {
   pgnModel: unknown;
   pgnText: string;
   currentPly: number;
   selectedMoveId: string | null;
-  pgnLayoutMode: string;
+  pgnLayoutMode: LayoutMode;
 };
 
 type EditorHistoryDeps = {

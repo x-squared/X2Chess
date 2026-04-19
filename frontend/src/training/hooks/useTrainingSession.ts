@@ -30,7 +30,7 @@ import type { PlyRecord } from "../domain/training_transcript";
 
 // ── State machine types ───────────────────────────────────────────────────────
 
-type HookPhase = "idle" | "in_progress" | "reviewing";
+type HookPhase = "idle" | "in_progress" | "paused" | "reviewing";
 
 type HookState = {
   phase: HookPhase;
@@ -40,13 +40,19 @@ type HookState = {
   lastFeedback: import("../domain/training_protocol").MoveEvalFeedback | null;
   /** SAN of the correct move when last attempt was wrong. */
   correctMoveSan: string | null;
+  /** True when the user has already made at least one wrong attempt on the
+   *  current ply. A successful retry must still be scored as a failure. */
+  failedCurrentMove: boolean;
 };
 
 type HookAction =
   | { type: "start"; sessionState: TrainingSessionState; transcript: TrainingTranscript }
   | { type: "advance"; sessionState: TrainingSessionState; transcript: TrainingTranscript; feedback: HookState["lastFeedback"] }
-  | { type: "feedback"; feedback: HookState["lastFeedback"]; correctMoveSan: string | null }
+  | { type: "feedback"; feedback: HookState["lastFeedback"]; correctMoveSan: string | null; sessionState?: TrainingSessionState }
+  | { type: "hint_used"; sessionState: TrainingSessionState }
   | { type: "review"; summary: ResultSummary; transcript: TrainingTranscript }
+  | { type: "pause" }
+  | { type: "resume" }
   | { type: "idle" };
 
 const reducer = (state: HookState, action: HookAction): HookState => {
@@ -59,6 +65,7 @@ const reducer = (state: HookState, action: HookAction): HookState => {
         summary: null,
         lastFeedback: null,
         correctMoveSan: null,
+        failedCurrentMove: false,
       };
     case "advance":
       return {
@@ -67,12 +74,21 @@ const reducer = (state: HookState, action: HookAction): HookState => {
         transcript: action.transcript,
         lastFeedback: action.feedback,
         correctMoveSan: null,
+        failedCurrentMove: false,   // reset for the next ply
       };
     case "feedback":
       return {
         ...state,
+        sessionState: action.sessionState ?? state.sessionState,
         lastFeedback: action.feedback,
         correctMoveSan: action.correctMoveSan,
+        failedCurrentMove: true,    // mark ply as having at least one failed attempt
+      };
+    case "hint_used":
+      return {
+        ...state,
+        sessionState: action.sessionState,
+        // preserve failedCurrentMove, lastFeedback, correctMoveSan
       };
     case "review":
       return {
@@ -81,6 +97,10 @@ const reducer = (state: HookState, action: HookAction): HookState => {
         summary: action.summary,
         transcript: action.transcript,
       };
+    case "pause":
+      return { ...state, phase: "paused" };
+    case "resume":
+      return { ...state, phase: "in_progress" };
     case "idle":
       return {
         phase: "idle",
@@ -89,6 +109,7 @@ const reducer = (state: HookState, action: HookAction): HookState => {
         summary: null,
         lastFeedback: null,
         correctMoveSan: null,
+        failedCurrentMove: false,
       };
     default:
       return state;
@@ -102,6 +123,7 @@ const INITIAL_STATE: HookState = {
   summary: null,
   lastFeedback: null,
   correctMoveSan: null,
+  failedCurrentMove: false,
 };
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
@@ -124,8 +146,32 @@ export type TrainingSessionControls = {
   requestHint(): void;
   /** Abort the session mid-way. */
   abort(): void;
+  /** Pause the session (returns to app, pill shown in sessions bar). */
+  pause(): void;
+  /** Resume a paused session. */
+  resume(): void;
   /** Dismiss the result summary and return to idle. */
   confirmResult(): void;
+  /** Discard the result — return to idle without saving the badge. */
+  discard(): void;
+  /**
+   * Clear the last-move feedback toast without advancing (used by the retry
+   * path so the board can reset to the position before the wrong move).
+   */
+  clearFeedback(): void;
+};
+
+/** Return updated session state with hintsUsed incremented, or undefined if no hint should be charged. */
+const chargeHintForWrongMove = (
+  sessionState: TrainingSessionState,
+): TrainingSessionState | undefined => {
+  const opts = sessionState.config.protocolOptions as {
+    allowHints?: boolean;
+    maxHintsPerGame?: number;
+  };
+  const maxHints = opts.maxHintsPerGame ?? 3;
+  if (opts.allowHints === false || sessionState.hintsUsed >= maxHints) return undefined;
+  return { ...sessionState, hintsUsed: sessionState.hintsUsed + 1 };
 };
 
 export const useTrainingSession = (
@@ -160,8 +206,34 @@ export const useTrainingSession = (
       if (!state.sessionState || !state.transcript) return;
 
       const result = getProtocol().evaluateMove(move, state.sessionState);
+
+      if (!result.accepted) {
+        // Don't advance the timer — time is measured from when the position
+        // was first shown until the move is finally accepted.
+        //
+        // First wrong attempt at this ply costs one hint from the budget.
+        const feedbackSessionState = state.failedCurrentMove
+          ? undefined
+          : chargeHintForWrongMove(state.sessionState);
+        dispatch({
+          type: "feedback",
+          feedback: result.feedback,
+          correctMoveSan: result.correctMove?.san ?? null,
+          sessionState: feedbackSessionState,
+        });
+        return;
+      }
+
+      // Move accepted — measure elapsed time and reset clock for next ply.
       const timeTaken = Date.now() - movePlyStartTimeRef.current;
       movePlyStartTimeRef.current = Date.now();
+
+      // A prior failed attempt on this ply forces the outcome to "wrong"
+      // regardless of how good the eventual move was.
+      const hadFailure = state.failedCurrentMove;
+      const acceptedFeedbacks = new Set(["correct", "correct_better", "correct_dubious", "legal_variant", "inferior"]);
+      const baseFeedback = acceptedFeedbacks.has(result.feedback) ? result.feedback : "correct";
+      const effectiveOutcome: PlyRecord["outcome"] = hadFailure ? "wrong" : baseFeedback;
 
       const plyRecord: PlyRecord = {
         ply: state.sessionState.currentSourcePly,
@@ -173,12 +245,8 @@ export const useTrainingSession = (
             ?.mainlineSans?.[state.sessionState.currentSourcePly] as string ?? "",
         userMoveUci: move.uci,
         userMoveSan: move.san,
-        outcome: (result.feedback === "correct" || result.feedback === "correct_better" ||
-          result.feedback === "correct_dubious" || result.feedback === "legal_variant" ||
-          result.feedback === "inferior")
-          ? result.feedback
-          : result.accepted ? "correct" : "wrong",
-        attemptsCount: 1,
+        outcome: effectiveOutcome,
+        attemptsCount: hadFailure ? 2 : 1,
         timeTakenMs: timeTaken,
       };
 
@@ -192,27 +260,14 @@ export const useTrainingSession = (
         });
       }
 
-      if (!result.accepted) {
-        dispatch({
-          type: "feedback",
-          feedback: result.feedback,
-          correctMoveSan: result.correctMove?.san ?? null,
-        });
-        return;
-      }
-
       let newSession: TrainingSessionState = {
         ...state.sessionState,
-        correctCount:
-          result.feedback === "correct" || result.feedback === "correct_better" ||
-          result.feedback === "correct_dubious" || result.feedback === "legal_variant" ||
-          result.feedback === "inferior"
-            ? state.sessionState.correctCount + 1
-            : state.sessionState.correctCount,
-        wrongCount:
-          result.feedback === "wrong"
-            ? state.sessionState.wrongCount + 1
-            : state.sessionState.wrongCount,
+        correctCount: (!hadFailure && effectiveOutcome !== "wrong")
+          ? state.sessionState.correctCount + 1
+          : state.sessionState.correctCount,
+        wrongCount: (hadFailure || effectiveOutcome === "wrong")
+          ? state.sessionState.wrongCount + 1
+          : state.sessionState.wrongCount,
       };
       newSession = getProtocol().advance(newSession);
 
@@ -225,7 +280,7 @@ export const useTrainingSession = (
 
       dispatch({ type: "advance", sessionState: newSession, transcript: newTranscript, feedback: result.feedback });
     },
-    [state.sessionState, state.transcript],
+    [state.sessionState, state.transcript, state.failedCurrentMove],
   );
 
   const skipMove = useCallback((): void => {
@@ -269,16 +324,22 @@ export const useTrainingSession = (
   const requestHint = useCallback((): void => {
     if (!state.sessionState) return;
     dispatch({
-      type: "advance",
+      type: "hint_used",
       sessionState: {
         ...state.sessionState,
         hintUsedThisMove: true,
         hintsUsed: state.sessionState.hintsUsed + 1,
       },
-      transcript: state.transcript!,
-      feedback: state.lastFeedback,
     });
-  }, [state.sessionState, state.transcript, state.lastFeedback]);
+  }, [state.sessionState]);
+
+  const pause = useCallback((): void => {
+    dispatch({ type: "pause" });
+  }, []);
+
+  const resume = useCallback((): void => {
+    dispatch({ type: "resume" });
+  }, []);
 
   const abort = useCallback((): void => {
     if (!state.transcript) { dispatch({ type: "idle" }); return; }
@@ -290,6 +351,10 @@ export const useTrainingSession = (
       dispatch({ type: "idle" });
     }
   }, [state.transcript, state.sessionState]);
+
+  const clearFeedback = useCallback((): void => {
+    dispatch({ type: "feedback", feedback: null, correctMoveSan: null });
+  }, []);
 
   const confirmResult = useCallback((): void => {
     if (state.summary && activeSourceGameRefRef.current) {
@@ -304,6 +369,10 @@ export const useTrainingSession = (
     dispatch({ type: "idle" });
   }, [state.summary]);
 
+  const discard = useCallback((): void => {
+    dispatch({ type: "idle" });
+  }, []);
+
   return {
     phase: state.phase,
     sessionState: state.sessionState,
@@ -316,6 +385,10 @@ export const useTrainingSession = (
     skipMove,
     requestHint,
     abort,
+    pause,
+    resume,
     confirmResult,
+    discard,
+    clearFeedback,
   };
 };

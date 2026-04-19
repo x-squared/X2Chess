@@ -97,17 +97,15 @@ test("appendMove — null after black does not insert duplicate white move numbe
   assert.deepEqual(mainlineSans(updated), ["h5", "Ne3", "--", "Kg5"]);
 });
 
-test("appendMove — null after black skips clock insert when next SAN embeds move number", () => {
+test("appendMove — null after black handles glued move-number format (3.h5)", () => {
+  // PGN with no space between move number and SAN ("3.h5" instead of "3. h5").
+  // The tokenizer splits these, so the model should be equivalent to the spaced form.
   const model = parsePgnToModel("[Event \"?\"]\n\n3.h5 Ne3 4.Kg5 *");
   const ne3 = model.root.entries.filter((e) => e.type === "move").find((m) => (m as PgnMoveNode).san === "Ne3") as PgnMoveNode;
   const cursor: PgnCursor = findCursorForMoveId(model, ne3.id) as PgnCursor;
   const [updated] = appendMove(model, cursor, "--");
-  const nums: string[] = [];
-  for (const e of updated.root.entries) {
-    if (e.type === "move_number") nums.push((e as { text: string }).text);
-  }
-  assert.deepEqual(nums, []);
-  assert.deepEqual(mainlineSans(updated), ["3.h5", "Ne3", "--", "4.Kg5"]);
+  assert.deepEqual(mainlineMoveNumbers(updated), ["3.", "4."]);
+  assert.deepEqual(mainlineSans(updated), ["h5", "Ne3", "--", "Kg5"]);
 });
 
 // ── replaceMove ────────────────────────────────────────────────────────────────

@@ -19,6 +19,8 @@
 
 import { createVersionedStore } from "../storage";
 import type { VersionedStore } from "../storage";
+import type { DirtyState } from "../features/sessions/services/session_store";
+import type { LayoutMode } from "../features/editor/model/plan/types";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -31,13 +33,13 @@ export type SessionSnap = {
   pgnText: string;
   /** Source the session is backed by, or null for sessions never saved to disk. */
   sourceRef: { kind: string; locator: string; recordId?: string } | null;
-  dirtyState: string;
+  dirtyState: DirtyState;
   saveMode: "auto" | "manual";
   /** Half-move index (0 = start position). */
   currentPly: number;
   selectedMoveId: string | null;
   /** PGN editor layout mode for this session. */
-  pgnLayoutMode: string;
+  pgnLayoutMode: LayoutMode;
 };
 
 /** Snapshot of one open resource viewer tab. */

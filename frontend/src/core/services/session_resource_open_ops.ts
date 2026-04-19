@@ -50,6 +50,8 @@ type ResourceOpenOps = Pick<
   | "openResourceFile"
   | "openResourceDirectory"
   | "createResource"
+  | "selectResourceTab"
+  | "closeResourceTab"
   | "openGameFromRef"
   | "openGameFromRecordId"
   | "fetchGameMetadataByRecordId"
@@ -269,6 +271,14 @@ export const createResourceOpenOps = (
     const sourceRef = activeSession?.sourceRef;
     if (!sourceRef?.kind || !sourceRef.locator) return null;
     return { kind: String(sourceRef.kind), locator: String(sourceRef.locator) };
+  },
+
+  selectResourceTab: (tabId: string): void => {
+    bundle.resourceViewer.selectTab(tabId);
+  },
+
+  closeResourceTab: (tabId: string): void => {
+    bundle.resourceViewer.closeTab(tabId);
   },
 
   reorderGameInResource: async (sourceRef: unknown, neighborSourceRef: unknown): Promise<void> => {

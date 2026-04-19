@@ -832,6 +832,7 @@
 
 .developer-dock-body {
   min-height: 0;
+  max-height: calc(100vh - 480px);
   overflow: auto;
   padding: 0.5rem 0.55rem 0.55rem;
 }

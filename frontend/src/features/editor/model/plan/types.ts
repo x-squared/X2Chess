@@ -448,6 +448,7 @@ export const buildVariationWalker = (
       addSpace(state);
     });
 
+    const shouldBreakAfterRav: boolean = variation.depth === 0;
     if (Array.isArray(entry.postItems) && entry.postItems.length > 0) {
       for (let idx: number = 0; idx < entry.postItems.length; idx += 1) {
         const item: PgnPostItem = entry.postItems[idx];
@@ -457,11 +458,15 @@ export const buildVariationWalker = (
         }
         if (item.type === "rav" && item.rav) {
           emitVariation(item.rav, state, registry);
+          if (shouldBreakAfterRav) nextBlock(state);
         }
       }
     } else {
       entry.commentsAfter.forEach((c: PgnComment): void => internalAddComment(state, c, variation.depth));
-      entry.ravs.forEach((child: PgnVariation): void => emitVariation(child, state, registry));
+      entry.ravs.forEach((child: PgnVariation): void => {
+        emitVariation(child, state, registry);
+        if (shouldBreakAfterRav) nextBlock(state);
+      });
     }
   };
 

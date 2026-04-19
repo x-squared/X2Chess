@@ -17,6 +17,29 @@
 
 import { workspaceSnapshotStore } from "./workspace_snapshot_store";
 import type { WorkspaceSnapshot, SessionSnap, ResourceTabSnap } from "./workspace_snapshot_store";
+import type { DirtyState } from "../features/sessions/services/session_store";
+import type { LayoutMode } from "../features/editor/model/plan/types";
+
+// ── Boundary narrowing helpers ─────────────────────────────────────────────────
+
+const toStr = (v: unknown, fallback: string): string =>
+  typeof v === "string" ? v : fallback;
+
+const toStrOrNull = (v: unknown): string | null =>
+  typeof v === "string" ? v : null;
+
+const toNum = (v: unknown, fallback: number): number =>
+  typeof v === "number" ? v : fallback;
+
+const toDirtyState = (v: unknown): DirtyState => {
+  if (v === "clean" || v === "dirty" || v === "saving" || v === "error") return v;
+  return "clean";
+};
+
+const toLayoutMode = (v: unknown): LayoutMode => {
+  if (v === "plain" || v === "text" || v === "tree") return v;
+  return "plain";
+};
 
 // ── Internal types ─────────────────────────────────────────────────────────────
 
@@ -54,50 +77,47 @@ type SharedStateForSnapshot = {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
+const toSourceRef = (raw: unknown): SessionSnap["sourceRef"] => {
+  const ref = raw as RawSourceRef ?? {};
+  const locator = toStr(ref.locator, "");
+  if (!locator) return null;
+  const recordId = toStr(ref.recordId, "");
+  return {
+    kind: toStr(ref.kind, ""),
+    locator,
+    ...(recordId ? { recordId } : {}),
+  };
+};
+
 const toSessionSnap = (raw: unknown): SessionSnap | null => {
   const s = raw as RawSession;
-  const sessionId = typeof s.sessionId === "string" ? s.sessionId : "";
+  const sessionId = toStr(s.sessionId, "");
   if (!sessionId) return null;
 
-  const ownState = s.ownState as RawOwnState;
-  const sourceRef = s.sourceRef as RawSourceRef;
-  const hasLocator = typeof sourceRef?.locator === "string" && sourceRef.locator !== "";
-
+  const ownState = s.ownState as RawOwnState ?? {};
   return {
     sessionId,
-    title: typeof s.title === "string" ? s.title : sessionId,
-    pgnText: typeof ownState?.pgnText === "string" ? ownState.pgnText : "",
-    sourceRef: hasLocator
-      ? {
-          kind: typeof sourceRef?.kind === "string" ? sourceRef.kind : "",
-          locator: String(sourceRef?.locator),
-          ...(typeof sourceRef?.recordId === "string" && sourceRef.recordId
-            ? { recordId: sourceRef.recordId }
-            : {}),
-        }
-      : null,
-    dirtyState: typeof s.dirtyState === "string" ? s.dirtyState : "clean",
+    title: toStr(s.title, "") || sessionId,
+    pgnText: toStr(ownState.pgnText, ""),
+    sourceRef: toSourceRef(s.sourceRef),
+    dirtyState: toDirtyState(s.dirtyState),
     saveMode: s.saveMode === "manual" ? "manual" : "auto",
-    currentPly: typeof ownState?.currentPly === "number" ? ownState.currentPly : 0,
-    selectedMoveId:
-      typeof ownState?.selectedMoveId === "string" ? ownState.selectedMoveId : null,
-    pgnLayoutMode:
-      typeof ownState?.pgnLayoutMode === "string" ? ownState.pgnLayoutMode : "plain",
+    currentPly: toNum(ownState.currentPly, 0),
+    selectedMoveId: toStrOrNull(ownState.selectedMoveId),
+    pgnLayoutMode: toLayoutMode(ownState.pgnLayoutMode),
   };
 };
 
 const toResourceTabSnap = (raw: unknown): ResourceTabSnap | null => {
   const t = raw as RawResourceTab;
-  const tabId = typeof t.tabId === "string" ? t.tabId : "";
+  const tabId = toStr(t.tabId, "");
   if (!tabId) return null;
-  const locator =
-    t.resourceRef && typeof t.resourceRef.locator === "string" ? t.resourceRef.locator : "";
+  const locator = toStr(t.resourceRef?.locator, "");
   if (!locator) return null;
   return {
     tabId,
-    title: typeof t.title === "string" ? t.title : "",
-    kind:
-      t.resourceRef && typeof t.resourceRef.kind === "string" ? t.resourceRef.kind : "",
+    title: toStr(t.title, ""),
+    kind: toStr(t.resourceRef?.kind, ""),
     locator,
   };
 };
@@ -160,7 +180,7 @@ export const hasUnsavedSessions = (state: SharedStateForSnapshot): boolean => {
     const sourceRef = s.sourceRef as RawSourceRef;
     const hasSource =
       typeof sourceRef?.locator === "string" && sourceRef.locator !== "";
-    const dirtyState = typeof s.dirtyState === "string" ? s.dirtyState : "clean";
+    const dirtyState = toDirtyState(s.dirtyState);
     return !hasSource || dirtyState === "dirty" || dirtyState === "error";
   });
 };

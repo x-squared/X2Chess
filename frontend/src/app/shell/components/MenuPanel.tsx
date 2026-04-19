@@ -189,16 +189,6 @@ export const MenuPanel = (): ReactElement => {
             {t("controls.developerTools", "Developer Tools")}
           </label>
 
-          {/* Developer dock toggle */}
-          <button
-            id="btn-dev-dock-toggle"
-            className="source-button"
-            type="button"
-            onClick={(): void => { services.setDevDockOpen(true); }}
-          >
-            {t("controls.openDeveloperDock", "Open Developer Dock")}
-          </button>
-
           {/* Save mode */}
           <label className="inline-control">
             {t("controls.saveMode", "Save mode")}

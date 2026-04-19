@@ -89,6 +89,7 @@ export type TokenViewProps = {
   layoutMode: "plain" | "text" | "tree";
   onMoveClick: (moveId: string) => void;
   onCommentEdit: (commentId: string, newText: string) => void;
+  onCommentEditStart: (commentId: string) => void;
   onCommentFocusHandled: (commentId: string) => void;
   onEditQa: (commentId: string, index: number, rawText: string) => void;
   onDeleteQa: (commentId: string, index: number, rawText: string) => void;
@@ -130,6 +131,7 @@ export const TokenView = ({
   layoutMode,
   onMoveClick,
   onCommentEdit,
+  onCommentEditStart,
   onCommentFocusHandled,
   onEditQa,
   onDeleteQa,
@@ -292,6 +294,7 @@ export const TokenView = ({
             isFocused={shouldFocusComment}
             onFocusHandled={onCommentFocusHandled}
             onEdit={onCommentEdit}
+            onEditStart={onCommentEditStart}
           />
         )}
       </>
@@ -347,6 +350,7 @@ export type TokenRenderDeps = {
   layoutMode: "plain" | "text" | "tree";
   onMoveClick: (moveId: string) => void;
   onCommentEdit: (commentId: string, newText: string) => void;
+  onCommentEditStart: (commentId: string) => void;
   onCommentFocusHandled: (commentId: string) => void;
   onEditQa: (commentId: string, index: number, rawText: string) => void;
   onDeleteQa: (commentId: string, index: number, rawText: string) => void;
@@ -392,6 +396,7 @@ export const renderToken = (token: PlanToken, deps: TokenRenderDeps): ReactEleme
     layoutMode={deps.layoutMode}
     onMoveClick={deps.onMoveClick}
     onCommentEdit={deps.onCommentEdit}
+    onCommentEditStart={deps.onCommentEditStart}
     onCommentFocusHandled={deps.onCommentFocusHandled}
     onEditQa={deps.onEditQa}
     onDeleteQa={deps.onDeleteQa}

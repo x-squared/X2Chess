@@ -94,6 +94,7 @@ export const createSessionOrchestrator = (
     },
 
     closeSession: (sessionId: string): void => {
+      bundle.sessionPersistence.cancelPendingAutosave();
       const result = bundle.sessionStore.closeSession(sessionId);
       if (result.closed) {
         if (result.emptyAfterClose) {
@@ -132,6 +133,34 @@ export const createSessionOrchestrator = (
 
     saveActiveGameNow: (): void => {
       void bundle.sessionPersistence.persistActiveSessionNow();
+    },
+
+    discardActiveSessionChanges: async (): Promise<void> => {
+      const session = bundle.sessionStore.getActiveSession();
+      if (!session) return;
+      const sourceRef = session.sourceRef;
+      if (!sourceRef?.kind || !sourceRef.locator) {
+        bundle.sessionStore.updateActiveSessionMeta({ dirtyState: "clean" });
+        flushSessionState();
+        return;
+      }
+      try {
+        const result = await bundle.resources.loadGameBySourceRef({
+          kind: String(sourceRef.kind),
+          locator: String(sourceRef.locator),
+          recordId: typeof sourceRef.recordId === "string" ? sourceRef.recordId : undefined,
+        });
+        const newState: GameSessionState = bundle.sessionModel.createSessionFromPgnText(result.pgnText);
+        bundle.sessionStore.replaceActiveSessionOwnState(newState);
+        log.info("session_orchestrator", "discardActiveSessionChanges: reloaded session from source");
+        flushSessionState();
+        dispatchRef.current({ type: "set_board_flipped", flipped: deriveInitialBoardFlipped(newState.pgnModel) });
+      } catch (err: unknown) {
+        log.error(
+          "session_orchestrator",
+          `discardActiveSessionChanges: reload failed — ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
     },
 
     saveSessionById: (sessionId: string): void => {

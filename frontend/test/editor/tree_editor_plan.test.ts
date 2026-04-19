@@ -401,3 +401,35 @@ test("text mode suppresses black move number after move even with intervening co
   assert.match(text, /Ne5/);
   assert.doesNotMatch(text, /5\.\.\./);
 });
+
+for (const [label, blocks] of [
+  ["text mode", (m: unknown) => textBlocks(m)],
+  ["plain mode", (m: unknown) => buildTextEditorPlan(m, { layoutMode: "plain" })],
+] as const) {
+  test(`${label} starts a new block after a mainline RAV before the continuation`, () => {
+    // Regression: 3.cxd5 (3.Nc3 ...) 3...exd5 — exd5 must be in a
+    // different block from the last move inside the variation.
+    const rav = variation(1, [
+      moveNumber("3."), move("rv1", "Nc3"),
+      moveNumber("3..."), move("rv2", "Nf6"),
+    ]);
+    const m = model(variation(0, [
+      moveNumber("3."),
+      move("m1", "cxd5", { ravs: [rav] }),
+      moveNumber("3..."),
+      move("m2", "exd5"),
+    ]));
+    const planBlocks = blocks(m);
+    const blockOf = (san: string): number =>
+      planBlocks.findIndex((b) =>
+        b.tokens.some((t) => t.kind === "inline" && t.tokenType === "move" && t.text === san),
+      );
+    assert.notEqual(blockOf("Nf6"), -1, "Nf6 should be rendered");
+    assert.notEqual(blockOf("exd5"), -1, "exd5 should be rendered");
+    assert.notEqual(
+      blockOf("Nf6"),
+      blockOf("exd5"),
+      "exd5 (mainline continuation) must be in a different block from the last RAV move",
+    );
+  });
+}

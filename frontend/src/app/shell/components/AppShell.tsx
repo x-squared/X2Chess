@@ -25,7 +25,7 @@
  */
 
 import { useRef, useEffect, useCallback, useState, useMemo } from "react";
-import type { ReactElement } from "react";
+import type { ReactElement, CSSProperties } from "react";
 import { useGameIngress } from "../../../features/sessions/hooks/useGameIngress";
 import { isLikelyPgnText } from "../../../runtime/bootstrap_shared";
 import { useAppContext } from "../../providers/AppStateProvider";
@@ -64,7 +64,6 @@ import type { AppStartupServices } from "../../../core/contracts/app_services";
 import { useHoverPreview } from "../../../components/board/HoverPreviewContext";
 import { replayPvToPosition } from "../../../board/move_position";
 import { MenuPanel } from "./MenuPanel";
-import { DevDock } from "./DevDock";
 import { GuideInspector } from "../../../features/guide/components/GuideInspector";
 import { GUIDE_IDS } from "../../../features/guide/model/guide_ids";
 import { GameInfoEditor } from "../../../features/editor/components/GameInfoEditor";
@@ -75,6 +74,8 @@ import { isBoardKey } from "../../../board/board_shapes";
 import { PgnTextEditor } from "../../../features/editor/components/PgnTextEditor";
 import { ToolbarRow } from "./ToolbarRow";
 import { TextEditorSidebar } from "../../../features/editor/components/TextEditorSidebar";
+import { applyMarkdownWrap } from "../../../features/editor/components/comment_markdown_format";
+import type { CommentFormat } from "../../../features/editor/components/comment_markdown_format";
 import { RightPanelStack } from "./RightPanelStack";
 import type { PanelId } from "./RightPanelStack";
 import { AppShellOverlays } from "./AppShellOverlays";
@@ -82,6 +83,9 @@ import { StudyOverlay } from "../../../features/guide/components/StudyOverlay";
 import { useTrainingSession } from "../../../training/hooks/useTrainingSession";
 import { REPLAY_PROTOCOL } from "../../../training/protocols/replay_protocol";
 import { OPENING_PROTOCOL } from "../../../training/protocols/opening_protocol";
+import { FIND_MOVE_PROTOCOL } from "../../../training/protocols/find_move_protocol";
+import { buildTrainingGameContext } from "../../../training/domain/training_game_context";
+import type { TrainingGameContext } from "../../../training/domain/training_game_context";
 import { TrainingHistoryStrip } from "../../../training/components/TrainingHistoryStrip";
 import { TrainingOverlay } from "../../../training/components/TrainingOverlay";
 import { MoveOutcomeHint } from "../../../training/components/MoveOutcomeHint";
@@ -223,6 +227,7 @@ export const AppShell = (): ReactElement => {
   // render (after useAppStartup returns), and is always current by the time any user
   // interaction triggers the callbacks.
   const moveEntryServicesRef = useRef<AppStartupServices | null>(null);
+  const hintClearTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
 
   const {
     pendingFork,
@@ -266,7 +271,11 @@ export const AppShell = (): ReactElement => {
   }, [hidePreview]);
 
   // ── Training session ───────────────────────────────────────────────────────
-  const trainingControls = useTrainingSession([REPLAY_PROTOCOL, OPENING_PROTOCOL]);
+  const trainingControls = useTrainingSession([REPLAY_PROTOCOL, OPENING_PROTOCOL, FIND_MOVE_PROTOCOL]);
+  const trainingGameContext: TrainingGameContext = useMemo(
+    () => buildTrainingGameContext(pgnModel),
+    [pgnModel],
+  );
   const [showExtDbSettings, setShowExtDbSettings] = useState(false);
 
   const trainingOpts = trainingControls.sessionState?.config.protocolOptions as {
@@ -293,26 +302,55 @@ export const AppShell = (): ReactElement => {
     }
   }, [trainingControls.phase, dispatch]);
 
-  // T11: engine hint during training — call findBestMove on the training FEN.
+  // Auto-flip the board to face the user's chosen side when training starts.
+  // Triggers once per session (when phase first becomes "in_progress").
+  const prevTrainingPhaseRef = useRef<string>("idle");
+  useEffect((): void => {
+    const prev = prevTrainingPhaseRef.current;
+    prevTrainingPhaseRef.current = trainingControls.phase;
+    if (prev !== "in_progress" && trainingControls.phase === "in_progress") {
+      const side = (trainingControls.sessionState?.config.protocolOptions as { side?: string })?.side;
+      if (side === "black") {
+        dispatch({ type: "set_board_flipped", flipped: true });
+      } else if (side === "white") {
+        dispatch({ type: "set_board_flipped", flipped: false });
+      }
+      // "both" — leave the board as-is; the user can flip manually.
+    }
+  }, [trainingControls.phase, trainingControls.sessionState, dispatch]);
+
+  // T11: hint during training — highlight the source square of the correct game move briefly.
   const handleTrainingHint = useCallback((): void => {
     trainingControls.requestHint();
-    const fen = trainingControls.sessionState?.position.fen;
-    if (!fen) return;
-    void findBestMove({ fen, moves: [] }, { movetime: 1500 }).then((best) => {
-      if (!best) return;
-      const uci: string = best.uci;
-      if (uci.length >= 4) {
-        const from: string = uci.slice(0, 2);
-        const to: string = uci.slice(2, 4);
-        if (isBoardKey(from) && isBoardKey(to)) {
-          setHintShapes([{ kind: "arrow", from, to, color: "green" }]);
-        }
-      }
-    });
-  }, [trainingControls, findBestMove]);
+    const sessionState = trainingControls.sessionState;
+    if (!sessionState) return;
+    const ply = sessionState.currentSourcePly;
+    const mainlineMoves = (sessionState.protocolState as { mainlineMoves?: string[] }).mainlineMoves;
+    const uci = mainlineMoves?.[ply];
+    if (!uci || uci.length < 2) return;
+    const from = uci.slice(0, 2);
+    if (!isBoardKey(from)) return;
+
+    if (hintClearTimerRef.current !== null) {
+      window.clearTimeout(hintClearTimerRef.current);
+    }
+    setHintShapes([{ kind: "highlight", square: from, color: "green" }]);
+    hintClearTimerRef.current = window.setTimeout((): void => {
+      setHintShapes([]);
+      hintClearTimerRef.current = null;
+    }, 2500);
+  }, [trainingControls]);
 
   const isDirty: boolean =
-    activeSession?.dirtyState === "dirty" || activeSession?.dirtyState === "error";
+    activeSession?.dirtyState === "dirty" ||
+    activeSession?.dirtyState === "error" ||
+    !!activeSession?.isUnsaved;
+
+  const boardWrapperClass: string | undefined =
+    trainingControls.phase === "in_progress" ? "board-training-elevated" : undefined;
+
+  // Training board scale: 50–100 % of the max fitted size. Starts at 100 %.
+  const [trainingBoardScale, setTrainingBoardScale] = useState<number>(100);
 
   // ── M8: navigate-away guard ───────────────────────────────────────────────
   const rawServices: AppStartupServices = useAppStartup();
@@ -424,6 +462,21 @@ export const AppShell = (): ReactElement => {
               <p className="game-tabs-title">{t("games.open", "Open games")}</p>
             </div>
             <GameSessionsPanel />
+
+            {/* Training pause pill — shown while training is paused */}
+            {trainingControls.phase === "paused" && trainingControls.sessionState && (
+              <button
+                type="button"
+                className="training-pause-pill"
+                title={t("training.resumeTooltip", "Click to resume training")}
+                onClick={trainingControls.resume}
+              >
+                <span className="training-pause-pill__icon" aria-hidden="true">▶</span>
+                <span className="training-pause-pill__label">
+                  {t("training.resumePill", "Training paused — resume")}
+                </span>
+              </button>
+            )}
           </section>
 
           {/* ── Game info card (compact summary + fold-down editor) ── */}
@@ -431,8 +484,14 @@ export const AppShell = (): ReactElement => {
 
           {/* ── Board / editor split pane ── */}
           <div ref={boardEditorBoxRef} id="board-editor-box" className="board-editor-box" data-guide-id={GUIDE_IDS.BOARD_ROOT}>
-            {/* Chessboard */}
-            <div data-guide-id={GUIDE_IDS.CHESS_BOARD}>
+            {/* Chessboard — elevated above the training backdrop when training is active */}
+            <div
+              data-guide-id={GUIDE_IDS.CHESS_BOARD}
+              className={boardWrapperClass}
+              style={trainingControls.phase === "in_progress"
+                ? { "--training-board-scale": String(trainingBoardScale) } as CSSProperties
+                : undefined}
+            >
               <ChessBoard
                   onMovePlayed={effectiveOnMovePlayed}
                   overlayShapes={hintShapes}
@@ -457,30 +516,6 @@ export const AppShell = (): ReactElement => {
                 t={t}
                 onNext={handleStudyNext}
                 onStop={(): void => { setStudyActive(false); }}
-              />
-            )}
-
-            {/* Training overlay (shown when session is active) */}
-            {trainingControls.phase === "in_progress" && trainingControls.sessionState && (
-              <TrainingOverlay
-                sessionState={trainingControls.sessionState}
-                hintsExhausted={hintsExhausted}
-                t={t}
-                onSkip={trainingControls.skipMove}
-                onHint={handleTrainingHint}
-                onAbort={trainingControls.abort}
-              />
-            )}
-
-            {/* Move outcome hint (correct / wrong feedback) */}
-            {trainingControls.phase === "in_progress" && trainingControls.lastFeedback && (
-              <MoveOutcomeHint
-                feedback={trainingControls.lastFeedback}
-                correctMoveSan={trainingControls.correctMoveSan}
-                allowRetry={trainingAllowRetry}
-                t={t}
-                onRetry={trainingControls.skipMove}
-                onSkip={trainingControls.skipMove}
               />
             )}
 
@@ -547,6 +582,8 @@ export const AppShell = (): ReactElement => {
                   onInsertDeindentMarker={handleInsertDeindentMarker}
                   onApplyDefaultIndent={(): void => { services.applyDefaultIndent(); }}
                   onOpenDefaultLayoutConfig={(): void => { services.openDefaultLayoutDialog(); }}
+                  commentFormatEnabled={layoutMode !== "plain"}
+                  onFormatComment={(fmt: CommentFormat): void => { applyMarkdownWrap(fmt); }}
                   onSave={(): void => { services.saveActiveGameNow(); }}
                   onUndo={(): void => { services.undo(); }}
                   onRedo={(): void => { services.redo(); }}
@@ -560,6 +597,7 @@ export const AppShell = (): ReactElement => {
           {/* ── Right panel stack (analysis, explorer, search, resources) ── */}
           {/* data-guide-id is set on the inner .right-panel-stack div via RightPanelStack */}
           <RightPanelStack
+            devToolsEnabled={devToolsEnabled}
             variations={variations}
             isAnalyzing={isAnalyzing}
             engineName={engineName}
@@ -592,8 +630,47 @@ export const AppShell = (): ReactElement => {
           />
         </section>
 
-        {/* ── Developer dock ── */}
-        {devToolsEnabled && <DevDock />}
+        {/* ── Training focus mode — backdrop + HUD + outcome toast ── */}
+        {trainingControls.phase === "in_progress" && (
+          <div className="training-backdrop" aria-hidden="true" />
+        )}
+        {trainingControls.phase === "in_progress" && trainingControls.sessionState && (
+          <TrainingOverlay
+            sessionState={trainingControls.sessionState}
+            hintsExhausted={hintsExhausted}
+            boardFlipped={boardFlipped}
+            boardScale={trainingBoardScale}
+            t={t}
+            onSkip={trainingControls.skipMove}
+            onHint={handleTrainingHint}
+            onFlip={(): void => {
+              services.flipBoard();
+              // flipBoard calls applyModelUpdate, which resets g.boardPreview = null
+              // (via syncChessParseState → applyParsedState) and dispatches that null to
+              // React. Re-dispatch the training position so it wins in the same batch.
+              const pos = trainingControls.sessionState?.position;
+              if (pos) {
+                dispatch({ type: "set_board_preview", preview: { fen: pos.fen, lastMove: null } });
+              }
+            }}
+            onBoardScale={setTrainingBoardScale}
+            onPause={trainingControls.pause}
+            onAbort={trainingControls.abort}
+          />
+        )}
+        {trainingControls.phase === "in_progress" && trainingControls.lastFeedback && (
+          <MoveOutcomeHint
+            feedback={trainingControls.lastFeedback}
+            correctMoveSan={trainingControls.correctMoveSan}
+            allowRetry={trainingAllowRetry}
+            t={t}
+            onRetry={(): void => {
+              trainingControls.clearFeedback();
+              setBoardResetKey((k) => k + 1);
+            }}
+            onSkip={trainingControls.skipMove}
+          />
+        )}
 
         {/* ── Guide inspector (developer tool — Alt+Shift+G) ── */}
         <GuideInspector />
@@ -628,6 +705,7 @@ export const AppShell = (): ReactElement => {
           trainingControls={trainingControls}
           trainingSourceRef={trainingSourceRef}
           trainingGameTitle={trainingGameTitle}
+          trainingGameContext={trainingGameContext}
           pgnText={pgnText}
           showAnnotateDialog={showAnnotateDialog}
           onCloseAnnotateDialog={(): void => { setShowAnnotateDialog(false); }}

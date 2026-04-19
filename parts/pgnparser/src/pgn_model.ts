@@ -83,7 +83,15 @@ const tokenizeMoveText = (source: string): MoveTextToken[] => {
     }
     let j: number = i + 1;
     while (j < source.length && !/[\s{}()]/.test(source[j])) j += 1;
-    tokens.push({ type: "symbol", value: source.slice(i, j) });
+    const sym: string = source.slice(i, j);
+    // Split "1.d4" or "12...d5" (move-number glued to SAN without whitespace).
+    const glued: RegExpMatchArray | null = sym.match(/^(\d+\.+)([^.\s].+)$/);
+    if (glued) {
+      tokens.push({ type: "symbol", value: glued[1] });
+      tokens.push({ type: "symbol", value: glued[2] });
+    } else {
+      tokens.push({ type: "symbol", value: sym });
+    }
     i = j;
   }
   return tokens;

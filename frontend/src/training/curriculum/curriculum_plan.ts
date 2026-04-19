@@ -14,7 +14,7 @@
 
 // ── Task method ───────────────────────────────────────────────────────────────
 
-export const TASK_METHODS = ["replay", "opening"] as const;
+export const TASK_METHODS = ["replay", "opening", "find_move"] as const;
 
 export type TaskMethod = (typeof TASK_METHODS)[number];
 

@@ -13,6 +13,7 @@
  * - All interactions fire the corresponding callback prop.
  */
 
+import { useState } from "react";
 import type { ReactElement } from "react";
 import type { EngineVariation } from "../../../../../parts/engines/src/domain/analysis_types";
 import type { OpeningResult } from "../../../resources/ext_databases/opening_types";
@@ -27,6 +28,8 @@ import { TextSearchPanel } from "../../../features/resources/search/TextSearchPa
 import { PlayersPanel } from "./PlayersPanel";
 import { ResourceViewer } from "../../../features/resources/components/ResourceViewer";
 import { SettingsPanel } from "../../../features/settings/components/SettingsPanel";
+import { AstPanel } from "../../../features/editor/components/AstPanel";
+import { RawPgnPanel } from "../../../features/editor/components/RawPgnPanel";
 import type { ShapePrefs } from "../../../runtime/shape_prefs";
 import { GUIDE_IDS } from "../../../features/guide/model/guide_ids";
 
@@ -40,9 +43,12 @@ export type PanelId =
   | "position-search"
   | "text-search"
   | "players"
-  | "settings";
+  | "settings"
+  | "dev-tools";
 
 type RightPanelStackProps = {
+  // Dev tools
+  devToolsEnabled: boolean;
   // Engine analysis
   variations: EngineVariation[];
   isAnalyzing: boolean;
@@ -81,7 +87,7 @@ type RightPanelStackProps = {
   onOpenGame: (sourceRef: unknown) => void;
 };
 
-const PANEL_TABS: Array<{ id: PanelId; label: string; labelKey: string; tabGuideId: string }> = [
+const PANEL_TABS: Array<{ id: PanelId; label: string; labelKey: string; tabGuideId: string; devOnly?: boolean }> = [
   { id: "resources",       label: "Resources",    labelKey: "panel.resources",      tabGuideId: GUIDE_IDS.RIGHT_PANEL_TAB_RESOURCES },
   { id: "analysis",        label: "Analysis",     labelKey: "panel.analysis",       tabGuideId: GUIDE_IDS.RIGHT_PANEL_TAB_ANALYSIS },
   { id: "opening",         label: "Opening",      labelKey: "panel.opening",        tabGuideId: GUIDE_IDS.RIGHT_PANEL_TAB_OPENING },
@@ -92,9 +98,11 @@ const PANEL_TABS: Array<{ id: PanelId; label: string; labelKey: string; tabGuide
   { id: "text-search",     label: "Text",         labelKey: "panel.textSearch",     tabGuideId: GUIDE_IDS.RIGHT_PANEL_TAB_TEXT_SEARCH },
   { id: "players",         label: "Players",      labelKey: "panel.players",        tabGuideId: GUIDE_IDS.RIGHT_PANEL_TAB_PLAYERS },
   { id: "settings",        label: "Settings",     labelKey: "panel.settings",       tabGuideId: GUIDE_IDS.RIGHT_PANEL_TAB_SETTINGS },
+  { id: "dev-tools",       label: "Dev Tools",    labelKey: "panel.devTools",       tabGuideId: GUIDE_IDS.RIGHT_PANEL_TAB_DEV_TOOLS, devOnly: true },
 ];
 
 export const RightPanelStack = ({
+  devToolsEnabled,
   variations, isAnalyzing, engineName, sideToMove,
   onStartAnalysis, onStopAnalysis,
   onPvMoveHover, onPvMoveHoverEnd,
@@ -107,12 +115,14 @@ export const RightPanelStack = ({
   t, onMoveClick, onImportPgn, onOpenGame,
 }: RightPanelStackProps): ReactElement => {
   const setActivePanel = onActivePanelChange;
+  const [devSubTab, setDevSubTab] = useState<"ast" | "pgn">("ast");
+  const visibleTabs = devToolsEnabled ? PANEL_TABS : PANEL_TABS.filter((tab) => !tab.devOnly);
 
   return (
     <div className="right-panel-stack" data-guide-id={GUIDE_IDS.RIGHT_PANEL_STACK}>
       {/* Tab bar */}
       <div className="right-panel-tabs" role="tablist" data-guide-id={GUIDE_IDS.RIGHT_PANEL_TABS}>
-        {PANEL_TABS.map((tab) => (
+        {visibleTabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
@@ -255,6 +265,53 @@ export const RightPanelStack = ({
         >
           <SettingsPanel prefs={shapePrefs} onPrefsChange={onShapePrefsChange} t={t} />
         </div>
+
+        {devToolsEnabled && (
+          <div
+            id="right-panel-dev-tools"
+            role="tabpanel"
+            hidden={activePanel !== "dev-tools"}
+            className="right-panel-content"
+            data-guide-id={GUIDE_IDS.RIGHT_PANEL_DEV_TOOLS}
+          >
+            <div className="developer-dock-tabs" role="tablist" aria-label={t("controls.developerTools", "Developer Tools")}>
+              <button
+                className="developer-dock-tab"
+                type="button"
+                role="tab"
+                aria-selected={devSubTab === "ast"}
+                onClick={(): void => { setDevSubTab("ast"); }}
+              >
+                {t("pgn.ast.label", "AST")}
+              </button>
+              <button
+                className="developer-dock-tab"
+                type="button"
+                role="tab"
+                aria-selected={devSubTab === "pgn"}
+                onClick={(): void => { setDevSubTab("pgn"); }}
+              >
+                {t("devDock.tab.rawPgn", "Raw PGN")}
+              </button>
+            </div>
+            <div className="developer-dock-body">
+              <div
+                className="developer-dock-panel"
+                hidden={devSubTab !== "ast"}
+                role="tabpanel"
+              >
+                <AstPanel />
+              </div>
+              <div
+                className="developer-dock-panel"
+                hidden={devSubTab !== "pgn"}
+                role="tabpanel"
+              >
+                <RawPgnPanel />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

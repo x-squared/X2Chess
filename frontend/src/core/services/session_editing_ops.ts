@@ -59,6 +59,7 @@ type EditingOps = Pick<
   | "updateGameInfoHeader"
   | "undo"
   | "redo"
+  | "recordHistorySnapshot"
 >;
 
 // ── Factory ───────────────────────────────────────────────────────────────────
@@ -279,5 +280,9 @@ export const createEditingOps = (
   },
   redo: (): void => {
     bundle.history.performRedo();
+  },
+  recordHistorySnapshot: (): void => {
+    bundle.history.pushUndoSnapshot(bundle.history.captureEditorSnapshot());
+    bundle.history.clearRedoStack();
   },
 });

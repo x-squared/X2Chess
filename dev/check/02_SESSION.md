@@ -21,31 +21,6 @@ See dev/check/00_README.md. These rules must be strictly adhered to when this fi
 
 ## Checklist
 
-- [!] **SESSION-5** — A tab with unsaved changes shows the red "unsaved" styling.
-  > In save mode = manual: That is not the case, the game remains in the original blue.
-- [x] **SESSION-6** — The dirty-dot indicator appears on a tab after editing (move entry, comment, header).
-  > In save mode = manual: That is not the case: The dot apears, but after a few seconds it disappears again.
-- [!] **SESSION-10** — On app close (browser tab close or Tauri window close), if any session has unsaved edits (`dirtyState === "dirty"`), the platform's "unsaved changes — leave anyway?" dialog appears. Confirming closes; cancelling returns to the app.
-  > I have edited the empty game, and it clearly had dirty state, and yet the dialog you describe did not appear on closing.
-- [!] **SESSION-11** — On next launch after a clean close, all sessions that were open are restored: their PGN content (including unsaved edits), titles, source references, layout modes, active ply, and save modes are correct. The session that was active when the app was closed is active again.
-  Restoring the sedssion seems to work well. Almost too well: You slaos seem to restore unsaved edits. This is uncommon behaviour. Argue why we should keep this behaviour. Do not change yet.
-- [ ] **SESSION-12** — On next launch, all resource viewer tabs that were open are restored (kind + locator), and the tab that was active is selected.
-- [ ] **SESSION-13** — On first launch (no snapshot), a single blank default session is opened. No leftover resource viewer tabs appear.
-- [?] **SESSION-14** — Editing the active game's `Date` header updates the date shown in its session pill immediately.
-  > The active game shows a date in game info, but the session pill still shows `?`.
-  >> Fixed: session-pill projection now refreshes on PGN model changes (`onPgnChange`) in addition to session-meta updates, so header edits are reflected immediately.
-- [?] **SESSION-15** — Opening the same source game twice should focus the existing session tab instead of creating a duplicate tab.
-  > I can open the same game twice.
-  >> Fixed: session identity dedupe now uses `kind|locator|recordId` in both `openGameFromRef` and `session_store.openSession`, so repeated open requests activate the existing session.
-
-- [?] **SESSION-2** — Clicking a different tab switches to that game and restores its board position and PGN.
-  > That does not happen as a rule, it may happen, but after changing once, I could not change again.
-  >> When the active session is dirty and the user clicks another tab, `navigateGuard.switchSession` calls `setPendingNavigate` and renders a confirmation dialog. The dialog was rendered with `<dialog open>` (no `showModal()`) so it appeared invisible — the switch silently failed. Fixed: dialog now uses a `ref` + `useEffect` to call `showModal()`, making it a proper visible modal overlay.
-- [?] **SESSION-3** — Clicking × on a tab with unsaved changes shows a confirmation dialog; confirming closes the tab and activates the adjacent one; cancelling leaves the tab open.
-  > A freshly dropped and then editied game cannot be closed, and no confirmation dialog appears. Only games that are droppen but not editied can be closed.
-  >> Two bugs fixed: (1) `GameSessionsPanel.handleClose` was calling `globalThis.confirm()` for dirty sessions before calling `services.closeSession`; in Tauri `globalThis.confirm` returns `undefined` (falsy) causing a silent early return with no dialog. Removed the redundant check — dirty-state confirmation is now handled entirely by `navigateGuard.closeSession` in AppShell. (2) The AppShell confirm dialog used `<dialog open>` without `showModal()`, so it was not visible as a modal overlay; fixed alongside SESSION-2.
-
-
 ## ---------- Completed -----------------------------------------
 
 - [x] **SESSION-1** — Dropping or pasting a PGN opens it in a new tab; the previously active game is preserved.
@@ -54,3 +29,14 @@ See dev/check/00_README.md. These rules must be strictly adhered to when this fi
 - [x] **SESSION-8** — A dirty (unsaved) tab shows a red pill colour and a dirty dot only — no save icon button.
 - [x] **SESSION-9** — When a game is opened, the {ui-id: editor.pane} should not increase in size. Its lower border is always aligned with the lower border of the {ui-id: board.chess-board}.
   > Added `max-height: var(--board-column-width)` and `overflow: hidden` to `.board-editor-pane` in `editor/styles.css`. Please re-verify with a long game.
+- [x] **SESSION-5** — A tab with unsaved changes shows the red "unsaved" styling.
+- [x] **SESSION-6** — The dirty-dot indicator appears on a tab after editing (move entry, comment, header).
+- [x] **SESSION-10** — On app close (browser tab close or Tauri window close), if any session has unsaved edits (`dirtyState === "dirty"`), the platform's "unsaved changes — leave anyway?" dialog appears. Confirming closes; cancelling returns to the app.
+- [x] **SESSION-11** — On next launch after a clean close, all sessions that were open are restored: their PGN content (including unsaved edits), titles, source references, layout modes, active ply, and save modes are correct. The session that was active when the app was closed is active again.
+- [x] **SESSION-15** — Opening the same source game twice should focus the existing session tab instead of creating a duplicate tab.
+- [x] **SESSION-2** — Clicking a different tab switches to that game and restores its board position and PGN.
+- [x] **SESSION-3** — Clicking × on a tab with unsaved changes shows a confirmation dialog; confirming closes the tab and activates the adjacent one; cancelling leaves the tab open.
+- [x] **SESSION-12** — On next launch, all resource viewer tabs that were open are restored (kind + locator), and the tab that was active is selected.
+  >> Fixed: `handleTabSelect` and `handleTabClose` in `ResourceViewer.tsx` now call `services.selectResourceTab` / `services.closeResourceTab` so the service closure (`bundle.resourceViewer`) stays in sync with the UI. The workspace snapshot now captures the correct `activeResourceTabId` rather than always the most recently opened tab.
+- [x] **SESSION-13** — On first launch (no snapshot), a single blank default session is opened. No leftover resource viewer tabs appear.
+- [x] **SESSION-14** — Editing the active game's `Date` header updates the date shown in its session pill immediately.

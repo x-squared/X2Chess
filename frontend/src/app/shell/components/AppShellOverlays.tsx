@@ -19,6 +19,7 @@ import type { NavigateGuardState } from "../../../features/sessions/guards/useNa
 import type { ExtDatabaseSettingsState } from "../../../features/resources/hooks/useExtDatabaseSettings";
 import type { TrainingDialogControls } from "../../../features/training/hooks/useTrainingDialogState";
 import type { TrainingSessionControls } from "../../../training/hooks/useTrainingSession";
+import type { TrainingGameContext } from "../../../training/domain/training_game_context";
 import type { GameAnnotationState } from "../../../features/analysis/hooks/useGameAnnotation";
 import type { VsEngineState } from "../../../features/analysis/hooks/useVsEngine";
 import type { AppStartupServices } from "../../../core/contracts/app_services";
@@ -94,6 +95,7 @@ export type AppShellOverlaysProps = {
   trainingControls: TrainingSessionControls;
   trainingSourceRef: string;
   trainingGameTitle: string;
+  trainingGameContext: TrainingGameContext;
   pgnText: string;
   // Annotate game (G9)
   showAnnotateDialog: boolean;
@@ -145,6 +147,7 @@ export const AppShellOverlays = ({
   trainingControls,
   trainingSourceRef,
   trainingGameTitle,
+  trainingGameContext,
   pgnText,
   showAnnotateDialog,
   onCloseAnnotateDialog,
@@ -219,30 +222,46 @@ export const AppShellOverlays = ({
     {navigateGuard.pendingNavigate && (
       <dialog
         ref={confirmDialogRef}
-        className="confirm-dialog"
+        className="x2-dialog"
         onClose={navigateGuard.clearPendingNavigate}
       >
-        <div className="confirm-dialog-content">
-          <p className="confirm-dialog-message">
+        <div className="x2-dialog-body">
+          <h2 className="x2-dialog-title">
+            {t("editor.unsavedChangesTitle", "Unsaved changes")}
+          </h2>
+          <p style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-secondary)" }}>
             {t("editor.unsavedChanges", "You have unsaved changes. Save before leaving?")}
           </p>
-          <div className="confirm-dialog-actions">
+          <div className="x2-dialog-footer">
             <button
               type="button"
-              className="confirm-dialog-btn confirm-dialog-btn--discard"
+              className="x2-dialog-btn x2-dialog-btn--danger"
               onClick={(): void => {
                 const nav = navigateGuard.pendingNavigate;
                 navigateGuard.clearPendingNavigate();
                 if (!nav) return;
-                if (nav.kind === "switch") rawServices.switchSession(nav.sessionId);
-                else rawServices.closeSession(nav.sessionId);
+                if (nav.kind === "close") {
+                  rawServices.closeSession(nav.sessionId);
+                  return;
+                }
+                // switch: reload the dirty session from source, then switch to target
+                void rawServices.discardActiveSessionChanges().then((): void => {
+                  rawServices.switchSession(nav.sessionId);
+                });
               }}
             >
-              {t("editor.discardChanges", "Discard")}
+              {t("editor.discardChanges", "Discard & Leave")}
             </button>
             <button
               type="button"
-              className="confirm-dialog-btn"
+              className="x2-dialog-btn x2-dialog-btn--ghost"
+              onClick={navigateGuard.clearPendingNavigate}
+            >
+              {t("editor.cancelLeave", "Cancel")}
+            </button>
+            <button
+              type="button"
+              className="x2-dialog-btn x2-dialog-btn--primary"
               onClick={(): void => {
                 rawServices.saveActiveGameNow();
                 const nav = navigateGuard.pendingNavigate;
@@ -253,13 +272,6 @@ export const AppShellOverlays = ({
               }}
             >
               {t("editor.saveAndLeave", "Save & Leave")}
-            </button>
-            <button
-              type="button"
-              className="confirm-dialog-btn confirm-dialog-btn--cancel"
-              onClick={navigateGuard.clearPendingNavigate}
-            >
-              {t("editor.cancelLeave", "Cancel")}
             </button>
           </div>
         </div>
@@ -316,6 +328,7 @@ export const AppShellOverlays = ({
         gameTitle={trainingGameTitle}
         pgnText={pgnText}
         sourceRef={trainingSourceRef}
+        gameContext={trainingGameContext}
         t={t}
         onStart={(config): void => {
           training.setShowTrainingLauncher(false);
@@ -344,7 +357,7 @@ export const AppShellOverlays = ({
           transcript={trainingControls.transcript}
           t={t}
           onMerge={training.handleMergeResult}
-          onDiscard={trainingControls.confirmResult}
+          onDiscard={trainingControls.discard}
         />
       )}
 

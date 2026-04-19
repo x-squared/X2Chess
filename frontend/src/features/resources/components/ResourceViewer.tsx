@@ -141,12 +141,9 @@ const hydrateRows = (
 
 // ── Tab initialisation ────────────────────────────────────────────────────────
 
-const buildTabId = (ref: ResourceRef): string =>
-  `resource-${ref.kind}-${ref.locator}`.replace(/[^a-zA-Z0-9_-]/g, "_");
-
 const initTab = (snapshot: ResourceTabSnapshot): TabState => {
   const ref: ResourceRef = { kind: snapshot.kind, locator: snapshot.locator };
-  const tabId: string = snapshot.tabId || buildTabId(ref);
+  const tabId: string = snapshot.tabId;
   const prefs: TabPrefs | undefined = readPrefsMap()[tabId];
   const visibleMetadataKeys: string[] =
     prefs?.visibleMetadataKeys?.length
@@ -182,14 +179,13 @@ export const ResourceViewer = (): ReactElement => {
   const { state } = useAppContext();
   const services = useServiceContext();
   const tabSnapshots: ResourceTabSnapshot[] = selectResourceViewerTabs(state);
-  const activeTabIdFromState: string | null = selectActiveResourceTabId(state);
+  const activeTabId: string | null = selectActiveResourceTabId(state) ?? tabSnapshots[0]?.tabId ?? null;
   const t: (key: string, fallback?: string) => string = useTranslator();
   const dialogFormId: string = useId();
 
   // ── Local state ────────────────────────────────────────────────────────
 
   const [tabs, setTabs] = useState<TabState[]>([]);
-  const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
   const [dialogKey, setDialogKey] = useState<number>(0);
   // Per-tab column filter strings; keyed by tabId.
@@ -215,13 +211,8 @@ export const ResourceViewer = (): ReactElement => {
         return existing ?? initTab(snapshot);
       }),
     );
-    setActiveTabId((prev: string | null): string | null => {
-      if (activeTabIdFromState) return activeTabIdFromState;
-      const first: ResourceTabSnapshot | undefined = tabSnapshots[0];
-      return first?.tabId ?? prev;
-    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tabSnapshots, activeTabIdFromState]);
+  }, [tabSnapshots]);
 
   // ── Row loading ────────────────────────────────────────────────────────
 
@@ -322,21 +313,13 @@ export const ResourceViewer = (): ReactElement => {
   // ── Handlers ─────────────────────────────────────────────────────────
 
   const handleTabSelect = useCallback((tabId: string): void => {
-    setActiveTabId(tabId);
-  }, []);
+    services.selectResourceTab(tabId);
+  }, [services]);
 
   const handleTabClose = useCallback((tabId: string): void => {
     setTabs((prev: TabState[]): TabState[] => prev.filter((t: TabState): boolean => t.tabId !== tabId));
-    setActiveTabId((prev: string | null): string | null => {
-      if (prev !== tabId) return prev;
-      setTabs((current: TabState[]): TabState[] => {
-        const remaining: TabState[] = current.filter((t: TabState): boolean => t.tabId !== tabId);
-        setActiveTabId(remaining[0]?.tabId ?? null);
-        return current;
-      });
-      return prev;
-    });
-  }, []);
+    services.closeResourceTab(tabId);
+  }, [services]);
 
   const handleRowOpen = useCallback((rowIndex: number): void => {
     if (!activeTab) return;

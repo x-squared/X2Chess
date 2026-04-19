@@ -96,7 +96,7 @@ export const resolveInitialLocale = (
 
 export const readBootstrapUiPrefs = (appMode: AppMode, devPrefsMode: DevPrefsMode = "user"): BootstrapUiPrefs => {
   const prefs = readShellPrefsForStartup(devPrefsMode);
-  const isDeveloperToolsEnabled = prefs.developerToolsEnabled ?? appMode === "DEV";
+  const isDeveloperToolsEnabled = prefs.developerToolsEnabled || appMode === "DEV";
   return {
     isDeveloperToolsEnabled,
     resourceViewerHeightPx: prefs.resourceViewerHeightPx,

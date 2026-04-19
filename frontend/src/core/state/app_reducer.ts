@@ -17,6 +17,7 @@
 
 import type { PgnModel } from "../../../../parts/pgnparser/src/pgn_model";
 import type { AppAction } from "./actions";
+import type { DirtyState } from "../../features/sessions/services/session_store";
 import { DEFAULT_SHAPE_PREFS } from "../../runtime/shape_prefs";
 import type { ShapePrefs } from "../../runtime/shape_prefs";
 import { DEFAULT_EDITOR_STYLE_PREFS } from "../../runtime/editor_style_prefs";
@@ -34,7 +35,7 @@ export type ResourceTabSnapshot = {
 export type SessionItemState = {
   sessionId: string;
   title: string;
-  dirtyState: string;
+  dirtyState: DirtyState;
   saveMode: "auto" | "manual";
   isActive: boolean;
   isUnsaved: boolean;

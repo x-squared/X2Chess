@@ -23,6 +23,7 @@
 import type { MovePositionIndex } from "../../../board/move_position";
 import type { PgnModel } from "../../../../../parts/pgnparser/src/pgn_model";
 import type { BoardPreviewLike } from "../../../board/runtime";
+import type { LayoutMode } from "../../editor/model/plan/types";
 
 /**
  * All state belonging to one open game session.
@@ -36,7 +37,7 @@ export type GameSessionState = {
   verboseMoves: Array<{ flags?: string; from?: string; to?: string }>;
   movePositionById: MovePositionIndex;
   /** PGN editor layout — scoped per session (stored in [XTwoChessStyle] header). */
-  pgnLayoutMode: string;
+  pgnLayoutMode: LayoutMode;
 
   // Navigation
   currentPly: number;

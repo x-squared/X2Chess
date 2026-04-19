@@ -41,6 +41,15 @@ export { REPLAY_PROTOCOL } from "./protocols/replay_protocol";
 export type { ReplayProtocolOptions } from "./protocols/replay_protocol";
 export { OPENING_PROTOCOL } from "./protocols/opening_protocol";
 export type { OpeningProtocolOptions } from "./protocols/opening_protocol";
+export { FIND_MOVE_PROTOCOL } from "./protocols/find_move_protocol";
+export type { FindMoveProtocolOptions } from "./protocols/find_move_protocol";
+
+// Game context
+export { buildTrainingGameContext, plyLabel } from "./domain/training_game_context";
+export type { TrainingGameContext } from "./domain/training_game_context";
+
+// PGN transforms
+export { mirrorPgn, rotatePgn, mirrorFen, rotateFen } from "./domain/pgn_transforms";
 
 // Hooks
 export { useTrainingSession } from "./hooks/useTrainingSession";

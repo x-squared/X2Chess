@@ -156,3 +156,170 @@ test("openGameFromRef opens a new session instead of replacing active", async ()
   const hasBoardFlipAction = actions.some((action: AppAction): boolean => action.type === "set_board_flipped");
   assert.equal(hasBoardFlipAction, true);
 });
+
+// ── loadPgnText ───────────────────────────────────────────────────────────────
+
+test("loadPgnText replaces session model and marks dirty", (): void => {
+  const session = createEmptyGameSessionState();
+  session.pgnText = "1. e4 *";
+  session.pgnModel = parsePgnToModel(session.pgnText);
+
+  const { dispatchRef } = makeDispatchRef();
+  const stateRef = { current: {} as never };
+  const dirtyPatches: Array<Record<string, unknown>> = [];
+  const syncedTexts: string[] = [];
+
+  const bundle = {
+    activeSessionRef: { current: session },
+    navigation: {
+      gotoPly: async (): Promise<void> => {},
+      gotoRelativeStep: async (): Promise<void> => {},
+      handleSelectedMoveArrowHotkey: (): boolean => false,
+    },
+    applyModelUpdate: (): void => {},
+    history: { performUndo: (): void => {}, performRedo: (): void => {} },
+    pgnRuntime: {
+      syncChessParseState: (text: string): void => { syncedTexts.push(text); },
+    },
+    resources: {},
+    resourceViewer: {},
+    sessionModel: {},
+    sessionStore: {
+      updateActiveSessionMeta: (patch: Record<string, unknown>): void => { dirtyPatches.push(patch); },
+    },
+    sessionPersistence: {},
+    moveLookup: {},
+  } as unknown as Parameters<typeof createSessionOrchestrator>[0];
+
+  const services = createSessionOrchestrator(bundle, dispatchRef as never, stateRef as never);
+  const newPgn = "1. d4 d5 *";
+  services.loadPgnText(newPgn);
+
+  assert.equal(session.pgnText, newPgn, "pgnText updated on session");
+  assert.ok(session.pgnModel !== null, "pgnModel replaced");
+  assert.equal(session.currentPly, 0, "currentPly reset to 0");
+  assert.equal(session.selectedMoveId, null, "selectedMoveId cleared");
+  assert.ok(syncedTexts.includes(newPgn), "pgnRuntime.syncChessParseState called");
+  assert.ok(dirtyPatches.some((p) => p.dirtyState === "dirty"), "session marked dirty");
+});
+
+// ── flipBoard ─────────────────────────────────────────────────────────────────
+
+test("flipBoard toggles board orientation and dispatches action", (): void => {
+  const session = createEmptyGameSessionState();
+  session.pgnModel = parsePgnToModel("*");
+
+  const { dispatchRef, actions } = makeDispatchRef();
+  // Start with board showing white (not flipped).
+  const stateRef = { current: { boardFlipped: false } as never };
+  const modelUpdates: unknown[] = [];
+
+  const bundle = {
+    activeSessionRef: { current: session },
+    navigation: {
+      gotoPly: async (): Promise<void> => {},
+      gotoRelativeStep: async (): Promise<void> => {},
+      handleSelectedMoveArrowHotkey: (): boolean => false,
+    },
+    applyModelUpdate: (model: unknown): void => { modelUpdates.push(model); },
+    history: { performUndo: (): void => {}, performRedo: (): void => {} },
+    pgnRuntime: { syncChessParseState: (): void => {} },
+    resources: {},
+    resourceViewer: {},
+    sessionModel: {},
+    sessionStore: {},
+    sessionPersistence: {},
+    moveLookup: {},
+  } as unknown as Parameters<typeof createSessionOrchestrator>[0];
+
+  const services = createSessionOrchestrator(bundle, dispatchRef as never, stateRef as never);
+  services.flipBoard();
+
+  const flipAction = actions.find((a: AppAction): boolean => a.type === "set_board_flipped");
+  assert.ok(flipAction, "set_board_flipped dispatched");
+  assert.equal((flipAction as { type: string; flipped: boolean }).flipped, true, "flipped to true");
+  // Standard game (no SetUp header) writes orientation header via applyModelUpdate.
+  assert.equal(modelUpdates.length, 1, "applyModelUpdate called once for orientation header");
+});
+
+// ── switchSession ─────────────────────────────────────────────────────────────
+
+test("switchSession delegates to sessionStore and flushes state", (): void => {
+  const session = createEmptyGameSessionState();
+  session.pgnModel = parsePgnToModel("*");
+
+  const { dispatchRef } = makeDispatchRef();
+  const stateRef = { current: {} as never };
+  const switchCalls: string[] = [];
+
+  const bundle = {
+    activeSessionRef: { current: session },
+    navigation: {
+      gotoPly: async (): Promise<void> => {},
+      gotoRelativeStep: async (): Promise<void> => {},
+      handleSelectedMoveArrowHotkey: (): boolean => false,
+    },
+    applyModelUpdate: (): void => {},
+    history: { performUndo: (): void => {}, performRedo: (): void => {} },
+    pgnRuntime: { syncChessParseState: (): void => {} },
+    resources: {},
+    resourceViewer: {},
+    sessionModel: {},
+    sessionStore: {
+      switchToSession: (id: string): boolean => { switchCalls.push(id); return true; },
+      getActiveSessionId: (): string => "session-1",
+    },
+    sessionPersistence: {},
+    moveLookup: {},
+  } as unknown as Parameters<typeof createSessionOrchestrator>[0];
+
+  const services = createSessionOrchestrator(bundle, dispatchRef as never, stateRef as never);
+  services.switchSession("session-2");
+
+  assert.deepEqual(switchCalls, ["session-2"], "switchToSession called with correct id");
+});
+
+// ── closeSession ──────────────────────────────────────────────────────────────
+
+test("closeSession opens a fallback session when store becomes empty", (): void => {
+  const session = createEmptyGameSessionState();
+  session.pgnModel = parsePgnToModel("*");
+
+  const { dispatchRef } = makeDispatchRef();
+  const stateRef = { current: {} as never };
+  const openedSessions: Array<{ title: string }> = [];
+
+  const bundle = {
+    activeSessionRef: { current: session },
+    navigation: {
+      gotoPly: async (): Promise<void> => {},
+      gotoRelativeStep: async (): Promise<void> => {},
+      handleSelectedMoveArrowHotkey: (): boolean => false,
+    },
+    applyModelUpdate: (): void => {},
+    history: { performUndo: (): void => {}, performRedo: (): void => {} },
+    pgnRuntime: { syncChessParseState: (): void => {} },
+    resources: {},
+    resourceViewer: {},
+    sessionModel: {
+      createSessionFromPgnText: (): ReturnType<typeof createEmptyGameSessionState> => {
+        const s = createEmptyGameSessionState();
+        s.pgnModel = parsePgnToModel("*");
+        return s;
+      },
+    },
+    sessionStore: {
+      closeSession: (): { closed: boolean; emptyAfterClose: boolean } =>
+        ({ closed: true, emptyAfterClose: true }),
+      openSession: (input: { title: string }): void => { openedSessions.push(input); },
+    },
+    sessionPersistence: {},
+    moveLookup: {},
+  } as unknown as Parameters<typeof createSessionOrchestrator>[0];
+
+  const services = createSessionOrchestrator(bundle, dispatchRef as never, stateRef as never);
+  services.closeSession("session-1");
+
+  assert.equal(openedSessions.length, 1, "fallback session opened");
+  assert.equal(openedSessions[0]?.title, "New Game", "fallback title is 'New Game'");
+});

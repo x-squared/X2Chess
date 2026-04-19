@@ -53,6 +53,61 @@ test("closing session selects adjacent session and updates ref", () => {
   assert.equal(activeSessionRef.current.pgnText, "A");
 });
 
+test("updateActiveSessionMeta patches dirtyState and title", () => {
+  const activeSessionRef: ActiveSessionRef = { current: createEmptyGameSessionState() };
+  const store = createGameSessionStore({ activeSessionRef });
+
+  const state = createEmptyGameSessionState();
+  store.openSession({ ownState: state, title: "Original" });
+
+  store.updateActiveSessionMeta({ dirtyState: "dirty" });
+  const afterDirty = store.getActiveSession();
+  assert.equal(afterDirty?.dirtyState, "dirty", "dirtyState patched to dirty");
+  assert.equal(afterDirty?.title, "Original", "title unchanged when not in patch");
+
+  store.updateActiveSessionMeta({ title: "Renamed", dirtyState: "clean" });
+  const afterRename = store.getActiveSession();
+  assert.equal(afterRename?.title, "Renamed", "title updated");
+  assert.equal(afterRename?.dirtyState, "clean", "dirtyState patched to clean");
+});
+
+test("updateActiveSessionMeta transitions dirty → saving → clean", () => {
+  const activeSessionRef: ActiveSessionRef = { current: createEmptyGameSessionState() };
+  const store = createGameSessionStore({ activeSessionRef });
+
+  store.openSession({ ownState: createEmptyGameSessionState(), title: "Game" });
+
+  store.updateActiveSessionMeta({ dirtyState: "dirty" });
+  assert.equal(store.getActiveSession()?.dirtyState, "dirty");
+
+  store.updateActiveSessionMeta({ dirtyState: "saving" });
+  assert.equal(store.getActiveSession()?.dirtyState, "saving");
+
+  store.updateActiveSessionMeta({ dirtyState: "clean" });
+  assert.equal(store.getActiveSession()?.dirtyState, "clean");
+});
+
+test("buildSessionSnapshots captures pgnText and sourceRef", () => {
+  const activeSessionRef: ActiveSessionRef = { current: createEmptyGameSessionState() };
+  const store = createGameSessionStore({ activeSessionRef });
+
+  const state = createEmptyGameSessionState();
+  state.pgnText = "1. e4 *";
+  state.currentPly = 2;
+  store.openSession({
+    ownState: state,
+    title: "Snapshot test",
+    sourceRef: { kind: "file", locator: "/games/test.pgn" },
+  });
+
+  const snaps = store.buildSessionSnapshots();
+  assert.equal(snaps.length, 1);
+  assert.equal(snaps[0]?.pgnText, "1. e4 *");
+  assert.equal(snaps[0]?.currentPly, 2);
+  assert.equal(snaps[0]?.sourceRef?.kind, "file");
+  assert.equal(snaps[0]?.sourceRef?.locator, "/games/test.pgn");
+});
+
 test("opening same sourceRef reuses existing session", () => {
   const activeSessionRef: ActiveSessionRef = { current: createEmptyGameSessionState() };
   const store = createGameSessionStore({ activeSessionRef });

@@ -103,8 +103,7 @@ export const TrainingResult = ({
 
   const handleDiscard = useCallback((): void => {
     dialogRef.current?.close();
-    onDiscard();
-  }, [onDiscard]);
+  }, []);
 
   const gradeColor = GRADE_COLORS[summary.gradeLabel] ?? "#6b7280";
 

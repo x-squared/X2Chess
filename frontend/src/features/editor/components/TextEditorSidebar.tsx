@@ -3,7 +3,7 @@
  *
  * Sits to the right of the PgnTextEditor and contains controls that
  * apply to the PGN text itself: layout mode selection, default-indent,
- * save, undo, and redo.
+ * comment formatting, save, undo, and redo.
  *
  * Integration API:
  * - `<TextEditorSidebar {...props} />` — rendered as a sibling of the
@@ -13,6 +13,8 @@
  * - `layoutMode` — currently active layout mode; drives button active state.
  * - `canUndo`, `canRedo` — drive disabled state of undo/redo buttons.
  * - `isDirty` — drives visual indicator and disabled state of save button.
+ * - `commentFormatEnabled` — enables the comment-formatting button; should be
+ *   `true` whenever `layoutMode !== "plain"`.
  *
  * Communication API:
  * - `onSetLayoutMode(mode)` — fires when a layout mode button is clicked.
@@ -20,13 +22,134 @@
  * - `onInsertDeindentMarker()` — inserts `[[deindent]]` at the current comment caret.
  * - `onApplyDefaultIndent()` — fires when the Default Layout button is clicked.
  * - `onOpenDefaultLayoutConfig()` — fires when the Default Layout configure button is clicked.
+ * - `onFormatComment(format)` — fires when a format is chosen from the dropdown.
  * - `onSave()` — fires when the save button is clicked.
  * - `onUndo()` / `onRedo()` — fire when the undo/redo buttons are clicked.
  * - `onOpenBoardSettings()` — fires when the board settings (⚙) button is clicked.
  */
 
+import { useState } from "react";
 import type { ReactElement } from "react";
 import { GUIDE_IDS } from "../../guide/model/guide_ids";
+import type { CommentFormat } from "./comment_markdown_format";
+
+// ── LayoutModeGroup ───────────────────────────────────────────────────────────
+
+type LayoutModeGroupProps = {
+  layoutMode: "plain" | "text" | "tree";
+  t: (key: string, fallback?: string) => string;
+  onSetLayoutMode: (mode: "plain" | "text" | "tree") => void;
+};
+
+/**
+ * Three-button radio group for selecting the PGN editor layout mode.
+ * Extracted to keep `TextEditorSidebar` within complexity budget.
+ *
+ * Integration API:
+ * - `<LayoutModeGroup layoutMode={...} t={...} onSetLayoutMode={...} />`
+ *
+ * Configuration API:
+ * - `layoutMode` — active mode; drives `active` class and `aria-pressed`.
+ * - `t` — translator function.
+ * - `onSetLayoutMode(mode)` — fires when a button is clicked.
+ *
+ * Communication API:
+ * - Outbound: `onSetLayoutMode`.
+ */
+const LayoutModeGroup = ({ layoutMode, t, onSetLayoutMode }: LayoutModeGroupProps): ReactElement => (
+  <div
+    className="text-editor-sidebar-group"
+    role="radiogroup"
+    aria-label={t("toolbar.pgnLayout.group", "PGN layout")}
+    data-guide-id={GUIDE_IDS.EDITOR_SIDEBAR_LAYOUT_GROUP}
+  >
+    <button
+      id="btn-pgn-layout-plain"
+      data-guide-id={GUIDE_IDS.EDITOR_SIDEBAR_LAYOUT_PLAIN}
+      type="button"
+      data-pgn-layout="plain"
+      className={`icon-button${layoutMode === "plain" ? " active" : ""}`}
+      title={t("toolbar.pgnLayout.plain", "Plain — literal PGN")}
+      aria-pressed={layoutMode === "plain" ? "true" : "false"}
+      onClick={(): void => { onSetLayoutMode("plain"); }}
+    >
+      <img src="/icons/toolbar/mode-plain.svg" alt={t("toolbar.pgnLayout.plainShort", "Plain")} />
+    </button>
+    <button
+      id="btn-pgn-layout-text"
+      type="button"
+      data-pgn-layout="text"
+      data-guide-id={GUIDE_IDS.EDITOR_SIDEBAR_LAYOUT_TEXT}
+      className={`icon-button${layoutMode === "text" ? " active" : ""}`}
+      title={t("toolbar.pgnLayout.text", "Text — narrative layout")}
+      aria-pressed={layoutMode === "text" ? "true" : "false"}
+      onClick={(): void => { onSetLayoutMode("text"); }}
+    >
+      <img src="/icons/toolbar/mode-text.svg" alt={t("toolbar.pgnLayout.textShort", "Text")} />
+    </button>
+    <button
+      id="btn-pgn-layout-tree"
+      type="button"
+      data-pgn-layout="tree"
+      data-guide-id={GUIDE_IDS.EDITOR_SIDEBAR_LAYOUT_TREE}
+      className={`icon-button${layoutMode === "tree" ? " active" : ""}`}
+      title={t("toolbar.pgnLayout.tree", "Tree — structured view")}
+      aria-pressed={layoutMode === "tree" ? "true" : "false"}
+      onClick={(): void => { onSetLayoutMode("tree"); }}
+    >
+      <img src="/icons/toolbar/mode-tree.svg" alt={t("toolbar.pgnLayout.treeShort", "Tree")} />
+    </button>
+  </div>
+);
+
+// ── CommentFormatDropdown ─────────────────────────────────────────────────────
+
+type CommentFormatDropdownProps = {
+  t: (key: string, fallback?: string) => string;
+  onSelect: (format: CommentFormat) => void;
+};
+
+/**
+ * Dropdown panel listing all comment-formatting actions.
+ * Rendered by `TextEditorSidebar` when the "Aa" button is active.
+ *
+ * Integration API:
+ * - `<CommentFormatDropdown t={...} onSelect={...} />` — mount inside the
+ *   `.comment-format-anchor` div.
+ *
+ * Configuration API:
+ * - `t` — translator function for button labels.
+ * - `onSelect(format)` — called when the user clicks a format item.
+ *
+ * Communication API:
+ * - Outbound: `onSelect`.  No inbound context reads.
+ */
+const CommentFormatDropdown = ({ t, onSelect }: CommentFormatDropdownProps): ReactElement => {
+  const items: [CommentFormat, string, string][] = [
+    ["bold",          t("toolbar.commentFormat.bold",         "Bold"),          "⌘B"],
+    ["italic",        t("toolbar.commentFormat.italic",       "Italic"),        "⌘I"],
+    ["underline",     t("toolbar.commentFormat.underline",    "Underline"),     "⌘U"],
+    ["bullet_list",   t("toolbar.commentFormat.bulletList",   "Bullet list"),   ""],
+    ["numbered_list", t("toolbar.commentFormat.numberedList", "Numbered list"), ""],
+  ];
+  return (
+    <div className="comment-format-dropdown" role="menu">
+      {items.map(([fmt, label, shortcut]: [CommentFormat, string, string]): ReactElement => (
+        <button
+          key={fmt}
+          type="button"
+          role="menuitem"
+          className="comment-format-dropdown-item"
+          onMouseDown={(e): void => { e.preventDefault(); }}
+          onClick={(): void => { onSelect(fmt); }}
+        >
+          <span>{label}</span>
+          {shortcut && <span className="comment-format-dropdown-shortcut">{shortcut}</span>}
+        </button>
+      ))}
+    </div>
+  );
+};
 
 type TextEditorSidebarProps = {
   layoutMode: "plain" | "text" | "tree";
@@ -35,12 +158,19 @@ type TextEditorSidebarProps = {
   isDirty: boolean;
   /** Whether engine evaluation pills are currently shown (text/tree mode only). */
   showEvalPills: boolean;
+  /**
+   * Enables the comment-formatting button; should be `true` when
+   * `layoutMode !== "plain"` so Markdown syntax is meaningful.
+   */
+  commentFormatEnabled: boolean;
   t: (key: string, fallback?: string) => string;
   onSetLayoutMode: (mode: "plain" | "text" | "tree") => void;
   onInsertIndentMarker: () => void;
   onInsertDeindentMarker: () => void;
   onApplyDefaultIndent: () => void;
   onOpenDefaultLayoutConfig: () => void;
+  /** Called when the user selects a format from the comment-formatting dropdown. */
+  onFormatComment: (format: CommentFormat) => void;
   onSave: () => void;
   onUndo: () => void;
   onRedo: () => void;
@@ -55,66 +185,45 @@ export const TextEditorSidebar = ({
   canRedo,
   isDirty,
   showEvalPills,
+  commentFormatEnabled,
   t,
   onSetLayoutMode,
   onInsertIndentMarker,
   onInsertDeindentMarker,
   onApplyDefaultIndent,
   onOpenDefaultLayoutConfig,
+  onFormatComment,
   onSave,
   onUndo,
   onRedo,
   onOpenBoardSettings,
   onToggleEvalPills,
-}: TextEditorSidebarProps): ReactElement => (
+}: TextEditorSidebarProps): ReactElement => {
+  const [formatDropdownOpen, setFormatDropdownOpen] = useState<boolean>(false);
+
+  let evalPillsTitle: string;
+  if (layoutMode === "plain") {
+    evalPillsTitle = t("toolbar.evalPills.unavailable", "Eval pills (unavailable in plain mode)");
+  } else if (showEvalPills) {
+    evalPillsTitle = t("toolbar.evalPills.hide", "Hide engine evaluations");
+  } else {
+    evalPillsTitle = t("toolbar.evalPills.show", "Show engine evaluations");
+  }
+
+  const defaultLayoutTitle: string = layoutMode === "tree"
+    ? t("pgn.defaultLayout.unavailable", "Default Layout (unavailable in tree mode)")
+    : t("pgn.defaultLayout", "Default Layout");
+
+  const evalPillsActive: boolean = layoutMode !== "plain" && showEvalPills;
+
+  return (
   <div className="text-editor-sidebar" data-guide-id={GUIDE_IDS.EDITOR_SIDEBAR}>
     {/* Layout mode group */}
-    <div
-      className="text-editor-sidebar-group"
-      role="radiogroup"
-      aria-label={t("toolbar.pgnLayout.group", "PGN layout")}
-      data-guide-id={GUIDE_IDS.EDITOR_SIDEBAR_LAYOUT_GROUP}
-    >
-      <button
-        id="btn-pgn-layout-plain"
-        data-guide-id={GUIDE_IDS.EDITOR_SIDEBAR_LAYOUT_PLAIN}
-        type="button"
-        data-pgn-layout="plain"
-        className={`icon-button${layoutMode === "plain" ? " active" : ""}`}
-        title={t("toolbar.pgnLayout.plain", "Plain — literal PGN")}
-        aria-pressed={layoutMode === "plain" ? "true" : "false"}
-        onClick={(): void => { onSetLayoutMode("plain"); }}
-      >
-        <img src="/icons/toolbar/mode-plain.svg" alt={t("toolbar.pgnLayout.plainShort", "Plain")} />
-      </button>
-      <button
-        id="btn-pgn-layout-text"
-        type="button"
-        data-pgn-layout="text"
-        data-guide-id={GUIDE_IDS.EDITOR_SIDEBAR_LAYOUT_TEXT}
-        className={`icon-button${layoutMode === "text" ? " active" : ""}`}
-        title={t("toolbar.pgnLayout.text", "Text — narrative layout")}
-        aria-pressed={layoutMode === "text" ? "true" : "false"}
-        onClick={(): void => { onSetLayoutMode("text"); }}
-      >
-        <img src="/icons/toolbar/mode-text.svg" alt={t("toolbar.pgnLayout.textShort", "Text")} />
-      </button>
-      <button
-        id="btn-pgn-layout-tree"
-        type="button"
-        data-pgn-layout="tree"
-        data-guide-id={GUIDE_IDS.EDITOR_SIDEBAR_LAYOUT_TREE}
-        className={`icon-button${layoutMode === "tree" ? " active" : ""}`}
-        title={t("toolbar.pgnLayout.tree", "Tree — structured view")}
-        aria-pressed={layoutMode === "tree" ? "true" : "false"}
-        onClick={(): void => { onSetLayoutMode("tree"); }}
-      >
-        <img src="/icons/toolbar/mode-tree.svg" alt={t("toolbar.pgnLayout.treeShort", "Tree")} />
-      </button>
-    </div>
+    <LayoutModeGroup layoutMode={layoutMode} t={t} onSetLayoutMode={onSetLayoutMode} />
 
     <div className="text-editor-sidebar-sep" />
 
+    {/* Indent / deindent markers */}
     <button
       id="btn-insert-indent-marker"
       className="icon-button"
@@ -136,15 +245,12 @@ export const TextEditorSidebar = ({
       <img src="/icons/toolbar/default-indent.svg" alt={t("pgn.insertDeindentMarkerShort", "Insert deindent")} />
     </button>
 
+    {/* Default layout */}
     <button
       id="btn-default-layout"
       className="icon-button"
       type="button"
-      title={
-        layoutMode === "tree"
-          ? t("pgn.defaultLayout.unavailable", "Default Layout (unavailable in tree mode)")
-          : t("pgn.defaultLayout", "Default Layout")
-      }
+      title={defaultLayoutTitle}
       disabled={layoutMode === "tree"}
       onClick={onApplyDefaultIndent}
     >
@@ -160,22 +266,41 @@ export const TextEditorSidebar = ({
       <span style={{ fontSize: "0.7rem", lineHeight: 1 }}>⚙</span>
     </button>
 
+    {/* Comment formatting — single button opening a format-picker dropdown */}
+    <div className="comment-format-anchor">
+      <button
+        id="btn-comment-format"
+        className={`icon-button${formatDropdownOpen ? " active" : ""}`}
+        type="button"
+        title={t("toolbar.commentFormat", "Comment formatting")}
+        disabled={!commentFormatEnabled}
+        data-guide-id={GUIDE_IDS.EDITOR_SIDEBAR_FORMAT_COMMENT}
+        onMouseDown={(e): void => { e.preventDefault(); }}
+        onClick={(): void => { setFormatDropdownOpen((v: boolean): boolean => !v); }}
+      >
+        <span className="comment-format-btn-label" aria-hidden="true">Aa</span>
+      </button>
+      {formatDropdownOpen && (
+        <CommentFormatDropdown
+          t={t}
+          onSelect={(fmt: CommentFormat): void => {
+            onFormatComment(fmt);
+            setFormatDropdownOpen(false);
+          }}
+        />
+      )}
+    </div>
+
     <div className="text-editor-sidebar-sep" />
 
     {/* Eval pill visibility toggle — only meaningful in text/tree mode */}
     <button
       id="btn-toggle-eval-pills"
       type="button"
-      className={`icon-button${layoutMode !== "plain" && showEvalPills ? " active" : ""}`}
-      title={
-        layoutMode === "plain"
-          ? t("toolbar.evalPills.unavailable", "Eval pills (unavailable in plain mode)")
-          : showEvalPills
-            ? t("toolbar.evalPills.hide", "Hide engine evaluations")
-            : t("toolbar.evalPills.show", "Show engine evaluations")
-      }
+      className={`icon-button${evalPillsActive ? " active" : ""}`}
+      title={evalPillsTitle}
       disabled={layoutMode === "plain"}
-      aria-pressed={layoutMode !== "plain" && showEvalPills ? "true" : "false"}
+      aria-pressed={evalPillsActive ? "true" : "false"}
       onClick={onToggleEvalPills}
     >
       <span className="eval-toggle-label" aria-hidden="true">±</span>
@@ -231,4 +356,5 @@ export const TextEditorSidebar = ({
       ⚙
     </button>
   </div>
-);
+  );
+};

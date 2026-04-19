@@ -31,7 +31,7 @@ todos:
     status: pending
   - id: wire-resource-io-abstractions
     content: Wire resource/io/ abstractions (db_gateway.ts, fs_gateway.ts) before implementing DB adapter to avoid repeating the I/O-leak pattern.
-    status: pending
+    status: done
 isProject: true
 ---
 

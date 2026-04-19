@@ -56,6 +56,7 @@ export const GUIDE_IDS = {
   EDITOR_SIDEBAR_LAYOUT_PLAIN: "editor.sidebar.layout-plain",
   EDITOR_SIDEBAR_LAYOUT_TEXT: "editor.sidebar.layout-text",
   EDITOR_SIDEBAR_LAYOUT_TREE: "editor.sidebar.layout-tree",
+  EDITOR_SIDEBAR_FORMAT_COMMENT: "editor.sidebar.format-comment",
   EDITOR_SIDEBAR_BOARD_SETTINGS: "editor.sidebar.board-settings",
 
   // ── Right panel stack ───────────────────────────────────────────────────
@@ -117,6 +118,10 @@ export const GUIDE_IDS = {
 
   // ── Developer dock ──────────────────────────────────────────────────────
   DEV_DOCK: "dev.dock",
+
+  // ── Developer tools panel (right-stack tab) ──────────────────────────────
+  RIGHT_PANEL_TAB_DEV_TOOLS: "panel.tab.dev-tools",
+  RIGHT_PANEL_DEV_TOOLS: "panel.dev-tools",
 } as const;
 
 /** Union of all registered guide ID strings. */

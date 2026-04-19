@@ -68,9 +68,7 @@ export const MoveOutcomeHint = ({
       <div className="move-outcome-hint move-outcome-hint--wrong" role="status">
         <span className="move-outcome-hint-icon">✗</span>
         <span className="move-outcome-hint-text">
-          {correctMoveSan
-            ? `${t("training.outcome.missed", "Missed:")} ${correctMoveSan} ${t("training.outcome.wasBest", "was best")}`
-            : t("training.outcome.wrong", "Not the best move")}
+          {t("training.outcome.wrong", "Not the game move")}
         </span>
         <div className="move-outcome-hint-actions">
           {allowRetry && (

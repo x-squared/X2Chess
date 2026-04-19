@@ -44,7 +44,7 @@ import { createApplyPgnModelUpdate } from "../../runtime/pgn_model_update";
 import { createResourcesCapabilities } from "../../resources";
 import { createResourceViewerCapabilities } from "../../features/resources/services";
 import { createGameSessionModel } from "../../features/sessions/services/session_model";
-import { createGameSessionStore } from "../../features/sessions/services/session_store";
+import { createGameSessionStore, type DirtyState } from "../../features/sessions/services/session_store";
 import { createSessionPersistenceService } from "../../features/sessions/services/session_persistence";
 import { createTranslator } from "../../app/i18n";
 import { DEFAULT_LOCALE, DEFAULT_APP_MODE, type PlayerRecord } from "../../app/shell/model/app_state";
@@ -87,6 +87,11 @@ type BoardPreviewValue = { fen: string; lastMove?: [string, string] | null } | n
  */
 export const toDevTab = (raw: unknown): "ast" | "pgn" => (raw === "pgn" ? "pgn" : "ast");
 
+const toDirtyState = (v: unknown): DirtyState => {
+  if (v === "clean" || v === "dirty" || v === "saving" || v === "error") return v;
+  return "clean";
+};
+
 type RawSession = {
   sessionId?: unknown;
   title?: unknown;
@@ -128,7 +133,7 @@ export const toSessionItem = (
   return {
     sessionId,
     title: typeof session.title === "string" ? session.title : sessionId,
-    dirtyState: typeof session.dirtyState === "string" ? session.dirtyState : "clean",
+    dirtyState: toDirtyState(session.dirtyState),
     saveMode: session.saveMode === "manual" ? "manual" : "auto",
     isActive,
     isUnsaved: !session.sourceRef,
@@ -413,7 +418,9 @@ export function createAppServicesBundle(
     ): Promise<{ sourceRef?: unknown; revisionToken?: string } | null> => {
       const activeTabId = resourceViewer.getActiveTabId();
       const activeRef = resourceViewer.getActiveResourceRef();
-      if (!activeTabId || !activeRef?.locator) return null;
+      if (!activeTabId || !activeRef?.locator) {
+        throw new Error(getTranslator()("pgn.save.noResource", "Open a resource folder or database first to save into"));
+      }
       const created = await resources.createGameInResource(
         { kind: activeRef.kind, locator: activeRef.locator },
         pgnText,

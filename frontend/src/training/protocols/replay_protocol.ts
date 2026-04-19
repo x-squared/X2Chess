@@ -161,13 +161,21 @@ const initialize = (config: TrainingConfig): TrainingSessionState => {
     options: opts,
   };
 
+  // Find the first ply >= startPly that the user should play.
+  // If startPly itself is an opponent ply (e.g. started at an odd ply when side="white"),
+  // skip forward to the first user ply so the board immediately shows the right position.
+  let effectiveStartPly = opts.startPly;
+  while (effectiveStartPly < ucis.length && !userPlies.has(effectiveStartPly)) {
+    effectiveStartPly++;
+  }
+
   const chess = new Chess();
   const model = parsePgnToModel(config.pgnText);
   const fenHeader = model.headers.find((h) => h.key === "FEN");
   if (fenHeader) {
     try { chess.load(fenHeader.value); } catch { /* ignore */ }
   }
-  for (let i = 0; i < opts.startPly && i < sans.length; i++) {
+  for (let i = 0; i < effectiveStartPly && i < sans.length; i++) {
     chess.move(sans[i], { strict: false });
   }
 
@@ -176,14 +184,14 @@ const initialize = (config: TrainingConfig): TrainingSessionState => {
     config,
     position: {
       fen: chess.fen(),
-      moveHistory: ucis.slice(0, opts.startPly),
-      ply: opts.startPly,
+      moveHistory: ucis.slice(0, effectiveStartPly),
+      ply: effectiveStartPly,
       totalUserPlies: userPlies.size,
     },
     correctCount: 0,
     wrongCount: 0,
     skippedCount: 0,
-    currentSourcePly: opts.startPly,
+    currentSourcePly: effectiveStartPly,
     hintUsedThisMove: false,
     hintsUsed: 0,
     startedAt: Date.now(),
@@ -217,7 +225,13 @@ const evaluateMove = (
 
 const advance = (state: TrainingSessionState): TrainingSessionState => {
   const rs = state.protocolState as unknown as ReplayState;
-  const newPly = state.currentSourcePly + 1;
+
+  // Advance one ply past the user's move, then skip any consecutive opponent
+  // plies so the board always lands on the next ply the user must play.
+  let newPly = state.currentSourcePly + 1;
+  while (newPly < rs.mainlineMoves.length && !rs.userPlies.has(newPly)) {
+    newPly++;
+  }
 
   const chess = new Chess();
   const model = parsePgnToModel(state.config.pgnText);

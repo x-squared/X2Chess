@@ -133,6 +133,7 @@ the same area) is a violation.
 - `game_anchors_b4c5d6e7.plan.md` — named anchors (`[%anchor id="..." text="..."]`) at half-moves with in-game references, rich anchor picker, and position-preview hover
 - `board_shapes_3f4a5b6c.plan.md` — square highlights and arrows via `[%csl]`/`[%cal]` PGN annotations + programmatic overlay (training hints, engine arrows)
 - `move_hints_hover_d4e5f6a7.plan.md` — hover-over-piece shows legal destination dots; engine-coloured dot variants (green/yellow/red) via `moveHintColors` prop
+- `comment_markdown_a3b4c5d6.plan.md` — markdown rendering in comment view mode (bold/italic/underline/lists) + formatting toolbar button in editor sidebar
 - `user_guide_c5d6e7f8.plan.md` — on-demand user-guiding framework: Guide-me button, spatial component targeting via `data-guide-id`, positioned help dialog, narrowing full-text search (Phase 3: AI chat companion)
 
 ## Key types / entry points

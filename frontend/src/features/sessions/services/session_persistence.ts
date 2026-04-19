@@ -14,10 +14,9 @@
  */
 
 import type { SourceRefLike } from "../../../runtime/bootstrap_shared";
+import type { DirtyState } from "./session_store";
 
 type SaveMode = "auto" | "manual";
-
-type DirtyState = "clean" | "dirty" | "saving" | "error" | string;
 
 type SessionLike = {
   sessionId: string;
@@ -74,58 +73,89 @@ export const createSessionPersistenceService = ({
   let defaultSaveMode: SaveMode = initialDefaultSaveMode;
   let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
 
-  const persistActiveSessionNow = async (): Promise<void> => {
-    const session: SessionLike | null = getActiveSession();
-    if (!session) return;
-    let activeSourceRef: SourceRefLike | null = session.sourceRef || null;
-    if (!activeSourceRef && typeof ensureSourceForActiveSession === "function") {
-      try {
-        const ensured: EnsureSourceResult = (await ensureSourceForActiveSession(session, getPgnText())) as EnsureSourceResult;
-        if (ensured?.sourceRef) {
-          activeSourceRef = ensured.sourceRef;
-          updateActiveSessionMeta({
-            sourceRef: ensured.sourceRef,
-            pendingResourceRef: null,
-            revisionToken: String(ensured.revisionToken || ""),
-          });
-        }
-      } catch (error: unknown) {
-        updateActiveSessionMeta({ dirtyState: "error" });
-        const detail: string = error instanceof Error ? error.message : String(error);
-        onSetSaveStatus(
-          `${t("pgn.save.error", "Autosave failed")}: ${detail}`.trim(),
-          "error",
-        );
-        return;
-      }
+  const reportSaveError = (error: unknown): void => {
+    updateActiveSessionMeta({ dirtyState: "error" });
+    const detail: string = error instanceof Error ? error.message : String(error);
+    onSetSaveStatus(`${t("pgn.save.error", "Autosave failed")}: ${detail}`.trim(), "error");
+  };
+
+  /**
+   * Resolve a source ref for a session that has none yet, creating a new resource
+   * record if possible. Returns the resolved ref, or null when unavailable.
+   * Bails (returns undefined sentinel) when the session is no longer active after the await.
+   */
+  const resolveSourceRef = async (
+    session: SessionLike,
+    isStillActive: () => boolean,
+  ): Promise<SourceRefLike | null | "stale"> => {
+    if (typeof ensureSourceForActiveSession !== "function") return null;
+    try {
+      const ensured: EnsureSourceResult = (await ensureSourceForActiveSession(session, getPgnText())) as EnsureSourceResult;
+      if (!isStillActive()) return "stale";
+      if (!ensured?.sourceRef) return null;
+      updateActiveSessionMeta({
+        sourceRef: ensured.sourceRef,
+        pendingResourceRef: null,
+        revisionToken: String(ensured.revisionToken || ""),
+      });
+      return ensured.sourceRef;
+    } catch (error: unknown) {
+      if (!isStillActive()) return "stale";
+      reportSaveError(error);
+      return null;
     }
-    if (!activeSourceRef) return;
-    const requestId: number = ++saveRequestSeq;
-    updateActiveSessionMeta({ dirtyState: "saving" });
-    onSetSaveStatus(t("pgn.save.saving", "Saving..."), "saving");
+  };
+
+  /**
+   * Write pgnText to sourceRef. Applies metadata updates only when the originating
+   * session is still active and this is the latest save request.
+   */
+  const executeSave = async (
+    sourceRef: SourceRefLike,
+    session: SessionLike,
+    requestId: number,
+    isStillActive: () => boolean,
+  ): Promise<void> => {
     try {
       const saveResult: SaveResult = await saveBySourceRef(
-        activeSourceRef,
+        sourceRef,
         getPgnText(),
         String(session.revisionToken || ""),
         { sessionId: session.sessionId },
       );
-      if (requestId !== saveRequestSeq) return;
+      if (requestId !== saveRequestSeq || !isStillActive()) return;
       updateActiveSessionMeta({
         dirtyState: "clean",
         revisionToken: String(saveResult.revisionToken || Date.now()),
       });
       onSetSaveStatus(t("pgn.save.saved", "Saved"), "saved");
-      return;
     } catch (error: unknown) {
-      if (requestId !== saveRequestSeq) return;
-      updateActiveSessionMeta({ dirtyState: "error" });
-      const detail: string = error instanceof Error ? error.message : String(error);
-      onSetSaveStatus(
-        `${t("pgn.save.error", "Autosave failed")}: ${detail}`.trim(),
-        "error",
-      );
-      return;
+      if (requestId !== saveRequestSeq || !isStillActive()) return;
+      reportSaveError(error);
+    }
+  };
+
+  const persistActiveSessionNow = async (): Promise<void> => {
+    const session: SessionLike | null = getActiveSession();
+    if (!session) return;
+    const capturedSessionId: string = session.sessionId;
+    const isStillActive = (): boolean => getActiveSession()?.sessionId === capturedSessionId;
+    let activeSourceRef: SourceRefLike | null = session.sourceRef || null;
+    if (!activeSourceRef) {
+      const resolved = await resolveSourceRef(session, isStillActive);
+      if (resolved === "stale" || resolved === null) return;
+      activeSourceRef = resolved;
+    }
+    const requestId: number = ++saveRequestSeq;
+    updateActiveSessionMeta({ dirtyState: "saving" });
+    onSetSaveStatus(t("pgn.save.saving", "Saving..."), "saving");
+    await executeSave(activeSourceRef, session, requestId, isStillActive);
+  };
+
+  const cancelPendingAutosave = (): void => {
+    if (autosaveTimer) {
+      globalThis.clearTimeout(autosaveTimer);
+      autosaveTimer = null;
     }
   };
 
@@ -136,11 +166,8 @@ export const createSessionPersistenceService = ({
     const sessionMode: SaveMode = session.saveMode || defaultSaveMode;
     if (sessionMode !== "auto") return;
     updateActiveSessionMeta({ dirtyState: "dirty" });
-    if (autosaveTimer) {
-      window.clearTimeout(autosaveTimer);
-      autosaveTimer = null;
-    }
-    autosaveTimer = window.setTimeout((): void => {
+    cancelPendingAutosave();
+    autosaveTimer = globalThis.setTimeout((): void => {
       autosaveTimer = null;
       void persistActiveSessionNow();
     }, autosaveDebounceMs);
@@ -158,6 +185,7 @@ export const createSessionPersistenceService = ({
 
   return {
     persistActiveSessionNow,
+    cancelPendingAutosave,
     scheduleAutosaveForActiveSession,
     setActiveSessionSaveMode,
     setIsHydratingGame,

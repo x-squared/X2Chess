@@ -36,6 +36,7 @@ import { useAppContext } from "../providers/AppStateProvider";
 import type { AppStartupServices } from "../../core/contracts/app_services";
 import type { AppAction } from "../../core/state/actions";
 import type { GameSessionState } from "../../features/sessions/services/game_session_state";
+import type { LayoutMode } from "../../features/editor/model/plan/types";
 import type { AppStoreState } from "../../core/state/app_reducer";
 import {
   createAppServicesBundle,
@@ -45,8 +46,6 @@ import { createSessionOrchestrator } from "../../core/services/session_orchestra
 import { dispatchSessionStateSnapshot } from "../../hooks/session_state_sync";
 import { useTauriMenu } from "../../hooks/useTauriMenu";
 import { log } from "../../logger";
-
-type LayoutMode = "plain" | "text" | "tree";
 
 const dispatchInitialSessionState = (g: GameSessionState, dispatch: Dispatch<AppAction>): void => {
   dispatchSessionStateSnapshot(g, dispatch);
@@ -90,7 +89,7 @@ const restoreWorkspaceSnapshot = (
     try {
       const sessionState: GameSessionState =
         bundle.sessionModel.createSessionFromPgnText(snap.pgnText);
-      sessionState.pgnLayoutMode = (snap.pgnLayoutMode as LayoutMode) || "plain";
+      sessionState.pgnLayoutMode = snap.pgnLayoutMode;
       sessionState.currentPly = snap.currentPly;
       sessionState.selectedMoveId = snap.selectedMoveId;
       const opened = bundle.sessionStore.openSession({
@@ -123,7 +122,7 @@ const restoreWorkspaceSnapshot = (
     }
   }
 
-  const activeLayout = bundle.activeSessionRef.current.pgnLayoutMode as LayoutMode;
+  const activeLayout = bundle.activeSessionRef.current.pgnLayoutMode;
   if (activeLayout !== "plain") {
     dispatch({ type: "set_layout_mode", mode: activeLayout });
   }

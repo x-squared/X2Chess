@@ -241,6 +241,85 @@
   cursor: pointer;
 }
 
+/* ── Chess960 position picker ── */
+
+.newgame-chess960-picker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.newgame-chess960-sp-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.newgame-chess960-sp-label {
+  font-size: 0.9em;
+  font-weight: 600;
+  color: var(--text-primary);
+  min-width: 5em;
+  text-align: center;
+}
+
+.newgame-chess960-sp-label.invalid {
+  color: var(--danger);
+}
+
+.newgame-chess960-hint {
+  margin: 0;
+  font-size: 0.78em;
+  color: var(--text-secondary);
+  text-align: center;
+  line-height: 1.4;
+}
+
+.newgame-chess960-nav-btn {
+  min-width: 2rem;
+  padding: 0.2rem 0.5rem;
+}
+
+.newgame-chess960-preview-board {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  width: min(240px, calc(100vw - 80px));
+  aspect-ratio: 1 / 1;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: var(--shadow-s);
+}
+
+/* Non-interactive squares in the Chess960 board */
+.newgame-chess960-preview-board .chess960-static {
+  cursor: default;
+}
+
+.newgame-chess960-preview-board .chess960-static:hover::after {
+  display: none;
+}
+
+/* Interactive back-rank squares: accent bar along the bottom edge */
+.newgame-chess960-preview-board .chess960-interactive {
+  cursor: pointer;
+  box-shadow: inset 0 -3px 0 color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+/* Selected square: full accent ring (overrides the bottom bar) */
+.newgame-chess960-preview-board .chess960-selected {
+  box-shadow: inset 0 0 0 2.5px var(--accent);
+}
+
+.newgame-chess960-preview-board .chess960-selected.light {
+  background-color: color-mix(in srgb, var(--accent) 28%, #ececd7);
+}
+
+.newgame-chess960-preview-board .chess960-selected.dark {
+  background-color: color-mix(in srgb, var(--accent) 28%, #7389b6);
+}
+
 /* ── Chess960 badge ── */
 
 .newgame-chess960-row {

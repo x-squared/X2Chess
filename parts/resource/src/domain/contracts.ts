@@ -50,30 +50,35 @@ export interface PgnResourceAdapter {
 
   /**
    * Save one game.
+   * Optional: adapters that expose read-only resources (e.g. single multi-game PGN
+   * files) omit this method. The resource client throws `unsupported_operation` when
+   * a caller attempts to save through such an adapter.
    *
    * @param gameRef Game locator.
    * @param pgnText Serialized PGN text.
    * @param options Optional revision precondition.
    */
-  save(gameRef: PgnGameRef, pgnText: string, options?: PgnSaveOptions): Promise<PgnSaveGameResult>;
+  save?(gameRef: PgnGameRef, pgnText: string, options?: PgnSaveOptions): Promise<PgnSaveGameResult>;
 
   /**
    * Create one game in a resource.
+   * Optional: same rule as `save`.
    *
    * @param resourceRef Resource locator.
    * @param pgnText Initial PGN text.
    * @param title Title hint.
    */
-  create(resourceRef: PgnResourceRef, pgnText: string, title: string): Promise<PgnCreateGameResult>;
+  create?(resourceRef: PgnResourceRef, pgnText: string, title: string): Promise<PgnCreateGameResult>;
 
   /**
-   * Swap the display order of two games.
+   * Move `gameRef` to immediately after `afterRef` in display order.
+   * Pass `null` for `afterRef` to move the game to the front.
    * Optional: only adapters that support explicit ordering need to implement this.
    *
-   * @param gameRef First game reference.
-   * @param neighborGameRef Second game reference (the swap target).
+   * @param gameRef The game to relocate.
+   * @param afterRef The game that should immediately precede it, or `null` for front.
    */
-  reorder?(gameRef: PgnGameRef, neighborGameRef: PgnGameRef): Promise<void>;
+  reorder?(gameRef: PgnGameRef, afterRef: PgnGameRef | null): Promise<void>;
 
   /**
    * Search for games that contain a given position, identified by a pre-computed

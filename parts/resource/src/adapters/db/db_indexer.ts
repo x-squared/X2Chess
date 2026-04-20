@@ -9,6 +9,10 @@
  * (e.g. two `[Character "..."]` lines), `writeMetadata` writes one row per value
  * with increasing `ordinal` and records `cardinality = 'many'` in `metadata_keys`.
  * Single-occurrence keys always use `ordinal = 0` and `cardinality = 'one'`.
+ *
+ * Cardinality is recalculated after every write so that removing multi-valued
+ * fields from a game can downgrade a key back to `'one'` once no game in the
+ * database retains multiple values for it.
  */
 
 import type { DbGateway } from "../../io/db_gateway";
@@ -37,16 +41,25 @@ export const asMetaRow = (r: unknown): MetaRow => {
   };
 };
 
+// ── Batch-INSERT chunk size ───────────────────────────────────────────────────
+
+const BATCH_SIZE = 500;
+
 // ── Write helpers ─────────────────────────────────────────────────────────────
 
 export const makeWritePositionIndex = (indexer: BuildPositionIndex | undefined) =>
   async (db: DbGateway, gameId: string, pgnText: string): Promise<void> => {
     if (!indexer) return;
     const records = indexer(pgnText);
-    for (const { ply, hash } of records) {
+    if (records.length === 0) return;
+
+    for (let i = 0; i < records.length; i += BATCH_SIZE) {
+      const chunk = records.slice(i, i + BATCH_SIZE);
+      const placeholders = chunk.map(() => "(?, ?, ?)").join(", ");
+      const params: unknown[] = chunk.flatMap(({ hash, ply }) => [hash, gameId, ply]);
       await db.execute(
-        "INSERT OR IGNORE INTO position_hashes (hash, game_id, ply) VALUES (?, ?, ?)",
-        [hash, gameId, ply],
+        `INSERT OR IGNORE INTO position_hashes (hash, game_id, ply) VALUES ${placeholders}`,
+        params,
       );
     }
   };
@@ -55,56 +68,73 @@ export const makeWriteMoveEdgeIndex = (indexer: BuildMoveEdgeIndex | undefined) 
   async (db: DbGateway, gameId: string, pgnText: string): Promise<void> => {
     if (!indexer) return;
     const edges = indexer(pgnText);
-    for (const { positionHash, moveSan, moveUci, result } of edges) {
+    if (edges.length === 0) return;
+
+    for (let i = 0; i < edges.length; i += BATCH_SIZE) {
+      const chunk = edges.slice(i, i + BATCH_SIZE);
+      const placeholders = chunk.map(() => "(?, ?, ?, ?, ?)").join(", ");
+      const params: unknown[] = chunk.flatMap(
+        ({ positionHash, moveSan, moveUci, result }) => [positionHash, moveSan, moveUci, result, gameId],
+      );
       await db.execute(
-        `INSERT OR REPLACE INTO move_edges (position_hash, move_san, move_uci, result, game_id)
-         VALUES (?, ?, ?, ?, ?)`,
-        [positionHash, moveSan, moveUci, result, gameId],
+        `INSERT OR REPLACE INTO move_edges (position_hash, move_san, move_uci, result, game_id) VALUES ${placeholders}`,
+        params,
       );
     }
   };
 
 // ── Metadata write helpers ────────────────────────────────────────────────────
 
-/** Write all ordinal rows for one metadata key and register its cardinality. */
+/** Write all ordinal rows for one metadata key. */
 const writeMetadataKey = async (
   db: DbGateway,
   gameId: string,
   key: string,
   values: string[],
 ): Promise<void> => {
-  const cardinality = values.length > 1 ? "many" : "one";
+  const nonEmpty = values.filter((v) => v !== "");
+  if (nonEmpty.length === 0) return;
 
-  for (let ordinal = 0; ordinal < values.length; ordinal++) {
-    const val = values[ordinal];
-    if (val === undefined || val === "") continue;
-    await db.execute(
-      `INSERT OR REPLACE INTO game_metadata (game_id, meta_key, ordinal, val_str)
-       VALUES (?, ?, ?, ?)`,
-      [gameId, key, ordinal, val],
-    );
-  }
-
+  const placeholders = nonEmpty.map(() => "(?, ?, ?, ?)").join(", ");
+  const params: unknown[] = nonEmpty.flatMap((val, ordinal) => [gameId, key, ordinal, val]);
   await db.execute(
-    `INSERT OR IGNORE INTO metadata_keys (key, value_type, cardinality) VALUES (?, 'string', ?)`,
-    [key, cardinality],
+    `INSERT OR REPLACE INTO game_metadata (game_id, meta_key, ordinal, val_str) VALUES ${placeholders}`,
+    params,
   );
-  if (cardinality === "many") {
-    await db.execute(
-      `UPDATE metadata_keys SET cardinality = 'many' WHERE key = ? AND cardinality = 'one'`,
+
+  // Ensure the key exists in the catalog (cardinality is recalculated separately).
+  await db.execute(
+    `INSERT OR IGNORE INTO metadata_keys (key, value_type, cardinality) VALUES (?, 'string', 'one')`,
+    [key],
+  );
+};
+
+/**
+ * Recalculate `cardinality` for each key in `keys` by inspecting how many
+ * distinct ordinal values exist across all games in the database.
+ *
+ * A key is `'many'` when at least one game stores more than one value for it
+ * (i.e. `ordinal > 0` exists).  Otherwise it is `'one'`.
+ *
+ * This is called after every metadata rewrite so that removing multi-valued
+ * headers from a game can downgrade the cardinality once no game retains them.
+ */
+const recalculateCardinality = async (db: DbGateway, keys: string[]): Promise<void> => {
+  for (const key of keys) {
+    const rows = await db.query(
+      "SELECT COUNT(*) AS cnt FROM game_metadata WHERE meta_key = ? AND ordinal > 0",
       [key],
+    );
+    const hasMulti = Number((rows[0] as Record<string, unknown>)?.cnt ?? 0) > 0;
+    await db.execute(
+      "UPDATE metadata_keys SET cardinality = ? WHERE key = ?",
+      [hasMulti ? "many" : "one", key],
     );
   }
 };
 
 /**
- * Write metadata index rows for one game.
- *
- * Strategy:
- * - Collect all header occurrences per key using `extractMultiPgnMetadata`.
- * - For keys with one value: write ordinal=0, cardinality='one'.
- * - For keys with multiple values: write ordinal=0,1,2,…, cardinality='many'.
- * - For position games, derive and index the `Material` key from the FEN.
+ * Write metadata index rows for one game and refresh cardinality.
  *
  * @param db Live database gateway.
  * @param gameId Game UUID.
@@ -116,15 +146,20 @@ export const writeMetadata = async (
   pgnText: string,
 ): Promise<void> => {
   const allValues = extractMultiPgnMetadata(pgnText, allHeaderKeys(pgnText));
+  const writtenKeys: string[] = [];
 
   for (const key of Object.keys(allValues)) {
     const values = allValues[key] ?? [];
     if (values.length > 0) {
       await writeMetadataKey(db, gameId, key, values);
+      writtenKeys.push(key);
     }
   }
 
   await writeMaterialKey(db, gameId, pgnText);
+  if (pgnText && /\[SetUp\s+"1"\]/i.test(pgnText)) writtenKeys.push("Material");
+
+  await recalculateCardinality(db, writtenKeys);
 };
 
 /** Derive and write the Material key for position games. */

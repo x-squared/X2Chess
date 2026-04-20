@@ -1,4 +1,3 @@
-import { PgnResourceError } from "../../domain/actions";
 import type { PgnResourceAdapter } from "../../domain/contracts";
 import type { PgnGameRef } from "../../domain/game_ref";
 import {
@@ -109,11 +108,5 @@ export const createFileAdapter = ({ fsGateway }: { fsGateway: FsGateway }): PgnR
       revisionToken: String(Date.now()),
       title: deriveGameTitle(gameText, recordId - 1),
     };
-  },
-  save: async (_gameRef, _pgnText, _options) => {
-    throw new PgnResourceError("unsupported_operation", "Saving to multi-game file resources is not implemented yet.");
-  },
-  create: async (_resourceRef, _pgnText, _title) => {
-    throw new PgnResourceError("unsupported_operation", "Creating in multi-game file resources is not implemented yet.");
   },
 });

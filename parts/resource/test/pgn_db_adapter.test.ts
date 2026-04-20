@@ -271,14 +271,19 @@ const queryGameMetadata = (
 
 const buildInMemoryGateway = (): DbGateway => {
   const tables = new Map<string, Map<string, Row>>();
-  return {
+  const gw: DbGateway = {
     execute: async (sql: string, params: unknown[] = []): Promise<void> => {
       const norm = normSql(sql);
+      if (norm === "BEGIN" || norm === "COMMIT" || norm === "ROLLBACK") return;
       if (!execDDL(tables, norm)) execDML(tables, norm, params);
     },
     query: async (sql: string, params: unknown[] = []): Promise<unknown[]> =>
       runQuery(tables, normSql(sql), params),
+    transaction: async (fn: (db: DbGateway) => Promise<void>): Promise<void> => {
+      await fn(gw);
+    },
   };
+  return gw;
 };
 
 // ── Fixtures ───────────────────────────────────────────────────────────────────

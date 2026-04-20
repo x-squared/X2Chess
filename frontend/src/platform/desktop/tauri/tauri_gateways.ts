@@ -68,14 +68,27 @@ export const buildTauriFormatImportGateway = (): FormatImportGateway => ({
   },
 });
 
-export const buildTauriDbGateway = (dbPath: string): DbGateway => ({
-  query: async (sql: string, params?: unknown[]): Promise<unknown[]> => {
-    const invoke = await getCoreInvoke();
-    const result: unknown = await invoke("query_db", { dbPath, sql, params: params ?? [] });
-    return Array.isArray(result) ? result : [];
-  },
-  execute: async (sql: string, params?: unknown[]): Promise<void> => {
-    const invoke = await getCoreInvoke();
-    await invoke("execute_db", { dbPath, sql, params: params ?? [] });
-  },
-});
+export const buildTauriDbGateway = (dbPath: string): DbGateway => {
+  const gw: DbGateway = {
+    query: async (sql: string, params?: unknown[]): Promise<unknown[]> => {
+      const invoke = await getCoreInvoke();
+      const result: unknown = await invoke("query_db", { dbPath, sql, params: params ?? [] });
+      return Array.isArray(result) ? result : [];
+    },
+    execute: async (sql: string, params?: unknown[]): Promise<void> => {
+      const invoke = await getCoreInvoke();
+      await invoke("execute_db", { dbPath, sql, params: params ?? [] });
+    },
+    transaction: async (fn: (db: DbGateway) => Promise<void>): Promise<void> => {
+      await gw.execute("BEGIN");
+      try {
+        await fn(gw);
+        await gw.execute("COMMIT");
+      } catch (err) {
+        await gw.execute("ROLLBACK").catch(() => {});
+        throw err;
+      }
+    },
+  };
+  return gw;
+};

@@ -274,16 +274,19 @@ export const createDbAdapter = (
     const newToken = generateRevisionToken();
     const now = Date.now();
     const kind = detectKind(pgnText);
-    await db.execute(
-      "UPDATE games SET pgn_text = ?, revision_token = ?, updated_at = ?, kind = ? WHERE id = ?",
-      [pgnText, newToken, now, kind, gameId],
-    );
-    await db.execute("DELETE FROM game_metadata WHERE game_id = ?", [gameId]);
-    await writeMetadata(db, gameId, pgnText);
-    await db.execute("DELETE FROM position_hashes WHERE game_id = ?", [gameId]);
-    await writePositionIndex(db, gameId, pgnText);
-    await db.execute("DELETE FROM move_edges WHERE game_id = ?", [gameId]);
-    await writeMoveEdgeIndex(db, gameId, pgnText);
+
+    await db.transaction(async (tx) => {
+      await tx.execute(
+        "UPDATE games SET pgn_text = ?, revision_token = ?, updated_at = ?, kind = ? WHERE id = ?",
+        [pgnText, newToken, now, kind, gameId],
+      );
+      await tx.execute("DELETE FROM game_metadata WHERE game_id = ?", [gameId]);
+      await writeMetadata(tx, gameId, pgnText);
+      await tx.execute("DELETE FROM position_hashes WHERE game_id = ?", [gameId]);
+      await writePositionIndex(tx, gameId, pgnText);
+      await tx.execute("DELETE FROM move_edges WHERE game_id = ?", [gameId]);
+      await writeMoveEdgeIndex(tx, gameId, pgnText);
+    });
 
     return { gameRef, revisionToken: newToken };
   },
@@ -309,14 +312,16 @@ export const createDbAdapter = (
     const titleHint = String(title || "").trim();
     const kind = detectKind(pgnText);
 
-    await db.execute(
-      `INSERT INTO games (id, pgn_text, title_hint, created_at, updated_at, order_index, revision_token, kind)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, pgnText, titleHint, now, now, orderIndex, revisionToken, kind],
-    );
-    await writeMetadata(db, id, pgnText);
-    await writePositionIndex(db, id, pgnText);
-    await writeMoveEdgeIndex(db, id, pgnText);
+    await db.transaction(async (tx) => {
+      await tx.execute(
+        `INSERT INTO games (id, pgn_text, title_hint, created_at, updated_at, order_index, revision_token, kind)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [id, pgnText, titleHint, now, now, orderIndex, revisionToken, kind],
+      );
+      await writeMetadata(tx, id, pgnText);
+      await writePositionIndex(tx, id, pgnText);
+      await writeMoveEdgeIndex(tx, id, pgnText);
+    });
 
     return {
       gameRef: { kind: "db", locator: dbPath, recordId: id },

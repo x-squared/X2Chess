@@ -39,7 +39,13 @@ import {
 } from "../../features/editor/model/game_info";
 import { FieldInput } from "../../features/editor/components/GameInfoEditor";
 import { PlayerAutocomplete } from "../../features/editor/components/PlayerAutocomplete";
-import { PositionSetupBoard, detectChess960 } from "./PositionSetupBoard";
+import {
+  PositionSetupBoard,
+  detectChess960,
+  chess960Fen,
+  chess960SpToBackRank,
+  chess960SpFromBackRank,
+} from "./PositionSetupBoard";
 import "./dialog.css";
 import "./new_game_dialog.css";
 
@@ -113,7 +119,68 @@ const todayDate = (): string => {
   return `${y}.${m}.${day}`;
 };
 
+// ── Chess960 interactive board (back rank is clickable) ───────────────────────
+
+type Chess960BoardProps = {
+  backRank: string;
+  selectedFile: number | null;
+  onFileClick: (file: number) => void;
+};
+
+/**
+ * 8×8 board for Chess960 position selection.
+ * Only the bottom row (rank 1, white back rank) is interactive:
+ * clicking a piece selects it; clicking a second piece swaps the two.
+ * Rank 8 mirrors rank 1 automatically; all other squares are static.
+ */
+const Chess960Board = ({ backRank, selectedFile, onFileClick }: Chess960BoardProps): ReactElement => {
+  // Build 64 squares directly from the back rank
+  const squares: string[] = new Array<string>(64).fill("");
+  for (let f = 0; f < 8; f++) {
+    squares[f]      = (backRank[f] ?? "").toLowerCase(); // rank 8: black back rank
+    squares[8 + f]  = "p";                               // rank 7: black pawns
+    squares[48 + f] = "P";                               // rank 2: white pawns
+    squares[56 + f] = backRank[f] ?? "";                 // rank 1: white back rank (interactive)
+  }
+
+  return (
+    <div className="newgame-chess960-preview-board">
+      {squares.map((piece, idx) => {
+        const rankIdx: number = Math.floor(idx / 8);
+        const fileIdx: number = idx % 8;
+        const isLight: boolean   = (rankIdx + fileIdx) % 2 === 0;
+        const interactive: boolean = rankIdx === 7;
+        const selected: boolean    = interactive && fileIdx === selectedFile;
+        const cls: string = [
+          "position-setup-square",
+          isLight ? "light" : "dark",
+          interactive ? "chess960-interactive" : "chess960-static",
+          selected    ? "chess960-selected"    : "",
+        ].filter(Boolean).join(" ");
+        return (
+          <div
+            key={`${rankIdx}-${fileIdx}`}
+            className={cls}
+            onClick={interactive ? (): void => { onFileClick(fileIdx); } : undefined}
+          >
+            {piece && (
+              <div
+                className="position-setup-piece"
+                style={{
+                  backgroundImage: `var(--piece-${piece === piece.toUpperCase() ? "w" : "b"}${piece.toLowerCase()}-image)`,
+                }}
+              />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 // ── NewGameDialog ──────────────────────────────────────────────────────────────
+
+type PositionType = "standard" | "chess960" | "custom";
 
 type NewGameDialogProps = {
   onCreate: (pgn: string) => void;
@@ -130,7 +197,11 @@ export const NewGameDialog = ({ onCreate, onClose }: NewGameDialogProps): ReactE
   const fenHelpHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [fenHelpDialogOpen, setFenHelpDialogOpen] = useState<boolean>(false);
   const [tab, setTab] = useState<Tab>("position");
-  const [useCustom, setUseCustom] = useState<boolean>(false);
+  const [positionType, setPositionType] = useState<PositionType>("standard");
+  const [chess960BackRank, setChess960BackRank] = useState<string>(
+    () => chess960SpToBackRank(Math.floor(Math.random() * 960)),
+  );
+  const [chess960SelectedFile, setChess960SelectedFile] = useState<number | null>(null);
   const [fen, setFen] = useState<string>(STANDARD_STARTING_FEN);
   const [fenInput, setFenInput] = useState<string>(STANDARD_STARTING_FEN);
   const [fenError, setFenError] = useState<string | null>(null);
@@ -211,10 +282,16 @@ export const NewGameDialog = ({ onCreate, onClose }: NewGameDialogProps): ReactE
   }, [clearFenHelpHoverTimer]);
 
   const chess960Detected = useMemo(
-    (): boolean => useCustom && !fenError ? detectChess960(fen) : false,
-    [useCustom, fenError, fen],
+    (): boolean => positionType === "custom" && !fenError ? detectChess960(fen) : false,
+    [positionType, fenError, fen],
   );
-  const isChess960 = chess960Override !== null ? chess960Override : chess960Detected;
+  const isChess960: boolean = chess960Override ?? chess960Detected;
+
+  // Derived SP number for Chess960 mode; null when the current arrangement is not valid Chess960.
+  const currentSp = useMemo(
+    (): number | null => chess960SpFromBackRank(chess960BackRank),
+    [chess960BackRank],
+  );
 
   const handleFenInputChange = useCallback((value: string): void => {
     setFenInput(value);
@@ -233,22 +310,58 @@ export const NewGameDialog = ({ onCreate, onClose }: NewGameDialogProps): ReactE
     setChess960Override(null);
   }, []);
 
+  const handleChess960FileClick = useCallback((file: number): void => {
+    if (chess960SelectedFile === null) {
+      setChess960SelectedFile(file);
+    } else if (chess960SelectedFile === file) {
+      setChess960SelectedFile(null);
+    } else {
+      const arr: string[] = chess960BackRank.split("");
+      const a: string = arr[chess960SelectedFile] ?? "";
+      const b: string = arr[file] ?? "";
+      arr[chess960SelectedFile] = b;
+      arr[file] = a;
+      setChess960BackRank(arr.join(""));
+      setChess960SelectedFile(null);
+    }
+  }, [chess960SelectedFile, chess960BackRank]);
+
   const handleMetaCommit = useCallback((key: string, value: string): void => {
     setMeta((m) => ({ ...m, [key]: value }));
   }, []);
 
   const handleCreate = useCallback((): void => {
-    const pgn = buildPgn(useCustom ? fen : STANDARD_STARTING_FEN, useCustom, meta, isChess960);
+    let startFen: string;
+    let isCustom: boolean;
+    let effectiveIsChess960: boolean;
+    if (positionType === "chess960") {
+      const wr: string = chess960BackRank;
+      startFen = `${wr.toLowerCase()}/pppppppp/8/8/8/8/PPPPPPPP/${wr} w KQkq - 0 1`;
+      isCustom = true;
+      effectiveIsChess960 = true;
+    } else if (positionType === "custom") {
+      startFen = fen;
+      isCustom = true;
+      effectiveIsChess960 = isChess960;
+    } else {
+      startFen = STANDARD_STARTING_FEN;
+      isCustom = false;
+      effectiveIsChess960 = false;
+    }
+    const pgn = buildPgn(startFen, isCustom, meta, effectiveIsChess960);
     onCreate(pgn);
     dialogRef.current?.close();
-  }, [fen, useCustom, meta, isChess960, onCreate]);
+  }, [fen, positionType, chess960BackRank, meta, isChess960, onCreate]);
 
   const handleClose = useCallback((): void => {
     dialogRef.current?.close();
     onClose();
   }, [onClose]);
 
-  const canCreate = !useCustom || !fenError;
+  const canCreate: boolean =
+    positionType === "standard" ||
+    (positionType === "chess960" && currentSp !== null) ||
+    (positionType === "custom" && !fenError);
 
   return (
     <>
@@ -286,9 +399,9 @@ export const NewGameDialog = ({ onCreate, onClose }: NewGameDialogProps): ReactE
                 <input
                   type="radio"
                   name="positionType"
-                  checked={!useCustom}
+                  checked={positionType === "standard"}
                   onChange={(): void => {
-                    setUseCustom(false);
+                    setPositionType("standard");
                     setFen(STANDARD_STARTING_FEN);
                     setFenInput(STANDARD_STARTING_FEN);
                     setFenError(null);
@@ -301,10 +414,22 @@ export const NewGameDialog = ({ onCreate, onClose }: NewGameDialogProps): ReactE
                 <input
                   type="radio"
                   name="positionType"
-                  checked={useCustom}
+                  checked={positionType === "chess960"}
+                  onChange={(): void => {
+                    setPositionType("chess960");
+                    setChess960Override(null);
+                  }}
+                />
+                {t("newgame.chess960radio", "Chess960")}
+              </label>
+              <label className="newgame-radio-label">
+                <input
+                  type="radio"
+                  name="positionType"
+                  checked={positionType === "custom"}
                   onChange={(): void => {
                     const emptyFen = "8/8/8/8/8/8/8/8 w KQkq - 0 1";
-                    setUseCustom(true);
+                    setPositionType("custom");
                     setFen(emptyFen);
                     setFenInput(emptyFen);
                     setFenError(validateFen(emptyFen));
@@ -315,7 +440,74 @@ export const NewGameDialog = ({ onCreate, onClose }: NewGameDialogProps): ReactE
               </label>
             </div>
 
-            {useCustom && (
+            {/* Chess960 position picker */}
+            {positionType === "chess960" && (
+              <div className="newgame-chess960-picker">
+
+                {/* SP navigation row */}
+                <div className="newgame-chess960-sp-row">
+                  <button
+                    type="button"
+                    className="x2-dialog-btn x2-dialog-btn--ghost newgame-chess960-nav-btn"
+                    onClick={(): void => {
+                      if (currentSp !== null && currentSp > 0) {
+                        setChess960BackRank(chess960SpToBackRank(currentSp - 1));
+                        setChess960SelectedFile(null);
+                      }
+                    }}
+                    aria-label={t("newgame.chess960.prev", "Previous position")}
+                    disabled={currentSp === null || currentSp === 0}
+                  >
+                    ←
+                  </button>
+                  <span className={`newgame-chess960-sp-label${currentSp === null ? " invalid" : ""}`}>
+                    {currentSp !== null
+                      ? `${t("newgame.chess960.sp", "SP")} ${currentSp}`
+                      : t("newgame.chess960.spInvalid", "— invalid —")}
+                  </span>
+                  <button
+                    type="button"
+                    className="x2-dialog-btn x2-dialog-btn--ghost newgame-chess960-nav-btn"
+                    onClick={(): void => {
+                      if (currentSp !== null && currentSp < 959) {
+                        setChess960BackRank(chess960SpToBackRank(currentSp + 1));
+                        setChess960SelectedFile(null);
+                      }
+                    }}
+                    aria-label={t("newgame.chess960.next", "Next position")}
+                    disabled={currentSp === null || currentSp === 959}
+                  >
+                    →
+                  </button>
+                  <button
+                    type="button"
+                    className="x2-dialog-btn x2-dialog-btn--ghost"
+                    onClick={(): void => {
+                      setChess960BackRank(chess960SpToBackRank(Math.floor(Math.random() * 960)));
+                      setChess960SelectedFile(null);
+                    }}
+                  >
+                    {t("newgame.chess960.random", "Random")}
+                  </button>
+                </div>
+
+                {/* Hint */}
+                <p className="newgame-chess960-hint">
+                  {t("newgame.chess960.hint",
+                    "Click a piece on the bottom row to select it, then click another to swap.")}
+                </p>
+
+                {/* Interactive board */}
+                <Chess960Board
+                  backRank={chess960BackRank}
+                  selectedFile={chess960SelectedFile}
+                  onFileClick={handleChess960FileClick}
+                />
+
+              </div>
+            )}
+
+            {positionType === "custom" && (
               <>
                 <div className="newgame-fen-row">
                   <label className="newgame-fen-label" htmlFor="newgame-fen-input">

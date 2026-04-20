@@ -38,38 +38,9 @@ import {
 } from "../../../resources/web_import/browser_panel_gateway";
 import { useRulesRefresh } from "./useRulesRefresh";
 import { loadUserRules } from "../../../resources/web_import/user_rules_storage";
+import { fenToPgn } from "../../../runtime/bootstrap_shared";
 import type { WebImportRule } from "../../../resources/web_import/web_import_types";
 import type { NativeHttpGateway } from "../../../resources/web_import/rule_fetcher";
-
-// ── FEN → minimal PGN ────────────────────────────────────────────────────────
-
-const todayIso = (): string => {
-  const d = new Date();
-  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
-};
-
-/**
- * Wrap a FEN string in a minimal PGN with `SetUp "1"` and `FEN` headers so
- * that `openPgnText` can load it as a position game.
- *
- * @param fen - Valid FEN string.
- * @param title - Optional title used as the Event header value.
- */
-const fenToPgn = (fen: string, title?: string): string =>
-  [
-    `[Event "${title ?? "?"}"]`,
-    `[Site "?"]`,
-    `[Date "${todayIso()}"]`,
-    `[Round "?"]`,
-    `[White "?"]`,
-    `[Black "?"]`,
-    `[Result "*"]`,
-    `[SetUp "1"]`,
-    `[FEN "${fen}"]`,
-    "",
-    "*",
-    "",
-  ].join("\n");
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
 

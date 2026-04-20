@@ -68,13 +68,14 @@ export type ResourceCapabilities = {
   createGame: (resourceRef: PgnResourceRef, pgnText: string, title: string) => Promise<PgnCreateGameResult>;
 
   /**
-   * Swap the display order of two games.
-   * Throws if the adapter for the given kind does not support reordering.
+   * Move `gameRef` to immediately after `afterRef` in display order.
+   * Pass `null` for `afterRef` to move the game to the front.
+   * Throws `unsupported_operation` when the adapter does not support ordering.
    *
-   * @param gameRef First game reference.
-   * @param neighborGameRef Second game reference (the swap target).
+   * @param gameRef The game to relocate.
+   * @param afterRef The game that should immediately precede it, or `null` for front.
    */
-  reorderGame: (gameRef: PgnGameRef, neighborGameRef: PgnGameRef) => Promise<void>;
+  reorderGame: (gameRef: PgnGameRef, afterRef: PgnGameRef | null) => Promise<void>;
 
   /**
    * Search a resource for games containing the given position hash.

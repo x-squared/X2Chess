@@ -15,6 +15,8 @@
  *   `hooks/useGameIngress.ts`.
  */
 
+import { isLikelyFenText, fenToPgn } from "../../../runtime/bootstrap_shared";
+
 export type SourceRefLike = {
   kind: string;
   locator: string;
@@ -238,8 +240,13 @@ export const createIngressEventHandlers = ({
       void resolveUrl(plainText.trim());
       return;
     }
-    if (!isLikelyPgnText(plainText)) return;
-    openGameFromIncomingText(plainText, { preferInsertIntoActiveResource: true });
+    if (isLikelyPgnText(plainText)) {
+      openGameFromIncomingText(plainText, { preferInsertIntoActiveResource: true });
+      return;
+    }
+    if (isLikelyFenText(plainText)) {
+      openGameFromIncomingText(fenToPgn(plainText.trim()), { preferInsertIntoActiveResource: true });
+    }
   };
 
   const handlePaste = (event: ClipboardEvent): void => {
@@ -258,8 +265,13 @@ export const createIngressEventHandlers = ({
       void resolveUrl(plainText.trim());
       return;
     }
-    if (!isLikelyPgnText(plainText)) return;
-    openGameFromIncomingText(plainText, { preferInsertIntoActiveResource: true });
+    if (isLikelyPgnText(plainText)) {
+      openGameFromIncomingText(plainText, { preferInsertIntoActiveResource: true });
+      return;
+    }
+    if (isLikelyFenText(plainText)) {
+      openGameFromIncomingText(fenToPgn(plainText.trim()), { preferInsertIntoActiveResource: true });
+    }
   };
 
   return { handleDragEnter, handleDragOver, handleDragLeave, handleDrop, handlePaste, handleDocumentDragLeave };

@@ -4,6 +4,7 @@ import { PGN_RESOURCE_KINDS, type PgnResourceKind } from "../domain/kinds";
 import type { PgnGameRef } from "../domain/game_ref";
 import type { PgnResourceRef } from "../domain/resource_ref";
 import type { MoveFrequencyEntry } from "../domain/move_frequency";
+import { PgnResourceError } from "../domain/actions";
 
 /**
  * Resource client factory.
@@ -53,18 +54,24 @@ export const createResourceClient = (
   },
   saveGame: async (gameRef: PgnGameRef, pgnText: string, options) => {
     const adapter: PgnResourceAdapter = resolveAdapter(adapters, gameRef.kind);
+    if (typeof adapter.save !== "function") {
+      throw new PgnResourceError("unsupported_operation", `Adapter for kind '${gameRef.kind}' does not support saving games.`);
+    }
     return adapter.save(gameRef, pgnText, options);
   },
   createGame: async (resourceRef: PgnResourceRef, pgnText: string, title: string) => {
     const adapter: PgnResourceAdapter = resolveAdapter(adapters, resourceRef.kind);
+    if (typeof adapter.create !== "function") {
+      throw new PgnResourceError("unsupported_operation", `Adapter for kind '${resourceRef.kind}' does not support creating games.`);
+    }
     return adapter.create(resourceRef, pgnText, title);
   },
-  reorderGame: async (gameRef: PgnGameRef, neighborGameRef: PgnGameRef) => {
+  reorderGame: async (gameRef: PgnGameRef, afterRef: PgnGameRef | null) => {
     const adapter: PgnResourceAdapter = resolveAdapter(adapters, gameRef.kind);
     if (typeof adapter.reorder !== "function") {
-      throw new Error(`Adapter for kind '${gameRef.kind}' does not support reordering.`);
+      throw new PgnResourceError("unsupported_operation", `Adapter for kind '${gameRef.kind}' does not support reordering.`);
     }
-    return adapter.reorder(gameRef, neighborGameRef);
+    return adapter.reorder(gameRef, afterRef);
   },
   searchByPositionHash: async (positionHash: string, resourceRef: PgnResourceRef): Promise<PgnGameRef[]> => {
     const adapter: PgnResourceAdapter = resolveAdapter(adapters, resourceRef.kind);

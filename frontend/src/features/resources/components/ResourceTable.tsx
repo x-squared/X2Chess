@@ -1,7 +1,7 @@
 /**
  * ResourceTable — game table with resizable, pointer-draggable columns,
- * per-column filter row, multi-level group-by accordion (UV3), column
- * sort (UV4), and kind badge (UV7).
+ * per-column filter row, multi-level group-by accordion (UV3), and column
+ * sort (UV4).
  *
  * Column header drag uses pointer events (not HTML5 DnD) to avoid
  * activating the browser's native file-drop machinery (UV1).
@@ -46,8 +46,8 @@ type ResourceTableProps = {
   onRowOpen: (rowIndex: number) => void;
   onFilterChange: (key: string, value: string) => void;
   onClearFilters: () => void;
-  onMoveUp: (row: ResourceRow, neighborRow: ResourceRow) => void;
-  onMoveDown: (row: ResourceRow, neighborRow: ResourceRow) => void;
+  onMoveUp: (row: ResourceRow, afterRow: ResourceRow | null) => void;
+  onMoveDown: (row: ResourceRow, afterRow: ResourceRow) => void;
   onResizeStart: (key: string, e: ReactPointerEvent<HTMLSpanElement>) => void;
   /** Pointer-based column drag start (UV1 — replaces HTML5 DnD). */
   onColDragStart: (key: string) => void;
@@ -130,37 +130,6 @@ const computeGroupItems = (
   }
   return items;
 };
-
-// ── Kind badge (UV7) ──────────────────────────────────────────────────────────
-
-const KindBadge = ({
-  kind,
-  t,
-}: {
-  kind: "game" | "position";
-  t: (key: string, fallback?: string) => string;
-}): ReactElement => (
-  <span
-    className={`resource-kind-badge resource-kind-badge--${kind}`}
-    data-ui-id={
-      kind === "position"
-        ? UI_IDS.RESOURCES_TABLE_KIND_BADGE_POSITION
-        : UI_IDS.RESOURCES_TABLE_KIND_BADGE_GAME
-    }
-    title={
-      kind === "position"
-        ? t("resources.kind.position", "Position")
-        : t("resources.kind.game", "Game")
-    }
-    aria-label={
-      kind === "position"
-        ? t("resources.kind.position", "Position")
-        : t("resources.kind.game", "Game")
-    }
-  >
-    {kind === "position" ? "⊞" : "♟"}
-  </span>
-);
 
 // ── Training badge chip (T14) ─────────────────────────────────────────────────
 
@@ -529,8 +498,8 @@ export const ResourceTable = ({
                                 disabled={visibleIdx === 0}
                                 onClick={(e): void => {
                                   e.stopPropagation();
-                                  const neighbor = visibleRows[visibleIdx - 1];
-                                  if (neighbor) onMoveUp(row, neighbor);
+                                  const afterRow = visibleRows[visibleIdx - 2] ?? null;
+                                  onMoveUp(row, afterRow);
                                 }}
                               >▲</button>
                               <button
@@ -546,7 +515,6 @@ export const ResourceTable = ({
                               >▼</button>
                             </span>
                           )}
-                          <KindBadge kind={row.kind} t={t} />
                           {trainingBadges && (() => {
                             const ref = rowSourceGameRef(row);
                             const badge = ref ? trainingBadges.get(ref) : undefined;

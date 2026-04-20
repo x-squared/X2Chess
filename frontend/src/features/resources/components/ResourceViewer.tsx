@@ -210,6 +210,10 @@ export const ResourceViewer = (): ReactElement => {
   const [schemaEditorOpen, setSchemaEditorOpen] = useState<boolean>(false);
   const [editingSchema, setEditingSchema] = useState<MetadataSchema | null>(null);
   const [newGameDialogOpen, setNewGameDialogOpen] = useState<boolean>(false);
+  const toRecordId = (sourceRef: Record<string, unknown> | null | undefined): string => {
+    const rawRecordId: unknown = sourceRef?.recordId;
+    return typeof rawRecordId === "string" ? rawRecordId : "";
+  };
 
   const loadRowsForTab = useCallback(
     (tabId: string, resourceRef: ResourceRef): void => {
@@ -300,7 +304,8 @@ export const ResourceViewer = (): ReactElement => {
     handleToggleGroup,
   } = useGroupBy(activeTabId);
 
-  const supportsReorder: boolean = activeTab?.resourceRef.kind === "db";
+  const supportsReorder: boolean =
+    activeTab?.resourceRef.kind === "db" || activeTab?.resourceRef.kind === "directory";
 
   // ── Training badges (T14) ─────────────────────────────────────────────
 
@@ -453,33 +458,94 @@ export const ResourceViewer = (): ReactElement => {
 
   const handleMoveUp = useCallback((
     row: TabState["rows"][number],
-    neighborRow: TabState["rows"][number],
+    afterRow: TabState["rows"][number] | null,
   ): void => {
-    if (!row?.sourceRef || !neighborRow?.sourceRef) return;
+    if (!row?.sourceRef) return;
+    const moveRecordId: string = toRecordId(row.sourceRef);
+    const afterRecordId: string | null = afterRow?.sourceRef ? toRecordId(afterRow.sourceRef) : null;
+    setTabs((prev: TabState[]): TabState[] =>
+      prev.map((tab: TabState): TabState => {
+        if (tab.tabId !== activeTabId) return tab;
+        const currentRows: TabState["rows"] = tab.rows;
+        const fromIdx: number = currentRows.findIndex(
+          (candidate): boolean => toRecordId(candidate.sourceRef) === moveRecordId,
+        );
+        if (fromIdx < 0) return tab;
+        const withoutMoved: TabState["rows"] = currentRows.filter((_, idx: number): boolean => idx !== fromIdx);
+        if (afterRecordId === null) {
+          return { ...tab, rows: [currentRows[fromIdx], ...withoutMoved] };
+        }
+        const targetIdx: number = withoutMoved.findIndex(
+          (candidate): boolean => toRecordId(candidate.sourceRef) === afterRecordId,
+        );
+        if (targetIdx < 0) return tab;
+        return {
+          ...tab,
+          rows: [
+            ...withoutMoved.slice(0, targetIdx + 1),
+            currentRows[fromIdx],
+            ...withoutMoved.slice(targetIdx + 1),
+          ],
+        };
+      }),
+    );
     void (async (): Promise<void> => {
       try {
-        await services.reorderGameInResource(row.sourceRef, neighborRow.sourceRef);
+        await services.reorderGameInResource(row.sourceRef, afterRow?.sourceRef ?? null);
       } catch (err: unknown) {
         const message: string = err instanceof Error ? err.message : String(err);
-        void message;
+        log.error("ResourceViewer", "Failed to reorder row upward", {
+          recordId: toRecordId(row.sourceRef),
+          afterRecordId: afterRow?.sourceRef ? toRecordId(afterRow.sourceRef) : "(front)",
+          message,
+        });
       }
     })();
-  }, [services]);
+  }, [activeTabId, services]);
 
   const handleMoveDown = useCallback((
     row: TabState["rows"][number],
-    neighborRow: TabState["rows"][number],
+    afterRow: TabState["rows"][number],
   ): void => {
-    if (!row?.sourceRef || !neighborRow?.sourceRef) return;
+    if (!row?.sourceRef || !afterRow?.sourceRef) return;
+    const moveRecordId: string = toRecordId(row.sourceRef);
+    const afterRecordId: string = toRecordId(afterRow.sourceRef);
+    setTabs((prev: TabState[]): TabState[] =>
+      prev.map((tab: TabState): TabState => {
+        if (tab.tabId !== activeTabId) return tab;
+        const currentRows: TabState["rows"] = tab.rows;
+        const fromIdx: number = currentRows.findIndex(
+          (candidate): boolean => toRecordId(candidate.sourceRef) === moveRecordId,
+        );
+        if (fromIdx < 0) return tab;
+        const withoutMoved: TabState["rows"] = currentRows.filter((_, idx: number): boolean => idx !== fromIdx);
+        const targetIdx: number = withoutMoved.findIndex(
+          (candidate): boolean => toRecordId(candidate.sourceRef) === afterRecordId,
+        );
+        if (targetIdx < 0) return tab;
+        return {
+          ...tab,
+          rows: [
+            ...withoutMoved.slice(0, targetIdx + 1),
+            currentRows[fromIdx],
+            ...withoutMoved.slice(targetIdx + 1),
+          ],
+        };
+      }),
+    );
     void (async (): Promise<void> => {
       try {
-        await services.reorderGameInResource(row.sourceRef, neighborRow.sourceRef);
+        await services.reorderGameInResource(row.sourceRef, afterRow.sourceRef);
       } catch (err: unknown) {
         const message: string = err instanceof Error ? err.message : String(err);
-        void message;
+        log.error("ResourceViewer", "Failed to reorder row downward", {
+          recordId: toRecordId(row.sourceRef),
+          afterRecordId: toRecordId(afterRow.sourceRef),
+          message,
+        });
       }
     })();
-  }, [services]);
+  }, [activeTabId, services]);
 
   const handleMetadataReset = useCallback((): void => {
     if (!activeTabId) return;

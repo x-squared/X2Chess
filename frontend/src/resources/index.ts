@@ -19,7 +19,7 @@ type ResourcesDeps = {
 };
 
 type SourceGateway = ReturnType<typeof createSourceGateway>;
-type ListEntry = Awaited<ReturnType<SourceGateway["listGames"]>>[number];
+type ListEntry = Awaited<ReturnType<SourceGateway["listGamesForResource"]>>[number];
 type LoadResult = Awaited<ReturnType<SourceGateway["loadBySourceRef"]>>;
 type SaveResult = Awaited<ReturnType<SourceGateway["saveBySourceRef"]>>;
 type CreateResult = Awaited<ReturnType<SourceGateway["createGameInResource"]>>;
@@ -53,8 +53,6 @@ export const createResourcesCapabilities = ({
   const playerStoreService = createPlayerStoreService({ state: resourcesState });
   const sourceGateway: SourceGateway = createSourceGateway({ state: resourcesState });
 
-  const listSourceGames = async (kind: string = "file"): Promise<ListEntry[]> => sourceGateway.listGames(kind);
-
   const listGamesForResource = async (resourceRef: SourceRefLike): Promise<ListEntry[]> =>
     sourceGateway.listGamesForResource({
       kind: String(resourceRef.kind || "directory"),
@@ -62,29 +60,11 @@ export const createResourcesCapabilities = ({
       recordId: resourceRef.recordId === undefined ? undefined : String(resourceRef.recordId),
     });
 
-  const chooseClientGamesFolder = async (): Promise<ListEntry[]> => {
-    try {
-      await sourceGateway.chooseFileSourceRoot();
-      const runtimeConfig: Record<string, unknown> = await runtimeConfigService.loadRuntimeConfigFromClientData();
-      onApplyRuntimeConfig(runtimeConfig);
-      const listed: ListEntry[] = await listSourceGames("file");
-      if (listed.length > 0) {
-        onSetSaveStatus(`${t("pgn.source.folderSelected", "Folder")}`, "");
-      } else {
-        onSetSaveStatus(t("pgn.source.folderHint", "Choose a local folder (for example run/DEV)."), "");
-      }
-      return listed;
-    } catch (error: unknown) {
-      const msg: string = error instanceof Error ? error.message : String(error);
-      onSetSaveStatus(msg || t("pgn.save.error", "Autosave failed"), "error");
-      return [];
-    }
-  };
-
   const createResourceByKind = async (kind: "db" | "directory" | "file"): Promise<CreateResourceByKindResult> => {
     try {
       const selected: CreateResourceByKindResult = await sourceGateway.createResourceByKind(kind);
       if (!selected) return null;
+      resourcesState.activeSourceKind = selected.activeKind;
       onSetSaveStatus("", "");
       return selected;
     } catch (error: unknown) {
@@ -98,6 +78,7 @@ export const createResourcesCapabilities = ({
     try {
       const selected: ChooseFileResult = await sourceGateway.chooseFileByPicker();
       if (!selected) return null;
+      resourcesState.activeSourceKind = selected.activeKind;
       onSetSaveStatus("", "");
       return selected;
     } catch (error: unknown) {
@@ -111,6 +92,7 @@ export const createResourcesCapabilities = ({
     try {
       const selected: ChooseFolderResult = await sourceGateway.chooseFolderByPicker();
       if (!selected) return null;
+      resourcesState.activeSourceKind = selected.activeKind;
       onSetSaveStatus("", "");
       return selected;
     } catch (error: unknown) {
@@ -124,6 +106,7 @@ export const createResourcesCapabilities = ({
     try {
       const selected: ChooseResourceResult = await sourceGateway.chooseResourceByPicker();
       if (!selected) return null;
+      resourcesState.activeSourceKind = selected.activeKind;
       onSetSaveStatus("", "");
       return selected;
     } catch (error: unknown) {
@@ -178,10 +161,12 @@ export const createResourcesCapabilities = ({
 
   const reorderGameInResource = async (
     sourceRef: SourceRefLike,
-    neighborSourceRef: SourceRefLike,
+    afterSourceRef: SourceRefLike | null,
   ): Promise<void> => sourceGateway.reorderGame(
     { kind: String(sourceRef.kind || "db"), locator: String(sourceRef.locator || ""), recordId: sourceRef.recordId === undefined ? undefined : String(sourceRef.recordId) },
-    { kind: String(neighborSourceRef.kind || "db"), locator: String(neighborSourceRef.locator || ""), recordId: neighborSourceRef.recordId === undefined ? undefined : String(neighborSourceRef.recordId) },
+    afterSourceRef
+      ? { kind: String(afterSourceRef.kind || "db"), locator: String(afterSourceRef.locator || ""), recordId: afterSourceRef.recordId === undefined ? undefined : String(afterSourceRef.recordId) }
+      : null,
   );
 
   const saveGameBySourceRef = async (
@@ -259,7 +244,6 @@ export const createResourcesCapabilities = ({
     addPlayerRecord,
     deletePlayerRecord,
     updatePlayerRecord,
-    chooseClientGamesFolder,
     chooseFileResource,
     chooseFolderResource,
     chooseResourceByPicker,
@@ -269,7 +253,6 @@ export const createResourcesCapabilities = ({
     getPlayerStore,
     listGamesForResource,
     reorderGameInResource,
-    listSourceGames,
     createGameInResource,
     loadGameBySourceRef,
     loadPlayerStoreFromClientData: playerStoreService.loadPlayerStoreFromClientData,

@@ -5,6 +5,7 @@ area: Resource viewer (game list, grouping, filtering, search)
 
 ## Key source files
 - `frontend/src/features/resources/components/ResourceViewer.tsx` — resource viewer root component
+- `frontend/src/features/resources/components/ResourceTable.tsx` — resource table rows, grouping headers, reorder controls, and row open action wiring
 - `frontend/src/features/resources/services/index.ts` — tab state and active-tab refresh capability
 - `frontend/src/core/events/resource_domain_events.ts` — resource mutation event hub (`resource.resourceChanged`)
 - `frontend/src/features/resources/services/resource_event_matching.ts` — resource identity matching (`kind` + `locator`) used by viewer/search/explorer subscriptions
@@ -36,7 +37,7 @@ See dev/check/00_README.md. These rules must be strictly adhered to when this fi
 - [ ] **RESOURCE-2** — Clicking a game row loads it in the editor.
 - [ ] **RESOURCE-3** — Group-by selector (Event, White, Black, Result, Date) regroups the list.
 - [ ] **RESOURCE-4** — Filter input narrows results by the selected group-by field.
-- [ ] **RESOURCE-5** — Dragging a row reorders games within the resource.
+- [ ] **RESOURCE-5** — Clicking row `▲/▼` controls reorders games within the resource and the table updates immediately.
 - [ ] **RESOURCE-6** — Q/A column shows the annotation badge (✓/✗/?) from the PGN.
 - [ ] **RESOURCE-7** — "New game" button on the open-resource tabs row creates a blank game in that resource.
 - [ ] **RESOURCE-8** — Cross-resource position search returns matching games from all open resources.
@@ -54,3 +55,4 @@ See dev/check/00_README.md. These rules must be strictly adhered to when this fi
 - [ ] **RESOURCE-20** — For a **folder** (or **multi-game .pgn file**) resource, after saving a game whose PGN contains `[XSqrHead "..."]`, list refresh shows that value in the `XSqrHead` column when the column is turned on (same header text as in the loaded game).
 - [ ] **RESOURCE-21** — With **Position Search** results visible, saving/reordering a game in one of the searched resources refreshes the result list automatically (without pressing Search again).
 - [ ] **RESOURCE-22** — With **Text Search** results visible for a non-empty query, saving/reordering a game in one of the searched resources refreshes the result list automatically (without pressing Search again).
+- [ ] **RESOURCE-23** — Resource table rows show no extra leading disclosure triangle; only row-reorder controls (`▲`/`▼`) appear at the start of the row when reordering is available.

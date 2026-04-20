@@ -15,7 +15,7 @@
  *   `hooks/useGameIngress.ts`.
  */
 
-import { isLikelyFenText, fenToPgn } from "../../../runtime/bootstrap_shared";
+import { isLikelyFenText, fenToPgn, isChess960StartingFen, STANDARD_STARTING_FEN } from "../../../runtime/bootstrap_shared";
 
 export type SourceRefLike = {
   kind: string;
@@ -245,7 +245,10 @@ export const createIngressEventHandlers = ({
       return;
     }
     if (isLikelyFenText(plainText)) {
-      openGameFromIncomingText(fenToPgn(plainText.trim()), { preferInsertIntoActiveResource: true });
+      const fen: string = plainText.trim();
+      const variant: "Chess960" | undefined =
+        fen !== STANDARD_STARTING_FEN && isChess960StartingFen(fen) ? "Chess960" : undefined;
+      openGameFromIncomingText(fenToPgn(fen, undefined, variant), { preferInsertIntoActiveResource: true });
     }
   };
 
@@ -270,7 +273,10 @@ export const createIngressEventHandlers = ({
       return;
     }
     if (isLikelyFenText(plainText)) {
-      openGameFromIncomingText(fenToPgn(plainText.trim()), { preferInsertIntoActiveResource: true });
+      const fen: string = plainText.trim();
+      const variant: "Chess960" | undefined =
+        fen !== STANDARD_STARTING_FEN && isChess960StartingFen(fen) ? "Chess960" : undefined;
+      openGameFromIncomingText(fenToPgn(fen, undefined, variant), { preferInsertIntoActiveResource: true });
     }
   };
 

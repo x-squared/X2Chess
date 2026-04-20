@@ -16,9 +16,11 @@ See dev/check/00_README.md. These rules must be strictly adhered to when this fi
 
 ## Checklist
 
-- [ ] **NAV-1** — ← / → toolbar buttons step one move backward/forward.
-- [ ] **NAV-2** — |← / →| toolbar buttons jump to start/end.
-- [ ] **NAV-3** — Left/Right arrow keys navigate when the board or editor is focused.
-- [ ] **NAV-4** — Clicking a move token in the text editor navigates to that move.
-- [ ] **NAV-5** — Clicking a move in a variation navigates into the variation (board preview if off-mainline).
-- [ ] **NAV-6** — PGNs with `XSqrChessStyle` / `XSqrChessBoardOrientation` headers (and transitional `XTwoChessStyle` / `XTwoChessBoardOrientation`, legacy `X2Style` / `X2BoardOrientation`) still allow move-click navigation and board updates.
+## ---------- Completed -----------------------------------------
+
+- [x] **NAV-1** — ← / → toolbar buttons step one move backward/forward.
+- [x] **NAV-2** — |← / →| toolbar buttons jump to start/end.
+- [x] **NAV-3** — Left/Right arrow keys navigate when the board or editor is focused.
+- [x] **NAV-4** — Clicking a move token in the text editor navigates to that move.
+- [x] **NAV-5** — Clicking a move in a variation navigates into the variation (board preview if off-mainline).
+- [x] **NAV-6** — PGNs with `XSqrChessStyle` / `XSqrChessBoardOrientation` headers (and transitional `XTwoChessStyle` / `XTwoChessBoardOrientation`, legacy `X2Style` / `X2BoardOrientation`) still allow move-click navigation and board updates.

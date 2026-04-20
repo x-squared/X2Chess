@@ -282,32 +282,26 @@ export const createResourceOpenOps = (
     bundle.resourceViewer.closeTab(tabId);
   },
 
-  reorderGameInResource: async (sourceRef: unknown, neighborSourceRef: unknown): Promise<void> => {
+  reorderGameInResource: async (sourceRef: unknown, afterSourceRef: unknown): Promise<void> => {
     const ref: SourceRefInput = sourceRef as SourceRefInput;
-    const neighbor: SourceRefInput = neighborSourceRef as SourceRefInput;
+    const after: SourceRefInput | null = afterSourceRef ? afterSourceRef as SourceRefInput : null;
     const sourceRecordId: string | undefined = normalizeOptionalRecordId(ref?.recordId);
-    const neighborRecordId: string | undefined = normalizeOptionalRecordId(neighbor?.recordId);
-    await bundle.resources.reorderGameInResource(
-      { kind: normalizeStringField(ref?.kind, "db"), locator: normalizeStringField(ref?.locator, ""), recordId: sourceRecordId },
-      { kind: normalizeStringField(neighbor?.kind, "db"), locator: normalizeStringField(neighbor?.locator, ""), recordId: neighborRecordId },
-    );
+    const afterRecordId: string | undefined = after ? normalizeOptionalRecordId(after.recordId) : undefined;
     const resourceKind: string = normalizeStringField(ref?.kind, "db");
     const resourceLocator: string = normalizeStringField(ref?.locator, "");
-    const primarySourceRef = {
-      kind: resourceKind,
-      locator: resourceLocator,
-      recordId: sourceRecordId,
-    };
-    const adjacentSourceRef = {
-      kind: normalizeStringField(neighbor?.kind, resourceKind),
-      locator: normalizeStringField(neighbor?.locator, resourceLocator),
-      recordId: neighborRecordId,
-    };
+    const canonicalAfter = after
+      ? { kind: normalizeStringField(after.kind, resourceKind), locator: normalizeStringField(after.locator, resourceLocator), recordId: afterRecordId }
+      : null;
+    await bundle.resources.reorderGameInResource(
+      { kind: resourceKind, locator: resourceLocator, recordId: sourceRecordId },
+      canonicalAfter,
+    );
+    const primarySourceRef = { kind: resourceKind, locator: resourceLocator, recordId: sourceRecordId };
     resourceDomainEvents.emit({
       type: "resource.gameReordered",
       resourceRef: { kind: resourceKind, locator: resourceLocator },
       sourceRef: primarySourceRef,
-      neighborSourceRef: adjacentSourceRef,
+      afterSourceRef: canonicalAfter ?? undefined,
     });
     resourceDomainEvents.emit({
       type: "resource.resourceChanged",
@@ -319,7 +313,7 @@ export const createResourceOpenOps = (
       kind: resourceKind,
       locator: resourceLocator,
       recordId: sourceRecordId ?? "",
-      neighborRecordId: neighborRecordId ?? "",
+      afterRecordId: afterRecordId ?? "(front)",
     });
   },
 });

@@ -20,8 +20,8 @@ See dev/check/00_README.md. These rules must be strictly adhered to when this fi
 
 ## Checklist
 
-- [ ] **BOARD-1** — Clicking a piece highlights it and shows legal move targets.
-- [ ] **BOARD-2** — Clicking a legal target plays the move and updates the PGN.
+- [x] **BOARD-1** — Clicking a piece highlights it and shows legal move targets.
+- [x] **BOARD-2** — Clicking a legal target plays the move and updates the PGN.
 - [ ] **BOARD-3** — Pawn promotion: a picker appears; selecting a piece completes the promotion.
 - [ ] **BOARD-4** — Ambiguous move (two pieces can reach same square): a disambiguation dialog appears.
 - [ ] **BOARD-5** — Entering a move in a position that already has a next move: a dialog asks New variation / Replace / Cancel.

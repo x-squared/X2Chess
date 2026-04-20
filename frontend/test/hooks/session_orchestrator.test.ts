@@ -313,7 +313,7 @@ test("closeSession opens a fallback session when store becomes empty", (): void 
         ({ closed: true, emptyAfterClose: true }),
       openSession: (input: { title: string }): void => { openedSessions.push(input); },
     },
-    sessionPersistence: {},
+    sessionPersistence: { cancelPendingAutosave: (): void => {} },
     moveLookup: {},
   } as unknown as Parameters<typeof createSessionOrchestrator>[0];
 

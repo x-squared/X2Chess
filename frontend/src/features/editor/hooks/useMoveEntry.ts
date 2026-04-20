@@ -27,6 +27,7 @@ import {
   selectMoves,
   selectSelectedMoveId,
   selectPgnModel,
+  selectStartingFen,
 } from "../../../core/state/selectors";
 import { resolveMoveEntry } from "../../../model/move_entry_controller";
 import {
@@ -82,9 +83,9 @@ const isPromotionMove = (fen: string, from: string, to: string): boolean => {
 const fenSideToMove = (fen: string): "w" | "b" =>
   fen.split(" ")[1] === "b" ? "b" : "w";
 
-/** Build a FEN by replaying `ply` mainline SAN moves from the initial position. */
-const buildFen = (sanMoves: string[], ply: number): string => {
-  const game = new Chess();
+/** Build a FEN by replaying `ply` mainline SAN moves from the starting position. */
+const buildFen = (sanMoves: string[], ply: number, startFen?: string): string => {
+  const game = startFen ? new Chess(startFen) : new Chess();
   const limit = Math.min(ply, sanMoves.length);
   for (let i = 0; i < limit; i++) game.move(sanMoves[i]);
   return game.fen();
@@ -116,6 +117,7 @@ export const useMoveEntry = (servicesRef: { current: AppStartupServices | null }
   const moves = selectMoves(state);
   const selectedMoveId = selectSelectedMoveId(state);
   const pgnModel = selectPgnModel(state);
+  const startingFen = selectStartingFen(state);
 
   const [pendingFork, setPendingFork] = useState<PendingFork | null>(null);
   const [pendingPromotion, setPendingPromotion] = useState<PendingPromotion | null>(null);
@@ -193,7 +195,7 @@ export const useMoveEntry = (servicesRef: { current: AppStartupServices | null }
       const model = pgnModel;
       if (!model) return;
 
-      const fen = buildFen(moves, currentPly);
+      const fen = buildFen(moves, currentPly, startingFen || undefined);
       const color = fenSideToMove(fen);
       const cursor = buildCursor(model, selectedMoveId);
 
@@ -223,7 +225,7 @@ export const useMoveEntry = (servicesRef: { current: AppStartupServices | null }
       if (!promo || !pgnModel) { setPendingPromotion(null); return; }
       setPendingPromotion(null);
 
-      const fen = buildFen(moves, currentPly);
+      const fen = buildFen(moves, currentPly, startingFen || undefined);
       const cursor = buildCursor(pgnModel, selectedMoveId);
       resolveAndCommit(promo.from, promo.to, piece, pgnModel, cursor, fen);
     },

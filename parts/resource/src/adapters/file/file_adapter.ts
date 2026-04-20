@@ -1,3 +1,4 @@
+import { PgnResourceError } from "../../domain/actions";
 import type { PgnResourceAdapter } from "../../domain/contracts";
 import type { PgnGameRef } from "../../domain/game_ref";
 import {

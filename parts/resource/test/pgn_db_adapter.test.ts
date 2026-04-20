@@ -122,21 +122,35 @@ const execDMLInsert = (
 ): void => {
   const tbl = getOrCreateTbl(tables, match[1].toLowerCase());
   const cols = match[2].split(",").map((c) => c.trim());
-  const valTokens = match[3].split(",").map((t) => t.trim());
-  const row = buildInsertRow(cols, valTokens, params);
-  const pk = compositeKey(row) || String(tbl.size);
-  if (/INSERT\s+OR\s+IGNORE/i.test(sql) && tbl.has(pk)) return;
-  tbl.set(pk, row);
+  const isOrIgnore = /INSERT\s+OR\s+IGNORE/i.test(sql);
+
+  // Extract all value groups from potentially multi-row: VALUES (…),(…),(…)
+  const valuesSection = sql.slice(sql.toUpperCase().indexOf("VALUES") + 6).trim();
+  const rowPattern = /\(([^)]+)\)/g;
+  let paramIdx = 0;
+  let rowMatch: RegExpExecArray | null;
+  while ((rowMatch = rowPattern.exec(valuesSection)) !== null) {
+    const valTokens = rowMatch[1].split(",").map((t) => t.trim());
+    const sliceParams = params.slice(paramIdx);
+    const row = buildInsertRow(cols, valTokens, sliceParams);
+    paramIdx += valTokens.filter((t) => t === "?").length;
+    const pk = compositeKey(row) || String(tbl.size);
+    if (isOrIgnore && tbl.has(pk)) continue;
+    tbl.set(pk, row);
+  }
 };
 
 const execDMLUpdateCardinality = (
   tables: Map<string, Map<string, Row>>,
   params: unknown[],
 ): void => {
-  const key = asStr(params[0]);
+  // SQL: UPDATE metadata_keys SET cardinality = ? WHERE key = ?
+  // params: [newCardinality, key]
+  const newCardinality = asStr(params[0]);
+  const key = asStr(params[1]);
   const tbl = getOrCreateTbl(tables, "metadata_keys");
   for (const row of tbl.values()) {
-    if (asStr(row.key) === key && row.cardinality === "one") row.cardinality = "many";
+    if (asStr(row.key) === key) row.cardinality = newCardinality;
   }
 };
 
@@ -147,7 +161,7 @@ const execDML = (
   sql: string,
   params: unknown[],
 ): boolean => {
-  const insertM = /INSERT\s+(?:OR\s+(?:REPLACE|IGNORE)\s+)?INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/i.exec(sql);
+  const insertM = /INSERT\s+(?:OR\s+(?:REPLACE|IGNORE)\s+)?INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\b/i.exec(sql);
   if (insertM) { execDMLInsert(tables, sql, insertM, params); return true; }
 
   const deleteM = /DELETE\s+FROM\s+(\w+)\s+WHERE\s+game_id\s*=\s*\?/i.exec(sql);
@@ -160,7 +174,7 @@ const execDML = (
     return true;
   }
 
-  if (/UPDATE\s+metadata_keys\s+SET\s+cardinality\s*=\s*'many'/i.test(sql)) {
+  if (/UPDATE\s+metadata_keys\s+SET\s+cardinality\s*=/i.test(sql)) {
     execDMLUpdateCardinality(tables, params);
     return true;
   }
@@ -219,6 +233,13 @@ const queryGameMetadata = (
   params: unknown[],
 ): unknown[] => {
   const tbl = getOrCreateTbl(tables, "game_metadata");
+
+  // COUNT(*) WHERE meta_key = ? AND ordinal > 0  — cardinality recalculation
+  if (/SELECT\s+COUNT\(\*\)/i.test(sql) && /WHERE\s+meta_key\s*=\s*\?/i.test(sql) && /ordinal\s*>\s*0/i.test(sql)) {
+    const key = asStr(params[0]);
+    const cnt = [...tbl.values()].filter((r) => asStr(r.meta_key) === key && Number(r.ordinal) > 0).length;
+    return [{ cnt }];
+  }
 
   // WHERE meta_key = ? AND val_str IN (…)  — searchByMetadataValues
   if (/WHERE\s+meta_key\s*=\s*\?\s+AND\s+val_str\s+IN/i.test(sql)) {

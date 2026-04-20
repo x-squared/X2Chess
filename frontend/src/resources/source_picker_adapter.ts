@@ -4,13 +4,13 @@ import {
 } from "../../../parts/resource/src/domain/metadata";
 import { materialKeyFromFen } from "../../../parts/resource/src/domain/material_key";
 import type {
-  SourceAdapter,
-  SourceCreateResult,
-  SourceListEntry,
-  SourceLoadResult,
-  SourceSaveResult,
-  SourceRef,
-} from "./source_types";
+  LegacyAdapter as SourceAdapter,
+  LegacyCreateResult as SourceCreateResult,
+  LegacyListEntry as SourceListEntry,
+  LegacyLoadResult as SourceLoadResult,
+  LegacySaveResult as SourceSaveResult,
+  LegacySourceRef as SourceRef,
+} from "../../../parts/resource/src/client/compatibility";
 import {
   isTauriRuntime,
   supportsDirectoryPicker,
@@ -491,7 +491,7 @@ export const createSourcePickerAdapter = ({ state }: SourcePickerDeps): SourceAd
   };
 
   return {
-    kind: "file",
+    kind: "directory",
     applySourceRoot,
     createNewDatabase,
     createNewPgnFile,

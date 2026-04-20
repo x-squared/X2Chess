@@ -210,58 +210,77 @@ export const createBoardNavigationCapabilities = ({
 
   /** Handle arrow-key navigation for selected move context. */
   const handleSelectedMoveArrowHotkey = (event: KeyboardEvent): boolean => {
-    const moveId = sessionRef.current.selectedMoveId;
+    const moveId: string | null = sessionRef.current.selectedMoveId;
     const movePosition = getMovePositionById(moveId, { allowResolve: false });
-    if (!moveId || !movePosition) return false;
-    const isLeft = event.key === "ArrowLeft";
-    const isRight = event.key === "ArrowRight";
-    const isDown = event.key === "ArrowDown";
-    const isUp = event.key === "ArrowUp";
-    if (!isLeft && !isRight && !isDown && !isUp) return false;
-    if (event.metaKey || event.ctrlKey || event.altKey) return false;
+    const isLeft: boolean = event.key === "ArrowLeft";
+    const isRight: boolean = event.key === "ArrowRight";
+    const isDown: boolean = event.key === "ArrowDown";
+    const isUp: boolean = event.key === "ArrowUp";
+    const isArrowKey: boolean = isLeft || isRight || isDown || isUp;
+    const hasForbiddenModifier: boolean = event.metaKey || event.ctrlKey || event.altKey;
 
-    if (event.shiftKey && (isLeft || isRight)) {
+    if (!isArrowKey || hasForbiddenModifier) return false;
+    if (!moveId || !movePosition) {
+      if ((isLeft || isRight) && !event.shiftKey) {
+        event.preventDefault();
+        void gotoRelativeStep(isLeft ? -1 : 1);
+        return true;
+      }
+      return false;
+    }
+
+    const handleShiftCommentFocus = (): boolean => {
+      if (!event.shiftKey || (!isLeft && !isRight)) return false;
       event.preventDefault();
       const position: MoveCommentSide = isLeft ? "before" : "after";
-      const commentId = findCommentIdAroundMove(moveId, position);
+      const commentId: string | null = findCommentIdAroundMove(moveId, position);
       if (commentId) {
         focusCommentById(commentId);
       }
       return true;
-    }
+    };
 
-    if (event.shiftKey && (isDown || isUp) && movePosition.isVariationStart && movePosition.parentMoveId) {
+    const handleShiftVariationSibling = (): boolean => {
+      if (!event.shiftKey || (!isDown && !isUp)) return false;
+      if (!movePosition.isVariationStart || !movePosition.parentMoveId) return false;
       const parentPosition = getMovePositionById(movePosition.parentMoveId, { allowResolve: false });
-      const siblings = Array.isArray(parentPosition?.variationFirstMoveIds)
+      const siblings: string[] = Array.isArray(parentPosition?.variationFirstMoveIds)
         ? parentPosition.variationFirstMoveIds
         : [];
-      const currentIndex = siblings.indexOf(moveId);
+      const currentIndex: number = siblings.indexOf(moveId);
       if (currentIndex === -1) return false;
-      const siblingMoveId = isDown
+      const siblingMoveId: string | null = isDown
         ? (siblings[currentIndex + 1] ?? null)
         : (siblings[currentIndex - 1] ?? null);
       if (!siblingMoveId) return false;
       event.preventDefault();
       selectMoveById(siblingMoveId);
       return true;
-    }
+    };
 
-    if (!event.shiftKey && isDown) {
-      const firstVariationMoveId = Array.isArray(movePosition.variationFirstMoveIds)
-        ? movePosition.variationFirstMoveIds[0]
+    const handleDownIntoVariation = (): boolean => {
+      if (event.shiftKey || !isDown) return false;
+      const firstVariationMoveId: string | null = Array.isArray(movePosition.variationFirstMoveIds)
+        ? (movePosition.variationFirstMoveIds[0] ?? null)
         : null;
       if (!firstVariationMoveId) return false;
       event.preventDefault();
       selectMoveById(firstVariationMoveId);
       return true;
-    }
+    };
 
-    if (!event.shiftKey && isLeft && movePosition.isVariationStart && movePosition.parentMoveId) {
+    const handleLeftToVariationParent = (): boolean => {
+      if (event.shiftKey || !isLeft) return false;
+      if (!movePosition.isVariationStart || !movePosition.parentMoveId) return false;
       event.preventDefault();
       selectMoveById(movePosition.parentMoveId);
       return true;
-    }
+    };
 
+    if (handleShiftCommentFocus()) return true;
+    if (handleShiftVariationSibling()) return true;
+    if (handleDownIntoVariation()) return true;
+    if (handleLeftToVariationParent()) return true;
     if (!isLeft && !isRight) return false;
     event.preventDefault();
     void gotoRelativeStep(isLeft ? -1 : 1);

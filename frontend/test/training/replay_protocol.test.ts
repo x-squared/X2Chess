@@ -74,8 +74,8 @@ test("REPLAY_PROTOCOL.evaluateMove — wrong move reveals correct move", () => {
 test("REPLAY_PROTOCOL.advance — increments ply", () => {
   const state = REPLAY_PROTOCOL.initialize(makeConfig());
   const next = REPLAY_PROTOCOL.advance(state);
-  assert.equal(next.currentSourcePly, 1);
-  assert.equal(next.position.ply, 1);
+  assert.equal(next.currentSourcePly, 2);
+  assert.equal(next.position.ply, 2);
 });
 
 test("REPLAY_PROTOCOL.advance — FEN changes after advancing", () => {

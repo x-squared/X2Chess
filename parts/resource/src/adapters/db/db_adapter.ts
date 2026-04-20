@@ -428,23 +428,44 @@ export const createDbAdapter = (
     return rows.map((r) => asGameRef(r, dbPath)).filter((ref) => ref.recordId !== "");
   },
 
-  reorder: async (gameRef: PgnGameRef, neighborGameRef: PgnGameRef): Promise<void> => {
+  reorder: async (gameRef: PgnGameRef, afterRef: PgnGameRef | null): Promise<void> => {
     const dbPath = String(gameRef.locator || "").trim();
     if (!dbPath) return;
 
     const db = gatewayForPath(dbPath);
     await ensureMigrated(db, dbPath);
 
-    const rows1 = await db.query("SELECT order_index FROM games WHERE id = ?", [gameRef.recordId]);
-    const rows2 = await db.query("SELECT order_index FROM games WHERE id = ?", [neighborGameRef.recordId]);
-    if (rows1.length === 0 || rows2.length === 0) return;
+    const allRows = (await db.query(
+      "SELECT id, order_index FROM games ORDER BY order_index ASC, created_at ASC",
+    )).map((r) => {
+      const v = r as Record<string, unknown>;
+      return { id: strOf(v.id), order_index: Number(v.order_index ?? 0) };
+    });
 
-    const idx1 = (rows1[0] as Record<string, unknown>).order_index;
-    const idx2 = (rows2[0] as Record<string, unknown>).order_index;
-    const now = Date.now();
+    if (allRows.length === 0) return;
 
-    await db.execute("UPDATE games SET order_index = ?, updated_at = ? WHERE id = ?", [idx2, now, gameRef.recordId]);
-    await db.execute("UPDATE games SET order_index = ?, updated_at = ? WHERE id = ?", [idx1, now, neighborGameRef.recordId]);
+    if (afterRef === null) {
+      const front = allRows[0];
+      if (!front || front.id === gameRef.recordId) return;
+      await db.execute(
+        "UPDATE games SET order_index = ?, updated_at = ? WHERE id = ?",
+        [front.order_index - 1, Date.now(), gameRef.recordId],
+      );
+      return;
+    }
+
+    const afterIdx = allRows.findIndex((r) => r.id === afterRef.recordId);
+    if (afterIdx === -1) return;
+
+    const afterOrder = allRows[afterIdx]!.order_index;
+    let nextIdx = afterIdx + 1;
+    while (nextIdx < allRows.length && allRows[nextIdx]!.id === gameRef.recordId) nextIdx++;
+    const nextOrder = nextIdx < allRows.length ? allRows[nextIdx]!.order_index : afterOrder + 2;
+
+    await db.execute(
+      "UPDATE games SET order_index = ?, updated_at = ? WHERE id = ?",
+      [(afterOrder + nextOrder) / 2, Date.now(), gameRef.recordId],
+    );
   },
   };
 };

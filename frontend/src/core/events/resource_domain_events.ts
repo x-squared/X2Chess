@@ -42,7 +42,8 @@ export type ResourceDomainEvent =
       type: "resource.gameReordered";
       resourceRef: ResourceRefIdentity;
       sourceRef: SourceRefIdentity;
-      neighborSourceRef: SourceRefIdentity;
+      /** The game the moved entry was placed after (null = moved to front). */
+      afterSourceRef?: SourceRefIdentity;
     }
   | {
       type: "resource.gameDeleted";

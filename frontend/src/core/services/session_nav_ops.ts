@@ -59,7 +59,7 @@ export const createNavOps = (
   flushSessionState: () => void,
 ): NavOps => ({
   gotoFirst: (): void => {
-    void bundle.navigation.gotoPly(0);
+    void bundle.navigation.gotoPly(0, { animate: false });
   },
   gotoPrev: (): void => {
     void bundle.navigation.gotoRelativeStep(-1);
@@ -68,7 +68,7 @@ export const createNavOps = (
     void bundle.navigation.gotoRelativeStep(1);
   },
   gotoLast: (): void => {
-    void bundle.navigation.gotoPly(bundle.activeSessionRef.current.moves.length);
+    void bundle.navigation.gotoPly(bundle.activeSessionRef.current.moves.length, { animate: false });
   },
   gotoMoveById: (moveId: string): void => {
     try {

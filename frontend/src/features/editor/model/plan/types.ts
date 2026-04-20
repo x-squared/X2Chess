@@ -261,11 +261,14 @@ export const addTextWithBreaks = (
 
 export const parseMoveNumberToken = (raw: unknown): MoveNumberInfo => {
   const text: string = String(raw ?? "");
-  const white: RegExpMatchArray | null = text.match(/^(\d+)\.$/);
-  if (white) return { displayText: white[1], side: "white", simplified: true };
-  const black: RegExpMatchArray | null =
-    text.match(/^(\d+)\.{3,}$/) ?? text.match(/^(\d+)…$/);
-  if (black) return { displayText: black[1], side: "black", simplified: true };
+  const whiteMovePattern: RegExp = /^(\d+)\.$/;
+  const blackMoveDotsPattern: RegExp = /^(\d+)\.{3,}$/;
+  const blackMoveEllipsisPattern: RegExp = /^(\d+)…$/;
+  const white: RegExpExecArray | null = whiteMovePattern.exec(text);
+  if (white) return { displayText: `${white[1]}.`, side: "white", simplified: true };
+  const black: RegExpExecArray | null =
+    blackMoveDotsPattern.exec(text) ?? blackMoveEllipsisPattern.exec(text);
+  if (black) return { displayText: `${black[1]}...`, side: "black", simplified: true };
   return { displayText: text, side: "raw", simplified: false };
 };
 
@@ -338,7 +341,7 @@ export const hasIndentBlockDirective = (comment: PgnComment): boolean =>
 
 export const stripIndentDirectives = (rawText: string): string =>
   String(rawText ?? "")
-    .replace(INDENT_STATE_DIRECTIVE_GLOBAL, "")
+    .replaceAll(INDENT_STATE_DIRECTIVE_GLOBAL, "")
     .replace(/^\s+/, "");
 
 export type RichCommentView = {
@@ -359,7 +362,7 @@ export const buildRichCommentView = (comment: PgnComment, rawText: string): Rich
   const indentDirectiveDepth: number = getIndentDirectiveDepth(comment);
   const hasIndentDirective: boolean = indentDelta !== 0;
   const strippedText: string = hasIndentDirective ? stripIndentDirectives(rawText) : rawText;
-  const visibleText: string = strippedText.replace(/\[\[br\]\]/gi, "\n");
+  const visibleText: string = strippedText.replaceAll(/\[\[br\]\]/gi, "\n");
   return { hasIndentDirective, indentDirectiveDepth, indentDelta, visibleText };
 };
 

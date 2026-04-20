@@ -1,6 +1,6 @@
 # X2Chess Architecture Manual
 
-Last updated: 2026-04-19
+Last updated: 2026-04-20
 
 ## 1) Goals
 
@@ -738,6 +738,19 @@ their state changes:
 
 Callbacks close over `dispatchRef` (a mutable ref updated on every render) so
 they always use the current React dispatch without recreating service instances.
+
+#### Resource domain events (service -> React subscriptions)
+
+Resource mutations that affect multiple UI surfaces (resource table, collection
+explorer, position/text search) are propagated through a typed in-memory event
+hub in `frontend/src/core/events/resource_domain_events.ts`.
+
+- Services emit domain facts (`resource.gameCreated`, `resource.gameSaved`,
+  `resource.gameReordered`) and the normalized `resource.resourceChanged`.
+- Payloads are environment-agnostic (`kind`, `locator`, optional `recordId`);
+  service modules do not depend on React or DOM events.
+- React hooks/components subscribe with `useEffect` and invalidate/reload only
+  matching resources by `kind+locator`.
 
 #### Canonical sync helpers (explicit + shared)
 

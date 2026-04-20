@@ -5,7 +5,8 @@ area: Resource viewer (game list, grouping, filtering, search)
 
 ## Key source files
 - `frontend/src/features/resources/components/ResourceViewer.tsx` — resource viewer root component
-- `frontend/src/features/resources/services/index.ts` — tab state, `refreshActiveTabRows` after save
+- `frontend/src/features/resources/services/index.ts` — tab state and active-tab refresh capability
+- `frontend/src/core/events/resource_domain_events.ts` — resource mutation event hub (`resource.resourceChanged`)
 - `frontend/src/resources/picker_fs_helpers.ts` — `resolveEffectiveGamesDirectory` aligns list path with nested `games/` folder vs tab root locator
 - `frontend/src/resources/source_picker_adapter.ts` — directory PGN listing; row `metadata` uses `extractPgnMetadata(..., KNOWN_PGN_METADATA_KEYS)` so `XSqrHead` / `XSqrChessStyle` appear in the table
 - `parts/resource/src/adapters/file/file_adapter.ts` — multi-game `.pgn` file resource list; same known-key projection for row metadata
@@ -47,3 +48,5 @@ See dev/check/00_README.md. These rules must be strictly adhered to when this fi
 - [ ] **RESOURCE-18** — **Add metadata…** lists the full known tag set (standard PGN + X2 fields such as `XSqrChessStyle`, `Material`, `XSqrHead`) plus any header keys discovered in loaded games, **sorted alphabetically**; legacy style header names are not offered; appending a column works and persists after reload; **Source** is not in the column picker; with the built-in Standard PGN schema, added columns follow **White, Black, Result; ECO, Opening;** then the rest of the roster (defaults/reset unchanged: players + Date/Event/Result/ECO/Opening).
 - [ ] **RESOURCE-19** — Each resource table column header except **Game** shows an × control; clicking it removes that column from the table (prefs persist); **Game** has no ×.
 - [ ] **RESOURCE-20** — For a **folder** (or **multi-game .pgn file**) resource, after saving a game whose PGN contains `[XSqrHead "..."]`, list refresh shows that value in the `XSqrHead` column when the column is turned on (same header text as in the loaded game).
+- [ ] **RESOURCE-21** — With **Position Search** results visible, saving/reordering a game in one of the searched resources refreshes the result list automatically (without pressing Search again).
+- [ ] **RESOURCE-22** — With **Text Search** results visible for a non-empty query, saving/reordering a game in one of the searched resources refreshes the result list automatically (without pressing Search again).

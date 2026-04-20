@@ -16,7 +16,7 @@
  *   stable `search` callback to trigger a new search.
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { Chess } from "chess.js";
 import { useAppContext } from "../../../app/providers/AppStateProvider";
 import { useServiceContext } from "../../../app/providers/ServiceProvider";
@@ -29,11 +29,16 @@ import {
 import { hashFen } from "../../../resources/position_indexer";
 import type { PositionSearchHit } from "../../../../../parts/resource/src/client/search_coordinator";
 import { isPgnResourceRef, type PgnResourceRef } from "../../../../../parts/resource/src/domain/resource_ref";
+import { resourceDomainEvents } from "../../../core/events/resource_domain_events";
 
 export type PositionSearchState = {
   results: PositionSearchHit[];
   loading: boolean;
   search: () => void;
+};
+
+export type PositionSearchOptions = {
+  liveRefreshEnabled?: boolean;
 };
 
 /** Replay `ply` SAN moves and return the resulting FEN string. */
@@ -55,40 +60,65 @@ const fenAtPly = (moves: string[], ply: number): string => {
  *
  * @returns `PositionSearchState` with `results`, `loading` flag, and a stable `search` callback.
  */
-export const usePositionSearch = (): PositionSearchState => {
+export const usePositionSearch = ({ liveRefreshEnabled = true }: PositionSearchOptions = {}): PositionSearchState => {
   const { state } = useAppContext();
   const services = useServiceContext();
 
   const [results, setResults] = useState<PositionSearchHit[]>([]);
   const [loading, setLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [refreshRevision, setRefreshRevision] = useState(0);
+
+  const boardPreview = selectBoardPreview(state);
+  const moves = selectMoves(state);
+  const ply = selectCurrentPly(state);
+  const tabs = selectResourceViewerTabs(state);
+
+  const fen: string = boardPreview?.fen ?? fenAtPly(moves, ply);
+  const positionHash: string = hashFen(fen);
+  const resourceRefs: PgnResourceRef[] = tabs
+    .map((tab) => ({ kind: tab.kind, locator: tab.locator }))
+    .filter(isPgnResourceRef);
+  const refsKey: string = resourceRefs.map((ref: PgnResourceRef): string => `${ref.kind}:${ref.locator}`).join("|");
+  const resourceRefSet: Set<string> = useMemo(
+    (): Set<string> =>
+      new Set<string>(resourceRefs.map((ref: PgnResourceRef): string => `${ref.kind}:${ref.locator}`)),
+    [refsKey],
+  );
 
   const search = useCallback((): void => {
-    const boardPreview = selectBoardPreview(state);
-    const moves = selectMoves(state);
-    const ply = selectCurrentPly(state);
-    const tabs = selectResourceViewerTabs(state);
-
-    // Determine the FEN to search: use board preview when off main line.
-    const fen: string = boardPreview?.fen ?? fenAtPly(moves, ply);
-
-    // Fan out to all open resource tabs (any kind — adapters that do not
-    // support position search return an empty array silently).
-    const resourceRefs: PgnResourceRef[] = tabs
-      .map((tab) => ({ kind: tab.kind, locator: tab.locator }))
-      .filter(isPgnResourceRef);
-
     if (resourceRefs.length === 0) {
       setResults([]);
+      setHasSearched(true);
       return;
     }
-
-    const positionHash: string = hashFen(fen);
     setLoading(true);
+    setHasSearched(true);
     void services.searchByPosition(positionHash, resourceRefs).then((hits) => {
       setResults(hits);
       setLoading(false);
     });
-  }, [state, services]);
+  }, [positionHash, refsKey, services]);
+
+  useEffect((): (() => void) => {
+    const unsubscribe: () => void = resourceDomainEvents.subscribe((event): void => {
+      if (event.type !== "resource.resourceChanged") return;
+      if (!liveRefreshEnabled || !hasSearched || loading) return;
+      const hasMatchingRef: boolean = resourceRefSet.has(
+        `${event.resourceRef.kind}:${event.resourceRef.locator}`,
+      );
+      if (!hasMatchingRef) return;
+      setRefreshRevision((value: number): number => value + 1);
+    });
+    return (): void => {
+      unsubscribe();
+    };
+  }, [hasSearched, liveRefreshEnabled, loading, resourceRefSet]);
+
+  useEffect((): void => {
+    if (!liveRefreshEnabled || !hasSearched || refreshRevision === 0) return;
+    search();
+  }, [liveRefreshEnabled, hasSearched, refreshRevision, search]);
 
   return { results, loading, search };
 };

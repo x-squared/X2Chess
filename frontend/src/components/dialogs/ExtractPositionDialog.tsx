@@ -22,6 +22,7 @@ import {
   type ReactElement,
   type ChangeEvent,
 } from "react";
+import { UI_IDS } from "../../core/model/ui_ids";
 
 type ExtractMode = "position_only" | "include_moves";
 
@@ -131,7 +132,12 @@ export const ExtractPositionDialog = ({
   }, [onClose]);
 
   return (
-    <dialog ref={dialogRef} className="extract-dialog" onClose={onClose}>
+    <dialog
+      ref={dialogRef}
+      className="extract-dialog"
+      data-ui-id={UI_IDS.EXTRACT_POSITION_DIALOG}
+      onClose={onClose}
+    >
       <div className="extract-dialog-content">
         <h2 className="extract-dialog-title">
           {t("extract.title", "Extract Position")}

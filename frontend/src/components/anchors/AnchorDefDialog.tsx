@@ -20,6 +20,7 @@ import {
 import type { AnchorAnnotation } from "../../features/resources/services/anchor_parser";
 import type { AnchorDefDialogState } from "../../features/editor/hooks/useAnchorDefDialog";
 import type { ResolvedAnchor } from "../../features/editor/model/resolveAnchors";
+import { UI_IDS } from "../../core/model/ui_ids";
 import { AnchorList } from "./AnchorList";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -85,7 +86,12 @@ export const AnchorDefDialog = ({
   }, []);
 
   return (
-    <dialog ref={dialogRef} className="anchor-def-dialog" onClose={onCancel}>
+    <dialog
+      ref={dialogRef}
+      className="anchor-def-dialog"
+      data-ui-id={UI_IDS.ANCHOR_DEF_DIALOG}
+      onClose={onCancel}
+    >
       <div className="anchor-def-dialog-inner">
         <p className="anchor-def-dialog-title">
           {isEditing

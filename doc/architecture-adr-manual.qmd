@@ -1,6 +1,6 @@
 # X2Chess Architecture ADR Manual
 
-Last updated: 2026-03-21
+Last updated: 2026-04-20
 
 ## Purpose
 
@@ -135,6 +135,18 @@ This manual contains Architecture Decision Records (ADRs): why major architectur
   - The Tauri profile and the browser fat-client share the same React rendering path without divergence.
   - There is one state model and one service initialisation point.
 
+## ADR-014: Resource-domain events for mutation propagation
+- Status: Accepted
+- Date: 2026-04-20
+- Decision:
+  - Introduce a typed in-memory resource event hub in `frontend/src/core/events/resource_domain_events.ts`.
+  - Services emit environment-agnostic resource mutation events (`resource.gameCreated`, `resource.gameSaved`, `resource.gameReordered`, normalized `resource.resourceChanged`).
+  - React consumers subscribe via hooks/effects and update UI state for matching resources (`kind` + `locator`) instead of relying on row-count heuristics or ad hoc callback chains.
+- Implication:
+  - Resource freshness behavior becomes explicit and reusable across resource table, explorer, and search surfaces.
+  - Service modules remain framework-independent and do not require DOM event channels.
+  - Regressions from duplicated cache synchronization paths are reduced.
+
 ## Change Log
 
 - 2026-03-18:
@@ -145,3 +157,5 @@ This manual contains Architecture Decision Records (ADRs): why major architectur
   - Added ADR-012: top-level resource library ownership and canonical kinds.
 - 2026-03-21:
   - Added ADR-013: React as sole frontend runtime.
+- 2026-04-20:
+  - Added ADR-014: typed resource-domain events for mutation propagation.

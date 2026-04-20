@@ -5,6 +5,8 @@ area: Developer tools dock
 
 ## Key source files
 - `frontend/src/app/shell/components/DevDock.tsx` — developer tools dock component + tab selector
+- `frontend/src/features/guide/components/GuideInspector.tsx` — Alt+Shift+G UI inspector overlay that highlights `data-ui-id` targets
+- `frontend/src/core/model/ui_ids.ts` — canonical `data-ui-id` registry used by inspector-targetable elements
 - `frontend/src/features/editor/components/AstPanel.tsx` — AST tab (PGN model tree)
 - `frontend/src/features/editor/components/RawPgnPanel.tsx` — raw PGN editor tab + validation status
 - `frontend/src/features/editor/model/pgn_validation.ts` — strict/normalized/fallback PGN diagnostics
@@ -24,3 +26,4 @@ See dev/check/00_README.md. These rules must be strictly adhered to when this fi
 - [ ] **DEVTOOLS-8** — Clicking an issue entry jumps to and highlights the corresponding line in the Raw PGN editor.
 - [ ] **DEVTOOLS-9** — Raw PGN panel provides a before/after preview for safe auto-fixes, and can then apply compatibility fixes for headers and missing SetUp/FEN pairing.
 - [ ] **DEVTOOLS-6** — Dev tools state persists across page refreshes (localStorage).
+- [ ] **DEVTOOLS-10** — Guide inspector (`Alt+Shift+G`) can select dialog surfaces and shows a `dialog.*` `data-ui-id` label for open modals.

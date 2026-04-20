@@ -25,6 +25,7 @@ import {
 } from "react";
 import type { PgnModel } from "../../../../parts/pgnparser/src/pgn_model";
 import type { AnnotateOptions, AnnotatePhase, AnnotationProgress } from "../../features/analysis/hooks/useGameAnnotation";
+import { UI_IDS } from "../../core/model/ui_ids";
 
 type AnnotateGameDialogProps = {
   phase: AnnotatePhase;
@@ -85,7 +86,12 @@ export const AnnotateGameDialog = ({
     : 0;
 
   return (
-    <dialog ref={dialogRef} className="annotate-dialog" onClose={onClose}>
+    <dialog
+      ref={dialogRef}
+      className="annotate-dialog"
+      data-ui-id={UI_IDS.ANNOTATE_GAME_DIALOG}
+      onClose={onClose}
+    >
       <div className="annotate-content">
         <h2 className="annotate-title">
           {t("annotate.title", "Annotate Game")}

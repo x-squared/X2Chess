@@ -132,6 +132,15 @@ export const UI_IDS = {
   // ── Dialogs ─────────────────────────────────────────────────────────────
   DISAMBIGUATION_DIALOG: "dialog.disambiguation",
   PROMOTION_PICKER: "dialog.promotion",
+  NEW_GAME_DIALOG: "dialog.new-game",
+  NEW_GAME_FEN_HELP_DIALOG: "dialog.new-game-fen-help",
+  EDIT_START_POSITION_DIALOG: "dialog.edit-start-position",
+  PLAY_VS_ENGINE_DIALOG: "dialog.play-vs-engine",
+  GAME_PICKER_DIALOG: "dialog.game-picker",
+  ANNOTATE_GAME_DIALOG: "dialog.annotate-game",
+  EXTRACT_POSITION_DIALOG: "dialog.extract-position",
+  ANCHOR_PICKER_DIALOG: "dialog.anchor-picker",
+  ANCHOR_DEF_DIALOG: "dialog.anchor-def",
 
   // ── Developer dock ──────────────────────────────────────────────────────
   DEV_DOCK: "dev.dock",

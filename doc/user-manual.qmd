@@ -1,6 +1,6 @@
 # X2Chess User Manual
 
-Last updated: 2026-04-19
+Last updated: 2026-04-20
 
 ## Who this manual is for
 
@@ -567,6 +567,8 @@ collection.
 - Games and collections appear as rows in the table.
 - Click a row to open that game.
 - The viewer supports multiple tabs for different open collections.
+- Saving a new game into an open resource refreshes matching resource-table rows automatically.
+- Reordering games in an open resource refreshes matching resource-table rows automatically.
 - Drag a column handle (⠿) in the table header to reorder columns.
 - Column headers stay aligned horizontally with the data columns while sorting, filtering, and resizing.
 

@@ -55,8 +55,16 @@ type SessionPersistenceDeps = {
   ) => Promise<Record<string, unknown>>;
   ensureSourceForActiveSession?: (session: unknown, pgnText: string) => Promise<unknown | null>;
   onSetSaveStatus: (message?: string, kind?: string) => void;
-  /** Called after a save completes successfully (clean revision applied). Used to refresh resource lists. */
-  onAfterSuccessfulSave?: () => void;
+  /**
+   * Called after a save completes successfully (clean revision applied).
+   * Used by callers to emit domain events and refresh dependent views.
+   */
+  onAfterSuccessfulSave?: (details: {
+    sourceRef: SourceRefLike;
+    sessionId: string;
+    revisionToken: string;
+    wasCreate: boolean;
+  }) => void;
   autosaveDebounceMs?: number;
 };
 
@@ -147,6 +155,7 @@ export const createSessionPersistenceService = ({
     session: SessionLike,
     requestId: number,
     isStillActive: () => boolean,
+    wasCreate: boolean,
   ): Promise<void> => {
     try {
       log.info("session_persistence", "executeSave: invoking saveBySourceRef", {
@@ -174,10 +183,16 @@ export const createSessionPersistenceService = ({
         dirtyState: "clean",
         revisionToken: String(saveResult.revisionToken || Date.now()),
       });
+      const persistedRevisionToken: string = String(saveResult.revisionToken || Date.now());
       onSetSaveStatus(t("pgn.save.saved", "Saved"), "saved");
       log.info("session_persistence", "executeSave: completed", { sessionId: session.sessionId, requestId });
       if (typeof onAfterSuccessfulSave === "function") {
-        onAfterSuccessfulSave();
+        onAfterSuccessfulSave({
+          sourceRef,
+          sessionId: session.sessionId,
+          revisionToken: persistedRevisionToken,
+          wasCreate,
+        });
       }
     } catch (error: unknown) {
       if (requestId !== saveRequestSeq || !isStillActive()) {
@@ -207,6 +222,7 @@ export const createSessionPersistenceService = ({
       initialKind: typeof initialRef?.kind === "string" ? initialRef.kind : "",
     });
     let activeSourceRef: SourceRefLike | null = session.sourceRef || null;
+    let wasCreate: boolean = false;
     if (!activeSourceRef) {
       const resolved = await resolveSourceRef(session, isStillActive);
       if (resolved === "stale") {
@@ -222,11 +238,12 @@ export const createSessionPersistenceService = ({
         return;
       }
       activeSourceRef = resolved;
+      wasCreate = true;
     }
     const requestId: number = ++saveRequestSeq;
     updateActiveSessionMeta({ dirtyState: "saving" });
     onSetSaveStatus(t("pgn.save.saving", "Saving..."), "saving");
-    await executeSave(activeSourceRef, session, requestId, isStillActive);
+    await executeSave(activeSourceRef, session, requestId, isStillActive, wasCreate);
   };
 
   const cancelPendingAutosave = (): void => {

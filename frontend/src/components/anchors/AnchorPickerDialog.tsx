@@ -18,6 +18,7 @@ import {
   type ReactElement,
 } from "react";
 import type { ResolvedAnchor } from "../../features/editor/model/resolveAnchors";
+import { UI_IDS } from "../../core/model/ui_ids";
 import { AnchorList } from "./AnchorList";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -66,7 +67,12 @@ export const AnchorPickerDialog = ({
   }, [onCancel]);
 
   return (
-    <dialog ref={dialogRef} className="anchor-picker-dialog" onClose={onCancel}>
+    <dialog
+      ref={dialogRef}
+      className="anchor-picker-dialog"
+      data-ui-id={UI_IDS.ANCHOR_PICKER_DIALOG}
+      onClose={onCancel}
+    >
       <div className="anchor-picker-dialog-inner">
         <p className="anchor-picker-title">
           {t("anchorPicker.title", "Insert anchor reference")}

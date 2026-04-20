@@ -15,6 +15,7 @@
 
 import { useState, useRef, useEffect, useCallback, type ReactElement } from "react";
 import type { VsEngineConfig } from "../../features/analysis/hooks/useVsEngine";
+import { UI_IDS } from "../../core/model/ui_ids";
 
 type PlayVsEngineDialogProps = {
   /** Display name of the configured engine, or null if none available. */
@@ -60,7 +61,12 @@ export const PlayVsEngineDialog = ({
   }, [onCancel]);
 
   return (
-    <dialog ref={dialogRef} className="vs-engine-dialog" onClose={onCancel}>
+    <dialog
+      ref={dialogRef}
+      className="vs-engine-dialog"
+      data-ui-id={UI_IDS.PLAY_VS_ENGINE_DIALOG}
+      onClose={onCancel}
+    >
       <div className="vs-engine-content">
         <h2 className="vs-engine-title">
           {t("vsEngine.title", "Play vs Engine")}

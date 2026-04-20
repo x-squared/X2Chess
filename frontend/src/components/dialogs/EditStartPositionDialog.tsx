@@ -21,6 +21,7 @@ import {
   type ReactElement,
 } from "react";
 import { STANDARD_STARTING_FEN, validateFenStructure, validateKings } from "../../features/editor/model/fen_utils";
+import { UI_IDS } from "../../core/model/ui_ids";
 import { PositionSetupBoard } from "./PositionSetupBoard";
 
 type EditStartPositionDialogProps = {
@@ -78,7 +79,12 @@ export const EditStartPositionDialog = ({
   }, [handleFenChange]);
 
   return (
-    <dialog ref={dialogRef} className="edit-start-pos-dialog" onClose={onClose}>
+    <dialog
+      ref={dialogRef}
+      className="edit-start-pos-dialog"
+      data-ui-id={UI_IDS.EDIT_START_POSITION_DIALOG}
+      onClose={onClose}
+    >
       <div className="edit-start-pos-content">
         <h2 className="edit-start-pos-title">
           {t("editStartPos.title", "Edit Starting Position")}

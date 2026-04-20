@@ -34,6 +34,7 @@ import {
   normalizeStringField,
   buildSourceIdentityKey,
 } from "./session_helpers";
+import { resourceDomainEvents } from "../events/resource_domain_events";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -290,5 +291,35 @@ export const createResourceOpenOps = (
       { kind: normalizeStringField(ref?.kind, "db"), locator: normalizeStringField(ref?.locator, ""), recordId: sourceRecordId },
       { kind: normalizeStringField(neighbor?.kind, "db"), locator: normalizeStringField(neighbor?.locator, ""), recordId: neighborRecordId },
     );
+    const resourceKind: string = normalizeStringField(ref?.kind, "db");
+    const resourceLocator: string = normalizeStringField(ref?.locator, "");
+    const primarySourceRef = {
+      kind: resourceKind,
+      locator: resourceLocator,
+      recordId: sourceRecordId,
+    };
+    const adjacentSourceRef = {
+      kind: normalizeStringField(neighbor?.kind, resourceKind),
+      locator: normalizeStringField(neighbor?.locator, resourceLocator),
+      recordId: neighborRecordId,
+    };
+    resourceDomainEvents.emit({
+      type: "resource.gameReordered",
+      resourceRef: { kind: resourceKind, locator: resourceLocator },
+      sourceRef: primarySourceRef,
+      neighborSourceRef: adjacentSourceRef,
+    });
+    resourceDomainEvents.emit({
+      type: "resource.resourceChanged",
+      resourceRef: { kind: resourceKind, locator: resourceLocator },
+      operation: "reorder",
+      sourceRef: primarySourceRef,
+    });
+    log.info("session_resource_open_ops", "Emitted resource.gameReordered", {
+      kind: resourceKind,
+      locator: resourceLocator,
+      recordId: sourceRecordId ?? "",
+      neighborRecordId: neighborRecordId ?? "",
+    });
   },
 });

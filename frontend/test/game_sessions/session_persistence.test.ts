@@ -106,7 +106,7 @@ test("missing source is created on first persist for unsaved session", async () 
   assert.equal(session.dirtyState, "clean");
 });
 
-test("onAfterSuccessfulSave runs after a successful save", async () => {
+test("onAfterSuccessfulSave receives save details for existing source", async () => {
   const session = {
     sessionId: "session-1",
     sourceRef: { kind: "file", locator: "root", recordId: "game1.pgn" },
@@ -114,6 +114,7 @@ test("onAfterSuccessfulSave runs after a successful save", async () => {
     saveMode: "auto",
   };
   let afterCount = 0;
+  let callbackPayload: unknown = null;
   const service = createSessionPersistenceService({
     t: (_key, fallback) => fallback ?? "",
     getActiveSession: () => session,
@@ -121,11 +122,45 @@ test("onAfterSuccessfulSave runs after a successful save", async () => {
     getPgnText: () => "1. e4 e5 *",
     saveBySourceRef: async () => ({ revisionToken: "rev-2" }),
     onSetSaveStatus: () => {},
-    onAfterSuccessfulSave: () => {
+    onAfterSuccessfulSave: (details) => {
       afterCount += 1;
+      callbackPayload = details;
     },
     autosaveDebounceMs: 10,
   });
   await service.persistActiveSessionNow();
   assert.equal(afterCount, 1);
+  assert.equal((callbackPayload as { sessionId: string }).sessionId, "session-1");
+  assert.equal((callbackPayload as { wasCreate: boolean }).wasCreate, false);
+  assert.equal((callbackPayload as { sourceRef: { recordId?: string } }).sourceRef.recordId, "game1.pgn");
+  assert.equal((callbackPayload as { revisionToken: string }).revisionToken, "rev-2");
+});
+
+test("onAfterSuccessfulSave marks wasCreate for first persist", async () => {
+  const session = {
+    sessionId: "session-1",
+    sourceRef: null as { kind: string; locator: string; recordId: string } | null,
+    revisionToken: "",
+    saveMode: "auto",
+  };
+  let callbackPayload: unknown = null;
+  const service = createSessionPersistenceService({
+    t: (_key, fallback) => fallback ?? "",
+    getActiveSession: () => session,
+    updateActiveSessionMeta: (patch) => Object.assign(session, patch),
+    getPgnText: () => "1. c4 *",
+    saveBySourceRef: async () => ({ revisionToken: "rev-3" }),
+    ensureSourceForActiveSession: async () => ({
+      sourceRef: { kind: "file", locator: "root", recordId: "new-game.pgn" },
+      revisionToken: "rev-2",
+    }),
+    onSetSaveStatus: () => {},
+    onAfterSuccessfulSave: (details) => {
+      callbackPayload = details;
+    },
+    autosaveDebounceMs: 10,
+  });
+  await service.persistActiveSessionNow();
+  assert.equal((callbackPayload as { wasCreate: boolean }).wasCreate, true);
+  assert.equal((callbackPayload as { sourceRef: { recordId?: string } }).sourceRef.recordId, "new-game.pgn");
 });

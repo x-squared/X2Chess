@@ -82,6 +82,7 @@ import {
 import { log } from "../../../logger";
 import { loadBadgesForRefs } from "../../../training/transcript_storage";
 import type { TrainingBadge } from "../../../training/transcript_storage";
+import { resourceDomainEvents } from "../../../core/events/resource_domain_events";
 
 // ── Row hydration ─────────────────────────────────────────────────────────────
 
@@ -400,13 +401,29 @@ export const ResourceViewer = (): ReactElement => {
     setColumnFiltersMap((prev) => ({ ...prev, [activeTabId]: {} }));
   }, [activeTabId]);
 
-  const reloadTab = useCallback((tabId: string | null): void => {
-    if (!tabId) return;
-    setTabs((prev: TabState[]): TabState[] =>
-      prev.map((t: TabState): TabState =>
-        t.tabId === tabId ? { ...t, rows: [], isLoading: false, errorMessage: "" } : t,
-      ),
-    );
+  // Keep resource rows fresh based on explicit domain events.
+  useEffect((): (() => void) => {
+    const unsubscribe: () => void = resourceDomainEvents.subscribe((event): void => {
+      if (event.type !== "resource.resourceChanged") return;
+      const changedKind: string = event.resourceRef.kind;
+      const changedLocator: string = event.resourceRef.locator;
+      setTabs((prev: TabState[]): TabState[] =>
+        prev.map((tab: TabState): TabState => {
+          const tabKind: string = tab.resourceRef.kind;
+          const tabLocator: string = tab.resourceRef.locator;
+          if (tabKind !== changedKind || tabLocator !== changedLocator) return tab;
+          return { ...tab, rows: [], isLoading: false, errorMessage: "" };
+        }),
+      );
+      log.info("ResourceViewer", "Reloading resource tab(s) after resource.resourceChanged", {
+        kind: changedKind,
+        locator: changedLocator,
+        operation: event.operation,
+      });
+    });
+    return (): void => {
+      unsubscribe();
+    };
   }, []);
 
   const handleMoveUp = useCallback((
@@ -417,13 +434,12 @@ export const ResourceViewer = (): ReactElement => {
     void (async (): Promise<void> => {
       try {
         await services.reorderGameInResource(row.sourceRef, neighborRow.sourceRef);
-        reloadTab(activeTabId);
       } catch (err: unknown) {
         const message: string = err instanceof Error ? err.message : String(err);
         void message;
       }
     })();
-  }, [activeTabId, reloadTab, services]);
+  }, [services]);
 
   const handleMoveDown = useCallback((
     row: TabState["rows"][number],
@@ -433,13 +449,12 @@ export const ResourceViewer = (): ReactElement => {
     void (async (): Promise<void> => {
       try {
         await services.reorderGameInResource(row.sourceRef, neighborRow.sourceRef);
-        reloadTab(activeTabId);
       } catch (err: unknown) {
         const message: string = err instanceof Error ? err.message : String(err);
         void message;
       }
     })();
-  }, [activeTabId, reloadTab, services]);
+  }, [services]);
 
   const handleMetadataReset = useCallback((): void => {
     if (!activeTabId) return;

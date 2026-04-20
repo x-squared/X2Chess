@@ -33,6 +33,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { getResourceLoaderService } from "../../services/resource_loader";
+import { UI_IDS } from "../../core/model/ui_ids";
 import type { ResourceRow } from "../../features/resources/services/viewer_utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -210,6 +211,7 @@ export const GamePickerDialog = ({
     <dialog
       ref={dialogRef}
       className="game-picker-dialog"
+      data-ui-id={UI_IDS.GAME_PICKER_DIALOG}
       onCancel={handleDialogCancel}
     >
       {/* Header */}

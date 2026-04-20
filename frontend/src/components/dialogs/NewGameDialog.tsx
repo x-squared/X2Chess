@@ -39,6 +39,7 @@ import {
 } from "../../features/editor/model/game_info";
 import { FieldInput } from "../../features/editor/components/GameInfoEditor";
 import { PlayerAutocomplete } from "../../features/editor/components/PlayerAutocomplete";
+import { UI_IDS } from "../../core/model/ui_ids";
 import {
   PositionSetupBoard,
   detectChess960,
@@ -365,7 +366,12 @@ export const NewGameDialog = ({ onCreate, onClose }: NewGameDialogProps): ReactE
 
   return (
     <>
-    <dialog ref={dialogRef} className="newgame-dialog x2-dialog" onClose={onClose}>
+    <dialog
+      ref={dialogRef}
+      className="newgame-dialog x2-dialog"
+      data-ui-id={UI_IDS.NEW_GAME_DIALOG}
+      onClose={onClose}
+    >
       <div className="x2-dialog-body">
         <p className="x2-dialog-title">{t("newgame.title", "New Game")}</p>
 
@@ -720,6 +726,7 @@ export const NewGameDialog = ({ onCreate, onClose }: NewGameDialogProps): ReactE
       id="newgame-fen-help-dialog"
       ref={fenHelpDialogRef}
       className="newgame-fen-help-dialog x2-dialog"
+      data-ui-id={UI_IDS.NEW_GAME_FEN_HELP_DIALOG}
       onClose={handleFenHelpDialogClose}
     >
       <div className="newgame-fen-help-inner">

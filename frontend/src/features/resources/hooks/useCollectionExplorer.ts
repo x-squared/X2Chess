@@ -17,7 +17,7 @@
  * - Outbound: `entries` sorted by count descending, `loading` flag.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Chess } from "chess.js";
 import { useAppContext } from "../../../app/providers/AppStateProvider";
 import { useServiceContext } from "../../../app/providers/ServiceProvider";
@@ -31,6 +31,7 @@ import { hashFen } from "../../../resources/position_indexer";
 import { isPgnResourceRef } from "../../../../../parts/resource/src/domain/resource_ref";
 import type { MoveFrequencyEntry } from "../../../../../parts/resource/src/domain/move_frequency";
 import type { PgnResourceRef } from "../../../../../parts/resource/src/domain/resource_ref";
+import { resourceDomainEvents } from "../../../core/events/resource_domain_events";
 
 export type CollectionExplorerState = {
   entries: MoveFrequencyEntry[];
@@ -57,6 +58,7 @@ export const useCollectionExplorer = (): CollectionExplorerState => {
 
   const [entries, setEntries] = useState<MoveFrequencyEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [refreshRevision, setRefreshRevision] = useState(0);
 
   const boardPreview = selectBoardPreview(state);
   const moves       = selectMoves(state);
@@ -72,6 +74,25 @@ export const useCollectionExplorer = (): CollectionExplorerState => {
 
   // Stringify for stable effect dependency.
   const refsKey = resourceRefs.map((r) => `${r.kind}:${r.locator}`).join("|");
+  const resourceRefSet: Set<string> = useMemo(
+    (): Set<string> =>
+      new Set<string>(resourceRefs.map((ref: PgnResourceRef): string => `${ref.kind}:${ref.locator}`)),
+    [refsKey],
+  );
+
+  useEffect((): (() => void) => {
+    const unsubscribe: () => void = resourceDomainEvents.subscribe((event): void => {
+      if (event.type !== "resource.resourceChanged") return;
+      const hasMatchingRef: boolean = resourceRefSet.has(
+        `${event.resourceRef.kind}:${event.resourceRef.locator}`,
+      );
+      if (!hasMatchingRef) return;
+      setRefreshRevision((value: number): number => value + 1);
+    });
+    return (): void => {
+      unsubscribe();
+    };
+  }, [refsKey, resourceRefSet]);
 
   useEffect(() => {
     if (resourceRefs.length === 0) {
@@ -88,7 +109,7 @@ export const useCollectionExplorer = (): CollectionExplorerState => {
     });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [positionHash, refsKey]);
+  }, [positionHash, refsKey, refreshRevision]);
 
   return { entries, loading };
 };

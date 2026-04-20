@@ -106,7 +106,7 @@ The `SessionPersistenceService` (`session_persistence.ts`) handles save behaviou
 - **Auto-save**: `onRecordHistory` calls `scheduleAutosaveForActiveSession()` after every edit. The service debounces writes and calls `resources.saveGameBySourceRef`.
 - **Manual save**: `saveActiveGameNow()` calls `persistActiveSessionNow()` immediately.
 - **New-game save**: If the session has no `sourceRef`, `ensureSourceForActiveSession` creates a new game record in the currently active resource tab before saving. The new file name is derived from PGN headers plus a per-session suffix so games do not all map to `imported-game.pgn`.
-- **Resource list refresh**: After a successful `saveBySourceRef`, `onAfterSuccessfulSave` runs (wires to `resourceViewer.refreshActiveTabRows` in `createAppServices`) so the active resource table picks up new files.
+- **Resource mutation events**: create/save/reorder operations emit typed domain events through `core/events/resource_domain_events.ts`. React consumers (resource table/search/explorer hooks) subscribe and invalidate matching resources by `kind+locator`.
 - **Dirty flag**: `sessionStore.updateActiveSessionMeta({ dirtyState: "dirty" })` is set by `onRecordHistory` and cleared by the persistence service after a successful write.
 
 ---

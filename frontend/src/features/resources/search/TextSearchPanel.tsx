@@ -18,7 +18,7 @@
  * - Outbound: `onOpenGame(sourceRef)` when the user clicks a result row.
  */
 
-import { useState, useCallback, useEffect, type ReactElement, type KeyboardEvent } from "react";
+import { useState, useCallback, useEffect, useMemo, type ReactElement, type KeyboardEvent } from "react";
 import { useAppContext } from "../../../app/providers/AppStateProvider";
 import { useServiceContext } from "../../../app/providers/ServiceProvider";
 import { selectResourceViewerTabs } from "../../../core/state/selectors";
@@ -26,11 +26,13 @@ import { isPgnResourceRef } from "../../../../../parts/resource/src/domain/resou
 import type { TextSearchHit } from "../../../../../parts/resource/src/client/search_coordinator";
 import type { PgnResourceRef } from "../../../../../parts/resource/src/domain/resource_ref";
 import { UI_IDS } from "../../../core/model/ui_ids";
+import { resourceDomainEvents } from "../../../core/events/resource_domain_events";
 
 type TextSearchPanelProps = {
   t: (key: string, fallback?: string) => string;
   onOpenGame: (sourceRef: unknown) => void;
   externalSearch?: { query: string };
+  liveRefreshEnabled?: boolean;
 };
 
 const hitLabel = (hit: TextSearchHit): string => {
@@ -39,34 +41,52 @@ const hitLabel = (hit: TextSearchHit): string => {
   return `${resource} — ${id}`;
 };
 
-export const TextSearchPanel = ({ t, onOpenGame, externalSearch }: TextSearchPanelProps): ReactElement => {
+export const TextSearchPanel = ({
+  t,
+  onOpenGame,
+  externalSearch,
+  liveRefreshEnabled = true,
+}: TextSearchPanelProps): ReactElement => {
   const { state } = useAppContext();
   const services = useServiceContext();
 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<TextSearchHit[]>([]);
   const [loading, setLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [refreshRevision, setRefreshRevision] = useState(0);
+
+  const tabs = selectResourceViewerTabs(state);
+  const resourceRefs: PgnResourceRef[] = tabs
+    .map((tab) => ({ kind: tab.kind, locator: tab.locator }))
+    .filter(isPgnResourceRef);
+  const refsKey: string = resourceRefs.map((ref: PgnResourceRef): string => `${ref.kind}:${ref.locator}`).join("|");
+  const resourceRefSet: Set<string> = useMemo(
+    (): Set<string> =>
+      new Set<string>(resourceRefs.map((ref: PgnResourceRef): string => `${ref.kind}:${ref.locator}`)),
+    [refsKey],
+  );
 
   const searchWithQuery = useCallback((q: string): void => {
     const trimmed = q.trim();
-    if (!trimmed) return;
-
-    const tabs = selectResourceViewerTabs(state);
-    const resourceRefs: PgnResourceRef[] = tabs
-      .map((tab) => ({ kind: tab.kind, locator: tab.locator }))
-      .filter(isPgnResourceRef);
-
-    if (resourceRefs.length === 0) {
+    if (!trimmed) {
       setResults([]);
       return;
     }
 
+    if (resourceRefs.length === 0) {
+      setResults([]);
+      setHasSearched(true);
+      return;
+    }
+
     setLoading(true);
+    setHasSearched(true);
     void services.searchByText(trimmed, resourceRefs).then((hits) => {
       setResults(hits);
       setLoading(false);
     });
-  }, [state, services]);
+  }, [refsKey, services]);
 
   const search = useCallback((): void => {
     searchWithQuery(query);
@@ -83,6 +103,27 @@ export const TextSearchPanel = ({ t, onOpenGame, externalSearch }: TextSearchPan
     setQuery(externalSearch.query);
     searchWithQuery(externalSearch.query);
   }, [externalSearch]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect((): (() => void) => {
+    const unsubscribe: () => void = resourceDomainEvents.subscribe((event): void => {
+      if (event.type !== "resource.resourceChanged") return;
+      if (!liveRefreshEnabled || !hasSearched || loading) return;
+      const hasMatchingRef: boolean = resourceRefSet.has(
+        `${event.resourceRef.kind}:${event.resourceRef.locator}`,
+      );
+      if (!hasMatchingRef) return;
+      setRefreshRevision((value: number): number => value + 1);
+    });
+    return (): void => {
+      unsubscribe();
+    };
+  }, [hasSearched, liveRefreshEnabled, loading, resourceRefSet]);
+
+  useEffect((): void => {
+    if (!liveRefreshEnabled || !hasSearched || refreshRevision === 0) return;
+    if (!query.trim()) return;
+    searchWithQuery(query);
+  }, [hasSearched, liveRefreshEnabled, query, refreshRevision, searchWithQuery]);
 
   return (
     <div className="text-search-panel" data-ui-id={UI_IDS.TEXT_SEARCH_PANEL}>

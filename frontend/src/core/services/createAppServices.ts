@@ -65,6 +65,7 @@ import type { Dispatch } from "react";
 import type { MovePositionRecord } from "../../board/move_position";
 import { dispatchNavigationState, dispatchSessionStateSnapshot } from "../../hooks/session_state_sync";
 import { log } from "../../logger";
+import { resourceDomainEvents } from "../events/resource_domain_events";
 
 // ── Internal service types ─────────────────────────────────────────────────────
 
@@ -467,13 +468,80 @@ export function createAppServicesBundle(
         recordId:
           created.sourceRef && typeof created.sourceRef.recordId === "string" ? created.sourceRef.recordId : "",
       });
+      if (created.sourceRef?.kind && created.sourceRef.locator) {
+        resourceDomainEvents.emit({
+          type: "resource.gameCreated",
+          resourceRef: {
+            kind: String(created.sourceRef.kind),
+            locator: String(created.sourceRef.locator),
+          },
+          sourceRef: {
+            kind: String(created.sourceRef.kind),
+            locator: String(created.sourceRef.locator),
+            recordId: typeof created.sourceRef.recordId === "string" ? created.sourceRef.recordId : undefined,
+          },
+          sessionId: typeof sessionRecord.sessionId === "string" ? sessionRecord.sessionId : undefined,
+        });
+        resourceDomainEvents.emit({
+          type: "resource.resourceChanged",
+          resourceRef: {
+            kind: String(created.sourceRef.kind),
+            locator: String(created.sourceRef.locator),
+          },
+          operation: "create",
+          sourceRef: {
+            kind: String(created.sourceRef.kind),
+            locator: String(created.sourceRef.locator),
+            recordId: typeof created.sourceRef.recordId === "string" ? created.sourceRef.recordId : undefined,
+          },
+        });
+        log.info("createAppServices", "Emitted resource.gameCreated", {
+          kind: String(created.sourceRef.kind),
+          locator: String(created.sourceRef.locator),
+          recordId: typeof created.sourceRef.recordId === "string" ? created.sourceRef.recordId : "",
+        });
+      }
       return { sourceRef: created.sourceRef, revisionToken: String(created.revisionToken || "") };
     },
     onSetSaveStatus: (status?: string, _kind?: string): void => {
       onStatusChange(status ?? "");
     },
-    onAfterSuccessfulSave: (): void => {
-      void resourceViewer.refreshActiveTabRows();
+    onAfterSuccessfulSave: (details): void => {
+      resourceDomainEvents.emit({
+        type: "resource.gameSaved",
+        resourceRef: {
+          kind: String(details.sourceRef.kind || ""),
+          locator: String(details.sourceRef.locator || ""),
+        },
+        sourceRef: {
+          kind: String(details.sourceRef.kind || ""),
+          locator: String(details.sourceRef.locator || ""),
+          recordId: typeof details.sourceRef.recordId === "string" ? details.sourceRef.recordId : undefined,
+        },
+        revisionToken: details.revisionToken,
+        sessionId: details.sessionId,
+        wasCreate: details.wasCreate,
+      });
+      resourceDomainEvents.emit({
+        type: "resource.resourceChanged",
+        resourceRef: {
+          kind: String(details.sourceRef.kind || ""),
+          locator: String(details.sourceRef.locator || ""),
+        },
+        operation: "save",
+        sourceRef: {
+          kind: String(details.sourceRef.kind || ""),
+          locator: String(details.sourceRef.locator || ""),
+          recordId: typeof details.sourceRef.recordId === "string" ? details.sourceRef.recordId : undefined,
+        },
+      });
+      log.info("createAppServices", "Emitted resource.gameSaved", {
+        kind: String(details.sourceRef.kind || ""),
+        locator: String(details.sourceRef.locator || ""),
+        recordId: typeof details.sourceRef.recordId === "string" ? details.sourceRef.recordId : "",
+        sessionId: details.sessionId,
+        wasCreate: details.wasCreate,
+      });
     },
   });
   sessionPersistenceRef = sessionPersistence;

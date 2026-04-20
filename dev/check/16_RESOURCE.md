@@ -7,14 +7,18 @@ area: Resource viewer (game list, grouping, filtering, search)
 - `frontend/src/features/resources/components/ResourceViewer.tsx` — resource viewer root component
 - `frontend/src/features/resources/services/index.ts` — tab state and active-tab refresh capability
 - `frontend/src/core/events/resource_domain_events.ts` — resource mutation event hub (`resource.resourceChanged`)
+- `frontend/src/features/resources/services/resource_event_matching.ts` — resource identity matching (`kind` + `locator`) used by viewer/search/explorer subscriptions
+- `frontend/src/features/resources/services/resource_live_refresh.ts` — shared guard rules for event-driven live refresh
+- `frontend/src/features/resources/services/resource_tab_refresh.ts` — computes affected tabs and reload plans from resource mutation events
 - `frontend/src/resources/picker_fs_helpers.ts` — `resolveEffectiveGamesDirectory` aligns list path with nested `games/` folder vs tab root locator
 - `frontend/src/resources/source_picker_adapter.ts` — directory PGN listing; row `metadata` uses `extractPgnMetadata(..., KNOWN_PGN_METADATA_KEYS)` so `XSqrHead` / `XSqrChessStyle` appear in the table
 - `parts/resource/src/adapters/file/file_adapter.ts` — multi-game `.pgn` file resource list; same known-key projection for row metadata
 - `frontend/src/features/resources/services/viewer_utils.ts` — column prefs, `insertMetadataColumnFromSchema`, reconcile
 - `frontend/src/features/resources/components/ResourceToolbar.tsx` — schema chooser, Add metadata dropdown
 - `frontend/src/components/CollectionExplorerPanel.tsx` — collection explorer panel
-- `frontend/src/components/PositionSearchPanel.tsx` — cross-resource position search
-- `frontend/src/components/GameSearchPanel.tsx` — cross-resource text search
+- `frontend/src/features/resources/search/PositionSearchPanel.tsx` — cross-resource position search panel (manual trigger + live refresh support)
+- `frontend/src/features/resources/search/TextSearchPanel.tsx` — cross-resource text search panel (manual trigger + live refresh support)
+- `frontend/src/features/resources/search/GameSearchPanel.tsx` — external game search/import panel
 - `frontend/src/components/ExtractPositionDialog.tsx` — position extraction dialog
 - `frontend/src/components/QaBadge.tsx` — Q/A annotation badge in resource rows
 - `resource/client/api.ts` — canonical resource client used to list/query records

@@ -60,6 +60,7 @@ import {
   type ResourceRef,
   type SortConfig,
 } from "../services/viewer_utils";
+import { buildResourceTabReloadPlan, collectAffectedResourceTabIds } from "../services/resource_tab_refresh";
 import { useColumnInteraction } from "../hooks/useColumnInteraction";
 import { useGroupBy } from "../hooks/useGroupBy";
 import { UI_IDS } from "../../../core/model/ui_ids";
@@ -210,6 +211,44 @@ export const ResourceViewer = (): ReactElement => {
   const [editingSchema, setEditingSchema] = useState<MetadataSchema | null>(null);
   const [newGameDialogOpen, setNewGameDialogOpen] = useState<boolean>(false);
 
+  const loadRowsForTab = useCallback(
+    (tabId: string, resourceRef: ResourceRef): void => {
+      const loader = getResourceLoaderService();
+      if (!loader) return;
+      setTabs((prev: TabState[]): TabState[] =>
+        prev.map((tab: TabState): TabState =>
+          tab.tabId === tabId ? { ...tab, isLoading: true, errorMessage: "" } : tab,
+        ),
+      );
+      void (async (): Promise<void> => {
+        try {
+          const entries: unknown[] = await loader(resourceRef);
+          const { rows, discoveredKeys } = hydrateRows(entries, t);
+          setTabs((prev: TabState[]): TabState[] =>
+            prev.map((tab: TabState): TabState => {
+              if (tab.tabId !== tabId) return tab;
+              return reconcileColumns({
+                ...tab,
+                rows,
+                availableMetadataKeys: discoveredKeys,
+                isLoading: false,
+              });
+            }),
+          );
+        } catch (error: unknown) {
+          const message: string = error instanceof Error ? error.message : String(error);
+          const errorMessage: string = message || t("resources.error", "Unable to load resource.");
+          setTabs((prev: TabState[]): TabState[] =>
+            prev.map((tab: TabState): TabState =>
+              tab.tabId === tabId ? { ...tab, isLoading: false, errorMessage } : tab,
+            ),
+          );
+        }
+      })();
+    },
+    [t],
+  );
+
   // ── Sync tab list from state snapshot ─────────────────────────────────
 
   useEffect((): void => {
@@ -228,50 +267,10 @@ export const ResourceViewer = (): ReactElement => {
 
   useEffect((): void => {
     if (!activeTabId) return;
-    setTabs((prev: TabState[]): TabState[] => {
-      const tab: TabState | undefined = prev.find((t: TabState): boolean => t.tabId === activeTabId);
-      if (!tab || tab.rows.length > 0 || tab.isLoading || tab.errorMessage) return prev;
-      const loader = getResourceLoaderService();
-      if (!loader) return prev;
-
-      const loadRows = async (): Promise<void> => {
-        setTabs((p: TabState[]): TabState[] =>
-          p.map((t: TabState): TabState =>
-            t.tabId === activeTabId ? { ...t, isLoading: true, errorMessage: "" } : t,
-          ),
-        );
-        try {
-          const entries: unknown[] = await loader(tab.resourceRef);
-          const { rows, discoveredKeys } = hydrateRows(entries, t);
-          setTabs((p: TabState[]): TabState[] =>
-            p.map((t: TabState): TabState => {
-              if (t.tabId !== activeTabId) return t;
-              return reconcileColumns({
-                ...t,
-                rows,
-                availableMetadataKeys: discoveredKeys,
-                isLoading: false,
-              });
-            }),
-          );
-        } catch (err: unknown) {
-          const msg: string = err instanceof Error ? err.message : String(err);
-          const errorMessage: string = msg || t("resources.error", "Unable to load resource.");
-          setTabs((p: TabState[]): TabState[] =>
-            p.map((tab: TabState): TabState =>
-              tab.tabId === activeTabId
-                ? { ...tab, isLoading: false, errorMessage }
-                : tab,
-            ),
-          );
-        }
-      };
-
-      void loadRows();
-      return prev;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTabId, t]);
+    const tab: TabState | undefined = tabs.find((item: TabState): boolean => item.tabId === activeTabId);
+    if (!tab || tab.rows.length > 0 || tab.isLoading || tab.errorMessage) return;
+    loadRowsForTab(tab.tabId, tab.resourceRef);
+  }, [activeTabId, tabs, loadRowsForTab]);
 
   // ── Derived values ────────────────────────────────────────────────────
 
@@ -407,14 +406,40 @@ export const ResourceViewer = (): ReactElement => {
       if (event.type !== "resource.resourceChanged") return;
       const changedKind: string = event.resourceRef.kind;
       const changedLocator: string = event.resourceRef.locator;
+      const matchingTabIds: string[] = collectAffectedResourceTabIds(
+        tabs.map((tab: TabState) => ({
+          tabId: tab.tabId,
+          kind: tab.resourceRef.kind,
+          locator: tab.resourceRef.locator,
+        })),
+        changedKind,
+        changedLocator,
+      );
+      if (matchingTabIds.length === 0) return;
+      const matchingTabIdSet: Set<string> = new Set<string>(matchingTabIds);
+      const reloadPlan = buildResourceTabReloadPlan(
+        tabs.map((tab: TabState) => ({
+          tabId: tab.tabId,
+          resourceRef: {
+            kind: tab.resourceRef.kind,
+            locator: tab.resourceRef.locator,
+          },
+        })),
+        changedKind,
+        changedLocator,
+      );
       setTabs((prev: TabState[]): TabState[] =>
         prev.map((tab: TabState): TabState => {
-          const tabKind: string = tab.resourceRef.kind;
-          const tabLocator: string = tab.resourceRef.locator;
-          if (tabKind !== changedKind || tabLocator !== changedLocator) return tab;
+          if (!matchingTabIdSet.has(tab.tabId)) return tab;
           return { ...tab, rows: [], isLoading: false, errorMessage: "" };
         }),
       );
+      for (const planItem of reloadPlan) {
+        loadRowsForTab(planItem.tabId, {
+          kind: planItem.resourceRef.kind,
+          locator: planItem.resourceRef.locator,
+        });
+      }
       log.info("ResourceViewer", "Reloading resource tab(s) after resource.resourceChanged", {
         kind: changedKind,
         locator: changedLocator,
@@ -424,7 +449,7 @@ export const ResourceViewer = (): ReactElement => {
     return (): void => {
       unsubscribe();
     };
-  }, []);
+  }, [tabs, loadRowsForTab]);
 
   const handleMoveUp = useCallback((
     row: TabState["rows"][number],

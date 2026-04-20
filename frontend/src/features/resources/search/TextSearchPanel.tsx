@@ -27,6 +27,8 @@ import type { TextSearchHit } from "../../../../../parts/resource/src/client/sea
 import type { PgnResourceRef } from "../../../../../parts/resource/src/domain/resource_ref";
 import { UI_IDS } from "../../../core/model/ui_ids";
 import { resourceDomainEvents } from "../../../core/events/resource_domain_events";
+import { matchesResourceRefSet, toResourceKey } from "../services/resource_event_matching";
+import { shouldTriggerLiveRefresh } from "../services/resource_live_refresh";
 
 type TextSearchPanelProps = {
   t: (key: string, fallback?: string) => string;
@@ -63,7 +65,7 @@ export const TextSearchPanel = ({
   const refsKey: string = resourceRefs.map((ref: PgnResourceRef): string => `${ref.kind}:${ref.locator}`).join("|");
   const resourceRefSet: Set<string> = useMemo(
     (): Set<string> =>
-      new Set<string>(resourceRefs.map((ref: PgnResourceRef): string => `${ref.kind}:${ref.locator}`)),
+      new Set<string>(resourceRefs.map((ref: PgnResourceRef): string => toResourceKey(ref.kind, ref.locator))),
     [refsKey],
   );
 
@@ -107,11 +109,15 @@ export const TextSearchPanel = ({
   useEffect((): (() => void) => {
     const unsubscribe: () => void = resourceDomainEvents.subscribe((event): void => {
       if (event.type !== "resource.resourceChanged") return;
-      if (!liveRefreshEnabled || !hasSearched || loading) return;
-      const hasMatchingRef: boolean = resourceRefSet.has(
-        `${event.resourceRef.kind}:${event.resourceRef.locator}`,
-      );
-      if (!hasMatchingRef) return;
+      const hasMatchingRef: boolean = matchesResourceRefSet(event.resourceRef, resourceRefSet);
+      const shouldRefresh: boolean = shouldTriggerLiveRefresh({
+        liveRefreshEnabled,
+        hasSearched,
+        isLoading: loading,
+        hasMatchingResourceRef: hasMatchingRef,
+        queryText: query,
+      });
+      if (!shouldRefresh) return;
       setRefreshRevision((value: number): number => value + 1);
     });
     return (): void => {

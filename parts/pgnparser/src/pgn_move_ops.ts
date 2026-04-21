@@ -56,6 +56,7 @@ import type {
 import { assertPgnModelInvariants } from "./pgn_invariants";
 import {
   insertBlackMoveNumberAfterRav,
+  insertBlackMoveNumberBeforeRavContinuation,
   maybeInsertMoveNumber,
   normalizeAfterNullMoveRemoval,
   prependMoveNumberToRav,
@@ -261,6 +262,19 @@ export const appendMove = (
     if (idx !== -1) {
       let insertIdx = idx + 1;
       insertIdx = maybeInsertMoveNumber(cloned, variation, variation.entries, insertIdx, (): string => nextId("move_number"));
+      const parentEntry = variation.entries[idx];
+      const parentMove: PgnMoveNode | null = parentEntry?.type === "move" ? (parentEntry as PgnMoveNode) : null;
+      const hasRavChildren: boolean = !!parentMove && getMoveRavs(parentMove).length > 0;
+      if (hasRavChildren) {
+        insertBlackMoveNumberBeforeRavContinuation(
+          cloned,
+          variation,
+          idx,
+          insertIdx,
+          (): string => nextId("move_number"),
+        );
+        insertIdx += 1;
+      }
       variation.entries.splice(insertIdx, 0, newMove);
     } else {
       variation.entries.push(newMove);

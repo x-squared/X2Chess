@@ -150,8 +150,9 @@ Use the **Plain / Text / Tree** buttons in the toolbar to switch layout:
 - **Plain** — compact, literal PGN notation, close to the raw file format.
   Comments are shown verbatim; no formatting markers are interpreted.
 - **Text** — narrative layout with line breaks and indentation for readability.
-  The `[[br]]` marker inside a comment inserts a visible line break; `[[indent]]`
-  nests the comment and its variation into an indented block.
+  The `[[br]]` marker inside a comment inserts a visible line break. Variation
+  blocks are indented structurally by variation depth (including comments between
+  their moves).
 - **Tree** — structured view emphasising variation branching.  Each variation
   appears as its own block, opened by a labelled pill button (e.g. **A**, **B.1**).
   Formatting markers are shown as greyed literal text rather than applied.
@@ -180,19 +181,14 @@ so you can open each branch with a short description.
 1. e4 e5 2. Nf3 ...
 ```
 
-### Formatting markers (`[[br]]`, `[[indent]]`, and `[[deindent]]`)
+### Formatting marker (`[[br]]`)
 
-These markers are processed in both **Text** and **Tree** modes. The raw
-markers remain stored in the PGN file, but the editor renders their effect
-instead of showing marker literals in the comment text.
+Only `[[br]]` is interpreted as a layout marker in **Text** mode. In **Tree**
+mode, marker text remains literal.
 
-| Marker | Effect in Text and Tree modes |
+| Marker | Effect |
 |---|---|
-| `[[br]]` | Inserts a line break at that point in the comment. |
-| `[[indent]]` | Increases indentation level by 1 for all following content (comments and moves, including mainline). |
-| `[[deindent]]` | Decreases indentation level by 1 for all following content (minimum level is 0). |
-
-Multiple indentation markers in the same comment apply cumulatively.
+| `[[br]]` | Inserts a line break at that point in the comment (Text mode). |
 
 ### Adding and editing comments
 
@@ -241,15 +237,12 @@ are fully compatible with other chess software.
 
 ### Formatting within comments (Text and Tree modes)
 
-In Text and Tree layout modes, comments support persistent directives:
+In Text and Tree layout modes, comments support explicit line breaks:
 
 - `[[br]]` — inserts a line break at that point in the narrative.
-- `[[indent]]` — increases indentation level for all following content.
-- `[[deindent]]` — decreases indentation level for all following content.
 
-Use the toolbar buttons **Insert line break**, **Insert indent**, and
-**Insert deindent** to insert these at the cursor position. **Default indent** applies standard indentation
-across variation boundaries automatically.
+Use the toolbar button **Insert line break** to insert this marker at the
+cursor position. Variation indentation is automatic and follows the move tree.
 
 ### Editor style options for comments and variations
 

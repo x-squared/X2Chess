@@ -390,7 +390,7 @@ test("text mode collapses duplicate white move numbers before a move", () => {
   assert.doesNotMatch(text, /4\s+4/);
 });
 
-test("text mode suppresses black move number after move even with intervening comment token", () => {
+test("text mode keeps black move number when a mainline comment starts a new block", () => {
   const m = model(variation(0, [
     moveNumber("5."),
     move("w5", "h6"),
@@ -406,7 +406,7 @@ test("text mode suppresses black move number after move even with intervening co
     .join(" ");
   assert.match(text, /h6/);
   assert.match(text, /Ne5/);
-  assert.doesNotMatch(text, /5\.\.\./);
+  assert.match(text, /5\.\.\./);
 });
 
 test("text mode keeps black move-number token inside variation", () => {
@@ -427,34 +427,101 @@ test("text mode keeps black move-number token inside variation", () => {
   assert.equal(hasBlackMoveNumber, true);
 });
 
-for (const [label, blocks] of [
-  ["text mode", (m: unknown) => textBlocks(m)],
-  ["plain mode", (m: unknown) => buildTextEditorPlan(m, { layoutMode: "plain" })],
-] as const) {
-  test(`${label} starts a new block after a mainline RAV before the continuation`, () => {
-    // Regression: 3.cxd5 (3.Nc3 ...) 3...exd5 — exd5 must be in a
-    // different block from the last move inside the variation.
-    const rav = variation(1, [
-      moveNumber("3."), move("rv1", "Nc3"),
-      moveNumber("3..."), move("rv2", "Nf6"),
-    ]);
-    const m = model(variation(0, [
-      moveNumber("3."),
-      move("m1", "cxd5", { ravs: [rav] }),
-      moveNumber("3..."),
-      move("m2", "exd5"),
-    ]));
-    const planBlocks = blocks(m);
-    const blockOf = (san: string): number =>
-      planBlocks.findIndex((b) =>
-        b.tokens.some((t) => t.kind === "inline" && t.tokenType === "move" && t.text === san),
-      );
-    assert.notEqual(blockOf("Nf6"), -1, "Nf6 should be rendered");
-    assert.notEqual(blockOf("exd5"), -1, "exd5 should be rendered");
-    assert.notEqual(
-      blockOf("Nf6"),
-      blockOf("exd5"),
-      "exd5 (mainline continuation) must be in a different block from the last RAV move",
+test("text mode renders mainline RAV on its own block", () => {
+  const rav = variation(1, [moveNumber("1..."), move("rv1", "Kg7"), move("rv2", "a5")]);
+  const m = model(variation(0, [
+    moveNumber("1."),
+    move("m1", "a4"),
+    move("m2", "Kh7", { ravs: [rav] }),
+    moveNumber("2."),
+    move("m3", "b8=R"),
+  ]));
+  const blocks = textBlocks(m);
+  const blockOf = (san: string): number =>
+    blocks.findIndex((b) =>
+      b.tokens.some((t) => t.kind === "inline" && t.tokenType === "move" && t.text === san),
     );
-  });
-}
+  const kh7Block = blockOf("Kh7");
+  const kg7Block = blockOf("Kg7");
+  const b8rBlock = blockOf("b8=R");
+  assert.notEqual(kh7Block, -1, "Kh7 should be rendered");
+  assert.notEqual(kg7Block, -1, "Kg7 should be rendered");
+  assert.notEqual(b8rBlock, -1, "b8=R should be rendered");
+  assert.notEqual(kh7Block, kg7Block, "RAV should not share block with parent mainline move");
+  assert.notEqual(kg7Block, b8rBlock, "RAV should not share block with mainline continuation");
+});
+
+test("text mode keeps mainline left-aligned and indents the RAV block", () => {
+  const rav = variation(1, [moveNumber("1..."), move("rv1", "Kg7")]);
+  const m = model(variation(0, [
+    moveNumber("1."),
+    move("m1", "a4"),
+    move("m2", "Kh7", { ravs: [rav] }),
+    moveNumber("2."),
+    move("m3", "b8=R"),
+  ]));
+  const blocks = textBlocks(m);
+  const blockOf = (san: string): number =>
+    blocks.findIndex((b) =>
+      b.tokens.some((t) => t.kind === "inline" && t.tokenType === "move" && t.text === san),
+    );
+  const kh7BlockIndex = blockOf("Kh7");
+  const kg7BlockIndex = blockOf("Kg7");
+  const b8rBlockIndex = blockOf("b8=R");
+  assert.notEqual(kh7BlockIndex, -1);
+  assert.notEqual(kg7BlockIndex, -1);
+  assert.notEqual(b8rBlockIndex, -1);
+  assert.equal(blocks[kh7BlockIndex].indentDepth, 0, "mainline move should be left-aligned");
+  assert.equal(blocks[b8rBlockIndex].indentDepth, 0, "mainline continuation should be left-aligned");
+  assert.ok(blocks[kg7BlockIndex].indentDepth > 0, "variation block should be indented");
+});
+
+test("text mode keeps black move number after a mainline RAV", () => {
+  const rav = variation(1, [moveNumber("3."), move("rv1", "Rg8+"), move("rv2", "Kf7"), move("rv3", "Rg7+")]);
+  const m = model(variation(0, [
+    moveNumber("3."),
+    move("m1", "Rb7+", { ravs: [rav] }),
+    moveNumber("3..."),
+    move("m2", "Kg6"),
+  ]));
+  const blocks = textBlocks(m);
+  const kg6Block = blocks.find((block) =>
+    block.tokens.some((token) => token.kind === "inline" && token.tokenType === "move" && token.text === "Kg6"),
+  );
+  assert.ok(kg6Block, "mainline continuation block should contain Kg6");
+  const hasMainlineBlackNumber = kg6Block.tokens.some(
+    (token) =>
+      token.kind === "inline" &&
+      token.tokenType === "move_number" &&
+      token.text === "3..." &&
+      Number(token.dataset.variationDepth ?? 0) === 0,
+  );
+  assert.equal(hasMainlineBlackNumber, true);
+});
+
+test("text mode starts a new block after a mainline RAV before the continuation", () => {
+  // Regression: 3.cxd5 (3.Nc3 ...) 3...exd5 — exd5 must be in a
+  // different block from the last move inside the variation.
+  const rav = variation(1, [
+    moveNumber("3."), move("rv1", "Nc3"),
+    moveNumber("3..."), move("rv2", "Nf6"),
+  ]);
+  const m = model(variation(0, [
+    moveNumber("3."),
+    move("m1", "cxd5", { ravs: [rav] }),
+    moveNumber("3..."),
+    move("m2", "exd5"),
+  ]));
+  const planBlocks = textBlocks(m);
+  const blockOf = (san: string): number =>
+    planBlocks.findIndex((b) =>
+      b.tokens.some((t) => t.kind === "inline" && t.tokenType === "move" && t.text === san),
+    );
+  assert.notEqual(blockOf("Nf6"), -1, "Nf6 should be rendered");
+  assert.notEqual(blockOf("exd5"), -1, "exd5 should be rendered");
+  assert.notEqual(
+    blockOf("Nf6"),
+    blockOf("exd5"),
+    "exd5 (mainline continuation) must be in a different block from the last RAV move",
+  );
+});

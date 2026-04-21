@@ -40,6 +40,7 @@ import { useHoverPreview } from "../../../components/board/HoverPreviewContext";
 import { resolveMovePositionById } from "../../../board/move_position";
 import { useServiceContext } from "../../../app/providers/ServiceProvider";
 import { useTranslator } from "../../../app/hooks/useTranslator";
+import { findExistingCommentIdAroundMove } from "../../../model";
 import {
   appendMove,
   truncateAfter,
@@ -75,6 +76,7 @@ import { UI_IDS } from "../../../core/model/ui_ids";
 import type { PgnModel } from "../../../../../parts/pgnparser/src/pgn_model";
 import { log } from "../../../logger";
 import { LinearModeView, TreeModeView, buildLastSiblingByParent } from "./PgnEditorModeViews";
+import { TRAILING_VARIATION_BREAK_SENTINEL } from "../model/plan/text_mode";
 
 // ── PgnTextEditor (root) ──────────────────────────────────────────────────────
 
@@ -277,9 +279,21 @@ export const PgnTextEditor = (): ReactElement => {
 
   const handleInsertComment = useCallback(
     (moveId: string, position: "before" | "after"): void => {
-      services.insertComment(moveId, position);
+      const existingBeforeInsert: string | null = pgnModel
+        ? findExistingCommentIdAroundMove(pgnModel, moveId, position)
+        : null;
+      const comment = services.insertComment(moveId, position);
+      if (!comment) return;
+      // Re-arm autofocus only for the exact repeated-target case:
+      // the comment already existed and this same id was already consumed.
+      if (
+        existingBeforeInsert === comment.id &&
+        consumedFocusCommentId === comment.id
+      ) {
+        setConsumedFocusCommentId(null);
+      }
     },
-    [services],
+    [services, pgnModel, consumedFocusCommentId],
   );
 
   const handleTruncationAction = useCallback(
@@ -360,7 +374,11 @@ export const PgnTextEditor = (): ReactElement => {
     (commentId: string, newText: string): void => {
       // Normalize any raw newlines (from Enter, paste, etc.) to [[br]] markers
       // so the canonical PGN comment always uses the [[br]] convention.
-      services.saveCommentText(commentId, newText.replace(/\n/g, "[[br]]"));
+      const withCanonicalTrailingVariationBreak: string = newText.replaceAll(
+        TRAILING_VARIATION_BREAK_SENTINEL,
+        "[[br]]",
+      );
+      services.saveCommentText(commentId, withCanonicalTrailingVariationBreak.replaceAll("\n", "[[br]]"));
     },
     [services],
   );

@@ -87,20 +87,41 @@ type LinearModeViewProps = {
   deps: TokenRenderDeps;
 };
 
+const getBlockVariationDepth = (block: PlanBlock): number => {
+  if (block.variationDepth > 0) return block.variationDepth;
+  let maxDepth: number = 0;
+  for (const token of block.tokens) {
+    if (token.kind === "comment") {
+      if (token.variationDepth > maxDepth) maxDepth = token.variationDepth;
+      continue;
+    }
+    const tokenDepth: unknown = token.dataset?.variationDepth;
+    const depth: number = typeof tokenDepth === "number" ? tokenDepth : Number(tokenDepth);
+    if (Number.isFinite(depth) && depth > maxDepth) {
+      maxDepth = depth;
+    }
+  }
+  return maxDepth;
+};
+
 export const LinearModeView = ({ blocks, deps }: LinearModeViewProps): ReactElement => (
   <>
     {blocks
       .filter((block: PlanBlock): boolean => hasVisibleTokenInBlock(block, deps))
-      .map((block: PlanBlock): ReactElement => (
-        <div
-          key={block.key}
-          className="text-editor-block"
-          style={block.indentDepth > 0 ? { paddingLeft: `${block.indentDepth * 1.5}em` } : undefined}
-          data-indent-depth={block.indentDepth > 0 ? block.indentDepth : undefined}
-        >
-          {block.tokens.map((token: PlanToken): ReactElement => renderToken(token, deps))}
-        </div>
-      ))}
+      .map((block: PlanBlock): ReactElement => {
+        const variationDepth: number = getBlockVariationDepth(block);
+        return (
+          <div
+            key={block.key}
+            className="text-editor-block"
+            style={block.indentDepth > 0 ? { paddingLeft: `${block.indentDepth * 1.5}em` } : undefined}
+            data-indent-depth={block.indentDepth > 0 ? block.indentDepth : undefined}
+            data-variation-depth={variationDepth > 0 ? variationDepth : undefined}
+          >
+            {block.tokens.map((token: PlanToken): ReactElement => renderToken(token, deps))}
+          </div>
+        );
+      })}
   </>
 );
 

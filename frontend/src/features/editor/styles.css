@@ -528,6 +528,16 @@ span[data-kind="branch_header"] {
   margin-top: 0.22rem;
 }
 
+/* In text mode, variation blocks/comments remain aligned with the main line.
+   (No extra offset from variation depth; only explicit indent markers affect offset.) */
+.text-editor[data-layout-mode="text"] .text-editor-block[data-variation-depth] {
+  margin-left: 0;
+}
+
+.text-editor[data-layout-mode="text"] .text-editor-comment-block[data-variation-depth] {
+  margin-left: 0;
+}
+
 /* Text mode indent blocks — driven by EditorStylePrefs CSS custom properties.
    Level 1 = depth 1, level 2 = depth 2, level 3+ = depth 3 and deeper. */
 
@@ -590,7 +600,7 @@ span[data-kind="branch_header"] {
 .text-editor-main-move {
   font-weight: var(--editor-mainline-font-weight, 700);
   position: relative;
-  margin: 0 0.2rem;
+  margin: 0 0.2rem 0 0;
   padding: 0 0.16rem;
   border-radius: 4px;
 }
@@ -620,7 +630,7 @@ span[data-kind="branch_header"] {
   font-weight: 400;
   color: var(--editor-variation-move-color, #1f2937);
   position: relative;
-  margin: 0 0.2rem;
+  margin: 0 0.2rem 0 0;
   padding: 0 0.16rem;
   border-radius: 4px;
 }
@@ -628,6 +638,12 @@ span[data-kind="branch_header"] {
 /* Optional layout policy: keep variation comments inline instead of forcing a new line. */
 .text-editor[data-comment-linebreak-policy="mainline_only"] .text-editor-comment-block[data-variation-depth]:not([data-variation-depth="0"]) {
   display: inline;
+}
+
+/* In text mode, comments that directly precede a variation may be forced inline. */
+.text-editor[data-layout-mode="text"] .text-editor-comment-block[data-inline-with-next-variation="true"] {
+  display: inline;
+  margin-right: 0.2rem;
 }
 
 .text-editor-move-selected {

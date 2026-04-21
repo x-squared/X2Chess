@@ -76,8 +76,22 @@ export const shouldRenderCommentBlock = (
   consumedFocusCommentId: string | null,
 ): boolean => {
   if (hasDisplayText || !hasRawCommentText) return true;
-  return commentId === pendingFocusCommentId && pendingFocusCommentId !== consumedFocusCommentId;
+  return shouldFocusCommentBlock(commentId, pendingFocusCommentId, consumedFocusCommentId);
 };
+
+/**
+ * Resolve whether a comment block should autofocus for editing.
+ *
+ * @param commentId Current comment id token.
+ * @param pendingFocusCommentId Pending focus id from session state.
+ * @param consumedFocusCommentId Last focus id already consumed by the editor.
+ * @returns True when autofocus should be applied.
+ */
+export const shouldFocusCommentBlock = (
+  commentId: string,
+  pendingFocusCommentId: string | null,
+  consumedFocusCommentId: string | null,
+): boolean => commentId === pendingFocusCommentId && pendingFocusCommentId !== consumedFocusCommentId;
 
 // ── TokenView ─────────────────────────────────────────────────────────────────
 
@@ -191,9 +205,11 @@ export const TokenView = ({
       displayText = ct.text;
     }
     const hasDisplayText: boolean = displayText.trim().length > 0;
-    const shouldFocusComment: boolean =
-      ct.commentId === pendingFocusCommentId &&
-      pendingFocusCommentId !== consumedFocusCommentId;
+    const shouldFocusComment: boolean = shouldFocusCommentBlock(
+      ct.commentId,
+      pendingFocusCommentId,
+      consumedFocusCommentId,
+    );
     const shouldRenderCommentBlockValue: boolean = shouldRenderCommentBlock(
       hasDisplayText,
       ct.rawText.trim().length > 0,

@@ -151,13 +151,34 @@ export const resolveMoveSoundTypeForBoardMove = (
 };
 
 /** Build a cursor from the current selected move ID (or root). */
-const buildCursor = (model: PgnModel, selectedMoveId: string | null): PgnCursor =>
-  selectedMoveId
-    ? (findCursorForMoveId(model, selectedMoveId) ?? {
+const resolveMainlineMoveIdAtPly = (
+  model: PgnModel,
+  currentPly: number,
+): string | null => {
+  if (currentPly <= 0) return null;
+  let moveCount: number = 0;
+  for (const entry of model.root.entries) {
+    if (entry.type !== "move") continue;
+    moveCount += 1;
+    if (moveCount === currentPly) return entry.id;
+  }
+  return null;
+};
+
+/** Build a cursor from selected move ID, with mainline-ply fallback. */
+export const resolveMoveEntryCursor = (
+  model: PgnModel,
+  selectedMoveId: string | null,
+  currentPly: number,
+): PgnCursor => {
+  const anchorMoveId: string | null = selectedMoveId ?? resolveMainlineMoveIdAtPly(model, currentPly);
+  return anchorMoveId
+    ? (findCursorForMoveId(model, anchorMoveId) ?? {
         moveId: null,
         variationId: model.root.id,
       })
     : { moveId: null, variationId: model.root.id };
+};
 
 // ── Hook ───────────────────────────────────────────────────────────────────────
 
@@ -298,7 +319,7 @@ export const useMoveEntry = (servicesRef: { current: AppStartupServices | null }
         startingFen || undefined,
       );
       const color = fenSideToMove(fen);
-      const cursor = buildCursor(model, selectedMoveId);
+      const cursor = resolveMoveEntryCursor(model, selectedMoveId, currentPly);
 
       if (isPromotionMove(fen, from, to)) {
         setPendingPromotion({ from, to, color });
@@ -341,7 +362,7 @@ export const useMoveEntry = (servicesRef: { current: AppStartupServices | null }
         currentPly,
         startingFen || undefined,
       );
-      const cursor = buildCursor(pgnModel, selectedMoveId);
+      const cursor = resolveMoveEntryCursor(pgnModel, selectedMoveId, currentPly);
       resolveAndCommit(promo.from, promo.to, piece, pgnModel, cursor, fen);
     },
     [pendingPromotion, pgnModel, moves, currentPly, selectedMoveId, startingFen, boardPreview, resolveAndCommit],

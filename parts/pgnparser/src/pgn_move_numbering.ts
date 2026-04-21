@@ -25,6 +25,28 @@ const isBlackMoveNumberText = (raw: string): boolean => {
   return /^(\d+)\.{3,}$/.test(text) || /^(\d+)…$/.test(text);
 };
 
+const parseMoveNumberValue = (raw: string): { moveNum: number; side: "white" | "black" } | null => {
+  const text: string = String(raw ?? "").trim();
+  const white = /^(\d+)\.$/.exec(text);
+  if (white) return { moveNum: Number(white[1]), side: "white" };
+  const black = /^(\d+)\.{3,}$/.exec(text) ?? /^(\d+)…$/.exec(text);
+  if (black) return { moveNum: Number(black[1]), side: "black" };
+  return null;
+};
+
+const resolveMoveNumberForParentMove = (
+  variation: PgnVariationNode,
+  parentMoveIdx: number,
+): number | null => {
+  for (let i = parentMoveIdx; i >= 0; i -= 1) {
+    const entry = variation.entries[i];
+    if (entry?.type !== "move_number") continue;
+    const parsed = parseMoveNumberValue(String(entry.text ?? ""));
+    if (parsed && Number.isFinite(parsed.moveNum)) return parsed.moveNum;
+  }
+  return null;
+};
+
 export const maybeInsertMoveNumber = (
   model: PgnModel,
   variation: PgnVariationNode,
@@ -99,6 +121,45 @@ export const insertBlackMoveNumberAfterRav = (
   if (prevEntry?.type === "move_number") return;
   const moveNum = Math.floor(preceding / 2) + 1;
   variation.entries.splice(nextMoveIdx, 0, {
+    id: createMoveNumberId(),
+    type: "move_number",
+    text: `${moveNum}...`,
+  });
+};
+
+/**
+ * Insert a black move-number token (`N...`) immediately before a newly inserted
+ * continuation move when the parent move has one or more RAVs.
+ *
+ * This covers the case where the mainline reply is appended *after* the RAVs were
+ * created. `insertBlackMoveNumberAfterRav` only fixes already-existing replies.
+ *
+ * No-op when:
+ * - the variation is not root
+ * - the parent move is not a white move in this line
+ * - a move-number token already exists immediately before `insertIdx`
+ */
+export const insertBlackMoveNumberBeforeRavContinuation = (
+  model: PgnModel,
+  variation: PgnVariationNode,
+  parentMoveIdx: number,
+  insertIdx: number,
+  createMoveNumberId: () => string,
+): void => {
+  if (variation.parentMoveId !== null) return;
+  if (insertIdx <= 0 || insertIdx > variation.entries.length) return;
+  const fenHeader = model.headers.find((h) => h.key === "FEN");
+  const startsWhite = fenHeader
+    ? (fenHeader.value.trim().split(/\s+/)[1] ?? "w") !== "b"
+    : true;
+  const preceding = countMovesBeforeIdx(variation.entries, parentMoveIdx);
+  const isWhiteTurn = startsWhite ? preceding % 2 === 0 : preceding % 2 !== 0;
+  if (!isWhiteTurn) return;
+  const prevEntry = variation.entries[insertIdx - 1];
+  if (prevEntry?.type === "move_number") return;
+  const moveNum: number = resolveMoveNumberForParentMove(variation, parentMoveIdx)
+    ?? (Math.floor(preceding / 2) + 1);
+  variation.entries.splice(insertIdx, 0, {
     id: createMoveNumberId(),
     type: "move_number",
     text: `${moveNum}...`,

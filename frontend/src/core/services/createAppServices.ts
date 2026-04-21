@@ -578,6 +578,7 @@ export function createAppServicesBundle(
       if (!pos) return false;
       g.selectedMoveId = moveId;
       if (pos.mainlinePly != null && Number.isFinite(pos.mainlinePly)) {
+        g.currentPly = pos.mainlinePly;
         g.boardPreview = null;
       } else {
         g.boardPreview = pos.fen

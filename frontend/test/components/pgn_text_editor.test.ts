@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { shouldRenderCommentBlock } from "../../src/features/editor/components/PgnEditorTokenView.js";
+import {
+  shouldRenderCommentBlock,
+  shouldFocusCommentBlock,
+} from "../../src/features/editor/components/PgnEditorTokenView.js";
 
 test("shouldRenderCommentBlock renders non-empty comments", () => {
   const result: boolean = shouldRenderCommentBlock(true, true, "c1", null, null);
@@ -20,4 +23,25 @@ test("shouldRenderCommentBlock keeps empty comments rendered after focus consume
 test("shouldRenderCommentBlock hides non-empty comment only when not focused and no display text", () => {
   const result: boolean = shouldRenderCommentBlock(false, true, "c1", "other", "other");
   assert.equal(result, false);
+});
+
+test("shouldFocusCommentBlock allows refocus after consumed focus reset", () => {
+  const initiallyConsumed: boolean = shouldFocusCommentBlock("c1", "c1", "c1");
+  assert.equal(initiallyConsumed, false);
+
+  const afterRearm: boolean = shouldFocusCommentBlock("c1", "c1", null);
+  assert.equal(afterRearm, true);
+});
+
+test("shouldFocusCommentBlock stays focused for new target without rearming", () => {
+  const result: boolean = shouldFocusCommentBlock("c2", "c2", "c1");
+  assert.equal(result, true);
+});
+
+test("shouldFocusCommentBlock can be retriggered by consumed-id flip", () => {
+  const disabled: boolean = shouldFocusCommentBlock("c1", "c1", "c1");
+  assert.equal(disabled, false);
+
+  const retriggered: boolean = shouldFocusCommentBlock("c1", "c1", null);
+  assert.equal(retriggered, true);
 });

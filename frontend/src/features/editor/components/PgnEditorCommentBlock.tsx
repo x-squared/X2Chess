@@ -27,6 +27,7 @@ import { applyMarkdownWrap } from "./comment_markdown_format";
 import type { CommentFormat } from "./comment_markdown_format";
 import { openExternalUrl } from "../../../resources/open_url";
 import type { CommentToken } from "../model/text_editor_plan";
+import { TRAILING_VARIATION_BREAK_SENTINEL } from "../model/plan/text_mode";
 
 /** Meta/Ctrl shortcut letter → CommentFormat for comment formatting. */
 export const FORMAT_KEYS: Readonly<Record<string, CommentFormat>> = {
@@ -240,14 +241,132 @@ export const CommentBlock = ({ token, isFocused, onEdit, onEditStart, onFocusHan
   };
 
   const handleKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>): void => {
-    // In plain/tree mode, Enter inserts the canonical [[br]] marker rather than
-    // a raw newline, keeping line-break markup visible and editable.
-    if (e.key === "Enter" && !e.shiftKey && !e.metaKey && !e.ctrlKey && token.plainLiteralComment) {
+    const commitEditedText = (updated: string): void => {
+      isUserEditPending.current = true;
+      if (isFirstEditOfSession.current) {
+        isFirstEditOfSession.current = false;
+        onEditStart?.(token.commentId);
+      }
+      onEdit(token.commentId, updated);
+    };
+
+    const removeAdjacentRichBreakIfPresent = (key: "Backspace" | "Delete"): boolean => {
+      if (token.plainLiteralComment || !ref.current) return false;
+      const sel: Selection | null = globalThis.getSelection();
+      if (!sel || sel.rangeCount === 0 || !sel.isCollapsed) return false;
+      const range: Range = sel.getRangeAt(0);
+      const container: Node = range.startContainer;
+      const getAdjacentBreakNode = (): ChildNode | null => {
+        if (container === ref.current) {
+          const caretOffset: number = range.startOffset;
+          const targetIndex: number = key === "Backspace" ? caretOffset - 1 : caretOffset;
+          if (targetIndex < 0 || targetIndex >= ref.current.childNodes.length) return null;
+          return ref.current.childNodes.item(targetIndex);
+        }
+        if (container.nodeType === Node.TEXT_NODE && container.parentNode === ref.current) {
+          const textNode: ChildNode = container as ChildNode;
+          const caretOffset: number = range.startOffset;
+          const textLength: number = (container.textContent ?? "").length;
+          if (key === "Backspace" && caretOffset === 0) return textNode.previousSibling;
+          if (key === "Delete" && caretOffset === textLength) return textNode.nextSibling;
+          return null;
+        }
+        if (container instanceof HTMLBRElement && container.parentNode === ref.current) {
+          return container;
+        }
+        return null;
+      };
+      const targetNode: ChildNode | null = getAdjacentBreakNode();
+      if (!(targetNode instanceof HTMLBRElement)) return false;
+      targetNode.remove();
+      const newRange: Range = document.createRange();
+      const nextOffset: number = Math.max(0, Math.min(range.startOffset, ref.current.childNodes.length));
+      newRange.setStart(ref.current, nextOffset);
+      newRange.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(newRange);
+      commitEditedText(ref.current.innerText);
+      return true;
+    };
+
+    const getCollapsedCaretOffset = (): number | null => {
+      if (!ref.current) return null;
+      const sel: Selection | null = globalThis.getSelection();
+      if (!sel || sel.rangeCount === 0 || !sel.isCollapsed) return null;
+      const range: Range = sel.getRangeAt(0);
+      if (!ref.current.contains(range.startContainer)) return null;
+      const prefix: Range = document.createRange();
+      prefix.selectNodeContents(ref.current);
+      prefix.setEnd(range.startContainer, range.startOffset);
+      return prefix.toString().length;
+    };
+
+    const removeVariationBreakSentinelAt = (index: number): void => {
+      if (!ref.current) return;
+      const current: string = ref.current.innerText;
+      if (index < 0 || index >= current.length) return;
+      if (current[index] !== TRAILING_VARIATION_BREAK_SENTINEL) return;
+      const updated: string = current.slice(0, index) + current.slice(index + 1);
+      ref.current.innerText = updated;
+      const sel: Selection | null = globalThis.getSelection();
+      if (sel) {
+        const r: Range = document.createRange();
+        const textNode: ChildNode | null = ref.current.firstChild;
+        if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+          r.setStart(textNode, Math.min(index, updated.length));
+          r.collapse(true);
+        } else {
+          r.selectNodeContents(ref.current);
+          r.collapse(false);
+        }
+        sel.removeAllRanges();
+        sel.addRange(r);
+      }
+      commitEditedText(updated);
+    };
+
+    if (e.key === "Delete" || e.key === "Backspace") {
+      if (removeAdjacentRichBreakIfPresent(e.key)) {
+        e.preventDefault();
+        return;
+      }
+      const current: string = ref.current?.innerText ?? "";
+      const caretOffset: number | null = getCollapsedCaretOffset();
+      if (caretOffset !== null) {
+        const sentinelIndex: number = e.key === "Delete" ? caretOffset : caretOffset - 1;
+        if (
+          sentinelIndex >= 0 &&
+          sentinelIndex < current.length &&
+          current[sentinelIndex] === TRAILING_VARIATION_BREAK_SENTINEL
+        ) {
+          e.preventDefault();
+          removeVariationBreakSentinelAt(sentinelIndex);
+          return;
+        }
+      }
+      if (current.endsWith(TRAILING_VARIATION_BREAK_SENTINEL)) {
+        e.preventDefault();
+        removeVariationBreakSentinelAt(current.length - 1);
+        return;
+      }
+    }
+
+    // Normalize Enter behavior across comment modes:
+    // - plain/tree literal comments: insert visible [[br]] marker.
+    // - rich text comments: insert a single `<br>` line break to avoid
+    //   contentEditable paragraph-splitting that can surface as double newlines.
+    if (e.key === "Enter" && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
       e.preventDefault();
       // execCommand is deprecated but remains the only reliable way to insert
       // text at the caret position inside a contentEditable element.
       // eslint-disable-next-line @typescript-eslint/no-deprecated
-      document.execCommand("insertText", false, "[[br]]");
+      if (token.plainLiteralComment) {
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
+        document.execCommand("insertText", false, "[[br]]");
+      } else {
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
+        document.execCommand("insertHTML", false, "<br>");
+      }
       return;
     }
     const withMeta: boolean = e.metaKey || e.ctrlKey;
@@ -282,6 +401,7 @@ export const CommentBlock = ({ token, isFocused, onEdit, onEditStart, onFocusHan
         data-kind="comment"
         data-comment-id={token.commentId}
         data-variation-depth={String(token.variationDepth)}
+        data-inline-with-next-variation={token.inlineWithNextVariation ? "true" : undefined}
         data-focus-first-comment-at-start={token.focusFirstCommentAtStart ? "true" : undefined}
         onInput={handleInput}
         onKeyDown={handleKeyDown}
@@ -319,6 +439,7 @@ export const CommentBlock = ({ token, isFocused, onEdit, onEditStart, onFocusHan
       data-kind="comment"
       data-comment-id={token.commentId}
       data-variation-depth={String(token.variationDepth)}
+      data-inline-with-next-variation={token.inlineWithNextVariation ? "true" : undefined}
       data-focus-first-comment-at-start={token.focusFirstCommentAtStart ? "true" : undefined}
       onClick={(): void => { isFirstEditOfSession.current = true; setIsEditMode(true); }}
     >

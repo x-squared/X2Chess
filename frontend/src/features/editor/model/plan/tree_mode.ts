@@ -1,6 +1,12 @@
 /**
  * Tree mode plan builder and variation numbering.
  *
+ * Tree-mode layout contract (normative):
+ * - The mainline block (`variationPath === [0]`) is left-aligned.
+ * - Each variation branch renders as its own block, indented by depth.
+ * - Every non-mainline block starts with a branch-header token.
+ * - Move-number suppression is local to the currently rendered block.
+ *
  * Integration API:
  * - `buildTreeEditorPlan(model, state, numberingStrategy)` — populates `state.blocks`
  *   with one block per variation (DFS order).  Each non-mainline block starts with a
@@ -81,6 +87,7 @@ const emitTreeComment = (
     applyIntroStyling,
     false,
     applyIntroStyling,
+    false,
     variationDepth,
   );
   // Intro comments occupy their own line before the branch moves.

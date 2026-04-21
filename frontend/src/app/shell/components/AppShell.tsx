@@ -91,7 +91,6 @@ import { TrainingOverlay } from "../../../training/components/TrainingOverlay";
 import { MoveOutcomeHint } from "../../../training/components/MoveOutcomeHint";
 import { useBoardColumnResize } from "../hooks/useBoardColumnResize";
 import { useStudyMode } from "../hooks/useStudyMode";
-import { useInsertMarkers } from "../hooks/useInsertMarkers";
 import { useAppShellKeyboard } from "../hooks/useAppShellKeyboard";
 import { useNavigateGuard } from "../../../features/sessions/guards/useNavigateGuard";
 import { useTrainingDialogState } from "../../../features/training/hooks/useTrainingDialogState";
@@ -250,7 +249,6 @@ export const AppShell = (): ReactElement => {
     onMovePlayed(uci.slice(0, 2), uci.slice(2, 4));
   }, [onMovePlayed]);
 
-  const { handleInsertIndentMarker, handleInsertDeindentMarker } = useInsertMarkers();
 
   const handleSearchPlayer = useCallback((query: string): void => {
     setActiveRightPanel("text-search");
@@ -578,8 +576,6 @@ export const AppShell = (): ReactElement => {
                   showEvalPills={showEvalPills}
                   t={t}
                   onSetLayoutMode={(mode): void => { services.setLayoutMode(mode); }}
-                  onInsertIndentMarker={handleInsertIndentMarker}
-                  onInsertDeindentMarker={handleInsertDeindentMarker}
                   onApplyDefaultIndent={(): void => { services.applyDefaultIndent(); }}
                   onOpenDefaultLayoutConfig={(): void => { services.openDefaultLayoutDialog(); }}
                   commentFormatEnabled={layoutMode !== "plain"}

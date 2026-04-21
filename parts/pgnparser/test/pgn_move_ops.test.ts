@@ -317,6 +317,22 @@ test("insertVariation — inserts black move number in mainline after root-curso
   assert.ok(moveNumbers.includes("1..."), `expected "1..." in ${JSON.stringify(moveNumbers)}`);
 });
 
+test("appendMove — appending mainline black reply after a RAV inserts black move number", () => {
+  const base = parsePgnToModel("[Event \"?\"]\n\n3. Rb7+ *");
+  const rb7 = base.root.entries.find(isMoveWithSan("Rb7+")) as PgnMoveNode;
+  const [withRav] = insertVariation(base, { moveId: rb7.id, variationId: base.root.id }, "Rg8+");
+  expectContractModelInvariantSafe(withRav, "insertVariation");
+
+  const rb7InUpdated = withRav.root.entries.find(isMoveWithId(rb7.id)) as PgnMoveNode;
+  const cursor: PgnCursor = { moveId: rb7InUpdated.id, variationId: withRav.root.id };
+  const [updated] = appendMove(withRav, cursor, "Kg6");
+  expectContractModelInvariantSafe(updated, "appendMove");
+
+  const numbers = mainlineMoveNumbers(updated);
+  assert.ok(numbers.includes("3..."), `expected "3..." after RAV, got ${JSON.stringify(numbers)}`);
+  assert.deepEqual(mainlineSans(updated).slice(-2), ["Rb7+", "Kg6"]);
+});
+
 // ── deleteVariation ────────────────────────────────────────────────────────────
 
 test("deleteVariation — removes a RAV from its parent move", () => {

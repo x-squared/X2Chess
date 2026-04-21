@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { parsePgnToModel } from "../../../../parts/pgnparser/src/pgn_model.js";
 import { getMoveRavs } from "../../../../parts/pgnparser/src/pgn_move_attachments.js";
-import { resolveMoveEntryFen } from "../../../src/features/editor/hooks/useMoveEntry.js";
+import { resolveMoveEntryCursor, resolveMoveEntryFen } from "../../../src/features/editor/hooks/useMoveEntry.js";
 import type { PgnMoveNode } from "../../../../parts/pgnparser/src/pgn_model.js";
 
 test("resolveMoveEntryFen — prefers board preview FEN over mainline replay", () => {
@@ -40,4 +40,16 @@ test("resolveMoveEntryFen — resolves selected variation move position before m
     "7k/1P6/8/8/8/8/3P4/4K3 w KQkq - 0 1",
   );
   assert.equal(fen.split(" ")[1], "w");
+});
+
+test("resolveMoveEntryCursor — falls back to mainline move at current ply when selection is null", () => {
+  const model = parsePgnToModel("[FEN \"7k/P7/8/8/8/8/1P6/4K3 w KQkq - 0 1\"]\n\n1. b4 Kg7 *");
+  const cursor = resolveMoveEntryCursor(model, null, 2);
+  assert.notEqual(cursor.moveId, null);
+  const move = model.root.entries.find(
+    (entry): entry is PgnMoveNode => entry.type === "move" && entry.id === cursor.moveId,
+  );
+  assert.ok(move);
+  assert.equal(move.san, "Kg7");
+  assert.equal(cursor.variationId, model.root.id);
 });

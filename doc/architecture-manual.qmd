@@ -800,8 +800,8 @@ The editor operates in one of three layout modes, stored per session in
 | Mode | Behaviour |
 |---|---|
 | `plain` | Raw PGN text; comment content is shown verbatim, no marker processing. |
-| `text` | `[[indent]]`/`[[deindent]]` maintain a persistent indentation level for all following comments and moves (including mainline); `[[br]]` becomes a visible line break in the `contentEditable`; comment line breaks follow `EditorStylePrefs.commentLineBreakPolicy` (`always` / `mainline_only`); the first comment before the first move receives *intro styling*. |
-| `tree` | One block per variation in DFS order; each non-mainline block opens with a labelled `branch_header` token; `[[indent]]`/`[[deindent]]`/`[[br]]` markers are interpreted (as in text mode), while raw marker text remains in PGN storage; each variation's first comment receives intro styling independently. |
+| `text` | Structural variation depth drives indentation for blocks (moves and interleaved comments); `[[br]]` becomes a visible line break in the `contentEditable`; comment line breaks follow `EditorStylePrefs.commentLineBreakPolicy` (`always` / `mainline_only`); the first comment before the first move receives *intro styling*. |
+| `tree` | One block per variation in DFS order; each non-mainline block opens with a labelled `branch_header` token; `[[br]]` is rendered as newline while comment marker text remains in PGN storage; each variation's first comment receives intro styling independently. |
 
 #### Intro section (implicit detection)
 
@@ -848,13 +848,11 @@ entry point (re-exported from `editor/text_editor_plan.ts`). It:
 2. Delegates to the mode-specific builder:
    - `buildPlainEditorPlan` (`plan/plain_mode.ts`) — uses `buildVariationWalker` with
      a pass-through comment emitter that sets `plainLiteralComment = true`.
-   - `buildTextModeEditorPlan` (`plan/text_mode.ts`) — uses `buildVariationWalker` with
-     a comment emitter that strips `[[indent]]`/`[[deindent]]` directives, applies
-     persistent indentation delta state, converts `[[br]]` to
-     `\n`, and calls `nextBlock()` after intro comments.
+  - `buildTextModeEditorPlan` (`plan/text_mode.ts`) — uses `buildVariationWalker` with
+    a comment emitter that converts `[[br]]` to `\n`; indentation is derived from
+    variation structure (`variation.depth`) rather than comment directives.
   - `buildTreeEditorPlan` (`plan/tree_mode.ts`) — has its own DFS traversal;
-    comment rendering mirrors text mode marker behaviour (strip `[[indent]]`/`[[deindent]]`,
-    apply persistent indentation delta state, render `[[br]]` as newline);
+    comment rendering mirrors text mode break-marker behaviour (render `[[br]]` as newline);
      collects child RAVs inline and emits them as new blocks after the parent
      block's content.
 3. Trims leading and trailing empty blocks before returning.
@@ -862,8 +860,8 @@ entry point (re-exported from `editor/text_editor_plan.ts`). It:
 **`buildVariationWalker`** (`plan/types.ts`) — a factory used by plain and text mode.
 It returns a mutually-recursive `emitVariation` / `emitMove` pair bound to a
 mode-specific `CommentEmitter`. The walker handles comment hoisting (a comment
-immediately before a move number is hoisted before that move's token), persistent
-indentation state updates from `[[indent]]`/`[[deindent]]`, and `postItems`
+immediately before a move number is hoisted before that move's token), structural
+variation-depth block context updates, and `postItems`
 ordering from the parsed PGN model.
 
 **Token types** emitted into blocks:
@@ -1249,11 +1247,11 @@ The `XSqrChessStyle` PGN header is also an X2Chess extension (transitional
 | Value | Meaning |
 |---|---|
 | `plain` | Display raw PGN text; no marker processing |
-| `text` | `[[indent]]`/`[[deindent]]`/`[[br]]` markers active; intro-comment styling applies |
+| `text` | Structural variation-depth indentation + `[[br]]` marker; intro-comment styling applies |
 | `tree` | One block per variation in DFS order; each variation's first comment styled independently |
 
-Layout markers (`[[br]]`, `[[indent]]`, `[[deindent]]`) appear inside comment text and control
-the visual presentation of the PGN text editor; they have no effect on board
+Layout markers (`[[br]]`) can appear inside comment text and control
+line breaks in text mode only; they have no effect on board
 navigation or the underlying move tree.
 
 `EditorStylePrefs` additionally governs comment flow and colours:

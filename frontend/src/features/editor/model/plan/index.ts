@@ -6,11 +6,17 @@
  *   PGN model into a flat `PlanBlock[]` suitable for rendering by `PgnTextEditor`.
  * - `layoutMode`:
  *   - `plain`  — literal comment text, no marker processing.
- *   - `text`   — `[[indent]]`/`[[deindent]]` drive persistent indentation; `[[br]]` becomes a newline
+ *   - `text`   — structural variation depth drives indentation; `[[br]]` becomes a newline
  *                in the contentEditable; first comment receives intro styling.
  *   - `tree`   — one block per variation (DFS); markers shown as greyed literal text;
  *                first comment of each variation receives intro styling independently.
  * - Re-exports public token/block types consumed by the React render layer.
+ *
+ * Composition contract:
+ * - Mode-specific layout behavior lives in `plain_mode.ts`, `text_mode.ts`,
+ *   and `tree_mode.ts` (authoritative contracts are documented there).
+ * - Shared post-processing in this module must stay mode-aware and must not
+ *   override mode contracts implicitly.
  */
 
 export type { InlineToken, CommentToken, PlanToken, PlanBlock } from "./types";

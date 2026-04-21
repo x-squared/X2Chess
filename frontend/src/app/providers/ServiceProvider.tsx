@@ -55,6 +55,7 @@ const defaultServices: AppStartupServices = {
   setShowEvalPills: noop,
   setLocale: noop,
   setMoveDelayMs: noop,
+  playMoveSound: noop,
   setSoundEnabled: noop,
   setPositionPreviewOnHover: noop,
   setDeveloperToolsEnabled: noop,

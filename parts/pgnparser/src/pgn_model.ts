@@ -17,6 +17,7 @@
  * on every `parsePgnToModel` call, so IDs are stable and deterministic for a
  * given input.
  */
+import { appendMoveRav, insertAfterCommentBeforeFirstRav } from "./pgn_move_attachments";
 let modelIdCounter = 0;
 
 const nextId = (prefix: string): string => `${prefix}_${++modelIdCounter}`;
@@ -212,10 +213,6 @@ export type PgnMoveNode = {
   nags: string[];
   /** Comments that appeared in the source immediately before this move. */
   commentsBefore: PgnCommentNode[];
-  /** Comments that appeared in the source immediately after this move. */
-  commentsAfter: PgnCommentNode[];
-  /** Shortcut list of all RAVs attached to this move (subset of `postItems`). */
-  ravs: PgnVariationNode[];
   /**
    * All items following this move in source order (comments and RAVs
    * interleaved). Use this for rendering to preserve original layout.
@@ -330,8 +327,6 @@ const createMove = (san: string): PgnMoveNode => ({
   san,
   nags: [],
   commentsBefore: [],
-  commentsAfter: [],
-  ravs: [],
   postItems: [],
 });
 
@@ -393,8 +388,7 @@ export const parsePgnToModel = (rawPgn: string): PgnModel => {
     if (token.type === "variation_start") {
       const child: PgnVariationNode = createVariation(frame.variation.depth + 1, frame.lastMove?.id ?? null);
       if (frame.lastMove) {
-        frame.lastMove.ravs.push(child);
-        frame.lastMove.postItems.push({ type: "rav", rav: child });
+        appendMoveRav(frame.lastMove, child);
       } else {
         frame.variation.entries.push(child);
       }
@@ -413,8 +407,7 @@ export const parsePgnToModel = (rawPgn: string): PgnModel => {
     if (token.type === "comment") {
       const comment: PgnCommentNode = createComment(token.value);
       if (frame.lastMove) {
-        frame.lastMove.commentsAfter.push(comment);
-        frame.lastMove.postItems.push({ type: "comment", comment });
+        insertAfterCommentBeforeFirstRav(frame.lastMove, comment);
       } else {
         frame.pendingComments.push(comment);
       }

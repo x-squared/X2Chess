@@ -16,6 +16,7 @@
 import { Chess } from "chess.js";
 import type { PgnModel, PgnMoveNode, PgnVariationNode } from "../../../parts/pgnparser/src/pgn_model";
 import type { PgnCursor } from "../../../parts/pgnparser/src/pgn_move_ops";
+import { getMoveRavs } from "../../../parts/pgnparser/src/pgn_move_attachments";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -72,7 +73,7 @@ const findVariation = (
   if (root.id === id) return root;
   for (const entry of root.entries) {
     if (entry.type === "move") {
-      for (const rav of (entry as PgnMoveNode).ravs) {
+      for (const rav of getMoveRavs(entry as PgnMoveNode)) {
         const found = findVariation(rav, id);
         if (found) return found;
       }
@@ -148,28 +149,21 @@ export const resolveMoveEntry = (
     return { kind: "advance", san, nextMoveId: nextMove.id };
   }
 
-  // Check existing RAVs off the cursor move.
-  const cursorMove =
-    cursor.moveId !== null && cursorIdx >= 0
-      ? (variation.entries[cursorIdx] as PgnMoveNode)
-      : null;
-
-  if (cursorMove) {
-    for (const rav of cursorMove.ravs) {
-      // Find the first move in the RAV.
-      for (const entry of rav.entries) {
-        if (entry.type === "move") {
-          const firstRavMove = entry as PgnMoveNode;
-          if (firstRavMove.san === san) {
-            return {
-              kind: "enter_variation",
-              san,
-              variationId: rav.id,
-              firstMoveId: firstRavMove.id,
-            };
-          }
-          break; // Only check the first move of each RAV.
+  // Check existing RAVs off the next move (alternatives to that move start from
+  // the same position, so their first move is playable from the current FEN).
+  for (const rav of getMoveRavs(nextMove)) {
+    for (const entry of rav.entries) {
+      if (entry.type === "move") {
+        const firstRavMove = entry as PgnMoveNode;
+        if (firstRavMove.san === san) {
+          return {
+            kind: "enter_variation",
+            san,
+            variationId: rav.id,
+            firstMoveId: firstRavMove.id,
+          };
         }
+        break; // Only check the first move of each RAV.
       }
     }
   }

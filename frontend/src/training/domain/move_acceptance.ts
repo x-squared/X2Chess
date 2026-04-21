@@ -25,6 +25,7 @@
 
 import { Chess } from "chess.js";
 import type { PgnMoveNode, PgnVariationNode, PgnCommentNode } from "../../../../parts/pgnparser/src/pgn_model";
+import { getMoveCommentsAfter, getMoveRavs } from "../../../../parts/pgnparser/src/pgn_move_attachments";
 import type { UserMoveInput, MoveEvalResult } from "./training_protocol";
 import { parseTrainTag } from "../../features/resources/services/train_tag_parser";
 
@@ -127,14 +128,14 @@ type RavEntry = {
 
 const analyseRavs = (node: PgnMoveNode, positionFen: string): RavEntry[] => {
   const result: RavEntry[] = [];
-  for (const rav of node.ravs) {
+  for (const rav of getMoveRavs(node)) {
     const firstMove = firstMoveInRav(rav);
     if (!firstMove) continue;
     const uci = sanToUci(firstMove.san, positionFen);
     if (!uci) continue;
     const comment = joinCommentRaw([
       ...firstMove.commentsBefore,
-      ...firstMove.commentsAfter,
+      ...getMoveCommentsAfter(firstMove),
     ]);
     result.push({
       uci: normalizeUci(uci),
@@ -290,7 +291,7 @@ export const acceptMove = (ctx: MoveAcceptanceContext): MoveEvalResult => {
   ) {
     const positionComment = joinCommentRaw([
       ...ctx.node.commentsBefore,
-      ...ctx.node.commentsAfter,
+      ...getMoveCommentsAfter(ctx.node),
     ]);
     const mainlineEvalCp = extractEvalCp(positionComment);
 

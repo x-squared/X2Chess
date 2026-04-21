@@ -87,9 +87,19 @@ export type PgnMove = {
   san: string;
   nags: string[];
   commentsBefore: PgnComment[];
-  commentsAfter: PgnComment[];
-  ravs: PgnVariation[];
   postItems?: PgnPostItem[];
+};
+
+export const getMoveCommentsAfter = (move: PgnMove): PgnComment[] => {
+  return (move.postItems ?? [])
+    .filter((item: PgnPostItem): boolean => item.type === "comment" && !!item.comment)
+    .map((item: PgnPostItem): PgnComment => (item as { type: "comment"; comment: PgnComment }).comment);
+};
+
+export const getMoveRavs = (move: PgnMove): PgnVariation[] => {
+  return (move.postItems ?? [])
+    .filter((item: PgnPostItem): boolean => item.type === "rav" && !!item.rav)
+    .map((item: PgnPostItem): PgnVariation => (item as { type: "rav"; rav: PgnVariation }).rav);
 };
 
 export type PgnMoveNumber = {
@@ -146,6 +156,8 @@ type MoveNumberInfo = {
 type VariationFlow = {
   nextMoveSide: "white" | "black";
   hoistedBeforeCommentMoveIds: Set<string>;
+  firstMoveEmitted: boolean;
+  lastPlayedSide: "white" | "black" | null;
 };
 
 type StrategyFn = (
@@ -285,6 +297,7 @@ export const shouldSuppressMoveNumberToken = (
   for (let idx: number = tokens.length - 1; idx >= 0; idx -= 1) {
     const token: PlanToken = tokens[idx];
     if (token.kind === "inline" && token.tokenType === "space") continue;
+    if (token.kind === "comment") continue;
     return token.kind === "inline" && token.tokenType === "move";
   }
   return false;
@@ -445,6 +458,8 @@ export const buildVariationWalker = (
       moveSide,
     });
     state.firstMoveEmitted = true;
+    flow.firstMoveEmitted = true;
+    flow.lastPlayedSide = moveSide;
     addSpace(state);
     entry.nags.forEach((nag: string): void => {
       addTextWithBreaks(state, nagGlyph(nag), "text-editor-nag", "nag", { moveId: entry.id });
@@ -452,31 +467,19 @@ export const buildVariationWalker = (
     });
 
     const shouldBreakAfterRav: boolean = variation.depth === 0;
-    if (Array.isArray(entry.postItems) && entry.postItems.length > 0) {
-      for (let idx: number = 0; idx < entry.postItems.length; idx += 1) {
-        const item: PgnPostItem = entry.postItems[idx];
-        if (item.type === "comment" && item.comment) {
-          internalAddComment(state, item.comment, variation.depth);
-          continue;
-        }
-        if (item.type === "rav" && item.rav) {
-          emitVariation(item.rav, state, registry);
-          if (shouldBreakAfterRav) nextBlock(state);
-        }
-      }
-    } else {
-      entry.commentsAfter.forEach((c: PgnComment): void => internalAddComment(state, c, variation.depth));
-      entry.ravs.forEach((child: PgnVariation): void => {
-        emitVariation(child, state, registry);
-        if (shouldBreakAfterRav) nextBlock(state);
-      });
-    }
+    getMoveCommentsAfter(entry).forEach((c: PgnComment): void => internalAddComment(state, c, variation.depth));
+    getMoveRavs(entry).forEach((child: PgnVariation): void => {
+      emitVariation(child, state, registry);
+      if (shouldBreakAfterRav) nextBlock(state);
+    });
   };
 
   emitVariation = (variation: PgnVariation, state: PlanState, registry: StrategyRegistry): void => {
     const flow: VariationFlow = {
       nextMoveSide: "white",
       hoistedBeforeCommentMoveIds: new Set<string>(),
+      firstMoveEmitted: false,
+      lastPlayedSide: null,
     };
     for (let idx: number = 0; idx < variation.entries.length; idx += 1) {
       const entry: PgnEntry = variation.entries[idx];
@@ -515,10 +518,10 @@ export const buildVariationWalker = (
       if (entry.type !== "comment") return;
       internalAddComment(state, entry, _variation.depth);
     },
-    move_number: (entry: PgnEntry, variation: PgnVariation, state: PlanState): void => {
+    move_number: (entry: PgnEntry, variation: PgnVariation, state: PlanState, _registry: StrategyRegistry, flow: VariationFlow): void => {
       if (entry.type !== "move_number") return;
       const parsed = parseMoveNumberToken(entry.text);
-      if (shouldSuppressMoveNumberToken(state, parsed)) return;
+      if (variation.depth === 0 && parsed.side === "black" && flow.lastPlayedSide === "white") return;
       addTextWithBreaks(
         state,
         parsed.displayText,

@@ -22,6 +22,8 @@ import {
   nextBlock,
   parseMoveNumberToken,
   shouldSuppressMoveNumberToken,
+  getMoveCommentsAfter,
+  getMoveRavs,
 } from "./types";
 
 // ── Variation numbering ───────────────────────────────────────────────────────
@@ -212,15 +214,8 @@ const emitTreeVariation = (
         addSpace(state);
       });
 
-      if (Array.isArray(entry.postItems) && entry.postItems.length > 0) {
-        for (const item of entry.postItems) {
-          if (item.type === "comment" && item.comment) addComment(state, item.comment, variation.depth);
-          else if (item.type === "rav" && item.rav) childRavs.push(item.rav);
-        }
-      } else {
-        entry.commentsAfter.forEach((c: PgnComment): void => addComment(state, c, variation.depth));
-        entry.ravs.forEach((rav: PgnVariation): void => { childRavs.push(rav); });
-      }
+      getMoveCommentsAfter(entry).forEach((c: PgnComment): void => addComment(state, c, variation.depth));
+      getMoveRavs(entry).forEach((rav: PgnVariation): void => { childRavs.push(rav); });
 
       moveSide = moveSide === "white" ? "black" : "white";
     }

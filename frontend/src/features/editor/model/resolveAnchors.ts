@@ -67,8 +67,6 @@ type RtMove = {
   id: string;
   san: string;
   commentsBefore?: RtComment[];
-  commentsAfter?: RtComment[];
-  ravs?: RtVariation[];
   postItems?: RtPostItem[];
 };
 
@@ -96,34 +94,27 @@ const stripAllCommands = (raw: string | undefined): string => {
 };
 
 /**
- * Collect all comments-after from a move node, handling both the legacy
- * `commentsAfter`/`ravs` format and the newer `postItems` interleaved format.
+ * Collect comments-after from canonical postItems.
  */
 const getCommentsAfter = (move: RtMove): RtComment[] => {
-  if (Array.isArray(move.postItems) && move.postItems.length > 0) {
-    return move.postItems
-      .filter(
-        (item): item is { type: "comment"; comment: RtComment } =>
-          item.type === "comment" && !!item.comment,
-      )
-      .map((item) => item.comment!);
-  }
-  return move.commentsAfter ?? [];
+  return (move.postItems ?? [])
+    .filter(
+      (item): item is { type: "comment"; comment: RtComment } =>
+        item.type === "comment" && !!item.comment,
+    )
+    .map((item) => item.comment);
 };
 
 /**
- * Collect child variations (RAVs) from a move node, handling both formats.
+ * Collect child variations (RAVs) from canonical postItems.
  */
 const getChildVariations = (move: RtMove): RtVariation[] => {
-  if (Array.isArray(move.postItems) && move.postItems.length > 0) {
-    return move.postItems
-      .filter(
-        (item): item is { type: "rav"; rav: RtVariation } =>
-          item.type === "rav" && !!item.rav,
-      )
-      .map((item) => item.rav!);
-  }
-  return move.ravs ?? [];
+  return (move.postItems ?? [])
+    .filter(
+      (item): item is { type: "rav"; rav: RtVariation } =>
+        item.type === "rav" && !!item.rav,
+    )
+    .map((item) => item.rav);
 };
 
 /**

@@ -1,0 +1,7 @@
+{
+  "name": "x2chess-pgnparser-tests",
+  "private": true,
+  "devDependencies": {
+    "fast-check": "^3.23.2"
+  }
+}

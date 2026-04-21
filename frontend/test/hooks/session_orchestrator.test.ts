@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { parsePgnToModel } from "../../../parts/pgnparser/src/pgn_model.js";
+import { getMoveCommentsAfter } from "../../../parts/pgnparser/src/pgn_move_attachments.js";
 import { createSessionOrchestrator } from "../../src/core/services/session_orchestrator.js";
 import { createEmptyGameSessionState } from "../../src/features/sessions/services/game_session_state.js";
 import type { AppAction } from "../../src/core/state/actions.js";
@@ -62,7 +63,7 @@ test("saveCommentText marks session dirty when comment update succeeds", (): voi
   session.pgnModel = parsePgnToModel("1. e4 {old comment} *");
   const firstMove = session.pgnModel.root?.entries.find((entry) => entry.type === "move");
   assert.ok(firstMove?.type === "move");
-  const commentId: string = firstMove.commentsAfter[0]?.id ?? "";
+  const commentId: string = getMoveCommentsAfter(firstMove)[0]?.id ?? "";
   assert.ok(commentId);
 
   const { dispatchRef } = makeDispatchRef();

@@ -29,6 +29,7 @@ import type {
 } from "../domain/training_protocol";
 import type { TrainingTranscript } from "../domain/training_transcript";
 import { parsePgnToModel } from "../../../../parts/pgnparser/src/pgn_model";
+import { getMoveRavs } from "../../../../parts/pgnparser/src/pgn_move_attachments";
 
 // ── Options ───────────────────────────────────────────────────────────────────
 
@@ -80,12 +81,10 @@ const buildFenMap = (
       }
 
       // Walk variations (RAVs) — each starts from fenBefore.
-      if ("ravs" in entry && Array.isArray(entry.ravs)) {
-        for (const rav of entry.ravs as { entries: typeof model.root.entries }[]) {
-          const ravChess = new Chess();
-          try { ravChess.load(fenBefore); } catch { continue; }
-          walk(rav.entries, ravChess);
-        }
+      for (const rav of getMoveRavs(entry)) {
+        const ravChess = new Chess();
+        try { ravChess.load(fenBefore); } catch { continue; }
+        walk(rav.entries, ravChess);
       }
     }
   };

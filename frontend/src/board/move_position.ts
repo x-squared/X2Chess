@@ -4,8 +4,8 @@ import type {
   PgnVariationNode,
   PgnEntryNode,
   PgnMoveNode,
-  PgnPostItem,
 } from "../../../parts/pgnparser/src/pgn_model";
+import { getMoveRavs } from "../../../parts/pgnparser/src/pgn_move_attachments";
 import { log } from "../logger";
 
 /**
@@ -173,19 +173,7 @@ export const applySanWithFallback = (game: Chess, san: string): Move | null => {
  * otherwise fall back to `ravs` (matches `resolveMovePositionById`).
  */
 const ravVariationsForMove = (move: PgnMoveNode): PgnVariationNode[] => {
-  if (Array.isArray(move.postItems)) {
-    const out: PgnVariationNode[] = [];
-    for (const item of move.postItems) {
-      if (item.type === "rav" && item.rav) {
-        out.push(item.rav);
-      }
-    }
-    return out;
-  }
-  if (Array.isArray(move.ravs)) {
-    return move.ravs;
-  }
-  return [];
+  return getMoveRavs(move);
 };
 
 /**
@@ -438,15 +426,8 @@ export const resolveMovePositionById = (
       ply: number,
       parentMoveId: string | null
     ): MovePositionResolved | null => {
-      const ravsToCheck = Array.isArray(entry.postItems)
-        ? entry.postItems.flatMap((item: PgnPostItem) => item.type === "rav" && item.rav ? [item.rav] : [])
-        : (() => {
-            if (Array.isArray(entry.ravs)) {
-              return entry.ravs;
-            }
-            return [];
-          })()
-     
+      const ravsToCheck = getMoveRavs(entry);
+
       for (const rav of ravsToCheck) {
         const found = walkVariation(rav, gameBeforeMove, false, ply, entry.id);
         if (found) return found;

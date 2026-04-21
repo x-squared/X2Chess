@@ -21,15 +21,22 @@ const move = (
     ravs?: ReturnType<typeof variation>[];
     nags?: string[];
   } = {},
-) => ({
+) => {
+  const commentsAfter = opts.commentsAfter ?? [];
+  const ravs = opts.ravs ?? [];
+  const postItems = [
+    ...commentsAfter.map((commentNode) => ({ type: "comment" as const, comment: commentNode })),
+    ...ravs.map((ravNode) => ({ type: "rav" as const, rav: ravNode })),
+  ];
+  return {
   type: "move" as const,
   id,
   san,
   nags: opts.nags ?? [],
   commentsBefore: opts.commentsBefore ?? [],
-  commentsAfter: opts.commentsAfter ?? [],
-  ravs: opts.ravs ?? [],
-});
+  postItems,
+  };
+};
 
 const variation = (
   depth: number,
@@ -400,6 +407,24 @@ test("text mode suppresses black move number after move even with intervening co
   assert.match(text, /h6/);
   assert.match(text, /Ne5/);
   assert.doesNotMatch(text, /5\.\.\./);
+});
+
+test("text mode keeps black move-number token inside variation", () => {
+  const rav = variation(1, [moveNumber("1..."), move("rv1", "Kh7")]);
+  const m = model(variation(0, [
+    moveNumber("1."),
+    move("m1", "d3", { ravs: [rav] }),
+    move("m2", "Kg7"),
+  ]));
+  const blocks = textBlocks(m);
+  const ravBlock = blocks.find((block) =>
+    block.tokens.some((token) => token.kind === "inline" && token.tokenType === "move" && token.text === "Kh7"),
+  );
+  assert.ok(ravBlock, "variation block should contain Kh7");
+  const hasBlackMoveNumber = ravBlock.tokens.some(
+    (token) => token.kind === "inline" && token.tokenType === "move_number" && token.text === "1...",
+  );
+  assert.equal(hasBlackMoveNumber, true);
 });
 
 for (const [label, blocks] of [

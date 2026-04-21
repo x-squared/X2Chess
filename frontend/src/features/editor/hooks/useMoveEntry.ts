@@ -23,6 +23,7 @@ import { Chess } from "chess.js";
 import { useAppContext } from "../../../app/providers/AppStateProvider";
 import type { AppStartupServices } from "../../../core/contracts/app_services";
 import {
+  selectBoardPreview,
   selectCurrentPly,
   selectMoves,
   selectSelectedMoveId,
@@ -41,12 +42,15 @@ import type { PgnModel } from "../../../../../parts/pgnparser/src/pgn_model";
 import type { PgnCursor } from "../../../../../parts/pgnparser/src/pgn_move_ops";
 import type { ForkChoice } from "../../../components/board/DisambiguationDialog";
 import type { PromotionPiece } from "../../../components/board/PromotionPicker";
+import type { ChessSoundType } from "../../../board/move_sound";
+import { resolveMovePositionById } from "../../../board/move_position";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 export type PendingFork = {
   san: string;
   existingNextSan: string;
+  existingNextMoveId: string;
   model: PgnModel;
   cursor: PgnCursor;
 };
@@ -73,7 +77,7 @@ const isPromotionMove = (fen: string, from: string, to: string): boolean => {
   const chess = new Chess();
   try { chess.load(fen); } catch { return false; }
   const piece = chess.get(from as Parameters<typeof chess.get>[0]);
-  if (!piece || piece.type !== "p") return false;
+  if (piece?.type !== "p") return false;
   const toRank = to[1];
   return (piece.color === "w" && toRank === "8") ||
     (piece.color === "b" && toRank === "1");
@@ -89,6 +93,61 @@ const buildFen = (sanMoves: string[], ply: number, startFen?: string): string =>
   const limit = Math.min(ply, sanMoves.length);
   for (let i = 0; i < limit; i++) game.move(sanMoves[i]);
   return game.fen();
+};
+
+/**
+ * Resolve the canonical board FEN for move entry.
+ *
+ * Priority:
+ * 1) `boardPreview.fen` (explicit variation/preview position).
+ * 2) Position resolved from selected move ID in the PGN model.
+ * 3) Mainline replay fallback from `moves/currentPly`.
+ */
+export const resolveMoveEntryFen = (
+  model: PgnModel,
+  selectedMoveId: string | null,
+  boardPreviewFen: string | null,
+  sanMoves: string[],
+  currentPly: number,
+  startFen?: string,
+): string => {
+  if (boardPreviewFen) return boardPreviewFen;
+  if (selectedMoveId) {
+    const resolved = resolveMovePositionById(model, selectedMoveId);
+    if (resolved?.fen) return resolved.fen;
+  }
+  return buildFen(sanMoves, currentPly, startFen);
+};
+
+/** Resolve move sound kind for a concrete board move in `fen`. */
+export const resolveMoveSoundTypeForBoardMove = (
+  fen: string,
+  from: string,
+  to: string,
+  promotion?: PromotionPiece,
+): ChessSoundType | null => {
+  const game: Chess = new Chess();
+  try {
+    game.load(fen);
+  } catch {
+    return null;
+  }
+  const move = game.move({
+    from,
+    to,
+    promotion: promotion ?? "q",
+  });
+  if (!move) return null;
+  if (game.isCheckmate()) return "checkmate";
+  if (game.isStalemate()) return "stalemate";
+  if (game.isCheck()) return "check";
+  if (/^O-O(?:-O)?/.test(move.san)) {
+    return "castling";
+  }
+  if (move.san.includes("x")) {
+    return "capture";
+  }
+  return "move";
 };
 
 /** Build a cursor from the current selected move ID (or root). */
@@ -118,6 +177,7 @@ export const useMoveEntry = (servicesRef: { current: AppStartupServices | null }
   const selectedMoveId = selectSelectedMoveId(state);
   const pgnModel = selectPgnModel(state);
   const startingFen = selectStartingFen(state);
+  const boardPreview = selectBoardPreview(state);
 
   const [pendingFork, setPendingFork] = useState<PendingFork | null>(null);
   const [pendingPromotion, setPendingPromotion] = useState<PendingPromotion | null>(null);
@@ -169,18 +229,52 @@ export const useMoveEntry = (servicesRef: { current: AppStartupServices | null }
 
       switch (resolution.kind) {
         case "advance":
+          {
+            const soundType: ChessSoundType | null = resolveMoveSoundTypeForBoardMove(
+              fen,
+              from,
+              to,
+              promotion,
+            );
+            if (soundType) {
+              servicesRef.current?.playMoveSound(soundType);
+            }
+          }
           servicesRef.current?.gotoMoveById(resolution.nextMoveId);
           break;
         case "enter_variation":
+          {
+            const soundType: ChessSoundType | null = resolveMoveSoundTypeForBoardMove(
+              fen,
+              from,
+              to,
+              promotion,
+            );
+            if (soundType) {
+              servicesRef.current?.playMoveSound(soundType);
+            }
+          }
           servicesRef.current?.gotoMoveById(resolution.firstMoveId);
           break;
         case "append":
+          {
+            const soundType: ChessSoundType | null = resolveMoveSoundTypeForBoardMove(
+              fen,
+              from,
+              to,
+              promotion,
+            );
+            if (soundType) {
+              servicesRef.current?.playMoveSound(soundType);
+            }
+          }
           commitMove(resolution.san, model, cursor, "append");
           break;
         case "fork":
           setPendingFork({
             san: resolution.san,
             existingNextSan: resolution.existingNextSan,
+            existingNextMoveId: resolution.existingNextMoveId,
             model,
             cursor,
           });
@@ -195,7 +289,14 @@ export const useMoveEntry = (servicesRef: { current: AppStartupServices | null }
       const model = pgnModel;
       if (!model) return;
 
-      const fen = buildFen(moves, currentPly, startingFen || undefined);
+      const fen = resolveMoveEntryFen(
+        model,
+        selectedMoveId,
+        boardPreview?.fen ?? null,
+        moves,
+        currentPly,
+        startingFen || undefined,
+      );
       const color = fenSideToMove(fen);
       const cursor = buildCursor(model, selectedMoveId);
 
@@ -206,7 +307,7 @@ export const useMoveEntry = (servicesRef: { current: AppStartupServices | null }
 
       resolveAndCommit(from, to, undefined, model, cursor, fen);
     },
-    [pgnModel, moves, currentPly, selectedMoveId, resolveAndCommit],
+    [pgnModel, moves, currentPly, selectedMoveId, startingFen, boardPreview, resolveAndCommit],
   );
 
   const handleForkDecide = useCallback(
@@ -214,7 +315,14 @@ export const useMoveEntry = (servicesRef: { current: AppStartupServices | null }
       const fork = pendingFork;
       if (!fork) return;
       setPendingFork(null);
-      commitMove(fork.san, fork.model, fork.cursor, choice);
+      if (choice === "variation") {
+        // Attach the RAV to the existing next move so it appears after it in PGN,
+        // not to the preceding move which would mis-label it as the wrong side.
+        const nextCursor = findCursorForMoveId(fork.model, fork.existingNextMoveId) ?? fork.cursor;
+        commitMove(fork.san, fork.model, nextCursor, choice);
+      } else {
+        commitMove(fork.san, fork.model, fork.cursor, choice);
+      }
     },
     [pendingFork, commitMove],
   );
@@ -225,11 +333,18 @@ export const useMoveEntry = (servicesRef: { current: AppStartupServices | null }
       if (!promo || !pgnModel) { setPendingPromotion(null); return; }
       setPendingPromotion(null);
 
-      const fen = buildFen(moves, currentPly, startingFen || undefined);
+      const fen = resolveMoveEntryFen(
+        pgnModel,
+        selectedMoveId,
+        boardPreview?.fen ?? null,
+        moves,
+        currentPly,
+        startingFen || undefined,
+      );
       const cursor = buildCursor(pgnModel, selectedMoveId);
       resolveAndCommit(promo.from, promo.to, piece, pgnModel, cursor, fen);
     },
-    [pendingPromotion, pgnModel, moves, currentPly, selectedMoveId, resolveAndCommit],
+    [pendingPromotion, pgnModel, moves, currentPly, selectedMoveId, startingFen, boardPreview, resolveAndCommit],
   );
 
   const handleCancel = useCallback((): void => {

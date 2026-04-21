@@ -13,59 +13,68 @@ import {
   insertCommentAroundMove,
   toggleMoveNag,
 } from "../src/pgn_commands.js";
+import { getMoveCommentsAfter } from "../src/pgn_move_attachments.js";
+import {
+  expectInvariantSafe,
+  findMainlineMoveBySan,
+  isMoveEntry,
+  isMoveWithSan,
+  parseModel,
+} from "./support/pgn_harness.js";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 const firstMoveId = (model: ReturnType<typeof parsePgnToModel>): string => {
-  const move = model.root.entries.find(e => e.type === "move") as PgnMoveNode;
+  const move = model.root.entries.find(isMoveEntry) as PgnMoveNode;
   return move.id;
 };
 
 // ── setCommentTextById ─────────────────────────────────────────────────────────
 
 test("setCommentTextById — updates comment raw text", () => {
-  const model = parsePgnToModel("1. e4 {original} e5");
-  const e4 = model.root.entries.find(e => e.type === "move") as PgnMoveNode;
-  const commentId = e4.commentsAfter[0].id;
+  const model = parseModel("1. e4 {original} e5");
+  const e4 = findMainlineMoveBySan(model, "e4");
+  const commentId = getMoveCommentsAfter(e4)[0].id;
   const next = setCommentTextById(model, commentId, "updated") as typeof model;
-  const nextE4 = next.root.entries.find(e => e.type === "move") as PgnMoveNode;
-  assert.equal(nextE4.commentsAfter[0].raw, "updated");
+  expectInvariantSafe(next, "setCommentTextById update");
+  const nextE4 = findMainlineMoveBySan(next, "e4");
+  assert.equal(getMoveCommentsAfter(nextE4)[0].raw, "updated");
 });
 
 test("setCommentTextById — does not mutate original", () => {
   const model = parsePgnToModel("1. e4 {original} e5");
-  const e4 = model.root.entries.find(e => e.type === "move") as PgnMoveNode;
-  const commentId = e4.commentsAfter[0].id;
+  const e4 = model.root.entries.find(isMoveEntry) as PgnMoveNode;
+  const commentId = getMoveCommentsAfter(e4)[0].id;
   setCommentTextById(model, commentId, "changed");
   // Original still has old text
-  assert.equal(e4.commentsAfter[0].raw, "original");
+  assert.equal(getMoveCommentsAfter(e4)[0].raw, "original");
 });
 
 test("setCommentTextById — empty text removes comment node", () => {
   const model = parsePgnToModel("4. Nf3 {temp} 4... Nc6");
-  const nf3 = model.root.entries.find((e) => e.type === "move") as PgnMoveNode;
-  const commentId = nf3.commentsAfter[0].id;
+  const nf3 = model.root.entries.find(isMoveEntry) as PgnMoveNode;
+  const commentId = getMoveCommentsAfter(nf3)[0].id;
   const next = setCommentTextById(model, commentId, "") as typeof model;
-  const nextNf3 = next.root.entries.find((e) => e.type === "move") as PgnMoveNode;
-  assert.equal(nextNf3.commentsAfter.length, 0);
+  const nextNf3 = next.root.entries.find(isMoveEntry) as PgnMoveNode;
+  assert.equal(getMoveCommentsAfter(nextNf3).length, 0);
 });
 
 test("setCommentTextById — [[br]] only (cleared contentEditable) removes comment node", () => {
   const model = parsePgnToModel("1. Nd4+ Nxd4 {test} 2. Kf6 *");
-  const nxd4 = model.root.entries.filter((e) => e.type === "move").find((m) => m.san === "Nxd4") as PgnMoveNode;
-  const commentId = nxd4.commentsAfter[0].id;
+  const nxd4 = model.root.entries.find(isMoveWithSan("Nxd4")) as PgnMoveNode;
+  const commentId = getMoveCommentsAfter(nxd4)[0].id;
   const next = setCommentTextById(model, commentId, "[[br]]") as typeof model;
-  const nextNxd4 = next.root.entries.filter((e) => e.type === "move").find((m) => m.san === "Nxd4") as PgnMoveNode;
-  assert.equal(nextNxd4.commentsAfter.length, 0);
+  const nextNxd4 = next.root.entries.find(isMoveWithSan("Nxd4")) as PgnMoveNode;
+  assert.equal(getMoveCommentsAfter(nextNxd4).length, 0);
 });
 
 test("setCommentTextById — whitespace and repeated [[br]] only removes comment", () => {
   const model = parsePgnToModel("1. e4 {x} e5");
-  const e4 = model.root.entries.find((e) => e.type === "move") as PgnMoveNode;
-  const commentId = e4.commentsAfter[0].id;
+  const e4 = model.root.entries.find(isMoveEntry) as PgnMoveNode;
+  const commentId = getMoveCommentsAfter(e4)[0].id;
   const next = setCommentTextById(model, commentId, "  [[br]]\n[[BR]]  ") as typeof model;
-  const nextE4 = next.root.entries.find((e) => e.type === "move") as PgnMoveNode;
-  assert.equal(nextE4.commentsAfter.length, 0);
+  const nextE4 = next.root.entries.find(isMoveEntry) as PgnMoveNode;
+  assert.equal(getMoveCommentsAfter(nextE4).length, 0);
 });
 
 test("setCommentTextById — unknown id returns model unchanged", () => {
@@ -77,12 +86,13 @@ test("setCommentTextById — unknown id returns model unchanged", () => {
 // ── removeCommentById ──────────────────────────────────────────────────────────
 
 test("removeCommentById — removes comment after move", () => {
-  const model = parsePgnToModel("1. e4 {to remove} e5");
-  const e4 = model.root.entries.find(e => e.type === "move") as PgnMoveNode;
-  const commentId = e4.commentsAfter[0].id;
+  const model = parseModel("1. e4 {to remove} e5");
+  const e4 = findMainlineMoveBySan(model, "e4");
+  const commentId = getMoveCommentsAfter(e4)[0].id;
   const next = removeCommentById(model, commentId);
-  const nextE4 = (next as typeof model).root.entries.find(e => e.type === "move") as PgnMoveNode;
-  assert.equal(nextE4.commentsAfter.length, 0);
+  expectInvariantSafe(next as typeof model, "removeCommentById");
+  const nextE4 = findMainlineMoveBySan(next as typeof model, "e4");
+  assert.equal(getMoveCommentsAfter(nextE4).length, 0);
 });
 
 test("removeCommentById — unknown id returns same model reference", () => {
@@ -163,8 +173,8 @@ test("toggleFirstCommentIntroRole — returns same model when no comment exists"
 
 test("resolveOwningMoveIdForCommentId — comment after move resolves to that move", () => {
   const model = parsePgnToModel("1. e4 {note} e5");
-  const e4 = model.root.entries.find(e => e.type === "move") as PgnMoveNode;
-  const commentId = e4.commentsAfter[0].id;
+  const e4 = model.root.entries.find(isMoveEntry) as PgnMoveNode;
+  const commentId = getMoveCommentsAfter(e4)[0].id;
   const moveId = resolveOwningMoveIdForCommentId(model, commentId);
   assert.equal(moveId, e4.id);
 });
@@ -183,40 +193,41 @@ test("resolveOwningMoveIdForCommentId — empty commentId returns null", () => {
 
 test("findExistingCommentIdAroundMove — finds after-comment", () => {
   const model = parsePgnToModel("1. e4 {after} e5");
-  const e4 = model.root.entries.find(e => e.type === "move") as PgnMoveNode;
+  const e4 = model.root.entries.find(isMoveEntry) as PgnMoveNode;
   const found = findExistingCommentIdAroundMove(model, e4.id, "after");
-  assert.equal(found, e4.commentsAfter[0].id);
+  assert.equal(found, getMoveCommentsAfter(e4)[0].id);
 });
 
 test("findExistingCommentIdAroundMove — returns null when no comment in that position", () => {
   const model = parsePgnToModel("1. e4 e5");
-  const e4 = model.root.entries.find(e => e.type === "move") as PgnMoveNode;
+  const e4 = model.root.entries.find(isMoveEntry) as PgnMoveNode;
   assert.equal(findExistingCommentIdAroundMove(model, e4.id, "after"), null);
 });
 
 test("findExistingCommentIdAroundMove — defaults to after when position omitted", () => {
   const model = parsePgnToModel("1. e4 {after} e5");
-  const e4 = model.root.entries.find(e => e.type === "move") as PgnMoveNode;
+  const e4 = model.root.entries.find(isMoveEntry) as PgnMoveNode;
   const found = findExistingCommentIdAroundMove(model, e4.id);
-  assert.equal(found, e4.commentsAfter[0].id);
+  assert.equal(found, getMoveCommentsAfter(e4)[0].id);
 });
 
 // ── insertCommentAroundMove ────────────────────────────────────────────────────
 
 test("insertCommentAroundMove — inserts new comment after move", () => {
-  const model = parsePgnToModel("1. e4 e5");
-  const e4 = model.root.entries.find(e => e.type === "move") as PgnMoveNode;
+  const model = parseModel("1. e4 e5");
+  const e4 = findMainlineMoveBySan(model, "e4");
   const { model: next, created, insertedCommentId } = insertCommentAroundMove(model, e4.id, "after", "new note");
   assert.equal(created, true);
   assert.ok(insertedCommentId !== null);
-  const nextE4 = (next as typeof model).root.entries.find(e => e.type === "move") as PgnMoveNode;
-  assert.ok(nextE4.commentsAfter.some(c => c.raw === "new note"));
+  expectInvariantSafe(next as typeof model, "insertCommentAroundMove");
+  const nextE4 = findMainlineMoveBySan(next as typeof model, "e4");
+  assert.ok(getMoveCommentsAfter(nextE4).some(c => c.raw === "new note"));
 });
 
 test("insertCommentAroundMove — returns existing comment id without creating", () => {
   const model = parsePgnToModel("1. e4 {existing} e5");
-  const e4 = model.root.entries.find(e => e.type === "move") as PgnMoveNode;
-  const existingId = e4.commentsAfter[0].id;
+  const e4 = model.root.entries.find(isMoveEntry) as PgnMoveNode;
+  const existingId = getMoveCommentsAfter(e4)[0].id;
   const { created, insertedCommentId } = insertCommentAroundMove(model, e4.id, "after");
   assert.equal(created, false);
   assert.equal(insertedCommentId, existingId);
@@ -233,27 +244,27 @@ test("insertCommentAroundMove — unknown moveId returns model unchanged", () =>
 
 test("toggleMoveNag — adds NAG to move", () => {
   const model = parsePgnToModel("1. e4 e5");
-  const e4 = model.root.entries.find(e => e.type === "move") as PgnMoveNode;
+  const e4 = model.root.entries.find(isMoveEntry) as PgnMoveNode;
   const next = toggleMoveNag(model, e4.id, "$1") as typeof model;
-  const nextE4 = next.root.entries.find(e => e.type === "move") as PgnMoveNode;
+  const nextE4 = next.root.entries.find(isMoveEntry) as PgnMoveNode;
   assert.ok(nextE4.nags.includes("$1"));
 });
 
 test("toggleMoveNag — removes NAG when already present", () => {
   const model = parsePgnToModel("1. e4 $1 e5");
-  const e4 = model.root.entries.find(e => e.type === "move") as PgnMoveNode;
+  const e4 = model.root.entries.find(isMoveEntry) as PgnMoveNode;
   assert.ok(e4.nags.includes("$1"));
   const next = toggleMoveNag(model, e4.id, "$1") as typeof model;
-  const nextE4 = next.root.entries.find(e => e.type === "move") as PgnMoveNode;
+  const nextE4 = next.root.entries.find(isMoveEntry) as PgnMoveNode;
   assert.ok(!nextE4.nags.includes("$1"));
 });
 
 test("toggleMoveNag — group exclusivity: adding $2 removes $1", () => {
   // $1 = ! and $2 = ? are in the same move-quality group
   const model = parsePgnToModel("1. e4 $1 e5");
-  const e4 = model.root.entries.find(e => e.type === "move") as PgnMoveNode;
+  const e4 = model.root.entries.find(isMoveEntry) as PgnMoveNode;
   const next = toggleMoveNag(model, e4.id, "$2") as typeof model;
-  const nextE4 = next.root.entries.find(e => e.type === "move") as PgnMoveNode;
+  const nextE4 = next.root.entries.find(isMoveEntry) as PgnMoveNode;
   assert.ok(nextE4.nags.includes("$2"), `nags: ${nextE4.nags}`);
   assert.ok(!nextE4.nags.includes("$1"), `nags: ${nextE4.nags}`);
 });
@@ -266,7 +277,7 @@ test("toggleMoveNag — unknown moveId returns same model reference", () => {
 
 test("toggleMoveNag — does not mutate original model", () => {
   const model = parsePgnToModel("1. e4 e5");
-  const e4 = model.root.entries.find(e => e.type === "move") as PgnMoveNode;
+  const e4 = model.root.entries.find(isMoveEntry) as PgnMoveNode;
   toggleMoveNag(model, e4.id, "$1");
   assert.deepEqual(e4.nags, []);
 });

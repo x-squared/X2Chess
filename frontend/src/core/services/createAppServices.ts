@@ -41,6 +41,7 @@ import {
   stripAnnotationsForBoardParser,
 } from "../../board/move_position";
 import { createMoveSoundPlayer } from "../../board/move_sound";
+import type { MoveSoundPlayer } from "../../board/move_sound";
 import { createBoardNavigationCapabilities } from "../../board/navigation";
 import { createMoveLookupCapabilities } from "../../board/move_lookup";
 import { createPgnRuntimeCapabilities } from "../../features/editor/model/pgn_runtime";
@@ -196,6 +197,7 @@ export type ServicesBundle = {
   sessionPersistence: SessionPersistence;
   moveLookup: MoveLookup;
   navigation: Navigation;
+  moveSoundPlayer: MoveSoundPlayer;
 };
 
 // ── Factory ────────────────────────────────────────────────────────────────────
@@ -609,5 +611,6 @@ export function createAppServicesBundle(
     sessionPersistence,
     moveLookup,
     navigation,
+    moveSoundPlayer,
   };
 }

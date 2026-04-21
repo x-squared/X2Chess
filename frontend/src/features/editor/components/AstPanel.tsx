@@ -18,6 +18,8 @@
 import type { ReactElement } from "react";
 import { useAppContext } from "../../../app/providers/AppStateProvider";
 import { selectPgnModel } from "../../../core/state/selectors";
+import { getMoveCommentsAfter, getMoveRavs } from "../../../../../parts/pgnparser/src/pgn_move_attachments";
+import type { PgnMoveNode } from "../../../../../parts/pgnparser/src/pgn_model";
 
 // ── AST shape types (private — mirrors ast_panel.ts internal types) ────────────
 
@@ -42,8 +44,7 @@ type AstMove = {
   san: string;
   nags: string[];
   commentsBefore: AstComment[];
-  commentsAfter: AstComment[];
-  ravs: AstVariation[];
+  postItems: Array<{ type: "comment"; comment?: AstComment } | { type: "rav"; rav?: AstVariation }>;
 };
 
 type AstEntry =
@@ -100,10 +101,10 @@ const AstMoveNode = ({ move }: { move: AstMove }): ReactElement => (
       {move.commentsBefore.map((c: AstComment, i: number): ReactElement => (
         <AstCommentNode key={`cb-${i}`} comment={c} />
       ))}
-      {move.commentsAfter.map((c: AstComment, i: number): ReactElement => (
+      {getMoveCommentsAfter(move as unknown as PgnMoveNode).map((c: AstComment, i: number): ReactElement => (
         <AstCommentNode key={`ca-${i}`} comment={c} />
       ))}
-      {move.ravs.map((v: AstVariation, i: number): ReactElement => (
+      {getMoveRavs(move as unknown as PgnMoveNode).map((v: AstVariation, i: number): ReactElement => (
         <AstVariationNode key={`rv-${i}`} variation={v} />
       ))}
     </div>

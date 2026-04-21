@@ -75,6 +75,13 @@ export {
 } from "./pgn_commands";
 
 export {
+  collectPgnModelInvariantIssues,
+  isPgnModelStructurallyValid,
+  assertPgnModelInvariants,
+} from "./pgn_invariants";
+export type { PgnInvariantIssue } from "./pgn_invariants";
+
+export {
   NAG_DEFS,
   NAG_BY_CODE,
   NAG_MOVE_QUALITY,
@@ -86,3 +93,13 @@ export {
   siblingCodesInGroup,
 } from "./nag_defs";
 export type { NagDef, NagGroup } from "./nag_defs";
+
+export {
+  getMoveCommentsAfter,
+  getMoveRavs,
+  appendMoveRav,
+  removeMoveRavById,
+  clearMoveRavs,
+  insertAfterCommentBeforeFirstRav,
+  syncMoveAttachmentMirrors,
+} from "./pgn_move_attachments";

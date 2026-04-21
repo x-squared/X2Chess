@@ -14,15 +14,17 @@ const makeMove = (
   san: string,
   commentsAfter: { raw: string }[] = [],
   commentsBefore: { raw: string }[] = [],
-): unknown => ({
+): unknown => {
+  const postItems = commentsAfter.map((comment) => ({ type: "comment" as const, comment }));
+  return {
   type: "move",
   id,
   san,
   commentsBefore,
-  commentsAfter,
   nags: [],
-  ravs: [],
-});
+  postItems,
+  };
+};
 
 const makeComment = (raw: string): unknown => ({
   type: "comment",
@@ -179,9 +181,13 @@ test("resolveAnchors — commentsBefore updates precedingCommentText", () => {
       id: "m2",
       san: "e5",
       commentsBefore: [{ raw: "White's plan is revealed." }],
-      commentsAfter: [{ raw: '[%anchor id="plan" text="Plan revealed"]' }],
       nags: [],
-      ravs: [],
+      postItems: [
+        {
+          type: "comment",
+          comment: { raw: '[%anchor id="plan" text="Plan revealed"]' },
+        },
+      ],
     },
   ]);
   const result = resolveAnchors(model);

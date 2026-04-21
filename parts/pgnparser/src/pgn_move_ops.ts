@@ -4,7 +4,7 @@
  * Integration API:
  * - Exports: `PgnCursor`, `appendMove`, `insertVariation`, `replaceMove`,
  *   `truncateAfter`, `truncateBefore`, `deleteVariation`,
- *   `deleteVariationsAfter`, `promoteToMainline`, `findCursorForMoveId`,
+ *   `deleteVariationsAfter`, `promoteToMainline`, `swapSiblingVariations`, `findCursorForMoveId`,
  *   `findMoveSideById`.
  *
  * Configuration API:
@@ -13,6 +13,38 @@
  * Communication API:
  * - Pure functions; all return a new `PgnModel` (does not mutate the input).
  * - `PgnCursor` identifies a position within the model by move ID.
+ *
+ * Operation-level contracts:
+ * - `appendMove`:
+ *   - Preconditions: `cursor.variationId` must resolve; when `cursor.moveId` is set, that move
+ *     must exist inside the resolved variation.
+ *   - Postconditions: returned cursor points at the newly appended move; model invariants hold.
+ * - `insertVariation`:
+ *   - Preconditions: target variation must resolve; when inserting from non-root cursor, cursor move
+ *     must exist; when inserting from root cursor, target variation must contain a first move.
+ *   - Postconditions: returned cursor points at first move of created variation; model invariants hold.
+ * - `replaceMove`:
+ *   - Preconditions: `cursor.variationId` must resolve; when `cursor.moveId` is set, that move
+ *     must exist inside the resolved variation.
+ *   - Postconditions: returned cursor points at replacement move; model invariants hold.
+ * - `truncateAfter`:
+ *   - Preconditions: when `cursor.moveId` is set, cursor variation must resolve and contain cursor move.
+ *   - Postconditions: returned cursor references previous move or `null`; model invariants hold.
+ * - `truncateBefore`:
+ *   - Preconditions: operation only applies in root variation and requires non-null `cursor.moveId`.
+ *   - Postconditions: returned cursor unchanged when operation applies; model invariants hold.
+ * - `deleteVariation`:
+ *   - Preconditions: cursor variation must be non-root and parent move must be resolvable.
+ *   - Postconditions: returned cursor points at parent move; model invariants hold.
+ * - `promoteToMainline`:
+ *   - Preconditions: cursor variation must be non-root, cursor move must be non-null and resolvable.
+ *   - Postconditions: returned cursor keeps same `moveId` now in parent variation; model invariants hold.
+ * - `deleteVariationsAfter`:
+ *   - Preconditions: cursor variation must resolve; when `cursor.moveId` is set, variation must contain it.
+ *   - Postconditions: all RAVs on/after cursor in that variation are removed; model invariants hold.
+ * - `swapSiblingVariations`:
+ *   - Preconditions: both variation IDs must resolve to non-root variations with the same parent move.
+ *   - Postconditions: sibling order is swapped under the parent move; model invariants hold.
  */
 
 import type {
@@ -20,11 +52,19 @@ import type {
   PgnVariationNode,
   PgnEntryNode,
   PgnMoveNode,
-  PgnMoveNumberNode,
 } from "./pgn_model";
+import { assertPgnModelInvariants } from "./pgn_invariants";
+import {
+  insertBlackMoveNumberAfterRav,
+  maybeInsertMoveNumber,
+  normalizeAfterNullMoveRemoval,
+  prependMoveNumberToRav,
+} from "./pgn_move_numbering";
+import { appendMoveRav, clearMoveRavs, getMoveRavs, removeMoveRavById } from "./pgn_move_attachments";
 
 // ── Cursor type ───────────────────────────────────────────────────────────────
 
+/** A cursor pointing to a specific move in a PGN model. */
 export type PgnCursor = {
   /** ID of the move node this cursor points to. Null = root (before any move). */
   moveId: string | null;
@@ -34,7 +74,13 @@ export type PgnCursor = {
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
-const cloneModel = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+// structuredClone preserves shared references within the object graph.
+const cloneModel = <T>(value: T): T => structuredClone(value);
+const finalizeMutation = (model: PgnModel, context: string): PgnModel =>
+  assertPgnModelInvariants(model, context);
+const assertContract = (condition: boolean, message: string): void => {
+  if (!condition) throw new Error(`pgn_move_ops contract violated: ${message}`);
+};
 
 let _idCounter = 1_000_000; // Start high to avoid collision with parser IDs.
 const nextId = (prefix: string): string => `${prefix}_op${++_idCounter}`;
@@ -45,84 +91,9 @@ const makeMoveNode = (san: string): PgnMoveNode => ({
   san,
   nags: [],
   commentsBefore: [],
-  commentsAfter: [],
-  ravs: [],
   postItems: [],
 });
 
-/**
- * Count move nodes in `entries` before `upToIdx`.
- * Used to determine the ply of a new move being inserted.
- */
-const countMovesBeforeIdx = (entries: PgnEntryNode[], upToIdx: number): number => {
-  let count = 0;
-  for (let i = 0; i < upToIdx && i < entries.length; i += 1) {
-    if (entries[i].type === "move") count += 1;
-  }
-  return count;
-};
-
-/** True when `entry` is a white full-move clock token (`12.`). */
-const isWhiteMoveNumberEntry = (entry: PgnEntryNode | undefined): boolean => {
-  if (!entry || entry.type !== "move_number") return false;
-  const text: string = String((entry as PgnMoveNumberNode).text ?? "").trim();
-  return /^\d+\.$/.test(text);
-};
-
-/**
- * True when SAN was tokenised with the clock glued to the move (`4.Kg5`),
- * so a separate `move_number` must not be inserted before it.
- */
-const moveSanEmbedsWhiteClockPrefix = (san: string): boolean =>
-  /^\d{1,3}\.\S/.test(String(san ?? ""));
-
-/**
- * Insert a move_number node before `insertIdx` when the move about to be
- * inserted is a white move and no move_number is already immediately
- * preceding.  Only applied to the root mainline variation.
- *
- * Skips insertion when the next entry already supplies a white clock (`4.`)
- * or the next move SAN embeds one (`4.Kg5`), so appending (e.g. `--`) after a
- * black half-move does not duplicate the upcoming white move number.
- *
- * Returns the adjusted insertIdx (incremented when a node was inserted).
- */
-const maybeInsertMoveNumber = (
-  model: PgnModel,
-  variation: PgnVariationNode,
-  entries: PgnEntryNode[],
-  insertIdx: number,
-): number => {
-  if (variation.parentMoveId !== null) return insertIdx; // sub-variations: skip
-  const fenHeader = model.headers.find((h) => h.key === "FEN");
-  const startsWhite = fenHeader
-    ? (fenHeader.value.trim().split(/\s+/)[1] ?? "w") !== "b"
-    : true;
-  const preceding = countMovesBeforeIdx(entries, insertIdx);
-  const isWhiteTurn = startsWhite ? preceding % 2 === 0 : preceding % 2 !== 0;
-  const prevEntry = insertIdx > 0 ? entries[insertIdx - 1] : undefined;
-  if (isWhiteTurn && prevEntry?.type !== "move_number") {
-    const nextEntry: PgnEntryNode | undefined =
-      insertIdx < entries.length ? entries[insertIdx] : undefined;
-    if (isWhiteMoveNumberEntry(nextEntry)) {
-      return insertIdx;
-    }
-    if (nextEntry?.type === "move") {
-      const nextSan: string = (nextEntry as PgnMoveNode).san;
-      if (moveSanEmbedsWhiteClockPrefix(nextSan)) {
-        return insertIdx;
-      }
-    }
-    const moveNum = Math.floor(preceding / 2) + 1;
-    entries.splice(insertIdx, 0, {
-      id: nextId("move_number"),
-      type: "move_number",
-      text: `${moveNum}.`,
-    });
-    return insertIdx + 1;
-  }
-  return insertIdx;
-};
 
 const makeVariationNode = (
   depth: number,
@@ -136,6 +107,7 @@ const makeVariationNode = (
   trailingComments: [],
 });
 
+
 /**
  * Walk all variations in depth-first order, calling `visitor` on each.
  * Return `true` from `visitor` to stop traversal.
@@ -147,7 +119,7 @@ const walkVariations = (
   if (visitor(variation)) return true;
   for (const entry of variation.entries) {
     if (entry.type === "move") {
-      for (const rav of (entry as PgnMoveNode).ravs) {
+      for (const rav of getMoveRavs(entry as PgnMoveNode)) {
         if (walkVariations(rav, visitor)) return true;
       }
     }
@@ -195,142 +167,42 @@ const locateVariation = (
   return found;
 };
 
+const assertCursorMoveMatchesVariation = (
+  variation: PgnVariationNode,
+  cursor: PgnCursor,
+  operation: string,
+): void => {
+  if (!cursor.moveId) return;
+  const foundInVariation: boolean = variation.entries.some(
+    (entry: PgnEntryNode): boolean => entry.type === "move" && entry.id === cursor.moveId,
+  );
+  assertContract(
+    foundInVariation,
+    `${operation} precondition: cursor moveId="${cursor.moveId}" must exist in variation "${variation.id}"`,
+  );
+};
+
+const assertCursorTargetsExistingMove = (
+  model: PgnModel,
+  cursor: PgnCursor,
+  operation: string,
+): void => {
+  assertContract(
+    cursor.moveId !== null,
+    `${operation} postcondition: returned cursor must reference a move (non-null moveId)`,
+  );
+  const moveId: string = cursor.moveId ?? "";
+  const moveExists: boolean = !!findMoveNode(model, moveId);
+  assertContract(
+    moveExists,
+    `${operation} postcondition: returned cursor moveId="${moveId}" must reference an existing move`,
+  );
+};
+
 /** True when `entries` contains at least one move node. */
 const hasMoveEntry = (entries: PgnEntryNode[]): boolean =>
   entries.some((entry: PgnEntryNode): boolean => entry.type === "move");
 
-/**
- * Remove move-number tokens that no longer prefix a real move in the same
- * variation (for example `2.` left behind after deleting `--`).
- */
-const pruneDanglingMoveNumbers = (variation: PgnVariationNode): void => {
-  const cleaned: PgnEntryNode[] = [];
-  const source: PgnEntryNode[] = variation.entries;
-  for (let i = 0; i < source.length; i += 1) {
-    const entry: PgnEntryNode = source[i];
-    if (entry.type !== "move_number") {
-      cleaned.push(entry);
-      continue;
-    }
-    let hasMoveAhead: boolean = false;
-    for (let j = i + 1; j < source.length; j += 1) {
-      const lookahead: PgnEntryNode = source[j];
-      if (lookahead.type === "move") {
-        hasMoveAhead = true;
-        break;
-      }
-      if (lookahead.type === "move_number" || lookahead.type === "result") {
-        break;
-      }
-    }
-    if (hasMoveAhead) cleaned.push(entry);
-  }
-  variation.entries = cleaned;
-};
-
-/** True when `text` is a black move-number token (`12...` or `12…`). */
-const isBlackMoveNumberText = (raw: string): boolean => {
-  const text: string = String(raw ?? "");
-  return /^(\d+)\.{3,}$/.test(text) || /^(\d+)…$/.test(text);
-};
-
-/**
- * Remove redundant black move-number tokens (`N...`) that appear after a move
- * already exists earlier in the same variation (e.g. `1. Nf3 1... Nc6`).
- */
-const pruneRedundantBlackMoveNumbers = (variation: PgnVariationNode): void => {
-  const cleaned: PgnEntryNode[] = [];
-  let seenMove: boolean = false;
-  for (const entry of variation.entries) {
-    if (entry.type === "move") {
-      seenMove = true;
-      cleaned.push(entry);
-      continue;
-    }
-    if (entry.type === "move_number" && seenMove && isBlackMoveNumberText((entry as PgnMoveNumberNode).text)) {
-      continue;
-    }
-    cleaned.push(entry);
-  }
-  variation.entries = cleaned;
-};
-
-/**
- * After removing a null move (`--`), drop a redundant black move-number (or a
- * move-number-shaped SAN misparsed as a move) that immediately continues the
- * previous half-move on the same line (e.g. `5. h6 5... Ne5` → `5. h6 Ne5`).
- */
-const stripRedundantBlackNumberingAfterRemovedNullMove = (
-  variation: PgnVariationNode,
-  joinIdx: number,
-): void => {
-  if (joinIdx <= 0 || joinIdx >= variation.entries.length) return;
-  const prev: PgnEntryNode = variation.entries[joinIdx - 1];
-  if (prev.type !== "move") return;
-  let idx: number = joinIdx;
-  while (idx < variation.entries.length) {
-    const cur: PgnEntryNode = variation.entries[idx];
-    if (cur.type === "comment") {
-      idx += 1;
-      continue;
-    }
-    if (cur.type === "move_number") {
-      const text: string = String((cur as PgnMoveNumberNode).text ?? "");
-      if (isBlackMoveNumberText(text)) {
-        variation.entries.splice(idx, 1);
-      }
-      return;
-    }
-    if (cur.type === "move") {
-      const san: string = (cur as PgnMoveNode).san;
-      if (isBlackMoveNumberText(san)) {
-        variation.entries.splice(idx, 1);
-      }
-      return;
-    }
-    return;
-  }
-};
-
-/** Remove consecutive move-number tokens; keep only the last one. */
-const pruneConsecutiveMoveNumbers = (variation: PgnVariationNode): void => {
-  const cleaned: PgnEntryNode[] = [];
-  for (const entry of variation.entries) {
-    if (entry.type === "move_number") {
-      const prev: PgnEntryNode | undefined = cleaned[cleaned.length - 1];
-      if (prev?.type === "move_number") {
-        cleaned[cleaned.length - 1] = entry;
-        continue;
-      }
-    }
-    cleaned.push(entry);
-  }
-  variation.entries = cleaned;
-};
-
-/**
- * Normalize the splice boundary after replacing a null move with continuation
- * entries. If a move is already present immediately before `joinIndex`, the
- * first move_number token at `joinIndex` is redundant and removed.
- */
-const normalizeJoinBoundary = (variation: PgnVariationNode, joinIndex: number): void => {
-  if (joinIndex <= 0 || joinIndex >= variation.entries.length) return;
-  const prev: PgnEntryNode = variation.entries[joinIndex - 1];
-  if (prev.type !== "move") return;
-  let idx: number = joinIndex;
-  while (idx < variation.entries.length) {
-    const entry: PgnEntryNode = variation.entries[idx];
-    if (entry.type === "move_number") {
-      variation.entries.splice(idx, 1);
-      continue;
-    }
-    if (entry.type === "comment") {
-      idx += 1;
-      continue;
-    }
-    break;
-  }
-};
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
@@ -378,6 +250,7 @@ export const appendMove = (
   const cloned = cloneModel(model);
   const variation = locateVariation(cloned, cursor.variationId);
   if (!variation) return [model, cursor];
+  assertCursorMoveMatchesVariation(variation, cursor, "appendMove");
 
   const newMove = makeMoveNode(san);
   // Find insertion point: after cursor.moveId within the variation.
@@ -387,7 +260,7 @@ export const appendMove = (
     );
     if (idx !== -1) {
       let insertIdx = idx + 1;
-      insertIdx = maybeInsertMoveNumber(cloned, variation, variation.entries, insertIdx);
+      insertIdx = maybeInsertMoveNumber(cloned, variation, variation.entries, insertIdx, (): string => nextId("move_number"));
       variation.entries.splice(insertIdx, 0, newMove);
     } else {
       variation.entries.push(newMove);
@@ -397,11 +270,14 @@ export const appendMove = (
     // parseable (a freshly-created game has a result node as the only entry).
     const resultIdx = variation.entries.findIndex((e) => e.type === "result");
     let insertIdx = resultIdx !== -1 ? resultIdx : variation.entries.length;
-    insertIdx = maybeInsertMoveNumber(cloned, variation, variation.entries, insertIdx);
+    insertIdx = maybeInsertMoveNumber(cloned, variation, variation.entries, insertIdx, (): string => nextId("move_number"));
     variation.entries.splice(insertIdx, 0, newMove);
   }
 
-  return [cloned, { moveId: newMove.id, variationId: variation.id }];
+  const finalizedModel: PgnModel = finalizeMutation(cloned, "appendMove");
+  const nextCursor: PgnCursor = { moveId: newMove.id, variationId: variation.id };
+  assertCursorTargetsExistingMove(finalizedModel, nextCursor, "appendMove");
+  return [finalizedModel, nextCursor];
 };
 
 /**
@@ -415,19 +291,45 @@ export const insertVariation = (
   cursor: PgnCursor,
   san: string,
 ): [PgnModel, PgnCursor] => {
-  if (!cursor.moveId) return [model, cursor]; // Cannot branch at root.
+  if (!cursor.moveId) {
+    // At root: attach the RAV to the first move in the variation so the
+    // new line appears as an alternative to that first move in the PGN text.
+    const cloned = cloneModel(model);
+    const variation = locateVariation(cloned, cursor.variationId);
+    if (!variation) return [model, cursor];
+    assertCursorMoveMatchesVariation(variation, cursor, "insertVariation");
+    const firstMoveIdx = variation.entries.findIndex((e) => e.type === "move");
+    if (firstMoveIdx === -1) return [model, cursor];
+    const firstMove = variation.entries[firstMoveIdx] as PgnMoveNode;
+    const childVar = makeVariationNode(variation.depth + 1, firstMove.id);
+    const newMove = makeMoveNode(san);
+    childVar.entries.push(newMove);
+    prependMoveNumberToRav(cloned, variation, firstMoveIdx, childVar, (): string => nextId("move_number"));
+    appendMoveRav(firstMove, childVar);
+    insertBlackMoveNumberAfterRav(cloned, variation, firstMoveIdx, (): string => nextId("move_number"));
+    const finalizedModel: PgnModel = finalizeMutation(cloned, "insertVariation");
+    const nextCursor: PgnCursor = { moveId: newMove.id, variationId: childVar.id };
+    assertCursorTargetsExistingMove(finalizedModel, nextCursor, "insertVariation");
+    return [finalizedModel, nextCursor];
+  }
+
   const cloned = cloneModel(model);
   const loc = locateMove(cloned, cursor.moveId);
   if (!loc) return [model, cursor];
+  assertCursorMoveMatchesVariation(loc.variation, cursor, "insertVariation");
 
   const parentMove = loc.variation.entries[loc.index] as PgnMoveNode;
   const childVar = makeVariationNode(loc.variation.depth + 1, parentMove.id);
   const newMove = makeMoveNode(san);
   childVar.entries.push(newMove);
-  parentMove.ravs.push(childVar);
-  parentMove.postItems.push({ type: "rav", rav: childVar });
+  prependMoveNumberToRav(cloned, loc.variation, loc.index, childVar, (): string => nextId("move_number"));
+  appendMoveRav(parentMove, childVar);
+  insertBlackMoveNumberAfterRav(cloned, loc.variation, loc.index, (): string => nextId("move_number"));
 
-  return [cloned, { moveId: newMove.id, variationId: childVar.id }];
+  const finalizedModel: PgnModel = finalizeMutation(cloned, "insertVariation");
+  const nextCursor: PgnCursor = { moveId: newMove.id, variationId: childVar.id };
+  assertCursorTargetsExistingMove(finalizedModel, nextCursor, "insertVariation");
+  return [finalizedModel, nextCursor];
 };
 
 /**
@@ -447,6 +349,7 @@ export const replaceMove = (
   const cloned = cloneModel(model);
   const variation = locateVariation(cloned, cursor.variationId);
   if (!variation) return [model, cursor];
+  assertCursorMoveMatchesVariation(variation, cursor, "replaceMove");
 
   const newMove = makeMoveNode(san);
 
@@ -465,7 +368,10 @@ export const replaceMove = (
     variation.entries.splice(0, variation.entries.length, newMove);
   }
 
-  return [cloned, { moveId: newMove.id, variationId: variation.id }];
+  const finalizedModel: PgnModel = finalizeMutation(cloned, "replaceMove");
+  const nextCursor: PgnCursor = { moveId: newMove.id, variationId: variation.id };
+  assertCursorTargetsExistingMove(finalizedModel, nextCursor, "replaceMove");
+  return [finalizedModel, nextCursor];
 };
 
 /**
@@ -481,6 +387,9 @@ export const truncateAfter = (
 ): [PgnModel, PgnCursor | null] => {
   if (!cursor.moveId) return [model, null];
   const cloned = cloneModel(model);
+  const variation = locateVariation(cloned, cursor.variationId);
+  if (!variation) return [model, cursor];
+  assertCursorMoveMatchesVariation(variation, cursor, "truncateAfter");
   const loc = locateMove(cloned, cursor.moveId);
   if (!loc) return [model, cursor];
 
@@ -501,7 +410,7 @@ export const truncateAfter = (
     ? { moveId: prevMoveId, variationId: loc.variation.id }
     : null;
 
-  return [cloned, newCursor];
+  return [finalizeMutation(cloned, "truncateAfter"), newCursor];
 };
 
 /**
@@ -536,27 +445,23 @@ export const deleteSingleMove = (
   const soleContinuation: PgnVariationNode | null =
     targetMove &&
     targetMove.san === "--" &&
-    targetMove.ravs.length === 1 &&
+    getMoveRavs(targetMove).length === 1 &&
     !hasMainlineMoveAfterTarget &&
-    hasMoveEntry(targetMove.ravs[0].entries)
-      ? targetMove.ravs[0]
+    hasMoveEntry(getMoveRavs(targetMove)[0].entries)
+      ? getMoveRavs(targetMove)[0]
       : null;
 
   if (soleContinuation) {
     // Promote the only null-move continuation RAV into the parent variation.
     loc.variation.entries.splice(loc.index, 1, ...soleContinuation.entries);
-    normalizeJoinBoundary(loc.variation, loc.index);
-    stripRedundantBlackNumberingAfterRemovedNullMove(loc.variation, loc.index);
+    normalizeAfterNullMoveRemoval(loc.variation, loc.index);
   } else {
     loc.variation.entries.splice(loc.index, 1);
-    stripRedundantBlackNumberingAfterRemovedNullMove(loc.variation, loc.index);
+    normalizeAfterNullMoveRemoval(loc.variation, loc.index);
   }
-  pruneDanglingMoveNumbers(loc.variation);
-  pruneRedundantBlackMoveNumbers(loc.variation);
-  pruneConsecutiveMoveNumbers(loc.variation);
 
   return [
-    cloned,
+    finalizeMutation(cloned, "deleteSingleMove"),
     prevMoveId ? { moveId: prevMoveId, variationId: loc.variation.id } : null,
   ];
 };
@@ -578,15 +483,16 @@ export const deleteVariation = (
 
   const parentLoc = locateMove(cloned, variation.parentMoveId);
   if (!parentLoc) return [model, cursor];
-
-  const parentMove = parentLoc.variation.entries[parentLoc.index] as PgnMoveNode;
-  parentMove.ravs = parentMove.ravs.filter((r) => r.id !== cursor.variationId);
-  parentMove.postItems = parentMove.postItems.filter(
-    (item) => !(item.type === "rav" && item.rav.id === cursor.variationId),
+  assertContract(
+    parentLoc.variation.entries[parentLoc.index]?.type === "move",
+    `deleteVariation precondition: parent move "${variation.parentMoveId}" must be addressable`,
   );
 
+  const parentMove = parentLoc.variation.entries[parentLoc.index] as PgnMoveNode;
+  removeMoveRavById(parentMove, cursor.variationId);
+
   return [
-    cloned,
+    finalizeMutation(cloned, "deleteVariation"),
     { moveId: parentMove.id, variationId: parentLoc.variation.id },
   ];
 };
@@ -611,6 +517,10 @@ export const truncateBefore = (
 
   const cloned = cloneModel(model);
   const rootVar = cloned.root;
+  assertContract(
+    cursor.variationId === rootVar.id,
+    `truncateBefore precondition: cursor variation "${cursor.variationId}" must be root`,
+  );
   const idx = rootVar.entries.findIndex(
     (e) => e.type === "move" && e.id === cursor.moveId,
   );
@@ -629,7 +539,7 @@ export const truncateBefore = (
     else cloned.headers.push({ key: "FEN", value: fenAtCursor });
   }
 
-  return [cloned, cursor];
+  return [finalizeMutation(cloned, "truncateBefore"), cursor];
 };
 
 /**
@@ -651,6 +561,15 @@ export const promoteToMainline = (
   const cloned = cloneModel(model);
   const variation = locateVariation(cloned, cursor.variationId);
   if (!variation || !variation.parentMoveId) return [model, cursor];
+  assertContract(
+    !!cursor.moveId,
+    "promoteToMainline precondition: cursor must reference a move inside promoted variation",
+  );
+  const cursorMoveId: string = cursor.moveId ?? "";
+  assertContract(
+    !!locateMove(cloned, cursorMoveId),
+    `promoteToMainline precondition: cursor move "${cursor.moveId}" must exist`,
+  );
 
   const parentLoc = locateMove(cloned, variation.parentMoveId);
   if (!parentLoc) return [model, cursor];
@@ -666,10 +585,7 @@ export const promoteToMainline = (
   parentLoc.variation.entries.push(...variation.entries);
 
   // Remove promoted variation from parent move's RAV list.
-  parentMove.ravs = parentMove.ravs.filter((r) => r.id !== variation.id);
-  parentMove.postItems = parentMove.postItems.filter(
-    (item) => !(item.type === "rav" && item.rav.id === variation.id),
-  );
+  removeMoveRavById(parentMove, variation.id);
 
   // Demote old mainline as a new variation (if it had moves).
   if (oldContinuation.some((e) => e.type === "move")) {
@@ -678,14 +594,62 @@ export const promoteToMainline = (
       parentMove.id,
     );
     demoted.entries = oldContinuation;
-    parentMove.ravs.unshift(demoted);
-    parentMove.postItems.unshift({ type: "rav", rav: demoted });
+    appendMoveRav(parentMove, demoted, "start");
   }
 
   return [
-    cloned,
+    finalizeMutation(cloned, "promoteToMainline"),
     { moveId: cursor.moveId, variationId: parentLoc.variation.id },
   ];
+};
+
+/**
+ * Swap two sibling variations that share the same parent move.
+ *
+ * Returns the unchanged model when either variation is missing, either one is
+ * root, or both do not share the same parent.
+ *
+ * @param model - Source model.
+ * @param variationIdA - First sibling variation ID.
+ * @param variationIdB - Second sibling variation ID.
+ * @returns Updated model with swapped sibling variation order.
+ */
+export const swapSiblingVariations = (
+  model: PgnModel,
+  variationIdA: string,
+  variationIdB: string,
+): PgnModel => {
+  if (variationIdA === variationIdB) return model;
+
+  const cloned: PgnModel = cloneModel(model);
+  const variationA: PgnVariationNode | null = locateVariation(cloned, variationIdA);
+  const variationB: PgnVariationNode | null = locateVariation(cloned, variationIdB);
+  if (!variationA || !variationB) return model;
+  if (!variationA.parentMoveId || !variationB.parentMoveId) return model;
+  if (variationA.parentMoveId !== variationB.parentMoveId) return model;
+
+  const parentLoc = locateMove(cloned, variationA.parentMoveId);
+  if (!parentLoc) return model;
+  const parentEntry: PgnEntryNode | undefined = parentLoc.variation.entries[parentLoc.index];
+  if (!parentEntry || parentEntry.type !== "move") return model;
+
+  const parentMove: PgnMoveNode = parentEntry;
+  if (!Array.isArray(parentMove.postItems)) parentMove.postItems = [];
+  const ravIndexes: number[] = [];
+  for (let i = 0; i < parentMove.postItems.length; i += 1) {
+    const item = parentMove.postItems[i];
+    if (item.type !== "rav") continue;
+    if (item.rav.id === variationIdA || item.rav.id === variationIdB) ravIndexes.push(i);
+  }
+  if (ravIndexes.length !== 2) return model;
+
+  const firstIndex: number = ravIndexes[0];
+  const secondIndex: number = ravIndexes[1];
+  const firstItem = parentMove.postItems[firstIndex];
+  parentMove.postItems[firstIndex] = parentMove.postItems[secondIndex];
+  parentMove.postItems[secondIndex] = firstItem;
+
+  return finalizeMutation(cloned, "swapSiblingVariations");
 };
 
 /**
@@ -724,7 +688,7 @@ export const findMoveSideById = (
       const move = entry as PgnMoveNode;
       if (move.id === moveId) return ply;
       // RAVs start from the same ply as the current move (before increment).
-      for (const rav of move.ravs) {
+      for (const rav of getMoveRavs(move)) {
         const found = findPly(rav, ply);
         if (found !== null) return found;
       }
@@ -752,6 +716,7 @@ export const deleteVariationsAfter = (
   const cloned = cloneModel(model);
   const variation = locateVariation(cloned, cursor.variationId);
   if (!variation) return [model, cursor];
+  assertCursorMoveMatchesVariation(variation, cursor, "deleteVariationsAfter");
 
   let inRange = cursor.moveId === null;
   for (const entry of variation.entries) {
@@ -759,11 +724,10 @@ export const deleteVariationsAfter = (
       const move = entry as PgnMoveNode;
       if (move.id === cursor.moveId) inRange = true;
       if (inRange) {
-        move.ravs = [];
-        move.postItems = move.postItems.filter((item) => item.type !== "rav");
+        clearMoveRavs(move);
       }
     }
   }
 
-  return [cloned, cursor];
+  return [finalizeMutation(cloned, "deleteVariationsAfter"), cursor];
 };

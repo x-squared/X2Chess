@@ -13,6 +13,9 @@
  *   exported function signatures and typed callback contracts.
  */
 
+import type { PgnModel } from "./pgn_model";
+import { assertPgnModelInvariants } from "./pgn_invariants";
+
 export type X2StyleValue = "plain" | "text" | "tree";
 
 type PgnHeader = {
@@ -20,11 +23,9 @@ type PgnHeader = {
   value: string;
 };
 
-type PgnModel = {
-  headers?: PgnHeader[];
-} & Record<string, unknown>;
-
-const cloneModel = <TValue>(model: TValue): TValue => JSON.parse(JSON.stringify(model)) as TValue;
+const cloneModel = <TValue>(model: TValue): TValue => structuredClone(model);
+const finalizeMutation = (model: PgnModel, context: string): PgnModel =>
+  assertPgnModelInvariants(model, context);
 
 /**
  * Required Seven Tag Roster defaults used when missing in a PGN.
@@ -80,9 +81,14 @@ export const normalizeX2StyleValue = (raw: unknown): X2StyleValue => {
  * @param {string} [fallback=""] - Value returned when key is missing.
  * @returns {string} Header value or fallback.
  */
-export const getHeaderValue = (model: unknown, key: string, fallback: string = ""): string => {
-  const typedModel: PgnModel = (model as PgnModel | null) ?? {};
-  const header: PgnHeader | undefined = typedModel.headers?.find((candidate: PgnHeader): boolean => candidate?.key === key);
+export const getHeaderValue = (
+  model: PgnModel | null | undefined,
+  key: string,
+  fallback: string = "",
+): string => {
+  const header: PgnHeader | undefined = model?.headers?.find(
+    (candidate: PgnHeader): boolean => candidate?.key === key,
+  );
   return String(header?.value ?? fallback);
 };
 
@@ -92,7 +98,7 @@ export const getHeaderValue = (model: unknown, key: string, fallback: string = "
  * @param {object} model - PGN model.
  * @returns {"plain"|"text"|"tree"} Style; missing/invalid header -> `plain`.
  */
-export const getX2StyleFromModel = (model: unknown): X2StyleValue => {
+export const getX2StyleFromModel = (model: PgnModel): X2StyleValue => {
   const raw: string = getHeaderValue(
     model,
     X2_STYLE_HEADER_KEY,
@@ -117,8 +123,8 @@ export const getX2StyleFromModel = (model: unknown): X2StyleValue => {
  * @param {string} value - Target header value.
  * @returns {object} Updated PGN model clone.
  */
-export const setHeaderValue = (model: unknown, key: string, value: string): PgnModel => {
-  const next: PgnModel = cloneModel((model as PgnModel | null) ?? {});
+export const setHeaderValue = (model: PgnModel, key: string, value: string): PgnModel => {
+  const next: PgnModel = cloneModel(model);
   let canonicalKey: string = key;
   if (key === LEGACY_X2_STYLE_HEADER_KEY || key === LEGACY_XTWOCHESS_STYLE_HEADER_KEY) {
     canonicalKey = X2_STYLE_HEADER_KEY;
@@ -151,16 +157,16 @@ export const setHeaderValue = (model: unknown, key: string, value: string): PgnM
 
   if (!normalizedValue) {
     if (existingIndex >= 0) next.headers.splice(existingIndex, 1);
-    return next;
+    return finalizeMutation(next, "setHeaderValue");
   }
 
   if (existingIndex >= 0) {
     next.headers[existingIndex].value = normalizedValue;
-    return next;
+    return finalizeMutation(next, "setHeaderValue");
   }
 
   next.headers.push({ key: canonicalKey, value: normalizedValue });
-  return next;
+  return finalizeMutation(next, "setHeaderValue");
 };
 
 /**
@@ -171,16 +177,16 @@ export const setHeaderValue = (model: unknown, key: string, value: string): PgnM
  * @returns {object} Updated model with all required headers present.
  */
 export const ensureRequiredPgnHeaders = (
-  model: unknown,
+  model: PgnModel,
   requiredDefaults: Record<string, string> = REQUIRED_PGN_TAG_DEFAULTS,
 ): PgnModel => {
-  let next: PgnModel = cloneModel((model as PgnModel | null) ?? {});
+  let next: PgnModel = cloneModel(model);
   Object.entries(requiredDefaults).forEach(([key, fallbackValue]: [string, string]): void => {
     const existing: string = getHeaderValue(next, key, "");
     if (existing.trim()) return;
     next = setHeaderValue(next, key, fallbackValue);
   });
-  return next;
+  return finalizeMutation(next, "ensureRequiredPgnHeaders");
 };
 
 /**
@@ -247,7 +253,7 @@ export const normalizeForChessJs = (source: string): string => {
  * @param {unknown} model - PGN model.
  * @returns {boolean} `true` when the board should be flipped (black at bottom).
  */
-export const deriveInitialBoardFlipped = (model: unknown): boolean => {
+export const deriveInitialBoardFlipped = (model: PgnModel): boolean => {
   const isChess960: boolean =
     getHeaderValue(model, "Variant", "").trim().toLowerCase() === "chess960";
   const fen: string = getHeaderValue(model, "FEN", "").trim();

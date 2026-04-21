@@ -35,6 +35,11 @@ const normalizeMoveNumberTokens = (blocks: PlanBlock[]): PlanBlock[] =>
       }
       const side: string = String(token.dataset?.moveNumberSide ?? "");
       if (side === "black") {
+        const variationDepth: number = Number(token.dataset?.variationDepth ?? 0);
+        if (variationDepth > 0) {
+          normalizedTokens.push(token);
+          continue;
+        }
         let suppressBlack: boolean = false;
         for (let k: number = normalizedTokens.length - 1; k >= 0; k -= 1) {
           const prev: PlanToken = normalizedTokens[k];

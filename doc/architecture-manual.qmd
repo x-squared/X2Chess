@@ -1185,9 +1185,10 @@ parenthesised branch is a RAV.
 ```
 
 The PGN model in X2Chess (`PgnModel`, `PgnVariationNode`, `PgnMoveNode`) is a
-recursive tree whose root is the mainline variation.  Each `PgnMoveNode` may
-carry a list of `ravs` (child `PgnVariationNode[]`), and these child variations
-can themselves contain further `ravs`.
+recursive tree whose root is the mainline variation.  Each `PgnMoveNode` stores
+post-move attachments in `postItems`, where each item is either a comment or a
+RAV (`PgnVariationNode`).  Child variations in `postItems` can themselves
+contain further nested RAVs through their own move nodes.
 
 The move-position index built by `buildMovePositionById`
 ([board/move_position.ts](../frontend/src/board/move_position.ts)) records

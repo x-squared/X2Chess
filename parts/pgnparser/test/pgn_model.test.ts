@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { parsePgnToModel, parseCommentRuns } from "../src/pgn_model.js";
 import type { PgnMoveNode, PgnMoveNumberNode } from "../src/pgn_model.js";
 import { serializeModelToPgn } from "../src/pgn_serialize.js";
+import { getMoveCommentsAfter, getMoveRavs } from "../src/pgn_move_attachments.js";
 import { debugTest } from "../../utils/debug.js";
+import { expectAfterCommentRaws, expectRavCount, parseModel } from "./support/pgn_harness.js";
 
 // ── parseCommentRuns ───────────────────────────────────────────────────────────
 
@@ -108,25 +110,23 @@ test("parsePgnToModel — move ids are stable and unique", () => {
 });
 
 test("parsePgnToModel — parses comment after move", () => {
-  const model = parsePgnToModel("1. e4 {good move} e5");
-  const e4 = model.root.entries.find(e => e.type === "move" && e.san === "e4") as PgnMoveNode;
-  assert.ok(e4);
-  assert.equal(e4.commentsAfter.length, 1);
-  assert.equal(e4.commentsAfter[0].raw, "good move");
+  const model = parseModel("1. e4 {good move} e5");
+  expectAfterCommentRaws(model, "e4", ["good move"]);
 });
 
 test("parsePgnToModel — multiple comments after a move attach to that move", () => {
   const model = parsePgnToModel("1. e4 {intro} {second} e5");
   const e4 = model.root.entries.find(e => e.type === "move" && e.san === "e4") as PgnMoveNode;
-  assert.ok(e4.commentsAfter.length >= 1);
+  assert.ok(getMoveCommentsAfter(e4).length >= 1);
 });
 
 test("parsePgnToModel — parses variation", () => {
-  const model = parsePgnToModel("1. e4 (1. d4 d5) e5");
+  const model = parseModel("1. e4 (1. d4 d5) e5");
   const e4 = model.root.entries.find(e => e.type === "move" && e.san === "e4") as PgnMoveNode;
   assert.ok(e4);
-  assert.equal(e4.ravs.length, 1);
-  const rav = e4.ravs[0];
+  expectRavCount(model, "e4", 1);
+  const ravs = getMoveRavs(e4);
+  const rav = ravs[0];
   assert.equal(rav.type, "variation");
   assert.equal(rav.depth, 1);
   const ravMoves = rav.entries.filter(e => e.type === "move") as PgnMoveNode[];
@@ -136,7 +136,7 @@ test("parsePgnToModel — parses variation", () => {
 test("parsePgnToModel — variation parentMoveId links to branch point", () => {
   const model = parsePgnToModel("1. e4 (1. d4) e5");
   const e4 = model.root.entries.find(e => e.type === "move") as PgnMoveNode;
-  const rav = e4.ravs[0];
+  const rav = getMoveRavs(e4)[0];
   assert.equal(rav.parentMoveId, e4.id);
 });
 
@@ -157,10 +157,10 @@ test("parsePgnToModel — parses result token", () => {
 test("parsePgnToModel — nested variations increment depth", () => {
   const model = parsePgnToModel("1. e4 (1. d4 (1. c4)) e5");
   const e4 = model.root.entries.find(e => e.type === "move") as PgnMoveNode;
-  const outer = e4.ravs[0];
+  const outer = getMoveRavs(e4)[0];
   assert.equal(outer.depth, 1);
   const d4 = outer.entries.find(e => e.type === "move") as PgnMoveNode;
-  const inner = d4.ravs[0];
+  const inner = getMoveRavs(d4)[0];
   assert.equal(inner.depth, 2);
 });
 
@@ -174,18 +174,19 @@ test("parsePgnToModel — postItems preserves comment+rav order", () => {
 test("parsePgnToModel — escape sequences decoded in comments", () => {
   const model = parsePgnToModel(String.raw`1. e4 {line1\nline2}`);
   const e4 = model.root.entries.find(e => e.type === "move") as PgnMoveNode;
-  assert.equal(e4.commentsAfter[0].raw, "line1\nline2");
+  assert.equal(getMoveCommentsAfter(e4)[0].raw, "line1\nline2");
 });
 
 test("parsePgnToModel — comment after last move in rav goes to commentsAfter", () => {
   const model = parsePgnToModel("1. e4 e5 (1... c5 {trailing})");
   debugTest("comment after last move in rav", model, serializeModelToPgn);
   const e5 = model.root.entries.find(e => e.type === "move" && e.san === "e5") as PgnMoveNode;
-  const rav = e5.ravs[0];
+  const rav = getMoveRavs(e5)[0];
   assert.ok(rav, "e5 should have a RAV");
   const c5 = rav.entries.find(e => e.type === "move") as PgnMoveNode;
-  assert.equal(c5.commentsAfter.length, 1);
-  assert.equal(c5.commentsAfter[0].raw, "trailing");
+  const commentsAfter = getMoveCommentsAfter(c5);
+  assert.equal(commentsAfter.length, 1);
+  assert.equal(commentsAfter[0].raw, "trailing");
 });
 
 // FEN: starting position, white to move, move 1

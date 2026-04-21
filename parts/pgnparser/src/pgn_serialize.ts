@@ -59,20 +59,15 @@ const serializeVariation = (variation: PgnVariationNode): string => {
     }
     parts.push(moveEntry.san);
     moveEntry.nags.forEach((nag: string): void => { parts.push(nag); });
-    if (Array.isArray(moveEntry.postItems) && moveEntry.postItems.length > 0) {
-      moveEntry.postItems.forEach((item: PgnPostItem): void => {
-        if (item.type === "comment" && item.comment) {
-          parts.push(serializeComment(item.comment));
-          return;
-        }
-        if (item.type === "rav" && item.rav) {
-          parts.push(`(${serializeVariation(item.rav)})`);
-        }
-      });
-    } else {
-      moveEntry.commentsAfter.forEach((comment: PgnCommentNode): void => { parts.push(serializeComment(comment)); });
-      moveEntry.ravs.forEach((child: PgnVariationNode): void => { parts.push(`(${serializeVariation(child)})`); });
-    }
+    (moveEntry.postItems ?? []).forEach((item: PgnPostItem): void => {
+      if (item.type === "comment" && item.comment) {
+        parts.push(serializeComment(item.comment));
+        return;
+      }
+      if (item.type === "rav" && item.rav) {
+        parts.push(`(${serializeVariation(item.rav)})`);
+      }
+    });
   });
   variation.trailingComments.forEach((comment: PgnCommentNode): void => { parts.push(serializeComment(comment)); });
   return parts
@@ -82,10 +77,9 @@ const serializeVariation = (variation: PgnVariationNode): string => {
     .trim();
 };
 
-export const serializeModelToPgn = (model: unknown): string => {
-  const typedModel: PgnModel = model as PgnModel;
-  const headerLines: string[] = (typedModel.headers || []).map((header: { key: string; value: string }): string => `[${header.key} "${header.value}"]`);
-  const moveText: string = typedModel.root ? serializeVariation(typedModel.root) : "";
+export const serializeModelToPgn = (model: PgnModel): string => {
+  const headerLines: string[] = (model.headers || []).map((header: { key: string; value: string }): string => `[${header.key} "${header.value}"]`);
+  const moveText: string = model.root ? serializeVariation(model.root) : "";
   if (headerLines.length === 0) return moveText;
   return `${headerLines.join("\n")}\n\n${moveText}`.trim();
 };
@@ -147,10 +141,9 @@ export const joinXsqrHeadParts = (parts: string[]): string => {
  * @param model - Parsed `PgnModel`.
  * @returns Movetext fragment only (no headers); empty when there is no root / no moves.
  */
-export const serializeXsqrHeadMovetext = (model: unknown): string => {
-  const typedModel: PgnModel = model as PgnModel;
-  if (!typedModel?.root) return "";
-  return serializeXsqrHeadVariation(typedModel.root);
+export const serializeXsqrHeadMovetext = (model: PgnModel): string => {
+  if (!model.root) return "";
+  return serializeXsqrHeadVariation(model.root);
 };
 
 const serializeXsqrHeadVariation = (variation: PgnVariationNode): string => {
@@ -178,16 +171,12 @@ const serializeXsqrHeadVariation = (variation: PgnVariationNode): string => {
 
     const moveEntry: PgnMoveNode = entry;
     parts.push(moveEntry.san);
-    if (Array.isArray(moveEntry.postItems) && moveEntry.postItems.length > 0) {
-      moveEntry.postItems.forEach((item: PgnPostItem): void => {
-        if (stopped) return;
-        if (item.type === "rav" && item.rav) {
-          stop();
-        }
-      });
-    } else if (Array.isArray(moveEntry.ravs) && moveEntry.ravs.length > 0) {
-      stop();
-    }
+    (moveEntry.postItems ?? []).forEach((item: PgnPostItem): void => {
+      if (stopped) return;
+      if (item.type === "rav" && item.rav) {
+        stop();
+      }
+    });
   });
 
   return joinXsqrHeadParts(parts);

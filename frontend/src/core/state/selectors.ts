@@ -15,6 +15,7 @@
 import type { PgnModel } from "../../../../parts/pgnparser/src/pgn_model";
 import type { AppStoreState, ResourceTabSnapshot, SessionItemState } from "./app_reducer";
 import { findMoveNode } from "../../../../parts/pgnparser/src/pgn_move_ops";
+import { getMoveCommentsAfter } from "../../../../parts/pgnparser/src/pgn_move_attachments";
 import { parseShapes } from "../../board/shape_parser";
 import type { BoardShape } from "../../board/board_shapes";
 import type { ShapePrefs } from "../../runtime/shape_prefs";
@@ -60,7 +61,7 @@ export const selectAnnotationShapes = (state: AppStoreState): BoardShape[] => {
   const moveNode = findMoveNode(model, moveId);
   if (!moveNode) return [];
   const shapes: BoardShape[] = [];
-  for (const comment of moveNode.commentsAfter) {
+  for (const comment of getMoveCommentsAfter(moveNode)) {
     shapes.push(...parseShapes(comment.raw));
   }
   return shapes;

@@ -11,6 +11,7 @@
 import type { PgnModel, PgnMoveNode, PgnEntryNode, PgnCommentNode } from "../../../parts/pgnparser/src/pgn_model";
 import { parseQaAnnotations, hasQaAnnotations } from "../features/resources/services/qa_parser";
 import type { QaAnnotation } from "../features/resources/services/qa_parser";
+import { getMoveCommentsAfter } from "../../../parts/pgnparser/src/pgn_move_attachments";
 
 export type StudyItem = {
   /** Mainline ply index (1-based; ply N = after N half-moves). */
@@ -41,7 +42,7 @@ export const collectStudyItems = (model: PgnModel | null): StudyItem[] => {
 
       // Collect Q/A from comments after this move.
       const qaAnnotations: QaAnnotation[] = [];
-      for (const comment of move.commentsAfter as PgnCommentNode[]) {
+      for (const comment of getMoveCommentsAfter(move) as PgnCommentNode[]) {
         if (hasQaAnnotations(comment.raw)) {
           qaAnnotations.push(...parseQaAnnotations(comment.raw));
         }

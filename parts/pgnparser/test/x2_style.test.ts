@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  getHeaderValue,
   getX2StyleFromModel,
   normalizeX2StyleValue,
   setHeaderValue,
@@ -22,6 +23,10 @@ test("getX2StyleFromModel reads XSqrChessStyle, transitional XTwoChessStyle, or 
   assert.equal(getX2StyleFromModel(withTransitional), "text");
   const withLegacyText = { headers: [{ key: "X2Style", value: "text" }] };
   assert.equal(getX2StyleFromModel(withLegacyText), "text");
+});
+
+test("getHeaderValue — null model returns fallback", () => {
+  assert.equal(getHeaderValue(null, "Event", "?"), "?");
 });
 
 test("setHeaderValue writes canonical XSqrChessStyle key", () => {

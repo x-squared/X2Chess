@@ -207,7 +207,7 @@ test("gotoRelativeStep backward in variation at start — selects parentMoveId",
 
 // ── handleSelectedMoveArrowHotkey ──────────────────────────────────────────────
 
-test("handleSelectedMoveArrowHotkey — returns false when no selected move", () => {
+test("handleSelectedMoveArrowHotkey — falls back to ply navigation when no selected move", () => {
   const session = makeSession({ selectedMoveId: null });
   const sessionRef = { current: session };
   const { handleSelectedMoveArrowHotkey } = createBoardNavigationCapabilities({
@@ -220,10 +220,10 @@ test("handleSelectedMoveArrowHotkey — returns false when no selected move", ()
     playMoveSound: noop,
     onNavigationChange: () => {},
   });
-  assert.equal(handleSelectedMoveArrowHotkey(makeKey("ArrowLeft")), false);
+  assert.equal(handleSelectedMoveArrowHotkey(makeKey("ArrowLeft")), true);
 });
 
-test("handleSelectedMoveArrowHotkey — returns false when no move position found", () => {
+test("handleSelectedMoveArrowHotkey — falls back to ply navigation when no move position found", () => {
   const session = makeSession({ selectedMoveId: "move_1" });
   const sessionRef = { current: session };
   const { handleSelectedMoveArrowHotkey } = createBoardNavigationCapabilities({
@@ -236,7 +236,7 @@ test("handleSelectedMoveArrowHotkey — returns false when no move position foun
     playMoveSound: noop,
     onNavigationChange: () => {},
   });
-  assert.equal(handleSelectedMoveArrowHotkey(makeKey("ArrowLeft")), false);
+  assert.equal(handleSelectedMoveArrowHotkey(makeKey("ArrowLeft")), true);
 });
 
 test("handleSelectedMoveArrowHotkey — returns false for non-arrow keys", () => {

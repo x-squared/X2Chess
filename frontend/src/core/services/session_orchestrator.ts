@@ -28,6 +28,7 @@ import type { AppAction } from "../state/actions";
 import type { PgnResourceRef } from "../../../../parts/resource/src/domain/resource_ref";
 import type { PositionSearchHit, TextSearchHit } from "../../../../parts/resource/src/client/search_coordinator";
 import type { MoveFrequencyEntry } from "../../../../parts/resource/src/domain/move_frequency";
+import type { ChessSoundType } from "../../board/move_sound";
 import type { AppStoreState } from "../state/app_reducer";
 import type { Dispatch } from "react";
 import type { ServicesBundle } from "./createAppServices";
@@ -80,6 +81,9 @@ export const createSessionOrchestrator = (
     ...navOps,
     ...editingOps,
     ...shellOps,
+    playMoveSound: (soundType: ChessSoundType): void => {
+      void bundle.moveSoundPlayer.playMoveSound(soundType);
+    },
 
     // ── Session lifecycle ───────────────────────────────────────────────────
     switchSession: (sessionId: string): void => {

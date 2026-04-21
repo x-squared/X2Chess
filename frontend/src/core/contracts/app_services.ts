@@ -7,6 +7,7 @@ import type { BoardShape } from "../../board/board_shapes";
 import type { ShapePrefs } from "../../runtime/shape_prefs";
 import type { EditorStylePrefs } from "../../runtime/editor_style_prefs";
 import type { DefaultLayoutPrefs } from "../../runtime/default_layout_prefs";
+import type { ChessSoundType } from "../../board/move_sound";
 
 /** All service operations available to the component tree. */
 export type AppStartupServices = {
@@ -64,6 +65,7 @@ export type AppStartupServices = {
   setShowEvalPills: (show: boolean) => void;
   setLocale: (locale: string) => void;
   setMoveDelayMs: (value: number) => void;
+  playMoveSound: (soundType: ChessSoundType) => void;
   setSoundEnabled: (enabled: boolean) => void;
   setPositionPreviewOnHover: (enabled: boolean) => void;
   setDeveloperToolsEnabled: (enabled: boolean) => void;

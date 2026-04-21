@@ -525,3 +525,57 @@ test("text mode starts a new block after a mainline RAV before the continuation"
     "exd5 (mainline continuation) must be in a different block from the last RAV move",
   );
 });
+
+test("text mode keeps variation inline when preceding mainline comment has no trailing break marker", () => {
+  const rav = variation(1, [moveNumber("1..."), move("rv1", "c5")]);
+  const m = model(variation(0, [
+    moveNumber("1."),
+    move("m1", "e4", { commentsAfter: [comment("c1", "note")], ravs: [rav] }),
+  ]));
+  const blocks = textBlocks(m);
+  const blockOfMove = (san: string): number =>
+    blocks.findIndex((b) =>
+      b.tokens.some((t) => t.kind === "inline" && t.tokenType === "move" && t.text === san),
+    );
+  const blockOfComment = (commentId: string): number =>
+    blocks.findIndex((b) =>
+      b.tokens.some((t) => t.kind === "comment" && t.commentId === commentId),
+    );
+
+  assert.notEqual(blockOfMove("c5"), -1, "variation move should be rendered");
+  assert.notEqual(blockOfComment("c1"), -1, "comment should be rendered");
+  assert.equal(
+    blockOfMove("c5"),
+    blockOfComment("c1"),
+    "variation should remain inline when the comment has no trailing break marker",
+  );
+  const commentTok = findCommentToken(blocks, "c1");
+  assert.equal(commentTok?.inlineWithNextVariation, true);
+});
+
+test("text mode breaks variation to next block when comment ends with [[br]]", () => {
+  const rav = variation(1, [moveNumber("1..."), move("rv1", "c5")]);
+  const m = model(variation(0, [
+    moveNumber("1."),
+    move("m1", "e4", { commentsAfter: [comment("c1", "note [[br]]")], ravs: [rav] }),
+  ]));
+  const blocks = textBlocks(m);
+  const blockOfMove = (san: string): number =>
+    blocks.findIndex((b) =>
+      b.tokens.some((t) => t.kind === "inline" && t.tokenType === "move" && t.text === san),
+    );
+  const blockOfComment = (commentId: string): number =>
+    blocks.findIndex((b) =>
+      b.tokens.some((t) => t.kind === "comment" && t.commentId === commentId),
+    );
+
+  assert.notEqual(blockOfMove("c5"), -1, "variation move should be rendered");
+  assert.notEqual(blockOfComment("c1"), -1, "comment should be rendered");
+  assert.notEqual(
+    blockOfMove("c5"),
+    blockOfComment("c1"),
+    "variation should move to a new block when the comment ends with [[br]]",
+  );
+  const commentTok = findCommentToken(blocks, "c1");
+  assert.equal(commentTok?.inlineWithNextVariation, false);
+});

@@ -36,6 +36,17 @@ export const FORMAT_KEYS: Readonly<Record<string, CommentFormat>> = {
   u: "underline",
 } as const;
 
+/**
+ * Returns true when a focus request should auto-enter edit mode.
+ * Only empty comments are auto-opened to avoid disturbing inline layout
+ * for non-empty comment+variation text-mode rendering.
+ */
+export const shouldAutoEnterEditModeOnFocus = (
+  isFocused: boolean,
+  isEditMode: boolean,
+  commentText: string,
+): boolean => isFocused && !isEditMode && commentText.trim().length === 0;
+
 // ── Markdown rendering helpers ────────────────────────────────────────────────
 
 /**
@@ -215,11 +226,17 @@ export const CommentBlock = ({ token, isFocused, onEdit, onEditStart, onFocusHan
     if (ref.current) ref.current.innerText = token.text;
   }, [isEditMode, token.text]);
 
-  /** Move caret to end when this comment should receive focus (new insert). */
+  /** Move caret to end when this comment should receive focus (new insert/focus request). */
   useEffect((): void => {
-    if (!isFocused || !ref.current) return;
+    if (!isFocused) return;
+    if (shouldAutoEnterEditModeOnFocus(isFocused, isEditMode, token.text)) {
+      isFirstEditOfSession.current = true;
+      setIsEditMode(true);
+      return;
+    }
+    if (!isEditMode) return;
+    if (!ref.current) return;
     isFirstEditOfSession.current = true;
-    setIsEditMode(true);
     ref.current.focus();
     const sel: Selection | null = window.getSelection();
     if (!sel) return;
@@ -229,7 +246,7 @@ export const CommentBlock = ({ token, isFocused, onEdit, onEditStart, onFocusHan
     sel.removeAllRanges();
     sel.addRange(range);
     onFocusHandled(token.commentId);
-  }, [isFocused, onFocusHandled, token.commentId]);
+  }, [isFocused, isEditMode, onFocusHandled, token.commentId]);
 
   const handleInput = (e: FormEvent<HTMLDivElement>): void => {
     isUserEditPending.current = true;

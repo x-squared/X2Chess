@@ -383,8 +383,7 @@ export type RichCommentView = {
  *
  * - `[[br]]` markers are rendered as line breaks in the editor view.
  */
-export const buildRichCommentView = (comment: PgnComment, rawText: string): RichCommentView => {
-  void comment;
+export const buildRichCommentView = (_comment: PgnComment, rawText: string): RichCommentView => {
   const visibleText: string = String(rawText ?? "").replaceAll(/\[\[br\]\]/gi, "\n");
   const indentDelta: number = 0;
   const indentDirectiveDepth: number = 0;
@@ -507,8 +506,21 @@ export const buildVariationWalker = (
       }
       if (postItem.type === "rav" && postItem.rav) {
         const child: PgnVariation = postItem.rav;
+        const blockTokens: PlanToken[] = currentBlock(state).tokens;
+        const lastSignificantToken: PlanToken | null = (() => {
+          for (let i: number = blockTokens.length - 1; i >= 0; i -= 1) {
+            const token: PlanToken = blockTokens[i];
+            if (token.kind === "inline" && token.tokenType === "space") continue;
+            return token;
+          }
+          return null;
+        })();
+        const commentKeepsVariationInline: boolean =
+          lastSignificantToken?.kind === "comment" && lastSignificantToken.inlineWithNextVariation;
         const shouldForceTextModeLineBreak: boolean =
-          state.layoutMode === "text" && currentBlock(state).tokens.length > 0;
+          state.layoutMode === "text" &&
+          currentBlock(state).tokens.length > 0 &&
+          !commentKeepsVariationInline;
         if (shouldForceTextModeLineBreak) {
           nextBlock(state);
         }

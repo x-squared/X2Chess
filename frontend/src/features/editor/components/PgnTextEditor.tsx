@@ -78,6 +78,12 @@ import { log } from "../../../logger";
 import { LinearModeView, TreeModeView, buildLastSiblingByParent } from "./PgnEditorModeViews";
 import { TRAILING_VARIATION_BREAK_SENTINEL } from "../model/plan/text_mode";
 
+export const shouldRearmConsumedFocusForInsert = (
+  existingBeforeInsert: string | null,
+  insertedCommentId: string,
+  consumedFocusCommentId: string | null,
+): boolean => existingBeforeInsert === insertedCommentId && consumedFocusCommentId === insertedCommentId;
+
 // ── PgnTextEditor (root) ──────────────────────────────────────────────────────
 
 
@@ -286,10 +292,7 @@ export const PgnTextEditor = (): ReactElement => {
       if (!comment) return;
       // Re-arm autofocus only for the exact repeated-target case:
       // the comment already existed and this same id was already consumed.
-      if (
-        existingBeforeInsert === comment.id &&
-        consumedFocusCommentId === comment.id
-      ) {
+      if (shouldRearmConsumedFocusForInsert(existingBeforeInsert, comment.id, consumedFocusCommentId)) {
         setConsumedFocusCommentId(null);
       }
     },

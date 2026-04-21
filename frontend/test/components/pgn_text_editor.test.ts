@@ -4,6 +4,8 @@ import {
   shouldRenderCommentBlock,
   shouldFocusCommentBlock,
 } from "../../src/features/editor/components/PgnEditorTokenView.js";
+import { shouldAutoEnterEditModeOnFocus } from "../../src/features/editor/components/PgnEditorCommentBlock.js";
+import { shouldRearmConsumedFocusForInsert } from "../../src/features/editor/components/PgnTextEditor.js";
 
 test("shouldRenderCommentBlock renders non-empty comments", () => {
   const result: boolean = shouldRenderCommentBlock(true, true, "c1", null, null);
@@ -44,4 +46,23 @@ test("shouldFocusCommentBlock can be retriggered by consumed-id flip", () => {
 
   const retriggered: boolean = shouldFocusCommentBlock("c1", "c1", null);
   assert.equal(retriggered, true);
+});
+
+test("shouldAutoEnterEditModeOnFocus opens empty focused view comment", () => {
+  const result: boolean = shouldAutoEnterEditModeOnFocus(true, false, "");
+  assert.equal(result, true);
+});
+
+test("shouldAutoEnterEditModeOnFocus does not open non-empty view comment", () => {
+  const result: boolean = shouldAutoEnterEditModeOnFocus(true, false, "note");
+  assert.equal(result, false);
+});
+
+test("shouldRearmConsumedFocusForInsert re-arms only repeated existing target", () => {
+  const yes: boolean = shouldRearmConsumedFocusForInsert("c1", "c1", "c1");
+  const noExisting: boolean = shouldRearmConsumedFocusForInsert(null, "c1", "c1");
+  const noConsumedMatch: boolean = shouldRearmConsumedFocusForInsert("c1", "c1", null);
+  assert.equal(yes, true);
+  assert.equal(noExisting, false);
+  assert.equal(noConsumedMatch, false);
 });

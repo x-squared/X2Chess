@@ -6,6 +6,7 @@ import type {
   PgnMoveNode,
 } from "../../../parts/pgnparser/src/pgn_model";
 import { getMoveRavs } from "../../../parts/pgnparser/src/pgn_move_attachments";
+import { getHeaderValue } from "../../../parts/pgnparser/src/pgn_headers";
 import { log } from "../logger";
 
 /**
@@ -339,7 +340,7 @@ export const buildMovePositionById = (pgnModel: PgnModel): MovePositionIndex => 
   const index: MovePositionIndex = {};
   if (!pgnModel?.root) return index;
 
-  const startFen = pgnModel.headers?.find(h => h.key === "FEN")?.value?.trim();
+  const startFen = getHeaderValue(pgnModel, "FEN").trim();
   const baseGame = startFen ? new Chess(startFen) : new Chess();
 
   walkVariationForIndex({
@@ -453,7 +454,7 @@ export const resolveMovePositionById = (
     return null;
   };
 
-  const startFen = pgnModel.headers?.find(h => h.key === "FEN")?.value?.trim();
+  const startFen = getHeaderValue(pgnModel, "FEN").trim();
   const startGame = startFen ? new Chess(startFen) : new Chess();
   return walkVariation(pgnModel.root, startGame, true, 0);
 };

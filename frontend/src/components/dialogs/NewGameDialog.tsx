@@ -12,8 +12,6 @@
  * Communication API:
  * - `onCreate(pgn: string)` — called with the new game's PGN on confirm.
  * - `onClose()` — called when the dialog is dismissed without creating.
- * - Custom position tab: secondary modal explains FEN fields (info button beside
- *   the FEN input; brief hover delay or click opens it).
  */
 
 import {
@@ -47,6 +45,8 @@ import {
   chess960SpToBackRank,
   chess960SpFromBackRank,
 } from "./PositionSetupBoard";
+import { Chess960PositionPicker } from "./Chess960PositionPicker";
+import { FenHelpDialog } from "./FenHelpDialog";
 import "./dialog.css";
 import "./new_game_dialog.css";
 
@@ -120,65 +120,6 @@ const todayDate = (): string => {
   return `${y}.${m}.${day}`;
 };
 
-// ── Chess960 interactive board (back rank is clickable) ───────────────────────
-
-type Chess960BoardProps = {
-  backRank: string;
-  selectedFile: number | null;
-  onFileClick: (file: number) => void;
-};
-
-/**
- * 8×8 board for Chess960 position selection.
- * Only the bottom row (rank 1, white back rank) is interactive:
- * clicking a piece selects it; clicking a second piece swaps the two.
- * Rank 8 mirrors rank 1 automatically; all other squares are static.
- */
-const Chess960Board = ({ backRank, selectedFile, onFileClick }: Chess960BoardProps): ReactElement => {
-  // Build 64 squares directly from the back rank
-  const squares: string[] = new Array<string>(64).fill("");
-  for (let f = 0; f < 8; f++) {
-    squares[f]      = (backRank[f] ?? "").toLowerCase(); // rank 8: black back rank
-    squares[8 + f]  = "p";                               // rank 7: black pawns
-    squares[48 + f] = "P";                               // rank 2: white pawns
-    squares[56 + f] = backRank[f] ?? "";                 // rank 1: white back rank (interactive)
-  }
-
-  return (
-    <div className="newgame-chess960-preview-board">
-      {squares.map((piece, idx) => {
-        const rankIdx: number = Math.floor(idx / 8);
-        const fileIdx: number = idx % 8;
-        const isLight: boolean   = (rankIdx + fileIdx) % 2 === 0;
-        const interactive: boolean = rankIdx === 7;
-        const selected: boolean    = interactive && fileIdx === selectedFile;
-        const cls: string = [
-          "position-setup-square",
-          isLight ? "light" : "dark",
-          interactive ? "chess960-interactive" : "chess960-static",
-          selected    ? "chess960-selected"    : "",
-        ].filter(Boolean).join(" ");
-        return (
-          <div
-            key={`${rankIdx}-${fileIdx}`}
-            className={cls}
-            onClick={interactive ? (): void => { onFileClick(fileIdx); } : undefined}
-          >
-            {piece && (
-              <div
-                className="position-setup-piece"
-                style={{
-                  backgroundImage: `var(--piece-${piece === piece.toUpperCase() ? "w" : "b"}${piece.toLowerCase()}-image)`,
-                }}
-              />
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-};
-
 // ── NewGameDialog ──────────────────────────────────────────────────────────────
 
 type PositionType = "standard" | "chess960" | "custom";
@@ -202,7 +143,6 @@ export const NewGameDialog = ({ onCreate, onClose }: NewGameDialogProps): ReactE
   const [chess960BackRank, setChess960BackRank] = useState<string>(
     () => chess960SpToBackRank(Math.floor(Math.random() * 960)),
   );
-  const [chess960SelectedFile, setChess960SelectedFile] = useState<number | null>(null);
   const [fen, setFen] = useState<string>(STANDARD_STARTING_FEN);
   const [fenInput, setFenInput] = useState<string>(STANDARD_STARTING_FEN);
   const [fenError, setFenError] = useState<string | null>(null);
@@ -229,46 +169,28 @@ export const NewGameDialog = ({ onCreate, onClose }: NewGameDialogProps): ReactE
   }, []);
 
   useEffect((): (() => void) => {
-    return (): void => {
-      clearFenHelpHoverTimer();
-    };
+    return (): void => { clearFenHelpHoverTimer(); };
   }, [clearFenHelpHoverTimer]);
 
   const openFenHelpDialog = useCallback((): void => {
-    const dlg: HTMLDialogElement | null = fenHelpDialogRef.current;
-    if (dlg === null || dlg.open) {
-      return;
-    }
+    const dlg = fenHelpDialogRef.current;
+    if (!dlg || dlg.open) return;
     dlg.showModal();
     setFenHelpDialogOpen(true);
   }, []);
 
   const closeFenHelpDialog = useCallback((): void => {
-    const dlg: HTMLDialogElement | null = fenHelpDialogRef.current;
-    if (dlg === null || !dlg.open) {
-      return;
-    }
+    const dlg = fenHelpDialogRef.current;
+    if (!dlg || !dlg.open) return;
     dlg.close();
     setFenHelpDialogOpen(false);
   }, []);
 
-  const handleFenHelpDialogClose = useCallback((): void => {
-    setFenHelpDialogOpen(false);
-  }, []);
-
   const toggleFenHelpDialog = useCallback((): void => {
-    const dlg: HTMLDialogElement | null = fenHelpDialogRef.current;
-    if (dlg === null) {
-      return;
-    }
-    if (dlg.open) {
-      closeFenHelpDialog();
-    } else {
-      openFenHelpDialog();
-    }
+    fenHelpDialogRef.current?.open ? closeFenHelpDialog() : openFenHelpDialog();
   }, [openFenHelpDialog, closeFenHelpDialog]);
 
-  const FEN_HELP_HOVER_MS: number = 280;
+  const FEN_HELP_HOVER_MS = 280;
 
   const onFenHelpButtonMouseEnter = useCallback((): void => {
     clearFenHelpHoverTimer();
@@ -288,7 +210,6 @@ export const NewGameDialog = ({ onCreate, onClose }: NewGameDialogProps): ReactE
   );
   const isChess960: boolean = chess960Override ?? chess960Detected;
 
-  // Derived SP number for Chess960 mode; null when the current arrangement is not valid Chess960.
   const currentSp = useMemo(
     (): number | null => chess960SpFromBackRank(chess960BackRank),
     [chess960BackRank],
@@ -311,22 +232,6 @@ export const NewGameDialog = ({ onCreate, onClose }: NewGameDialogProps): ReactE
     setChess960Override(null);
   }, []);
 
-  const handleChess960FileClick = useCallback((file: number): void => {
-    if (chess960SelectedFile === null) {
-      setChess960SelectedFile(file);
-    } else if (chess960SelectedFile === file) {
-      setChess960SelectedFile(null);
-    } else {
-      const arr: string[] = chess960BackRank.split("");
-      const a: string = arr[chess960SelectedFile] ?? "";
-      const b: string = arr[file] ?? "";
-      arr[chess960SelectedFile] = b;
-      arr[file] = a;
-      setChess960BackRank(arr.join(""));
-      setChess960SelectedFile(null);
-    }
-  }, [chess960SelectedFile, chess960BackRank]);
-
   const handleMetaCommit = useCallback((key: string, value: string): void => {
     setMeta((m) => ({ ...m, [key]: value }));
   }, []);
@@ -336,7 +241,7 @@ export const NewGameDialog = ({ onCreate, onClose }: NewGameDialogProps): ReactE
     let isCustom: boolean;
     let effectiveIsChess960: boolean;
     if (positionType === "chess960") {
-      const wr: string = chess960BackRank;
+      const wr = chess960BackRank;
       startFen = `${wr.toLowerCase()}/pppppppp/8/8/8/8/PPPPPPPP/${wr} w KQkq - 0 1`;
       isCustom = true;
       effectiveIsChess960 = true;
@@ -446,71 +351,12 @@ export const NewGameDialog = ({ onCreate, onClose }: NewGameDialogProps): ReactE
               </label>
             </div>
 
-            {/* Chess960 position picker */}
             {positionType === "chess960" && (
-              <div className="newgame-chess960-picker">
-
-                {/* SP navigation row */}
-                <div className="newgame-chess960-sp-row">
-                  <button
-                    type="button"
-                    className="x2-dialog-btn x2-dialog-btn--ghost newgame-chess960-nav-btn"
-                    onClick={(): void => {
-                      if (currentSp !== null && currentSp > 0) {
-                        setChess960BackRank(chess960SpToBackRank(currentSp - 1));
-                        setChess960SelectedFile(null);
-                      }
-                    }}
-                    aria-label={t("newgame.chess960.prev", "Previous position")}
-                    disabled={currentSp === null || currentSp === 0}
-                  >
-                    ←
-                  </button>
-                  <span className={`newgame-chess960-sp-label${currentSp === null ? " invalid" : ""}`}>
-                    {currentSp !== null
-                      ? `${t("newgame.chess960.sp", "SP")} ${currentSp}`
-                      : t("newgame.chess960.spInvalid", "— invalid —")}
-                  </span>
-                  <button
-                    type="button"
-                    className="x2-dialog-btn x2-dialog-btn--ghost newgame-chess960-nav-btn"
-                    onClick={(): void => {
-                      if (currentSp !== null && currentSp < 959) {
-                        setChess960BackRank(chess960SpToBackRank(currentSp + 1));
-                        setChess960SelectedFile(null);
-                      }
-                    }}
-                    aria-label={t("newgame.chess960.next", "Next position")}
-                    disabled={currentSp === null || currentSp === 959}
-                  >
-                    →
-                  </button>
-                  <button
-                    type="button"
-                    className="x2-dialog-btn x2-dialog-btn--ghost"
-                    onClick={(): void => {
-                      setChess960BackRank(chess960SpToBackRank(Math.floor(Math.random() * 960)));
-                      setChess960SelectedFile(null);
-                    }}
-                  >
-                    {t("newgame.chess960.random", "Random")}
-                  </button>
-                </div>
-
-                {/* Hint */}
-                <p className="newgame-chess960-hint">
-                  {t("newgame.chess960.hint",
-                    "Click a piece on the bottom row to select it, then click another to swap.")}
-                </p>
-
-                {/* Interactive board */}
-                <Chess960Board
-                  backRank={chess960BackRank}
-                  selectedFile={chess960SelectedFile}
-                  onFileClick={handleChess960FileClick}
-                />
-
-              </div>
+              <Chess960PositionPicker
+                backRank={chess960BackRank}
+                onBackRankChange={setChess960BackRank}
+                t={t}
+              />
             )}
 
             {positionType === "custom" && (
@@ -529,7 +375,6 @@ export const NewGameDialog = ({ onCreate, onClose }: NewGameDialogProps): ReactE
                       }}
                       spellCheck={false}
                     />
-                    {/* FEN notation — opens help on click or after brief hover */}
                     <button
                       type="button"
                       className="newgame-fen-info-btn"
@@ -574,7 +419,6 @@ export const NewGameDialog = ({ onCreate, onClose }: NewGameDialogProps): ReactE
                   t={t}
                 />
 
-                {/* Side to move */}
                 <div className="newgame-side-row">
                   <span className="newgame-side-label">{t("newgame.sideToMove", "Side to move:")}</span>
                   <label className="newgame-radio-label">
@@ -605,7 +449,6 @@ export const NewGameDialog = ({ onCreate, onClose }: NewGameDialogProps): ReactE
                   </label>
                 </div>
 
-                {/* Castling rights */}
                 <div className="newgame-castling-row">
                   <span className="newgame-castling-label">{t("newgame.castling", "Castling rights:")}</span>
                   {(["K","Q","k","q"] as const).map((c) => {
@@ -633,7 +476,6 @@ export const NewGameDialog = ({ onCreate, onClose }: NewGameDialogProps): ReactE
                   })}
                 </div>
 
-                {/* Chess960 badge */}
                 {(chess960Detected || chess960Override !== null) && (
                   <div className="newgame-chess960-row">
                     <label className="newgame-chess960-label">
@@ -721,86 +563,11 @@ export const NewGameDialog = ({ onCreate, onClose }: NewGameDialogProps): ReactE
       </div>
     </dialog>
 
-    {/* FEN notation — nested modal (above New Game in top layer) */}
-    <dialog
-      id="newgame-fen-help-dialog"
-      ref={fenHelpDialogRef}
-      className="newgame-fen-help-dialog x2-dialog"
-      data-ui-id={UI_IDS.NEW_GAME_FEN_HELP_DIALOG}
-      onClose={handleFenHelpDialogClose}
-    >
-      <div className="newgame-fen-help-inner">
-        <p className="x2-dialog-title newgame-fen-help-title">
-          {t("newgame.fenHelp.title", "About FEN")}
-        </p>
-        <div className="newgame-fen-help-sections">
-          <section className="newgame-fen-help-section">
-            <h3 className="newgame-fen-help-section-title">
-              {t("newgame.fenHelp.section.placement", "Piece placement")}
-            </h3>
-            <ul className="newgame-fen-help-list">
-              <li>{t("newgame.fenHelp.placement.l1", "The board is written rank by rank from the 8th rank to the 1st.")}</li>
-              <li>{t("newgame.fenHelp.placement.l2", "Within each rank, files run from a to h.")}</li>
-              <li>{t("newgame.fenHelp.placement.l3", "Pieces use letters: uppercase for White, lowercase for Black.")}</li>
-              <li>{t("newgame.fenHelp.placement.l4", "Empty squares are compressed as numbers.")}</li>
-              <li>{t("newgame.fenHelp.placement.l5", "Slashes separate ranks.")}</li>
-            </ul>
-          </section>
-          <section className="newgame-fen-help-section">
-            <h3 className="newgame-fen-help-section-title">
-              {t("newgame.fenHelp.section.sideToMove", "Side to move")}
-            </h3>
-            <ul className="newgame-fen-help-list">
-              <li>{t("newgame.fenHelp.sideToMove.l1", "w means White to move.")}</li>
-              <li>{t("newgame.fenHelp.sideToMove.l2", "b means Black to move.")}</li>
-            </ul>
-          </section>
-          <section className="newgame-fen-help-section">
-            <h3 className="newgame-fen-help-section-title">
-              {t("newgame.fenHelp.section.castling", "Castling rights")}
-            </h3>
-            <ul className="newgame-fen-help-list">
-              <li>{t("newgame.fenHelp.castling.l1", "K — White can castle kingside.")}</li>
-              <li>{t("newgame.fenHelp.castling.l2", "Q — White can castle queenside.")}</li>
-              <li>{t("newgame.fenHelp.castling.l3", "k — Black can castle kingside.")}</li>
-              <li>{t("newgame.fenHelp.castling.l4", "q — Black can castle queenside.")}</li>
-              <li>{t("newgame.fenHelp.castling.l5", "- means no castling is available.")}</li>
-            </ul>
-          </section>
-          <section className="newgame-fen-help-section">
-            <h3 className="newgame-fen-help-section-title">
-              {t("newgame.fenHelp.section.enPassant", "En passant target square")}
-            </h3>
-            <ul className="newgame-fen-help-list">
-              <li>{t("newgame.fenHelp.enPassant.l1", "If a pawn just advanced two squares, this field shows the square behind it.")}</li>
-              <li>{t("newgame.fenHelp.enPassant.l2", "If no en passant capture is possible, use -.")}</li>
-            </ul>
-          </section>
-          <section className="newgame-fen-help-section">
-            <h3 className="newgame-fen-help-section-title">
-              {t("newgame.fenHelp.section.halfmove", "Halfmove clock")}
-            </h3>
-            <ul className="newgame-fen-help-list">
-              <li>{t("newgame.fenHelp.halfmove.l1", "Counts half-moves since the last pawn move or capture.")}</li>
-              <li>{t("newgame.fenHelp.halfmove.l2", "Used for the 50-move draw rule.")}</li>
-            </ul>
-          </section>
-          <section className="newgame-fen-help-section">
-            <h3 className="newgame-fen-help-section-title">
-              {t("newgame.fenHelp.section.fullmove", "Fullmove number")}
-            </h3>
-            <ul className="newgame-fen-help-list">
-              <li>{t("newgame.fenHelp.fullmove.l1", "Starts at 1 and increases after Black's move.")}</li>
-            </ul>
-          </section>
-        </div>
-        <div className="newgame-fen-help-footer">
-          <button type="button" className="x2-dialog-btn x2-dialog-btn--primary" onClick={closeFenHelpDialog}>
-            {t("newgame.fenHelp.close", "Close")}
-          </button>
-        </div>
-      </div>
-    </dialog>
+    <FenHelpDialog
+      dialogRef={fenHelpDialogRef}
+      onClose={(): void => { setFenHelpDialogOpen(false); }}
+      t={t}
+    />
     </>
   );
 };

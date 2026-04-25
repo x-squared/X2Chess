@@ -71,6 +71,14 @@ export interface PgnResourceAdapter {
   create?(resourceRef: PgnResourceRef, pgnText: string, title: string): Promise<PgnCreateGameResult>;
 
   /**
+   * Delete one game from a resource.
+   * Optional: adapters that are read-only or immutable can omit this method.
+   *
+   * @param gameRef Game locator.
+   */
+  delete?(gameRef: PgnGameRef): Promise<void>;
+
+  /**
    * Move `gameRef` to immediately after `afterRef` in display order.
    * Pass `null` for `afterRef` to move the game to the front.
    * Optional: only adapters that support explicit ordering need to implement this.

@@ -1,6 +1,7 @@
 {
   "menu.open": "Open menu",
   "menu.close": "Close menu",
+  "menu.newGame": "New game\u2026",
   "menu.title": "Menu",
   "controls.first": "|<",
   "controls.prev": "<",
@@ -44,8 +45,8 @@
   "gameInfo.event.empty": "-",
   "gameInfo.date.empty": "-",
   "gameInfo.opening.empty": "-",
-  "gameInfo.xsqrHead": "XSqr head",
-  "gameInfo.xsqrHead.hint": "Main line moves only (no comments or symbols), up to the first variation or end of game (saved as XSqrHead)",
+  "gameInfo.head": "XSqr head",
+  "gameInfo.head.hint": "Main line moves only (no comments or symbols), up to the first variation or end of game (saved as Head)",
   "status.label": "Position",
   "pgn.label": "PGN input",
   "pgn.placeholder": "Paste or drop PGN text here.\n\nExample:\n1. e4 e5 2. Nf3 Nc6 3. Bb5 a6",

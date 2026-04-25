@@ -354,14 +354,14 @@
   user-select: none;
 }
 
-.metadata-field-game-link {
+.metadata-field-reference {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
   min-height: 1.75rem;
 }
 
-.metadata-field-game-link-label {
+.metadata-field-reference-label {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -370,7 +370,7 @@
   font-size: 0.82rem;
 }
 
-.metadata-field-game-link-chip {
+.metadata-field-reference-chip {
   display: inline-block;
   padding: 0.1rem 0.45rem;
   border-radius: 999px;
@@ -383,13 +383,13 @@
   white-space: nowrap;
 }
 
-.metadata-field-game-link-empty {
+.metadata-field-reference-empty {
   color: var(--text-secondary);
   font-style: italic;
   font-size: 0.78rem;
 }
 
-.metadata-field-game-link-btn {
+.metadata-field-reference-btn {
   flex-shrink: 0;
   font-size: 0.78rem;
   padding: 0.15rem 0.5rem;
@@ -402,11 +402,11 @@
   white-space: nowrap;
 }
 
-.metadata-field-game-link-btn:hover {
+.metadata-field-reference-btn:hover {
   background: var(--surface-3, #e2e8f0);
 }
 
-.metadata-field-game-link-clear {
+.metadata-field-reference-clear {
   flex-shrink: 0;
   width: 1.25rem;
   height: 1.25rem;
@@ -423,8 +423,22 @@
   padding: 0;
 }
 
-.metadata-field-game-link-clear:hover {
+.metadata-field-reference-clear:hover {
   background: var(--surface-3, #e2e8f0);
   color: var(--text-primary);
+}
+
+.metadata-field-inherited-wrap {
+  display: inline-flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 0.15rem;
+}
+
+.metadata-field-inherited-hint {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  font-style: italic;
+  user-select: none;
 }
 

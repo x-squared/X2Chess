@@ -62,18 +62,6 @@ const LayoutModeGroup = ({ layoutMode, t, onSetLayoutMode }: LayoutModeGroupProp
     data-ui-id={UI_IDS.EDITOR_SIDEBAR_LAYOUT_GROUP}
   >
     <button
-      id="btn-pgn-layout-plain"
-      data-ui-id={UI_IDS.EDITOR_SIDEBAR_LAYOUT_PLAIN}
-      type="button"
-      data-pgn-layout="plain"
-      className={`icon-button${layoutMode === "plain" ? " active" : ""}`}
-      title={t("toolbar.pgnLayout.plain", "Plain — literal PGN")}
-      aria-pressed={layoutMode === "plain" ? "true" : "false"}
-      onClick={(): void => { onSetLayoutMode("plain"); }}
-    >
-      <img src="/icons/toolbar/mode-plain.svg" alt={t("toolbar.pgnLayout.plainShort", "Plain")} />
-    </button>
-    <button
       id="btn-pgn-layout-text"
       type="button"
       data-pgn-layout="text"

@@ -2,7 +2,7 @@ import { Chess } from "chess.js";
 import type { Move } from "chess.js";
 import type { GameSessionState } from "./game_session_state";
 import type { MovePositionIndex } from "../../../board/move_position";
-import { normalizeForChessJs } from "../../../../../parts/pgnparser/src/pgn_headers";
+import { getHeaderValue, normalizeForChessJs } from "../../../../../parts/pgnparser/src/pgn_headers";
 import { log } from "../../../logger";
 
 /** Walk mainline entries from pgnModel.root and return their SANs. */
@@ -35,8 +35,7 @@ const findFirstFailingSan = (fenHeader: string, mainlineSans: string[]): number 
 
 /** Log a detailed diagnostic when chess.js rejects a PGN both raw and stripped. */
 const logChessJsRejection = (pgnModel: unknown, primaryErr: unknown, fallbackErr: unknown): void => {
-  const fenHeader = (pgnModel as { headers?: Array<{ key: string; value: string }> })
-    ?.headers?.find(h => h.key === "FEN")?.value ?? "(none)";
+  const fenHeader = getHeaderValue(pgnModel as Parameters<typeof getHeaderValue>[0], "FEN") || "(none)";
   const mainlineSans = extractMainlineSans(pgnModel);
   const firstFailIndex = findFirstFailingSan(fenHeader, mainlineSans);
   const failDetail = firstFailIndex >= 0

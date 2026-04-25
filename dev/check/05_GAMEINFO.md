@@ -7,7 +7,7 @@ area: Game info and metadata headers
 - `frontend/src/features/editor/components/GameInfoEditor.tsx` — fold-down header editor (includes readonly XSqr head)
 - `frontend/src/features/editor/model/game_info.ts` — header field defs and normalization
 - `frontend/src/features/editor/model/game_info_ui_ids.ts` — stable `data-ui-id` values for game-info tooling
-- `frontend/src/core/services/createAppServices.ts` — save path merges `[XSqrHead]` via `getPgnText`
+- `frontend/src/core/services/createAppServices.ts` — save path merges `[Head]` via `getPgnText`
 - `parts/pgnparser/src/pgn_serialize.ts` — `serializeXsqrHeadMovetext`, full PGN serialization
 - `parts/resource/src/domain/metadata_schema.ts` — canonical metadata field schema
 - `dev/plans/metadata_definition_system_d1e2f3a4.plan.md` — metadata types, dialog, export/import design
@@ -17,7 +17,7 @@ See dev/check/00_README.md. These rules must be strictly adhered to when this fi
 
 ## Checklist
 
-- [ ] **GAMEINFO-5** — Open the game-info editor (▼): **XSqr head** shows readonly mainline **moves only** (selectable); after save, the saved PGN contains `[XSqrHead "..."]` matching that prefix (through the first variation or end of main line).
+- [ ] **GAMEINFO-5** — Open the game-info editor (▼): **XSqr head** shows readonly mainline **moves only** (selectable); after save, the saved PGN contains `[Head "..."]` matching that prefix (through the first variation or end of main line).
 
 ## ---------- Completed -----------------------------------------
 

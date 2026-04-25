@@ -30,12 +30,20 @@ import { asMetaRow, makeWritePositionIndex, makeWriteMoveEdgeIndex, writeMetadat
 
 // ── Per-path migration cache ───────────────────────────────────────────────────
 
-const migratedPaths = new Set<string>();
+// Stores the in-flight (or settled) migration Promise per path.
+// Two concurrent callers on the same new path share one Promise instead of
+// racing to insert duplicate schema_version rows.
+const migrationPromises = new Map<string, Promise<void>>();
 
-const ensureMigrated = async (db: DbGateway, dbPath: string): Promise<void> => {
-  if (migratedPaths.has(dbPath)) return;
-  await runMigrations(db);
-  migratedPaths.add(dbPath);
+const ensureMigrated = (db: DbGateway, dbPath: string): Promise<void> => {
+  const existing = migrationPromises.get(dbPath);
+  if (existing !== undefined) return existing;
+  const promise = runMigrations(db).catch((err) => {
+    migrationPromises.delete(dbPath);
+    throw err;
+  });
+  migrationPromises.set(dbPath, promise);
+  return promise;
 };
 
 // ── Primitive-safe string extraction ──────────────────────────────────────────
@@ -328,6 +336,21 @@ export const createDbAdapter = (
       revisionToken,
       title: titleHint,
     };
+  },
+
+  delete: async (gameRef: PgnGameRef): Promise<void> => {
+    const dbPath = String(gameRef.locator || "").trim();
+    const gameId = String(gameRef.recordId || "").trim();
+    if (!dbPath) throw new PgnResourceError("validation_failed", "DB game ref is missing locator.");
+    if (!gameId) throw new PgnResourceError("validation_failed", "DB game ref is missing recordId.");
+    const db = gatewayForPath(dbPath);
+    await ensureMigrated(db, dbPath);
+    await db.transaction(async (tx) => {
+      await tx.execute("DELETE FROM game_metadata WHERE game_id = ?", [gameId]);
+      await tx.execute("DELETE FROM position_hashes WHERE game_id = ?", [gameId]);
+      await tx.execute("DELETE FROM move_edges WHERE game_id = ?", [gameId]);
+      await tx.execute("DELETE FROM games WHERE id = ?", [gameId]);
+    });
   },
 
   searchByPositionHash: async (positionHash: string, resourceRef: PgnResourceRef): Promise<PgnGameRef[]> => {

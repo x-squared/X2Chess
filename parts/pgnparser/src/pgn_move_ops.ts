@@ -57,11 +57,13 @@ import { assertPgnModelInvariants } from "./pgn_invariants";
 import {
   insertBlackMoveNumberAfterRav,
   insertBlackMoveNumberBeforeRavContinuation,
+  maybeInsertNestedVariationWhiteMoveNumber,
   maybeInsertMoveNumber,
   normalizeAfterNullMoveRemoval,
   prependMoveNumberToRav,
 } from "./pgn_move_numbering";
 import { appendMoveRav, clearMoveRavs, getMoveRavs, removeMoveRavById } from "./pgn_move_attachments";
+import { getHeaderValue } from "./pgn_headers";
 
 // ── Cursor type ───────────────────────────────────────────────────────────────
 
@@ -262,6 +264,12 @@ export const appendMove = (
     if (idx !== -1) {
       let insertIdx = idx + 1;
       insertIdx = maybeInsertMoveNumber(cloned, variation, variation.entries, insertIdx, (): string => nextId("move_number"));
+      insertIdx = maybeInsertNestedVariationWhiteMoveNumber(
+        variation,
+        variation.entries,
+        insertIdx,
+        (): string => nextId("move_number"),
+      );
       const parentEntry = variation.entries[idx];
       const parentMove: PgnMoveNode | null = parentEntry?.type === "move" ? (parentEntry as PgnMoveNode) : null;
       const hasRavChildren: boolean = !!parentMove && getMoveRavs(parentMove).length > 0;
@@ -684,12 +692,8 @@ export const findMoveSideById = (
   model: PgnModel,
   moveId: string,
 ): "white" | "black" | null => {
-  const fenHeader = model.headers.find((h) => h.key === "FEN")?.value;
-  let startSide: "white" | "black" = "white";
-  if (fenHeader) {
-    const parts = fenHeader.trim().split(/\s+/);
-    if (parts[1] === "b") startSide = "black";
-  }
+  const startSide: "white" | "black" =
+    getHeaderValue(model, "FEN").trim().split(/\s+/)[1] === "b" ? "black" : "white";
 
   // Returns the 0-based ply index of moveId, or null.
   const findPly = (

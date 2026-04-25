@@ -3,6 +3,7 @@ import type { MovePositionRecord } from "./move_position";
 import type { ChessSoundType } from "./move_sound";
 import type { ActiveSessionRef } from "../features/sessions/services/game_session_state";
 import { log } from "../logger";
+import { getHeaderValue } from "../../../parts/pgnparser/src/pgn_headers";
 
 /**
  * Navigation module.
@@ -101,7 +102,7 @@ export const createBoardNavigationCapabilities = ({
 
     const isStalemateNow = (() => {
       try {
-        const startFen = g.pgnModel?.headers?.find((h) => h.key === "FEN")?.value?.trim();
+        const startFen = getHeaderValue(g.pgnModel, "FEN").trim();
         const game = startFen ? new Chess(startFen) : new Chess();
         for (let i = 0; i < plyAfterStep; i += 1) {
           game.move(g.moves[i]);

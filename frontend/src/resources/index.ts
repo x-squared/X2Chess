@@ -25,6 +25,7 @@ type SaveResult = Awaited<ReturnType<SourceGateway["saveBySourceRef"]>>;
 type CreateResult = Awaited<ReturnType<SourceGateway["createGameInResource"]>>;
 type ChooseResourceResult = Awaited<ReturnType<SourceGateway["chooseResourceByPicker"]>>;
 type ChooseFileResult = Awaited<ReturnType<SourceGateway["chooseFileByPicker"]>>;
+type ChooseDatabaseResult = Awaited<ReturnType<SourceGateway["chooseDatabaseByPicker"]>>;
 type ChooseFolderResult = Awaited<ReturnType<SourceGateway["chooseFolderByPicker"]>>;
 type CreateResourceByKindResult = Awaited<ReturnType<SourceGateway["createResourceByKind"]>>;
 
@@ -84,6 +85,20 @@ export const createResourcesCapabilities = ({
     } catch (error: unknown) {
       const msg: string = error instanceof Error ? error.message : String(error);
       onSetSaveStatus(msg || t("resources.error", "Unable to open resource file."), "error");
+      return null;
+    }
+  };
+
+  const chooseDatabaseResource = async (): Promise<ChooseDatabaseResult> => {
+    try {
+      const selected: ChooseDatabaseResult = await sourceGateway.chooseDatabaseByPicker();
+      if (!selected) return null;
+      resourcesState.activeSourceKind = selected.activeKind;
+      onSetSaveStatus("", "");
+      return selected;
+    } catch (error: unknown) {
+      const msg: string = error instanceof Error ? error.message : String(error);
+      onSetSaveStatus(msg || t("resources.error", "Unable to open database."), "error");
       return null;
     }
   };
@@ -169,6 +184,12 @@ export const createResourcesCapabilities = ({
       : null,
   );
 
+  const deleteGameInResource = async (sourceRef: SourceRefLike): Promise<void> => sourceGateway.deleteGame({
+    kind: String(sourceRef.kind || "db"),
+    locator: String(sourceRef.locator || ""),
+    recordId: sourceRef.recordId === undefined ? undefined : String(sourceRef.recordId),
+  });
+
   const saveGameBySourceRef = async (
     sourceRef: SourceRefLike,
     pgnText: string,
@@ -245,6 +266,7 @@ export const createResourcesCapabilities = ({
     deletePlayerRecord,
     updatePlayerRecord,
     chooseFileResource,
+    chooseDatabaseResource,
     chooseFolderResource,
     chooseResourceByPicker,
     createResourceByKind,
@@ -252,6 +274,7 @@ export const createResourcesCapabilities = ({
     getAvailableSourceKinds: (): string[] => sourceGateway.getAdapterKinds(),
     getPlayerStore,
     listGamesForResource,
+    deleteGameInResource,
     reorderGameInResource,
     createGameInResource,
     loadGameBySourceRef,

@@ -16,7 +16,8 @@ const resolveTabLabel = (tab: TabState): { label: string; tooltip: string } => {
   }
   if (kind === "file" || kind === "db") {
     const leaf: string = norm.split("/").filter(Boolean).at(-1) ?? "";
-    return { label: leaf || tab.title || kind, tooltip: norm };
+    const stem: string = leaf.includes(".") ? leaf.slice(0, leaf.lastIndexOf(".")) : leaf;
+    return { label: stem || tab.title || kind, tooltip: norm };
   }
   return { label: tab.title || kind || "Resource", tooltip: norm };
 };
@@ -29,8 +30,11 @@ type ResourceTabBarProps = {
   onTabSelect: (tabId: string) => void;
   onTabClose: (tabId: string) => void;
   onNewGame: () => void;
+  onDeleteGame: () => void;
+  canDeleteGame: boolean;
   onMetadataOpen: () => void;
   onOpenResourceFile: () => void;
+  onOpenResourceDatabase: () => void;
   onOpenResourceDirectory: () => void;
   onNewPgnFile: () => void;
   onNewDatabase: () => void;
@@ -47,8 +51,11 @@ export const ResourceTabBar = ({
   onTabSelect,
   onTabClose,
   onNewGame,
+  onDeleteGame,
+  canDeleteGame,
   onMetadataOpen,
   onOpenResourceFile,
+  onOpenResourceDatabase,
   onOpenResourceDirectory,
   onNewPgnFile,
   onNewDatabase,
@@ -123,6 +130,12 @@ export const ResourceTabBar = ({
             </button>
             <button
               type="button"
+              onClick={(): void => { closeOpenDropdown(); onOpenResourceDatabase(); }}
+            >
+              {t("resources.open.database", "Open database\u2026")}
+            </button>
+            <button
+              type="button"
               onClick={(): void => { closeOpenDropdown(); onOpenResourceDirectory(); }}
             >
               {t("resources.open.directory", "Open folder\u2026")}
@@ -174,6 +187,16 @@ export const ResourceTabBar = ({
         </div>
         <button type="button" className="resource-new-game-btn" onClick={onNewGame}>
           {t("resources.newGame", "+ New game")}
+        </button>
+        <button
+          type="button"
+          className="resource-new-game-btn resource-delete-game-btn"
+          data-ui-id={UI_IDS.RESOURCES_DELETE_GAME_BUTTON}
+          onClick={onDeleteGame}
+          disabled={!canDeleteGame}
+          title={t("resources.deleteGame", "Delete active game from resource")}
+        >
+          {t("resources.deleteGame", "Delete game")}
         </button>
       </div>
       )}

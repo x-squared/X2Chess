@@ -4,20 +4,20 @@
   background: #eef2f8;
   --app-bg: radial-gradient(circle at 10% 0%, #f7f9fd 0%, #ecf1f9 48%, #e5ecf7 100%);
   --surface-1: #ffffff;
-  --surface-2: #f6f9ff;
-  --surface-3: #edf2fc;
+  --surface-2: #eef4ff;
+  --surface-3: #dce9ff;
   --text-primary: #102036;
   --text-secondary: #43556f;
-  --border-subtle: #d9e2f0;
-  --border-strong: #bfcce0;
+  --border-subtle: #8fa8cc;
+  --border-strong: #5f82b8;
   --accent: #2a5dca;
   --accent-soft: #dbe7ff;
   --accent-strong: #1f4ca8;
   --danger: #b4233a;
   --danger-soft: #fde9ee;
   --focus-ring: 0 0 0 3px rgba(42, 93, 202, 0.25);
-  --shadow-s: 0 1px 3px rgba(16, 32, 54, 0.08);
-  --shadow-m: 0 6px 18px rgba(16, 32, 54, 0.12);
+  --shadow-s: 0 1px 4px rgba(16, 32, 54, 0.14);
+  --shadow-m: 0 6px 18px rgba(16, 32, 54, 0.20);
   /* Compatibility aliases for panel CSS files that use generic dark-theme tokens */
   --bg-panel: var(--surface-1);
   --bg-input: var(--surface-2);

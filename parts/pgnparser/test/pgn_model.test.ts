@@ -114,6 +114,14 @@ test("parsePgnToModel — parses comment after move", () => {
   expectAfterCommentRaws(model, "e4", ["good move"]);
 });
 
+test("parsePgnToModel — skips empty comments while ingesting PGN", () => {
+  const model = parsePgnToModel(String.raw`1. e4 {} { [[br]] } {<br/>} {\n} {kept} e5`);
+  const e4 = model.root.entries.find(e => e.type === "move" && e.san === "e4") as PgnMoveNode;
+  const commentsAfter = getMoveCommentsAfter(e4);
+  assert.equal(commentsAfter.length, 1);
+  assert.equal(commentsAfter[0].raw, "kept");
+});
+
 test("parsePgnToModel — multiple comments after a move attach to that move", () => {
   const model = parsePgnToModel("1. e4 {intro} {second} e5");
   const e4 = model.root.entries.find(e => e.type === "move" && e.san === "e4") as PgnMoveNode;

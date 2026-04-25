@@ -2,7 +2,7 @@
   margin: 0.55rem 0 0.9rem;
   border: 1px solid var(--border-subtle);
   border-radius: 10px;
-  background: linear-gradient(180deg, var(--surface-1), var(--surface-2));
+  background: var(--surface-1);
   box-shadow: var(--shadow-s);
   padding: 0.5rem 0.6rem 0.55rem;
   position: relative;

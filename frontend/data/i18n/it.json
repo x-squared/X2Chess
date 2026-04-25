@@ -1,6 +1,7 @@
 {
   "menu.open": "Apri menu",
   "menu.close": "Chiudi menu",
+  "menu.newGame": "Nuova partita\u2026",
   "menu.title": "Menu",
   "controls.speed": "Velocita mosse (ms)",
   "controls.sound": "Suono",
@@ -23,8 +24,8 @@
   "gameInfo.date": "Data",
   "gameInfo.opening": "Apertura",
   "gameInfo.edit": "Modifica informazioni partita",
-  "gameInfo.xsqrHead": "Testata XSqr",
-  "gameInfo.xsqrHead.hint": "Solo mosse della linea principale (senza commenti ne simboli), fino alla prima variante o alla fine partita (salvato come XSqrHead)",
+  "gameInfo.head": "Testata XSqr",
+  "gameInfo.head.hint": "Solo mosse della linea principale (senza commenti ne simboli), fino alla prima variante o alla fine partita (salvato come Head)",
   "status.label": "Posizione",
   "pgn.label": "Input PGN",
   "pgn.load": "Carica PGN",

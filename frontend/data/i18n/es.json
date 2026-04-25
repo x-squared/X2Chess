@@ -1,6 +1,7 @@
 {
   "menu.open": "Abrir menu",
   "menu.close": "Cerrar menu",
+  "menu.newGame": "Nueva partida\u2026",
   "menu.title": "Menu",
   "controls.speed": "Velocidad de jugadas (ms)",
   "controls.sound": "Sonido",
@@ -23,8 +24,8 @@
   "gameInfo.date": "Fecha",
   "gameInfo.opening": "Apertura",
   "gameInfo.edit": "Editar informacion de la partida",
-  "gameInfo.xsqrHead": "Cabecera XSqr",
-  "gameInfo.xsqrHead.hint": "Solo jugadas de la linea principal (sin comentarios ni simbolos), hasta la primera variante o el final de la partida (se guarda como XSqrHead)",
+  "gameInfo.head": "Cabecera XSqr",
+  "gameInfo.head.hint": "Solo jugadas de la linea principal (sin comentarios ni simbolos), hasta la primera variante o el final de la partida (se guarda como Head)",
   "status.label": "Posicion",
   "pgn.label": "Entrada PGN",
   "pgn.load": "Cargar PGN",

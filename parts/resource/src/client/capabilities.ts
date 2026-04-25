@@ -68,6 +68,13 @@ export type ResourceCapabilities = {
   createGame: (resourceRef: PgnResourceRef, pgnText: string, title: string) => Promise<PgnCreateGameResult>;
 
   /**
+   * Delete one game from a resource.
+   *
+   * @param gameRef Canonical game locator.
+   */
+  deleteGame: (gameRef: PgnGameRef) => Promise<void>;
+
+  /**
    * Move `gameRef` to immediately after `afterRef` in display order.
    * Pass `null` for `afterRef` to move the game to the front.
    * Throws `unsupported_operation` when the adapter does not support ordering.

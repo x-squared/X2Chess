@@ -30,6 +30,7 @@ import {
   selectDefaultLayoutPrefs,
   selectPgnModel,
 } from "../../../core/state/selectors";
+import { NewGameDialog } from "../../../components/dialogs/NewGameDialog";
 import { DisambiguationDialog } from "../../../components/board/DisambiguationDialog";
 import { PromotionPicker } from "../../../components/board/PromotionPicker";
 import { EditStartPositionDialog } from "../../../components/dialogs/EditStartPositionDialog";
@@ -84,6 +85,9 @@ export type AppShellOverlaysProps = {
   onCloseEditorStyleDialog: () => void;
   showDefaultLayoutDialog: boolean;
   onCloseDefaultLayoutDialog: () => void;
+  showNewGameDialog: boolean;
+  onNewGameCreate: (pgn: string) => void;
+  onCloseNewGameDialog: () => void;
   layoutMode: "plain" | "text" | "tree";
   state: AppStoreState;
   // External database settings
@@ -138,6 +142,9 @@ export const AppShellOverlays = ({
   onCloseEditorStyleDialog,
   showDefaultLayoutDialog,
   onCloseDefaultLayoutDialog,
+  showNewGameDialog,
+  onNewGameCreate,
+  onCloseNewGameDialog,
   layoutMode,
   state,
   showExtDbSettings,
@@ -295,6 +302,14 @@ export const AppShellOverlays = ({
         prefs={selectDefaultLayoutPrefs(state)}
         onSave={(prefs): void => { services.setDefaultLayoutPrefs(prefs); }}
         onClose={onCloseDefaultLayoutDialog}
+      />
+    )}
+
+    {/* ── New game dialog ── */}
+    {showNewGameDialog && (
+      <NewGameDialog
+        onCreate={onNewGameCreate}
+        onClose={onCloseNewGameDialog}
       />
     )}
 

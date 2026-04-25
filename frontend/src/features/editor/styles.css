@@ -61,6 +61,7 @@
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
   background: var(--surface-2);
+  box-shadow: var(--shadow-s);
   flex-shrink: 0;
   width: fit-content;
 }
@@ -93,6 +94,7 @@
   border-radius: 8px;
   background: var(--surface-2);
   padding: 0.3rem;
+  box-shadow: var(--shadow-s);
 }
 
 .icon-button {
@@ -215,7 +217,7 @@
 /* ── Tree mode ───────────────────────────────────────────────────────────── */
 
 .text-editor[data-layout-mode="tree"] .text-editor-block {
-  --tree-line-color: rgba(17, 17, 17, 0.20);
+  --tree-line-color: rgba(17, 17, 17, 0.30);
   --tree-line-width: 2px;
   --tree-step: 1.2em;
   --tree-margin-bottom: 0.2em;
@@ -238,14 +240,14 @@
 .text-editor-block.tree-depth-3 {
   margin-left: calc(var(--tree-step) * 2);
   padding-left: 0.65em;
-  border-left: var(--tree-line-width) solid rgba(17, 17, 17, 0.14);
+  border-left: var(--tree-line-width) solid rgba(17, 17, 17, 0.22);
   font-size: 0.95em;
 }
 
 .text-editor-block.tree-depth-4plus {
   margin-left: calc(var(--tree-step) * 3);
   padding-left: 0.65em;
-  border-left: var(--tree-line-width) solid rgba(17, 17, 17, 0.10);
+  border-left: var(--tree-line-width) solid rgba(17, 17, 17, 0.17);
   font-size: 0.9em;
   opacity: 0.85;
 }

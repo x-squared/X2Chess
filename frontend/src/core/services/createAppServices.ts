@@ -29,6 +29,8 @@ import {
   normalizeX2StyleValue,
   setHeaderValue,
 } from "../../model";
+import { toSessionItem, toResourceTab } from "./app_state_mappers";
+import { emitAfterSuccessfulSave, createEnsureSourceForActiveSession } from "./session_save_ops";
 import { parsePgnToModel } from "../../../../parts/pgnparser/src/pgn_model";
 import {
   serializeModelToPgn,
@@ -50,7 +52,7 @@ import { createApplyPgnModelUpdate } from "../../runtime/pgn_model_update";
 import { createResourcesCapabilities } from "../../resources";
 import { createResourceViewerCapabilities } from "../../features/resources/services";
 import { createGameSessionModel } from "../../features/sessions/services/session_model";
-import { createGameSessionStore, type DirtyState } from "../../features/sessions/services/session_store";
+import { createGameSessionStore } from "../../features/sessions/services/session_store";
 import { createSessionPersistenceService } from "../../features/sessions/services/session_persistence";
 import { createTranslator } from "../../app/i18n";
 import { DEFAULT_LOCALE, DEFAULT_APP_MODE, type PlayerRecord } from "../../app/shell/model/app_state";
@@ -66,7 +68,6 @@ import type { Dispatch } from "react";
 import type { MovePositionRecord } from "../../board/move_position";
 import { dispatchNavigationState, dispatchSessionStateSnapshot } from "../../hooks/session_state_sync";
 import { log } from "../../logger";
-import { resourceDomainEvents } from "../events/resource_domain_events";
 
 // ── Internal service types ─────────────────────────────────────────────────────
 
@@ -83,105 +84,6 @@ type ResourceViewer = ReturnType<typeof createResourceViewerCapabilities>;
 
 type BoardPreviewValue = { fen: string; lastMove?: [string, string] | null } | null;
 
-// ── State-to-React sync helpers ────────────────────────────────────────────────
-
-/** Normalise a raw devTab string into the accepted union. */
-/**
- * Normalise a raw devTab value to the accepted union type.
- *
- * @param _raw Any raw value from persisted state.
- * @returns `"ast"` or `"pgn"`; defaults to `"ast"` for unknown values.
- */
-export const toDevTab = (raw: unknown): "ast" | "pgn" => (raw === "pgn" ? "pgn" : "ast");
-
-const toDirtyState = (v: unknown): DirtyState => {
-  if (v === "clean" || v === "dirty" || v === "saving" || v === "error") return v;
-  return "clean";
-};
-
-type RawSession = {
-  sessionId?: unknown;
-  title?: unknown;
-  dirtyState?: unknown;
-  saveMode?: unknown;
-  sourceRef?: unknown;
-  ownState?: unknown;
-};
-
-/**
- * Map a raw session object (from session_store.listSessions) to `SessionItemState`.
- *
- * @param raw - Raw session object from the store.
- * @param activeSessionId - ID of the currently active session.
- * @param liveModel - Live pgnModel from activeSessionRef for the active session; null for inactive sessions.
- */
-export const toSessionItem = (
-  raw: unknown,
-  activeSessionId: string | null,
-  liveModel: unknown,
-): SessionItemState => {
-  const session: RawSession = (raw as RawSession) ?? {};
-  const sessionId: string = typeof session.sessionId === "string" ? session.sessionId : "";
-  const isActive: boolean = sessionId !== "" && sessionId === activeSessionId;
-  const ownState = session.ownState as { pgnModel?: unknown } | null | undefined;
-  const pgnModel: unknown = (isActive && liveModel != null)
-    ? liveModel
-    : ownState?.pgnModel;
-  const hv = (key: string): string => getHeaderValue(pgnModel, key, "").trim();
-  const sourceRef = session.sourceRef as { kind?: unknown; locator?: unknown; recordId?: unknown } | null | undefined;
-  const sourceLocator: string = typeof sourceRef?.locator === "string" ? sourceRef.locator : "";
-  const sourceGameRef: string = sourceRef
-    ? [
-        typeof sourceRef.kind === "string" ? sourceRef.kind : "",
-        typeof sourceRef.locator === "string" ? sourceRef.locator : "",
-        typeof sourceRef.recordId === "string" ? sourceRef.recordId : "",
-      ].join(":")
-    : "";
-  return {
-    sessionId,
-    title: typeof session.title === "string" ? session.title : sessionId,
-    dirtyState: toDirtyState(session.dirtyState),
-    saveMode: session.saveMode === "manual" ? "manual" : "auto",
-    isActive,
-    isUnsaved: !session.sourceRef,
-    white: hv("White"),
-    black: hv("Black"),
-    event: hv("Event"),
-    date: hv("Date"),
-    sourceLocator,
-    sourceGameRef,
-  };
-};
-
-type RawResourceTab = {
-  tabId?: unknown;
-  title?: unknown;
-  resourceRef?: { kind?: unknown; locator?: unknown } | null;
-};
-
-/**
- * Map a raw resource-tab object to `ResourceTabSnapshot`, or `null` when `tabId` is absent.
- *
- * @param raw Raw tab object from `resourceViewer.buildTabSnapshots()`.
- * @returns Typed tab snapshot, or `null` when the `tabId` field is missing.
- */
-export const toResourceTab = (raw: unknown): ResourceTabSnapshot | null => {
-  const tab: RawResourceTab = (raw as RawResourceTab) ?? {};
-  const tabId: string = typeof tab.tabId === "string" ? tab.tabId : "";
-  if (!tabId) return null;
-  return {
-    tabId,
-    title: typeof tab.title === "string" ? tab.title : "",
-    kind:
-      tab.resourceRef && typeof tab.resourceRef.kind === "string"
-        ? tab.resourceRef.kind
-        : "",
-    locator:
-      tab.resourceRef && typeof tab.resourceRef.locator === "string"
-        ? tab.resourceRef.locator
-        : "",
-  };
-};
 
 // ── Services bundle ─────────────────────────────────────────────────────────────
 
@@ -421,11 +323,11 @@ export function createAppServicesBundle(
       const model = g.pgnModel;
       if (!model) return g.pgnText || "";
       try {
-        const xsqrHeadFragment: string = serializeXsqrHeadMovetext(model);
-        const withXsqrHead: unknown = setHeaderValue(model, XSQR_HEAD_HEADER_KEY, xsqrHeadFragment);
+        const headFragment: string = serializeXsqrHeadMovetext(model);
+        const withXsqrHead: unknown = setHeaderValue(model, XSQR_HEAD_HEADER_KEY, headFragment);
         return serializeModelToPgn(withXsqrHead);
       } catch (error: unknown) {
-        log.error("createAppServices", "getPgnText: XSqrHead serialization failed", {
+        log.error("createAppServices", "getPgnText: Head serialization failed", {
           message: error instanceof Error ? error.message : String(error),
         });
         return g.pgnText || "";
@@ -434,117 +336,19 @@ export function createAppServicesBundle(
     saveBySourceRef: resources.saveGameBySourceRef as Parameters<
       typeof createSessionPersistenceService
     >[0]["saveBySourceRef"],
-    ensureSourceForActiveSession: async (
-      session: unknown,
-      pgnText: string,
-    ): Promise<{ sourceRef?: unknown; revisionToken?: string } | null> => {
-      const activeTabId = resourceViewer.getActiveTabId();
-      const activeRef = resourceViewer.getActiveResourceRef();
-      log.info("createAppServices", "ensureSourceForActiveSession: active resource tab", {
-        activeTabId: activeTabId ?? "",
-        resourceKind: typeof activeRef?.kind === "string" ? activeRef.kind : "",
-        hasLocator: typeof activeRef?.locator === "string" && activeRef.locator.length > 0,
-      });
-      if (!activeTabId || !activeRef?.locator) {
-        throw new Error(getTranslator()("pgn.save.noResource", "Open a resource folder or database first to save into"));
-      }
-      log.info("createAppServices", "ensureSourceForActiveSession: creating new game record in resource", {
-        resourceKind: String(activeRef.kind || ""),
-      });
-      const parsedForTitle = sessionModel.createSessionFromPgnText(pgnText);
-      const sessionRecord = session as { sessionId?: string };
-      const sessionSlug: string =
-        typeof sessionRecord.sessionId === "string"
-          ? sessionRecord.sessionId.replace(/^session-/i, "").replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "")
-          : "";
-      const uniqueness: string = sessionSlug || String(Date.now());
-      const derivedTitle: string = sessionModel.deriveSessionTitle(parsedForTitle.pgnModel, "game");
-      const titleHint: string = `${derivedTitle}-${uniqueness}`;
-      const created = await resources.createGameInResource(
-        { kind: activeRef.kind, locator: activeRef.locator },
-        pgnText,
-        titleHint,
-      );
-      log.info("createAppServices", "ensureSourceForActiveSession: createGameInResource finished", {
-        hasSourceRef: Boolean(created.sourceRef),
-        recordId:
-          created.sourceRef && typeof created.sourceRef.recordId === "string" ? created.sourceRef.recordId : "",
-      });
-      if (created.sourceRef?.kind && created.sourceRef.locator) {
-        resourceDomainEvents.emit({
-          type: "resource.gameCreated",
-          resourceRef: {
-            kind: String(created.sourceRef.kind),
-            locator: String(created.sourceRef.locator),
-          },
-          sourceRef: {
-            kind: String(created.sourceRef.kind),
-            locator: String(created.sourceRef.locator),
-            recordId: typeof created.sourceRef.recordId === "string" ? created.sourceRef.recordId : undefined,
-          },
-          sessionId: typeof sessionRecord.sessionId === "string" ? sessionRecord.sessionId : undefined,
-        });
-        resourceDomainEvents.emit({
-          type: "resource.resourceChanged",
-          resourceRef: {
-            kind: String(created.sourceRef.kind),
-            locator: String(created.sourceRef.locator),
-          },
-          operation: "create",
-          sourceRef: {
-            kind: String(created.sourceRef.kind),
-            locator: String(created.sourceRef.locator),
-            recordId: typeof created.sourceRef.recordId === "string" ? created.sourceRef.recordId : undefined,
-          },
-        });
-        log.info("createAppServices", "Emitted resource.gameCreated", {
-          kind: String(created.sourceRef.kind),
-          locator: String(created.sourceRef.locator),
-          recordId: typeof created.sourceRef.recordId === "string" ? created.sourceRef.recordId : "",
-        });
-      }
-      return { sourceRef: created.sourceRef, revisionToken: String(created.revisionToken || "") };
-    },
+    ensureSourceForActiveSession: createEnsureSourceForActiveSession({
+      getActiveTabId: () => resourceViewer.getActiveTabId(),
+      getActiveResourceRef: () => resourceViewer.getActiveResourceRef() as { kind?: string; locator?: string } | null,
+      getTranslator,
+      createSessionFromPgnText: (pgnText: string) => sessionModel.createSessionFromPgnText(pgnText),
+      deriveSessionTitle: (pgnModel: unknown, kind: string) => sessionModel.deriveSessionTitle(pgnModel, kind),
+      createGameInResource: (ref, pgnText, titleHint) =>
+        resources.createGameInResource(ref, pgnText, titleHint) as Promise<{ sourceRef?: { kind?: unknown; locator?: unknown; recordId?: unknown }; revisionToken?: unknown }>,
+    }),
     onSetSaveStatus: (status?: string, _kind?: string): void => {
       onStatusChange(status ?? "");
     },
-    onAfterSuccessfulSave: (details): void => {
-      resourceDomainEvents.emit({
-        type: "resource.gameSaved",
-        resourceRef: {
-          kind: String(details.sourceRef.kind || ""),
-          locator: String(details.sourceRef.locator || ""),
-        },
-        sourceRef: {
-          kind: String(details.sourceRef.kind || ""),
-          locator: String(details.sourceRef.locator || ""),
-          recordId: typeof details.sourceRef.recordId === "string" ? details.sourceRef.recordId : undefined,
-        },
-        revisionToken: details.revisionToken,
-        sessionId: details.sessionId,
-        wasCreate: details.wasCreate,
-      });
-      resourceDomainEvents.emit({
-        type: "resource.resourceChanged",
-        resourceRef: {
-          kind: String(details.sourceRef.kind || ""),
-          locator: String(details.sourceRef.locator || ""),
-        },
-        operation: "save",
-        sourceRef: {
-          kind: String(details.sourceRef.kind || ""),
-          locator: String(details.sourceRef.locator || ""),
-          recordId: typeof details.sourceRef.recordId === "string" ? details.sourceRef.recordId : undefined,
-        },
-      });
-      log.info("createAppServices", "Emitted resource.gameSaved", {
-        kind: String(details.sourceRef.kind || ""),
-        locator: String(details.sourceRef.locator || ""),
-        recordId: typeof details.sourceRef.recordId === "string" ? details.sourceRef.recordId : "",
-        sessionId: details.sessionId,
-        wasCreate: details.wasCreate,
-      });
-    },
+    onAfterSuccessfulSave: emitAfterSuccessfulSave,
   });
   sessionPersistenceRef = sessionPersistence;
 

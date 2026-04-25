@@ -17,7 +17,7 @@
  * - Pure model transformations and lookups over PGN AST-like structures; no I/O or DOM effects.
  */
 
-import { parseCommentRuns } from "./pgn_model";
+import { isCommentBodyEffectivelyEmpty, parseCommentRuns } from "./pgn_model";
 import type { PgnModel, PgnMoveNode, PgnVariationNode, PgnCommentNode, PgnEntryNode, PgnPostItem } from "./pgn_model";
 import { siblingCodesInGroup } from "./nag_defs";
 import { assertPgnModelInvariants } from "./pgn_invariants";
@@ -65,21 +65,6 @@ export const getCommentRawById = (model: PgnModel, commentId: string): string | 
     },
   );
   return found;
-};
-
-/**
- * True when a comment body should be treated as empty for persistence.
- * An empty `contentEditable` often serialises as a lone newline, which the
- * editor maps to `[[br]]`; that must not become a visible comment body.
- *
- * @param rawText - Candidate comment text (may include `[[br]]`, spaces, CR/LF).
- */
-const isCommentBodyEffectivelyEmpty = (rawText: unknown): boolean => {
-  const normalized: string = String(rawText ?? "")
-    .replace(/\r\n/g, "\n")
-    .trim();
-  if (normalized.length === 0) return true;
-  return /^(\s|\[\[br\]\])+$/i.test(normalized);
 };
 
 export const setCommentTextById = (model: PgnModel, commentId: string, rawText: string): PgnModel => {

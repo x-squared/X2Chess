@@ -20,7 +20,7 @@
  *   The form remounts (via `key`) when the active PGN model ID changes so
  *   `defaultValue` props reflect the newly loaded game.
  * - **XSqr head** — readonly **moves-only** preview (`serializeXsqrHeadMovetext`); not written
- *   via `updateGameInfoHeader`; persisted only when the game is saved (`[XSqrHead]`).
+ *   via `updateGameInfoHeader`; persisted only when the game is saved (`[Head]`).
  */
 
 import { useMemo, useState } from "react";
@@ -47,6 +47,7 @@ import { useTranslator } from "../../../app/hooks/useTranslator";
 import { PlayerAutocomplete } from "./PlayerAutocomplete";
 import type { PgnModel } from "../../../../../parts/pgnparser/src/pgn_model";
 import { UI_IDS } from "../../../core/model/ui_ids";
+import { GameMetadataStrip } from "../../resources/metadata/GameMetadataStrip";
 
 // ── Summary helpers ────────────────────────────────────────────────────────────
 
@@ -210,7 +211,7 @@ export const GameInfoEditor = (): ReactElement => {
     return [eco, name].filter(Boolean).join(" ").trim();
   }, [pgnModel]);
 
-  const xsqrHeadDisplay: string = useMemo((): string => {
+  const headDisplay: string = useMemo((): string => {
     if (!pgnModel) return "";
     return serializeXsqrHeadMovetext(pgnModel);
   }, [pgnModel]);
@@ -327,9 +328,9 @@ export const GameInfoEditor = (): ReactElement => {
               </label>
             );
           })}
-          {/* XSqrHead — moves-only preview (readonly); single grid column like other fields */}
+          {/* Head — moves-only preview (readonly); single grid column like other fields */}
           <label className="game-info-editor-field" htmlFor="game-info-xsqr-head">
-            <span>{t("gameInfo.xsqrHead", "XSqr head")}</span>
+            <span>{t("gameInfo.head", "XSqr head")}</span>
             <textarea
               id="game-info-xsqr-head"
               className="game-info-xsqr-head"
@@ -340,11 +341,12 @@ export const GameInfoEditor = (): ReactElement => {
               wrap="off"
               spellCheck={false}
               data-ui-id={UI_IDS.GAME_INFO_XSQR_HEAD}
-              value={xsqrHeadDisplay}
-              title={t("gameInfo.xsqrHead.hint", "Main line moves only (no comments or symbols), up to the first variation or end of game (saved as XSqrHead)")}
+              value={headDisplay}
+              title={t("gameInfo.head.hint", "Main line moves only (no comments or symbols), up to the first variation or end of game (saved as Head)")}
             />
           </label>
         </div>
+        <GameMetadataStrip key={activeSessionId ?? "no-session"} />
       </div>
     </section>
   );

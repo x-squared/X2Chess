@@ -4,7 +4,7 @@
  * Handles all operations that open, create, or query resources and games:
  * openResource, openResourceFile, openResourceDirectory, createResource,
  * openGameFromRef, openGameFromRecordId, fetchGameMetadataByRecordId,
- * getActiveSessionResourceRef, reorderGameInResource.
+ * getActiveSessionResourceRef, reorderGameInResource, deleteActiveGameInResource.
  *
  * Integration API:
  * - `createResourceOpenOps(bundle, dispatchRef, flushSessionState, summarizeHeaders)`
@@ -49,6 +49,7 @@ type ResourceOpenOps = Pick<
   AppStartupServices,
   | "openResource"
   | "openResourceFile"
+  | "openResourceDatabase"
   | "openResourceDirectory"
   | "createResource"
   | "selectResourceTab"
@@ -58,6 +59,7 @@ type ResourceOpenOps = Pick<
   | "fetchGameMetadataByRecordId"
   | "getActiveSessionResourceRef"
   | "reorderGameInResource"
+  | "deleteActiveGameInResource"
 >;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -110,6 +112,23 @@ export const createResourceOpenOps = (
     void (async (): Promise<void> => {
       try {
         const selected = await bundle.resources.chooseFileResource();
+        if (!selected) return;
+        const ref = selected.resourceRef;
+        const locatorLastSegment: string = lastLocatorSegment(ref.locator, String(ref.kind ?? "Resource"));
+        bundle.resourceViewer.upsertTab({ title: locatorLastSegment, resourceRef: ref, select: true });
+        flushSessionState();
+      } catch (err: unknown) {
+        const message: string = toErrorMessage(err);
+        log.error("session_resource_open_ops", message);
+        dispatchRef.current({ type: "set_error_message", message });
+      }
+    })();
+  },
+
+  openResourceDatabase: (): void => {
+    void (async (): Promise<void> => {
+      try {
+        const selected = await bundle.resources.chooseDatabaseResource();
         if (!selected) return;
         const ref = selected.resourceRef;
         const locatorLastSegment: string = lastLocatorSegment(ref.locator, String(ref.kind ?? "Resource"));
@@ -315,5 +334,52 @@ export const createResourceOpenOps = (
       recordId: sourceRecordId ?? "",
       afterRecordId: afterRecordId ?? "(front)",
     });
+  },
+
+  deleteActiveGameInResource: async (): Promise<void> => {
+    try {
+      const activeSession = bundle.sessionStore.getActiveSession();
+      if (!activeSession) return;
+      const sourceRef = activeSession.sourceRef;
+      const sessionId = activeSession.sessionId;
+      const resourceKind: string = normalizeStringField(sourceRef?.kind, "");
+      const resourceLocator: string = normalizeStringField(sourceRef?.locator, "");
+      const recordId: string | undefined = normalizeOptionalRecordId(sourceRef?.recordId);
+      if (!resourceKind || !resourceLocator || !recordId) {
+        throw new Error("Active session is not linked to a deletable resource game.");
+      }
+      const canonicalSourceRef = { kind: resourceKind, locator: resourceLocator, recordId };
+      await bundle.resources.deleteGameInResource(canonicalSourceRef);
+      const closed = bundle.sessionStore.closeSession(sessionId);
+      if (closed.emptyAfterClose) {
+        const newState: GameSessionState = bundle.sessionModel.createSessionFromPgnText("");
+        bundle.sessionStore.openSession({
+          ownState: newState,
+          title: "New Game",
+        });
+      }
+      resourceDomainEvents.emit({
+        type: "resource.gameDeleted",
+        resourceRef: { kind: resourceKind, locator: resourceLocator },
+        sourceRef: canonicalSourceRef,
+      });
+      resourceDomainEvents.emit({
+        type: "resource.resourceChanged",
+        resourceRef: { kind: resourceKind, locator: resourceLocator },
+        operation: "delete",
+        sourceRef: canonicalSourceRef,
+      });
+      log.info("session_resource_open_ops", "Deleted active resource game", {
+        kind: resourceKind,
+        locator: resourceLocator,
+        recordId,
+        sessionId,
+      });
+      flushSessionState();
+    } catch (err: unknown) {
+      const message: string = toErrorMessage(err);
+      log.error("session_resource_open_ops", message);
+      dispatchRef.current({ type: "set_error_message", message });
+    }
   },
 });

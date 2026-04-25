@@ -1,6 +1,7 @@
 {
   "menu.open": "Ouvrir le menu",
   "menu.close": "Fermer le menu",
+  "menu.newGame": "Nouvelle partie\u2026",
   "menu.title": "Menu",
   "controls.speed": "Vitesse des coups (ms)",
   "controls.sound": "Son",
@@ -23,8 +24,8 @@
   "gameInfo.date": "Date",
   "gameInfo.opening": "Ouverture",
   "gameInfo.edit": "Modifier les informations de la partie",
-  "gameInfo.xsqrHead": "En-tete XSqr",
-  "gameInfo.xsqrHead.hint": "Coups de la ligne principale uniquement (sans commentaires ni symboles), jusqu'a la premiere variante ou la fin de partie (enregistre comme XSqrHead)",
+  "gameInfo.head": "En-tete XSqr",
+  "gameInfo.head.hint": "Coups de la ligne principale uniquement (sans commentaires ni symboles), jusqu'a la premiere variante ou la fin de partie (enregistre comme Head)",
   "status.label": "Position",
   "pgn.label": "Entree PGN",
   "pgn.load": "Charger le PGN",

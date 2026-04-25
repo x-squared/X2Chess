@@ -128,6 +128,7 @@ export const createSourcePickerAdapter = ({ state }: SourcePickerDeps): SourceAd
   applySourceRoot: (sourceRoot: SourceRoot | null) => void;
   pickResourceTarget: () => Promise<ResourceTarget | null>;
   pickFileOnlyTarget: () => Promise<ResourceTargetFileOrDb | null>;
+  pickDatabaseOnlyTarget: () => Promise<ResourceTargetFileOrDb | null>;
   detectDefaultSourceRoot: () => Promise<SourceRoot | null>;
   createNewDatabase: (suggestedName: string) => Promise<ResourceTargetFileOrDb | null>;
   createNewPgnFile: (suggestedName: string) => Promise<ResourceTargetFileOrDb | null>;
@@ -481,6 +482,17 @@ export const createSourcePickerAdapter = ({ state }: SourcePickerDeps): SourceAd
     throw new Error("File picker is only available in the desktop application.");
   };
 
+  const pickDatabaseOnlyTarget = async (): Promise<{ type: "db"; title: string; locator: string } | null> => {
+    if (isTauriRuntime()) {
+      const selectedFilePathRaw: unknown = await tauriInvoke("pick_x2chess_file");
+      const filePath: string = (typeof selectedFilePathRaw === "string" ? selectedFilePathRaw : "").trim();
+      if (!filePath) return null;
+      const baseName: string = pathBaseUnix(filePath);
+      return { type: "db", title: baseName.replace(/\.[^.]+$/, ""), locator: filePath };
+    }
+    throw new Error("Database picker is only available in the desktop application.");
+  };
+
   const createNewPgnFile = async (suggestedName: string): Promise<{ type: "file"; title: string; locator: string } | null> => {
     if (!isTauriRuntime()) throw new Error("PGN file creation requires the desktop application.");
     const pathRaw: unknown = await tauriInvoke("create_pgn_file", { suggestedName });
@@ -499,6 +511,7 @@ export const createSourcePickerAdapter = ({ state }: SourcePickerDeps): SourceAd
     list,
     load,
     createInResource,
+    pickDatabaseOnlyTarget,
     pickFileOnlyTarget,
     pickResourceTarget,
     pickSourceRoot,

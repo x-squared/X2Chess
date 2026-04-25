@@ -54,5 +54,5 @@ test("serializeXsqrHeadMovetext — move node may omit ravs (no throw)", () => {
 });
 
 test("XSQR_HEAD_HEADER_KEY is stable", () => {
-  assert.equal(XSQR_HEAD_HEADER_KEY, "XSqrHead");
+  assert.equal(XSQR_HEAD_HEADER_KEY, "Head");
 });

@@ -2,6 +2,10 @@
  * pgn_move_numbering — centralized move-number insertion/cleanup logic.
  */
 import type { PgnEntryNode, PgnModel, PgnMoveNumberNode, PgnVariationNode } from "./pgn_model";
+import { getHeaderValue } from "./pgn_headers";
+
+const startsAsWhite = (model: PgnModel): boolean =>
+  (getHeaderValue(model, "FEN").trim().split(/\s+/)[1] ?? "w") !== "b";
 
 const countMovesBeforeIdx = (entries: PgnEntryNode[], upToIdx: number): number => {
   let count = 0;
@@ -55,10 +59,7 @@ export const maybeInsertMoveNumber = (
   createMoveNumberId: () => string,
 ): number => {
   if (variation.parentMoveId !== null) return insertIdx;
-  const fenHeader = model.headers.find((h) => h.key === "FEN");
-  const startsWhite = fenHeader
-    ? (fenHeader.value.trim().split(/\s+/)[1] ?? "w") !== "b"
-    : true;
+  const startsWhite = startsAsWhite(model);
   const preceding = countMovesBeforeIdx(entries, insertIdx);
   const isWhiteTurn = startsWhite ? preceding % 2 === 0 : preceding % 2 !== 0;
   const prevEntry = insertIdx > 0 ? entries[insertIdx - 1] : undefined;
@@ -76,6 +77,56 @@ export const maybeInsertMoveNumber = (
   return insertIdx;
 };
 
+const resolveNearestMoveNumberBefore = (
+  entries: PgnEntryNode[],
+  insertIdx: number,
+): { tokenIdx: number; moveNum: number; side: "white" | "black" } | null => {
+  for (let i = insertIdx - 1; i >= 0; i -= 1) {
+    const entry: PgnEntryNode = entries[i];
+    if (entry.type !== "move_number") continue;
+    const parsed = parseMoveNumberValue(String(entry.text ?? ""));
+    if (!parsed) continue;
+    return { tokenIdx: i, moveNum: parsed.moveNum, side: parsed.side };
+  }
+  return null;
+};
+
+/**
+ * For nested variations, insert a white move-number token (`N.`) before a newly
+ * appended move when the variation position advanced to a white turn.
+ *
+ * This keeps board-entered continuation lines readable/canonical, e.g.:
+ * `5... Bd6 6. Bg5 Ne7` instead of `5... Bd6 Bg5 Ne7`.
+ */
+export const maybeInsertNestedVariationWhiteMoveNumber = (
+  variation: PgnVariationNode,
+  entries: PgnEntryNode[],
+  insertIdx: number,
+  createMoveNumberId: () => string,
+): number => {
+  if (variation.parentMoveId === null) return insertIdx;
+  const prevEntry: PgnEntryNode | undefined = insertIdx > 0 ? entries[insertIdx - 1] : undefined;
+  if (prevEntry?.type === "move_number") return insertIdx;
+  const nextEntry: PgnEntryNode | undefined = insertIdx < entries.length ? entries[insertIdx] : undefined;
+  if (isWhiteMoveNumberEntry(nextEntry)) return insertIdx;
+  const nearest = resolveNearestMoveNumberBefore(entries, insertIdx);
+  if (!nearest) return insertIdx;
+  const movesSinceToken: number = countMovesBeforeIdx(entries, insertIdx) - countMovesBeforeIdx(entries, nearest.tokenIdx + 1);
+  const nextIsWhiteTurn: boolean = nearest.side === "white"
+    ? movesSinceToken % 2 === 0
+    : movesSinceToken % 2 === 1;
+  if (!nextIsWhiteTurn) return insertIdx;
+  const nextWhiteMoveNumber: number = nearest.side === "white"
+    ? nearest.moveNum + Math.floor(movesSinceToken / 2)
+    : nearest.moveNum + Math.floor((movesSinceToken + 1) / 2);
+  entries.splice(insertIdx, 0, {
+    id: createMoveNumberId(),
+    type: "move_number",
+    text: `${nextWhiteMoveNumber}.`,
+  });
+  return insertIdx + 1;
+};
+
 export const prependMoveNumberToRav = (
   model: PgnModel,
   parentVariation: PgnVariationNode,
@@ -83,13 +134,11 @@ export const prependMoveNumberToRav = (
   childVar: PgnVariationNode,
   createMoveNumberId: () => string,
 ): void => {
-  const fenHeader = model.headers.find((h) => h.key === "FEN");
-  const startsWhite = fenHeader
-    ? (fenHeader.value.trim().split(/\s+/)[1] ?? "w") !== "b"
-    : true;
+  const startsWhite = startsAsWhite(model);
   const preceding = countMovesBeforeIdx(parentVariation.entries, parentMoveIdx);
   const isWhiteTurn = startsWhite ? preceding % 2 === 0 : preceding % 2 !== 0;
-  const moveNum = Math.floor(preceding / 2) + 1;
+  const moveNum: number = resolveMoveNumberForParentMove(parentVariation, parentMoveIdx)
+    ?? (Math.floor(preceding / 2) + 1);
   childVar.entries.unshift({
     id: createMoveNumberId(),
     type: "move_number",
@@ -103,10 +152,7 @@ export const insertBlackMoveNumberAfterRav = (
   parentMoveIdx: number,
   createMoveNumberId: () => string,
 ): void => {
-  const fenHeader = model.headers.find((h) => h.key === "FEN");
-  const startsWhite = fenHeader
-    ? (fenHeader.value.trim().split(/\s+/)[1] ?? "w") !== "b"
-    : true;
+  const startsWhite = startsAsWhite(model);
   const preceding = countMovesBeforeIdx(variation.entries, parentMoveIdx);
   const isWhiteTurn = startsWhite ? preceding % 2 === 0 : preceding % 2 !== 0;
   if (!isWhiteTurn) return;
@@ -148,10 +194,7 @@ export const insertBlackMoveNumberBeforeRavContinuation = (
 ): void => {
   if (variation.parentMoveId !== null) return;
   if (insertIdx <= 0 || insertIdx > variation.entries.length) return;
-  const fenHeader = model.headers.find((h) => h.key === "FEN");
-  const startsWhite = fenHeader
-    ? (fenHeader.value.trim().split(/\s+/)[1] ?? "w") !== "b"
-    : true;
+  const startsWhite = startsAsWhite(model);
   const preceding = countMovesBeforeIdx(variation.entries, parentMoveIdx);
   const isWhiteTurn = startsWhite ? preceding % 2 === 0 : preceding % 2 !== 0;
   if (!isWhiteTurn) return;

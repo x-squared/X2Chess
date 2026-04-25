@@ -35,6 +35,7 @@ import type { ServicesBundle } from "./createAppServices";
 import type { GameSessionState } from "../../features/sessions/services/game_session_state";
 import { log } from "../../logger";
 import { dispatchSessionStateSnapshot } from "../../hooks/session_state_sync";
+import { resourceDomainEvents } from "../events/resource_domain_events";
 import { createResourceOpenOps } from "./session_resource_open_ops";
 import { createNavOps } from "./session_nav_ops";
 import { createEditingOps } from "./session_editing_ops";
@@ -116,7 +117,7 @@ export const createSessionOrchestrator = (
       bundle.sessionStore.openSession({ ownState: newState, title, sourceRef: options?.sourceRef ?? null });
       log.info("session_orchestrator", `openPgnText: opened session ${summarizeHeaders(newState)}`, { title });
       flushSessionState();
-      dispatchRef.current({ type: "set_board_flipped", flipped: deriveInitialBoardFlipped(newState.pgnModel) });
+      dispatchRef.current({ type: "set_board_flipped", flipped: deriveInitialBoardFlipped(newState.pgnModel!) });
     },
 
     // ── Search ──────────────────────────────────────────────────────────────
@@ -159,7 +160,7 @@ export const createSessionOrchestrator = (
         bundle.sessionStore.replaceActiveSessionOwnState(newState);
         log.info("session_orchestrator", "discardActiveSessionChanges: reloaded session from source");
         flushSessionState();
-        dispatchRef.current({ type: "set_board_flipped", flipped: deriveInitialBoardFlipped(newState.pgnModel) });
+        dispatchRef.current({ type: "set_board_flipped", flipped: deriveInitialBoardFlipped(newState.pgnModel!) });
       } catch (err: unknown) {
         log.error(
           "session_orchestrator",
@@ -197,10 +198,60 @@ export const createSessionOrchestrator = (
       await bundle.resources.savePlayerStoreToClientData(bundle.resources.getPlayerStore());
     },
 
+    // ── New game in active resource ─────────────────────────────────────────
+    newGameInActiveResource: async (pgnText: string): Promise<void> => {
+      const activeRef = bundle.resourceViewer.getActiveResourceRef();
+      if (!activeRef || !activeRef.locator) {
+        const newState: GameSessionState = bundle.sessionModel.createSessionFromPgnText(pgnText);
+        const derivedTitle: string = bundle.sessionModel.deriveSessionTitle(newState.pgnModel, "New Game");
+        bundle.sessionStore.openSession({ ownState: newState, title: derivedTitle });
+        log.info("session_orchestrator", `newGameInActiveResource: no active resource, opened floating session ${summarizeHeaders(newState)}`);
+        flushSessionState();
+        dispatchRef.current({ type: "set_board_flipped", flipped: deriveInitialBoardFlipped(newState.pgnModel!) });
+        return;
+      }
+      try {
+        const parsedForTitle: GameSessionState = bundle.sessionModel.createSessionFromPgnText(pgnText);
+        const derivedTitle: string = bundle.sessionModel.deriveSessionTitle(parsedForTitle.pgnModel, "game");
+        const titleHint: string = `${derivedTitle}-${String(Date.now())}`;
+        const created = await bundle.resources.createGameInResource(
+          { kind: String(activeRef.kind || ""), locator: String(activeRef.locator) },
+          pgnText,
+          titleHint,
+        );
+        const sourceRef = created.sourceRef;
+        const canonicalSourceRef = sourceRef?.kind && sourceRef?.locator
+          ? {
+              kind: String(sourceRef.kind),
+              locator: String(sourceRef.locator),
+              recordId: typeof sourceRef.recordId === "string" ? sourceRef.recordId : undefined,
+            }
+          : null;
+        const newState: GameSessionState = bundle.sessionModel.createSessionFromPgnText(pgnText);
+        const title: string = bundle.sessionModel.deriveSessionTitle(newState.pgnModel, titleHint);
+        bundle.sessionStore.openSession({ ownState: newState, title, sourceRef: canonicalSourceRef });
+        if (canonicalSourceRef) {
+          const resourceRef = { kind: canonicalSourceRef.kind, locator: canonicalSourceRef.locator };
+          resourceDomainEvents.emit({ type: "resource.gameCreated", resourceRef, sourceRef: canonicalSourceRef });
+          resourceDomainEvents.emit({ type: "resource.resourceChanged", resourceRef, operation: "create", sourceRef: canonicalSourceRef });
+        }
+        log.info("session_orchestrator", `newGameInActiveResource: created in ${activeRef.kind}:${activeRef.locator}`, {
+          recordId: canonicalSourceRef?.recordId ?? "",
+        });
+        flushSessionState();
+        dispatchRef.current({ type: "set_board_flipped", flipped: deriveInitialBoardFlipped(newState.pgnModel!) });
+      } catch (err: unknown) {
+        const message: string = err instanceof Error ? err.message : String(err);
+        log.error("session_orchestrator", `newGameInActiveResource: ${message}`);
+        dispatchRef.current({ type: "set_error_message", message });
+      }
+    },
+
     // ── Overrideable UI stubs ───────────────────────────────────────────────
     // AppShell replaces these after construction to open panel/dialog components.
     openCurriculumPanel: (): void => {},
     openEditorStyleDialog: (): void => {},
     openDefaultLayoutDialog: (): void => {},
+    openNewGameDialog: (): void => {},
   };
 };

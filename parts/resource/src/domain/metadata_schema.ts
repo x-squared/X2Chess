@@ -45,7 +45,7 @@ export type PgnMetadataKnownValues = {
   /** Derived material-balance key for position games, e.g. `"KQPPPvKRP"`. */
   Material?: string;
   /** Derived mainline half-moves (move numbers + SAN only) through the XSqr stop rule (filled on save). */
-  XSqrHead?: string;
+  Head?: string;
 };
 
 export type PgnMetadataScalar = string | number | PgnDateValue | X2StyleValue | PgnResultValue;
@@ -127,52 +127,54 @@ export const METADATA_KEY = {
   Annotator: "Annotator",
   XSqrChessStyle: X2CHESS_STYLE_METADATA_KEY,
   Material: "Material",
-  XSqrHead: "XSqrHead",
+  Head: "Head",
 } as const satisfies Readonly<Record<keyof PgnMetadataKnownValues, string>>;
 
+/** Standard PGN metadata keys (Seven Tag Roster plus ECO, Opening). */
 export const PGN_STANDARD_METADATA_KEYS = Object.freeze([
-  "White",
-  "Black",
-  "Result",
-  "ECO",
-  "Opening",
-  "Event",
-  "Site",
-  "Round",
-  "Date",
-  "WhiteElo",
-  "BlackElo",
-  "TimeControl",
-  "Termination",
-  "Annotator",
+  METADATA_KEY.White,
+  METADATA_KEY.Black,
+  METADATA_KEY.Result,
+  METADATA_KEY.ECO,
+  METADATA_KEY.Opening,
+  METADATA_KEY.Event,
+  METADATA_KEY.Site,
+  METADATA_KEY.Round,
+  METADATA_KEY.Date,
+  METADATA_KEY.WhiteElo,
+  METADATA_KEY.BlackElo,
+  METADATA_KEY.TimeControl,
+  METADATA_KEY.Termination,
+  METADATA_KEY.Annotator,
 ]);
 
 /** Default visible columns when no viewer prefs exist (players first; Result before ECO). */
 export const DEFAULT_RESOURCE_VIEWER_METADATA_KEYS = Object.freeze([
-  "White",
-  "Black",
-  "Date",
-  "Event",
-  "Result",
-  "ECO",
-  "Opening",
+  METADATA_KEY.White,
+  METADATA_KEY.Black,
+  METADATA_KEY.Result,
+  METADATA_KEY.ECO,
+  METADATA_KEY.Opening,
+  METADATA_KEY.Date,
+  METADATA_KEY.Event,
 ]);
 
 /** All PGN header keys the app projects by default for hybrid extraction (standard + X2). Legacy style tags still parse via `PGN_METADATA_SCHEMA` but are not listed here. */
 export const KNOWN_PGN_METADATA_KEYS = Object.freeze([
   ...PGN_STANDARD_METADATA_KEYS,
   X2CHESS_STYLE_METADATA_KEY,
-  "Material",
-  "XSqrHead",
+  METADATA_KEY.Material,
+  METADATA_KEY.Head,
 ]);
 
 // ── User-defined schema types (MD1) ───────────────────────────────────────────
 
-export type MetadataFieldType = "text" | "date" | "select" | "number" | "flag" | "game_link";
+export type MetadataFieldType = "text" | "date" | "select" | "number" | "flag" | "reference";
 
 /** Whether a metadata field holds at most one value or an ordered list of values. */
 export type MetadataValueCardinality = "one" | "many";
 
+/** A metadata field definition. */
 export type MetadataFieldDefinition = {
   key: string;
   label: string;
@@ -190,6 +192,13 @@ export type MetadataFieldDefinition = {
   selectValues?: string[];
   /** Tooltip / help text shown in the definition editor. */
   description?: string;
+  /**
+   * When true, this field's value is available as a fallback for games that
+   * reference this game via a `reference` field. If the referencing game has
+   * no local value for this field, the referenced game's value is used instead.
+   * Only meaningful on non-`reference` fields.
+   */
+  referenceable?: true;
 };
 
 /** Key identity + cardinality descriptor returned by the DB adapter's key registry. */
@@ -237,18 +246,18 @@ export const BUILT_IN_SCHEMA: MetadataSchema = Object.freeze({
     { key: "WhiteElo",    label: "White Elo",    type: "number", required: false, orderIndex: 100 },
     { key: "BlackElo",    label: "Black Elo",    type: "number", required: false, orderIndex: 110 },
     { key: "TimeControl", label: "Time Control", type: "text",   required: false, orderIndex: 120 },
-    { key: "Termination", label: "Termination",  type: "text",   required: false, orderIndex: 125 },
-    { key: "Annotator",   label: "Annotator",    type: "text",   required: false, orderIndex: 130 },
+    { key: "Termination", label: "Termination",  type: "text",   required: false, orderIndex: 130 },
+    { key: "Annotator",   label: "Annotator",    type: "text",   required: false, orderIndex: 140 },
+    { key: "Material",    label: "Material",     type: "text",   required: false, orderIndex: 150 },
+    { key: "Head",        label: "Head",         type: "text",   required: false, orderIndex: 160 },
     {
       key: X2CHESS_STYLE_METADATA_KEY,
       label: "XSqr chess style",
       type: "select",
       required: false,
-      orderIndex: 135,
+      orderIndex: 170,
       selectValues: ["plain", "text", "tree"],
     },
-    { key: "Material", label: "Material", type: "text", required: false, orderIndex: 140 },
-    { key: "XSqrHead", label: "XSqr head", type: "text", required: false, orderIndex: 145 },
   ] as MetadataFieldDefinition[],
 });
 
@@ -271,5 +280,5 @@ export const PGN_METADATA_SCHEMA: Readonly<Record<string, MetadataFieldSchemaEnt
   XTwoChessStyle: { key: X2CHESS_STYLE_METADATA_KEY, parse: parseX2StyleValue },
   X2Style: { key: X2CHESS_STYLE_METADATA_KEY, parse: parseX2StyleValue },
   Material: { key: "Material", parse: parseStringValue },
-  XSqrHead: { key: "XSqrHead", parse: parseStringValue },
+  Head: { key: "Head", parse: parseStringValue },
 });

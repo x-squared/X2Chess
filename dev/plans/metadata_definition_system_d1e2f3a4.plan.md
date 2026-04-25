@@ -35,7 +35,7 @@ keys as plain text columns. A definition system allows:
 | `select` | String | Dropdown (from defined value list) | Value label |
 | `number` | String | Numeric input | Right-aligned |
 | `flag` | String ("true"/"false") | Checkbox | ✓ / – |
-| `game_link` | String (target `recordId`) | Game picker (search by White/Black/Event within the same resource) | Link chip that navigates to the referenced game |
+| `reference` | String (target `recordId`) | Game picker (search by White/Black/Event within the same resource) | Link chip that navigates to the referenced game |
 
 `date` partial format rules:
 - Full: `dd.mm.yyyy` (e.g. `14.03.2024`)
@@ -48,7 +48,7 @@ keys as plain text columns. A definition system allows:
 ## MetadataDefinition type
 
 ```typescript
-type MetadataFieldType = "text" | "date" | "select" | "number" | "flag" | "game_link";
+type MetadataFieldType = "text" | "date" | "select" | "number" | "flag" | "reference";
 
 type MetadataFieldDefinition = {
   key: string;               // PGN header key (e.g. "Event", "WhiteElo", "Category")
@@ -58,6 +58,7 @@ type MetadataFieldDefinition = {
   orderIndex: number;        // controls column order; gaps are allowed; ties sort by key
   selectValues?: string[];   // only for type = "select"; ordered list of allowed values
   description?: string;      // tooltip / help text shown in the definition editor
+  referenceable?: true;      // non-reference fields: value is available as fallback for referencing games
 };
 
 type MetadataSchema = {
@@ -244,10 +245,72 @@ new import dialog), fields are rendered using their type-appropriate controls:
 | `select` | `<select>` dropdown with defined values + empty option |
 | `number` | Numeric `<input type="number">` |
 | `flag` | `<input type="checkbox">` |
-| `game_link` | Game picker — text search within the same resource; stores selected `recordId` |
+| `reference` | Game picker — text search within the same resource; stores selected `recordId` |
 
 Required fields are marked with an asterisk (*). Saving with an empty
 required field shows an inline validation error (no modal interruption).
+
+---
+
+## Metadata inheritance
+
+### Design
+
+Two schema declarations drive inheritance:
+
+- **`referenceable?: true`** on any non-`reference` field — marks the field as
+  available for fallback. "If a game referencing me has no local value for this
+  field, use mine."
+- **`type: "reference"`** — a field that holds a `recordId`. When set on a game,
+  it activates fallback resolution for every `referenceable` field in the schema.
+
+No per-field wiring: the rule is uniform across all `referenceable` fields once
+a `reference` attribute is set.
+
+Example — opening database schema:
+
+```typescript
+{ key: "ECO",      type: "text",      referenceable: true, ... }
+{ key: "Opening",  type: "text",      referenceable: true, ... }
+{ key: "ModelFor", type: "reference", label: "Model for opening", ... }
+```
+
+A model game with `ModelFor` pointing to opening game A will show A's `ECO` and
+`Opening` values unless the model game has its own values set.
+
+### Resolution rules
+
+- Resolved at read time; no values are copied into the game record.
+- A locally set value always wins over an inherited one.
+- Resolution follows the reference chain: if the referenced game itself has a
+  `reference` attribute set and a field is still unresolved, the chain continues.
+- **Loop detection**: a visited set of `recordId` values stops the traversal if
+  a cycle is detected.
+- **Max depth**: chain traversal is capped at 3 hops (sufficient for typical
+  opening-database hierarchies; deeper chains are silently truncated).
+- If a referenced game cannot be resolved (broken link, resource not open),
+  remaining fields stay blank — no error is surfaced.
+
+### Performance
+
+**Viewer (batch reads):** When the viewer loads a page of N games, it collects
+all `reference` field values, fetches the referenced games in a single batch
+query, then resolves inherited values in memory. If the chain has depth > 1,
+at most 3 batch queries are issued (one per hop level). No per-row round-trips.
+
+**Single-game reads:** resolve the chain inline (max 3 hops × one DB lookup each).
+
+**Write:** inherited values are never stored. This eliminates write-invalidation
+complexity entirely; the bounded read-time traversal is the only overhead.
+
+### Schema editor UI (MD3)
+
+- A `referenceable` toggle is shown for each non-`reference` field (checkbox:
+  "Available for inheritance").
+- `reference` fields show a read-only note: "When set, activates inheritance
+  for all referenceable fields."
+- Viewer may display inherited values with a subtle indicator (e.g. italics or
+  a small ↗ icon); local values display normally. Deferred to MD9.
 
 ---
 
@@ -263,3 +326,4 @@ required field shows an inline validation error (no modal interruption).
 | MD6 | Export / import (JSON file) |
 | MD7 | Schema association stored in `.x2chess` DB + `.x2chess-meta.json` |
 | MD8 | Column ordering driven by `MetadataFieldDefinition.orderIndex` |
+| MD9 | Inheritance resolution: batch-load referenced games, resolve `referenceable` fields via chain (max 3 hops, visited-set loop detection); UI indicator for inherited vs. local values |

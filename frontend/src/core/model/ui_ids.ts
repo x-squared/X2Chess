@@ -21,7 +21,7 @@ export const UI_IDS = {
   // ── Game info (header editor) ─────────────────────────────────────────
   GAME_INFO_SUMMARY: "game-info.summary",
   GAME_INFO_EDITOR: "game-info.editor",
-  /** XSqrHead movetext field inside the game-info editor region. */
+  /** Head movetext field inside the game-info editor region. */
   GAME_INFO_XSQR_HEAD: "game-info.xsqr-head",
 
   // ── Chess board ─────────────────────────────────────────────────────────
@@ -108,6 +108,7 @@ export const UI_IDS = {
   RESOURCES_TAB_HEADER: "resources.panel.tabBar.header",
   RESOURCES_TAB_STRIP: "resources.panel.tabBar.strip",
   RESOURCES_TAB: "resources.panel.tabBar.tab",
+  RESOURCES_DELETE_GAME_BUTTON: "resources.panel.tabBar.deleteGame",
   RESOURCES_TOOLBAR: "resources.panel.toolbar",
   RESOURCES_TABLE: "resources.panel.table",
   RESOURCES_TABLE_EMPTY: "resources.panel.table.empty",

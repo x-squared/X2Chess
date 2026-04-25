@@ -1,5 +1,5 @@
 .app-panel {
-  background: linear-gradient(180deg, var(--surface-1), var(--surface-2));
+  background: var(--surface-1);
   padding: 1.1rem;
   position: relative;
   min-height: 100vh;

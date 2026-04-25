@@ -129,6 +129,44 @@ export const validateSchemaJson = (json: string): MetadataSchema => {
   return schema;
 };
 
+// ── Per-resource schema association ──────────────────────────────────────────
+
+const resourceSchemaKey = (ref: { kind: string; locator: string }): string =>
+  `x2chess.resource-schema.${ref.kind}:${ref.locator}`;
+
+/**
+ * Return the schema ID associated with a resource, or `null` if none is set.
+ * Used outside `ResourceViewer` (e.g. `GameMetadataStrip`) to load the right
+ * schema without needing access to the viewer's local state.
+ */
+export const getResourceSchemaId = (ref: { kind: string; locator: string }): string | null => {
+  try {
+    return globalThis.localStorage?.getItem(resourceSchemaKey(ref)) ?? null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Persist (or clear) the schema ID associated with a resource.
+ * Called by `ResourceViewer` whenever the user picks a schema for a tab.
+ */
+export const setResourceSchemaId = (
+  ref: { kind: string; locator: string },
+  schemaId: string | null,
+): void => {
+  try {
+    const key = resourceSchemaKey(ref);
+    if (schemaId === null) {
+      globalThis.localStorage?.removeItem(key);
+    } else {
+      globalThis.localStorage?.setItem(key, schemaId);
+    }
+  } catch {
+    // Storage unavailable.
+  }
+};
+
 // ── Reorder helpers ────────────────────────────────────────────────────────────
 
 /**

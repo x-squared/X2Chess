@@ -7,16 +7,19 @@
  * - `select`    → `<select>` dropdown with defined values
  * - `number`    → `<input type="number">`
  * - `flag`      → `<input type="checkbox">`
- * - `game_link` → game picker button + selected label; requires `resourceRef` and `t` props
+ * - `reference` → game picker button + selected label; requires `resourceRef` and `t` props
  *
  * Integration API:
  * - `<MetadataFieldInput field={...} value={...} onChange={...} />`
- * - For `game_link` fields also pass `resourceRef` and `t`.
+ * - For `reference` fields also pass `resourceRef` and `t`.
  *
  * Configuration API:
- * - `resourceRef` — required for `game_link`; identifies the resource to pick from.
- * - `t`           — translator; required for `game_link`.
- * - `gameLabel`   — optional cached display label for the current `game_link` value.
+ * - `resourceRef`    — required for `reference`; identifies the resource to pick from.
+ * - `t`              — translator; required for `reference`.
+ * - `gameLabel`      — optional cached display label for the current `reference` value.
+ * - `inheritedValue` — value inherited from a referenced game via schema inheritance.
+ *   Shown as a ghost hint below the input when `value` is empty. Never written to storage.
+ *   Omit (or leave undefined) when there is nothing to inherit.
  *
  * Communication API:
  * - `onChange(value)` fires with the new string value on every change.
@@ -35,14 +38,20 @@ type MetadataFieldInputProps = {
   /** Additional className applied to the root element. */
   className?: string;
   /**
-   * Required for `game_link` fields: the resource the picker will load games from.
+   * Required for `reference` fields: the resource the picker will load games from.
    * Must be the same resource the game being edited belongs to.
    */
   resourceRef?: { kind: string; locator: string };
-  /** Translator function — required for `game_link` fields. */
+  /** Translator function — required for `reference` fields. */
   t?: (key: string, fallback?: string) => string;
-  /** Cached human-readable label for the current `game_link` value (e.g. "White vs Black"). */
+  /** Cached human-readable label for the current `reference` value (e.g. "White vs Black"). */
   gameLabel?: string;
+  /**
+   * Value inherited from a referenced game. Shown as a ghost hint below the
+   * input when `value` is empty. Has no effect when `value` is non-empty.
+   * Not meaningful for `reference` or `flag` fields.
+   */
+  inheritedValue?: string;
 };
 
 // ── Date input ────────────────────────────────────────────────────────────────
@@ -133,9 +142,9 @@ const DateInput = ({
   );
 };
 
-// ── Game-link input ───────────────────────────────────────────────────────────
+// ── Reference input ──────────────────────────────────────────────────────────
 
-const GameLinkInput = ({
+const ReferenceInput = ({
   value,
   onChange,
   gameLabel,
@@ -167,16 +176,16 @@ const GameLinkInput = ({
   const displayLabel: string = gameLabel || value;
 
   return (
-    <span className="metadata-field-game-link">
-      <span className="metadata-field-game-link-label">
+    <span className="metadata-field-reference">
+      <span className="metadata-field-reference-label">
         {displayLabel
-          ? <span className="metadata-field-game-link-chip">{displayLabel}</span>
-          : <span className="metadata-field-game-link-empty">{t("gamePicker.none", "None")}</span>}
+          ? <span className="metadata-field-reference-chip">{displayLabel}</span>
+          : <span className="metadata-field-reference-empty">{t("gamePicker.none", "None")}</span>}
       </span>
       {resourceRef && (
         <button
           type="button"
-          className="metadata-field-game-link-btn"
+          className="metadata-field-reference-btn"
           onClick={handlePick}
         >
           {value ? t("gamePicker.change", "Change…") : t("gamePicker.pick", "Pick…")}
@@ -185,7 +194,7 @@ const GameLinkInput = ({
       {value && (
         <button
           type="button"
-          className="metadata-field-game-link-clear"
+          className="metadata-field-reference-clear"
           aria-label={t("gamePicker.clear", "Clear")}
           onClick={handleClear}
         >
@@ -218,20 +227,34 @@ export const MetadataFieldInput = ({
   resourceRef,
   t,
   gameLabel,
+  inheritedValue,
 }: MetadataFieldInputProps): ReactElement => {
   const baseClass = `metadata-field-input${className ? ` ${className}` : ""}`;
+  const showInherited: boolean =
+    inheritedValue !== undefined &&
+    inheritedValue !== "" &&
+    value === "" &&
+    field.type !== "reference" &&
+    field.type !== "flag";
+
+  const withInheritedHint = (input: ReactElement): ReactElement =>
+    showInherited ? (
+      <span className="metadata-field-inherited-wrap">
+        {input}
+        <span className="metadata-field-inherited-hint" title="Inherited from referenced game">
+          ↗ {inheritedValue}
+        </span>
+      </span>
+    ) : input;
 
   switch (field.type) {
     case "date":
-      return (
-        <DateInput
-          value={value}
-          onChange={onChange}
-        />
+      return withInheritedHint(
+        <DateInput value={value} onChange={onChange} />,
       );
 
     case "select":
-      return (
+      return withInheritedHint(
         <select
           className={`${baseClass} metadata-field-select`}
           value={value}
@@ -243,11 +266,11 @@ export const MetadataFieldInput = ({
           {(field.selectValues ?? []).map((v) => (
             <option key={v} value={v}>{v}</option>
           ))}
-        </select>
+        </select>,
       );
 
     case "number":
-      return (
+      return withInheritedHint(
         <input
           type="number"
           className={`${baseClass} metadata-field-number`}
@@ -255,7 +278,7 @@ export const MetadataFieldInput = ({
           onChange={(e: ChangeEvent<HTMLInputElement>): void => {
             onChange(e.target.value);
           }}
-        />
+        />,
       );
 
     case "flag":
@@ -270,9 +293,9 @@ export const MetadataFieldInput = ({
         />
       );
 
-    case "game_link":
+    case "reference":
       return (
-        <GameLinkInput
+        <ReferenceInput
           value={value}
           onChange={onChange}
           gameLabel={gameLabel}
@@ -282,7 +305,7 @@ export const MetadataFieldInput = ({
       );
 
     default: // "text"
-      return (
+      return withInheritedHint(
         <input
           type="text"
           className={`${baseClass} metadata-field-text`}

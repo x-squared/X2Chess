@@ -49,7 +49,7 @@
   height: 100dvh;
   padding: 1rem;
   border-left: 1px solid var(--border-subtle);
-  background: linear-gradient(180deg, #fcfdff, #f2f7ff);
+  background: var(--surface-1);
   box-shadow: -12px 0 28px rgba(16, 32, 54, 0.18);
   z-index: 120;
   display: flex;
@@ -91,7 +91,7 @@
   padding: 0.65rem 0.75rem;
   border: 1px solid #b8d4f8;
   border-radius: 8px;
-  background: linear-gradient(135deg, #e8f2ff, #d6e8ff);
+  background: var(--accent-soft);
 }
 
 .update-banner-text {
@@ -173,6 +173,12 @@
 .menu-close:hover {
   background: #f3f8ff;
   border-color: #a8bad6;
+}
+
+.menu-file-group {
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.25rem;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .source-button {

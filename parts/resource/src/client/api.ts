@@ -66,6 +66,13 @@ export const createResourceClient = (
     }
     return adapter.create(resourceRef, pgnText, title);
   },
+  deleteGame: async (gameRef: PgnGameRef) => {
+    const adapter: PgnResourceAdapter = resolveAdapter(adapters, gameRef.kind);
+    if (typeof adapter.delete !== "function") {
+      throw new PgnResourceError("unsupported_operation", `Adapter for kind '${gameRef.kind}' does not support deleting games.`);
+    }
+    return adapter.delete(gameRef);
+  },
   reorderGame: async (gameRef: PgnGameRef, afterRef: PgnGameRef | null) => {
     const adapter: PgnResourceAdapter = resolveAdapter(adapters, gameRef.kind);
     if (typeof adapter.reorder !== "function") {

@@ -800,7 +800,7 @@ The editor operates in one of three layout modes, stored per session in
 | Mode | Behaviour |
 |---|---|
 | `plain` | Raw PGN text; comment content is shown verbatim, no marker processing. |
-| `text` | Structural variation depth drives indentation for blocks (moves and interleaved comments); `[[br]]` becomes a visible line break in the `contentEditable`; comment line breaks follow `EditorStylePrefs.commentLineBreakPolicy` (`always` / `mainline_only`); the first comment before the first move receives *intro styling*. |
+| `text` | Bare-bones text flow: no automatic subvariation indentation or forced line breaks; `[[br]]` becomes a visible line break in the `contentEditable`; comment line breaks follow `EditorStylePrefs.commentLineBreakPolicy` (`always` / `mainline_only`); the first comment before the first move receives *intro styling*. |
 | `tree` | One block per variation in DFS order; each non-mainline block opens with a labelled `branch_header` token; `[[br]]` is rendered as newline while comment marker text remains in PGN storage; each variation's first comment receives intro styling independently. |
 
 #### Intro section (implicit detection)
@@ -849,8 +849,8 @@ entry point (re-exported from `editor/text_editor_plan.ts`). It:
    - `buildPlainEditorPlan` (`plan/plain_mode.ts`) — uses `buildVariationWalker` with
      a pass-through comment emitter that sets `plainLiteralComment = true`.
   - `buildTextModeEditorPlan` (`plan/text_mode.ts`) — uses `buildVariationWalker` with
-    a comment emitter that converts `[[br]]` to `\n`; indentation is derived from
-    variation structure (`variation.depth`) rather than comment directives.
+    a comment emitter that converts `[[br]]` to `\n`; subvariation block layout
+    (indentation/breaking) is user-controlled rather than automatic.
   - `buildTreeEditorPlan` (`plan/tree_mode.ts`) — has its own DFS traversal;
     comment rendering mirrors text mode break-marker behaviour (render `[[br]]` as newline);
      collects child RAVs inline and emits them as new blocks after the parent
@@ -861,7 +861,7 @@ entry point (re-exported from `editor/text_editor_plan.ts`). It:
 It returns a mutually-recursive `emitVariation` / `emitMove` pair bound to a
 mode-specific `CommentEmitter`. The walker handles comment hoisting (a comment
 immediately before a move number is hoisted before that move's token), structural
-variation-depth block context updates, and `postItems`
+token flow across moves/comments/RAV post-items, and `postItems`
 ordering from the parsed PGN model.
 
 **Token types** emitted into blocks:
@@ -952,7 +952,7 @@ Narrowing (a **view** of the same map — storage on disk is unchanged):
   | `WhiteElo`, `BlackElo` | `number` (via `parseInt`; non-numeric → `undefined`) |
   | `Result` | `PgnResultValue` union (`"1-0" \| "0-1" \| "1/2-1/2" \| "*"`) |
   | `XSqrChessStyle` | `X2StyleValue` union (`"plain" \| "text" \| "tree"`) |
-  | `XSqrHead` | `string` — mainline **half-moves only** (move numbers + SAN) through the first branch (see `serializeXsqrHeadMovetext`); written on save |
+  | `Head` | `string` — mainline **half-moves only** (move numbers + SAN) through the first branch (see `serializeXsqrHeadMovetext`); written on save |
   | All other known keys | `string` |
   | Unknown keys | `string` (pass-through) |
 
@@ -967,7 +967,7 @@ the viewer’s default columns (not a limit on what exists in the PGN):
 | Constant | Content |
 |---|---|
 | `PGN_STANDARD_METADATA_KEYS` | 14 keys — the Seven Tag Roster plus ECO, Opening, WhiteElo, BlackElo, TimeControl, Termination, Annotator |
-| `KNOWN_PGN_METADATA_KEYS` | Standard roster/supplemental tags plus X2 extensions (`XSqrChessStyle`, `Material`, `XSqrHead`); transitional style header names still parse in `PGN_METADATA_SCHEMA` but are not in this projection list |
+| `KNOWN_PGN_METADATA_KEYS` | Standard roster/supplemental tags plus X2 extensions (`XSqrChessStyle`, `Material`, `Head`); transitional style header names still parse in `PGN_METADATA_SCHEMA` but are not in this projection list |
 | `DEFAULT_RESOURCE_VIEWER_METADATA_KEYS` | 7-key default column set for the resource viewer: White, Black, Date, Event, Result, ECO, Opening (no Source column in defaults; `source` is not offered in the column picker) |
 
 The `METADATA_KEY` const object mirrors `PgnMetadataKnownValues` as string constants so
@@ -1009,7 +1009,7 @@ Beyond the standard PGN keys, users can define custom metadata schemas. A
   `type`, `required` flag, `orderIndex` (10, 20, 30, … with gaps for future insertions),
   and optional `selectValues` and `description`.
 
-**Field types:** `text`, `date`, `select`, `number`, `flag`, `game_link`.
+**Field types:** `text`, `date`, `select`, `number`, `flag`, `reference`.
 
 Schemas are persisted in localStorage under `x2chess.metadata-schemas` via the versioned
 store in `frontend/src/resources_viewer/schema_storage.ts`. They can be exported and

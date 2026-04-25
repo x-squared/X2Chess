@@ -141,6 +141,8 @@ export const AppShell = (): ReactElement => {
   const [showEditorStyleDialog, setShowEditorStyleDialog] = useState(false);
   // Default Layout dialog
   const [showDefaultLayoutDialog, setShowDefaultLayoutDialog] = useState(false);
+  // New game dialog
+  const [showNewGameDialog, setShowNewGameDialog] = useState(false);
 
   // Sync vs-engine board position to boardPreview.
   useEffect((): void => {
@@ -381,6 +383,7 @@ export const AppShell = (): ReactElement => {
     openCurriculumPanel: (): void => { training.setShowCurriculumPanel(true); },
     openEditorStyleDialog: (): void => { setShowEditorStyleDialog(true); },
     openDefaultLayoutDialog: (): void => { setShowDefaultLayoutDialog(true); },
+    openNewGameDialog: (): void => { setShowNewGameDialog(true); },
     switchSession: navigateGuard.switchSession,
     closeSession: navigateGuard.closeSession,
   };
@@ -692,6 +695,9 @@ export const AppShell = (): ReactElement => {
           onCloseEditorStyleDialog={(): void => { setShowEditorStyleDialog(false); }}
           showDefaultLayoutDialog={showDefaultLayoutDialog}
           onCloseDefaultLayoutDialog={(): void => { setShowDefaultLayoutDialog(false); }}
+          showNewGameDialog={showNewGameDialog}
+          onNewGameCreate={(pgn: string): void => { setShowNewGameDialog(false); void rawServices.newGameInActiveResource(pgn); }}
+          onCloseNewGameDialog={(): void => { setShowNewGameDialog(false); }}
           layoutMode={layoutMode}
           state={state}
           showExtDbSettings={showExtDbSettings}

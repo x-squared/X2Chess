@@ -114,6 +114,18 @@ export const MenuPanel = (): ReactElement => {
           onDismiss={dismissUpdate}
         />
 
+        <div className="controls controls-menu menu-file-group">
+          {/* New game */}
+          <button
+            id="btn-menu-new-game"
+            className="source-button"
+            type="button"
+            onClick={(): void => { services.setMenuOpen(false); services.openNewGameDialog(); }}
+          >
+            {t("menu.newGame", "New game\u2026")}
+          </button>
+        </div>
+
         <div className="controls controls-menu">
           {/* Move speed */}
           <label className="inline-control">

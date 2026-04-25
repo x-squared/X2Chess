@@ -30,6 +30,7 @@ import type {
 import type { TrainingTranscript } from "../domain/training_transcript";
 import type { PgnMoveNode } from "../../../../parts/pgnparser/src/pgn_model";
 import { parsePgnToModel } from "../../../../parts/pgnparser/src/pgn_model";
+import { getHeaderValue } from "../../../../parts/pgnparser/src/pgn_headers";
 import {
   acceptMove,
   EVAL_ACCEPT_THRESHOLD_CP,
@@ -98,10 +99,8 @@ const extractMainline = (
   const plyFens: string[] = [];
   const chess = new Chess();
 
-  const fenHeader = model.headers.find((h) => h.key === "FEN");
-  if (fenHeader) {
-    try { chess.load(fenHeader.value); } catch { /* ignore invalid FEN */ }
-  }
+  const fenValue = getHeaderValue(model, "FEN");
+  if (fenValue) { try { chess.load(fenValue); } catch { /* ignore invalid FEN */ } }
 
   for (const entry of model.root.entries) {
     if (entry.type !== "move") continue;

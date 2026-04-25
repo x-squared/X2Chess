@@ -12,14 +12,14 @@ import {
 test("extractPgnMetadataFromSource keeps every unique tag (SSOT slice)", () => {
   const pgn = `[Event "A"]
 [CustomTagFromUser "hello"]
-[XSqrHead "1.e4"]
+[Head "1.e4"]
 
 *`;
   const { metadata, discoveredKeysInOrder } = extractPgnMetadataFromSource(pgn);
   assert.equal(metadata.Event, "A");
   assert.equal(metadata.CustomTagFromUser, "hello");
-  assert.equal(metadata.XSqrHead, "1.e4");
-  assert.deepEqual(discoveredKeysInOrder, ["Event", "CustomTagFromUser", "XSqrHead"]);
+  assert.equal(metadata.Head, "1.e4");
+  assert.deepEqual(discoveredKeysInOrder, ["Event", "CustomTagFromUser", "Head"]);
 });
 
 test("mergeMetadataCatalogKeys unions known roster with discovered keys", () => {
@@ -27,7 +27,7 @@ test("mergeMetadataCatalogKeys unions known roster with discovered keys", () => 
   assert.ok(merged.includes("Apple"));
   assert.ok(merged.includes("Zoo"));
   assert.ok(merged.includes("White"));
-  assert.ok(merged.includes("XSqrHead"));
+  assert.ok(merged.includes("Head"));
 });
 
 test("extractPgnMetadata narrows SSOT map to requested keys only", () => {
@@ -40,13 +40,13 @@ test("extractPgnMetadata narrows SSOT map to requested keys only", () => {
   assert.equal(Object.hasOwn(narrowed.metadata, "Noise"), false);
 });
 
-test("extractPgnMetadata with KNOWN_PGN_METADATA_KEYS includes XSqrHead", () => {
+test("extractPgnMetadata with KNOWN_PGN_METADATA_KEYS includes Head", () => {
   const pgn = `[Event "?"]
-[XSqrHead "1.e4 e5"]
+[Head "1.e4 e5"]
 
 1. e4 e5 *`;
   const result = extractPgnMetadata(pgn, KNOWN_PGN_METADATA_KEYS);
-  assert.equal(result.metadata.XSqrHead, "1.e4 e5");
+  assert.equal(result.metadata.Head, "1.e4 e5");
 });
 
 test("extractPgnMetadata returns normalized map and keys", () => {

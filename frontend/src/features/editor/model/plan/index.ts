@@ -6,7 +6,7 @@
  *   PGN model into a flat `PlanBlock[]` suitable for rendering by `PgnTextEditor`.
  * - `layoutMode`:
  *   - `plain`  — literal comment text, no marker processing.
- *   - `text`   — structural variation depth drives indentation; `[[br]]` becomes a newline
+ *   - `text`   — bare-bones text flow (no automatic subvariation indentation/breaking); `[[br]]` becomes a newline
  *                in the contentEditable; first comment receives intro styling.
  *   - `tree`   — one block per variation (DFS); markers shown as greyed literal text;
  *                first comment of each variation receives intro styling independently.

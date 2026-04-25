@@ -2,14 +2,16 @@ import {
   useRef,
   useEffect,
   type ReactElement,
-  type FormEvent,
   type RefObject,
+  type SyntheticEvent,
 } from "react";
 import {
   type TabState,
   METADATA_CANONICAL_ORDER,
   METADATA_LAST_KEYS,
   RESOURCE_VIEWER_OMIT_KEYS,
+  tabRows,
+  tabAvailableKeys,
 } from "../services/viewer_utils";
 
 // ── Metadata catalog builder ──────────────────────────────────────────────────
@@ -25,10 +27,10 @@ type CatalogEntry = { key: string; label: string };
 const buildMetadataCatalog = (tab: TabState): CatalogEntry[] => {
   // Collect all known keys from available list and row data.
   const all = new Set<string>();
-  tab.availableMetadataKeys.forEach((k: string): void => {
+  tabAvailableKeys(tab).forEach((k: string): void => {
     if (!RESOURCE_VIEWER_OMIT_KEYS.has(k)) all.add(k);
   });
-  tab.rows.forEach((row): void => {
+  tabRows(tab).forEach((row): void => {
     if (row.metadata) {
       Object.keys(row.metadata).forEach((k: string): void => {
         if (!RESOURCE_VIEWER_OMIT_KEYS.has(k)) all.add(k);
@@ -77,7 +79,7 @@ type ResourceMetadataDialogProps = {
   activeTab: TabState | null;
   dialogFormId: string;
   t: (key: string, fallback?: string) => string;
-  onSave: (e: FormEvent<HTMLFormElement>) => void;
+  onSave: (e: SyntheticEvent<HTMLFormElement>) => void;
   onClose: () => void;
   onReset: () => void;
 };

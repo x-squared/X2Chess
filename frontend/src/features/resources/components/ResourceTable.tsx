@@ -19,7 +19,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ChangeEvent,
 } from "react";
-import { clampWidth } from "../services/viewer_utils";
+import { clampWidth, tabRows } from "../services/viewer_utils";
 import type {
   TabState,
   ResourceRow,
@@ -108,8 +108,9 @@ const computeGroupItems = (
   const seen = new Map<string, { row: ResourceRow; originalIndex: number }[]>();
   for (const r of rows) {
     const val = field === "game" ? r.row.game : String(r.row.metadata[field] ?? "—");
-    if (!seen.has(val)) seen.set(val, []);
-    seen.get(val)!.push(r);
+    let group = seen.get(val);
+    if (!group) { group = []; seen.set(val, group); }
+    group.push(r);
   }
 
   const items: TableItem[] = [];
@@ -216,7 +217,7 @@ export const ResourceTable = ({
   onRemoveMetadataColumn,
   trainingBadges,
 }: ResourceTableProps): ReactElement => {
-  const allRows = activeTab?.rows ?? [];
+  const allRows = tabRows(activeTab);
 
   // Build field-definition lookup for type-aware filtering (UV2).
   const fieldDefMap = new Map<string, MetadataFieldDefinition>(
@@ -266,11 +267,11 @@ export const ResourceTable = ({
         <p className="resource-viewer-empty" data-ui-id={UI_IDS.RESOURCES_TABLE_EMPTY}>
           {t("resources.noTabs", "No resource tab is open.")}
         </p>
-      ) : activeTab.errorMessage ? (
+      ) : activeTab.loadState.status === "error" ? (
         <p className="resource-viewer-error" data-ui-id={UI_IDS.RESOURCES_TABLE_ERROR}>
-          {activeTab.errorMessage}
+          {activeTab.loadState.errorMessage}
         </p>
-      ) : activeTab.isLoading ? (
+      ) : activeTab.loadState.status === "loading" ? (
         <p className="resource-viewer-empty" data-ui-id={UI_IDS.RESOURCES_TABLE_LOADING}>
           {t("resources.loading", "Loading resource games...")}
         </p>

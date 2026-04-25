@@ -1,6 +1,6 @@
 /**
  * PGN serialization: full game to PGN text, plus `serializeXsqrHeadMovetext` for
- * the derived mainline-prefix header (`[XSqrHead "..."]`) used on save.
+ * the derived mainline-prefix header (`[Head "..."]`) used on save.
  */
 import type {
   PgnCommentNode,
@@ -85,7 +85,7 @@ export const serializeModelToPgn = (model: PgnModel): string => {
 };
 
 /** PGN header key for the derived mainline-prefix snapshot (filled on save). */
-export const XSQR_HEAD_HEADER_KEY = "XSqrHead";
+export const XSQR_HEAD_HEADER_KEY = "Head";
 
 /**
  * True when `token` is a white move-number prefix (`1.`, `12.`) — not black (`12...`).
@@ -103,11 +103,11 @@ const looksLikeSanHalfMove = (token: string): boolean => {
 };
 
 /**
- * Join XSqrHead fragments; glue white move numbers to the following SAN
+ * Join Head fragments; glue white move numbers to the following SAN
  * (`1.` + `e4` → `1.e4`) with no intervening space.
  *
  * @param parts - Ordered tokens — **move numbers and SAN half-moves only** (no comments or NAGs).
- * @returns Single movetext string for `[XSqrHead "..."]`.
+ * @returns Single movetext string for `[Head "..."]`.
  */
 export const joinXsqrHeadParts = (parts: string[]): string => {
   const merged: string[] = [];

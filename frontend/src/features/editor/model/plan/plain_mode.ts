@@ -1,5 +1,9 @@
 /**
  * Plain mode plan builder.
+ * 
+ * Plain mode is meant to be essentially raw pgn text editing. No marker interpretation,
+ * no automatic indentation or block shaping. We will fully implement this later, and keep the
+ * file for reference now.
  *
  * Plain-mode layout contract (normative):
  * - The movetext is rendered as a flat stream of tokens.

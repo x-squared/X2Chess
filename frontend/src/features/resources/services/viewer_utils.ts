@@ -67,7 +67,7 @@ export const METADATA_CANONICAL_ORDER: readonly string[] = [
   "Annotator",
   X2CHESS_STYLE_METADATA_KEY,
   "Material",
-  "XSqrHead",
+  "Head",
 ];
 
 /** System keys always placed last in the metadata catalog (`source` omitted — not offered as a column). */
@@ -90,18 +90,27 @@ export type ResourceRow = {
   sourceRef: Record<string, unknown> | null;
 };
 
+export type TabLoadState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "loaded"; rows: ResourceRow[]; availableMetadataKeys: string[] }
+  | { status: "error"; errorMessage: string };
+
 export type TabState = {
   tabId: string;
   title: string;
   resourceRef: ResourceRef;
-  rows: ResourceRow[];
-  availableMetadataKeys: string[];
+  loadState: TabLoadState;
   visibleMetadataKeys: string[];
   metadataColumnOrder: string[];
   columnWidths: Record<string, number>;
-  errorMessage: string;
-  isLoading: boolean;
 };
+
+export const tabRows = (tab: TabState | null | undefined): ResourceRow[] =>
+  tab?.loadState.status === "loaded" ? tab.loadState.rows : [];
+
+export const tabAvailableKeys = (tab: TabState | null | undefined): string[] =>
+  tab?.loadState.status === "loaded" ? tab.loadState.availableMetadataKeys : [];
 
 export type TabPrefs = {
   visibleMetadataKeys: string[];
@@ -274,7 +283,10 @@ export const listAddableMetadataFields = (
   );
   out.sort((a: MetadataFieldDefinition, b: MetadataFieldDefinition): number => {
     const byLabel: number = a.label.localeCompare(b.label, undefined, { sensitivity: "base" });
-    return byLabel !== 0 ? byLabel : a.key.localeCompare(b.key);
+    if (byLabel === 0) {
+      return a.key.localeCompare(b.key);
+    }
+    return byLabel;
   });
   return out;
 };
@@ -359,12 +371,12 @@ export const removeMetadataColumnFromTab = <T extends TabState>(
  */
 export const reconcileColumns = <T extends TabState>(tab: T): T => {
   const nonGameCols: string[] = tab.metadataColumnOrder.filter((k: string): boolean => k !== "game");
-  const rawVisible: string[] =
-    tab.visibleMetadataKeys.length > 0
-      ? [...tab.visibleMetadataKeys].filter((k: string): boolean => k !== "source")
-      : nonGameCols.length === 0
-        ? []
-        : [...DEFAULT_METADATA_KEYS];
+  let rawVisible: string[] = [];
+  if (tab.visibleMetadataKeys.length > 0) {
+    rawVisible = [...tab.visibleMetadataKeys].filter((k: string): boolean => k !== "source");
+  } else if (nonGameCols.length > 0) {
+    rawVisible = [...DEFAULT_METADATA_KEYS];
+  }
   const visible: string[] = rawVisible.filter((k: string): boolean => k !== "source");
   const allowed: string[] = ["game", ...visible];
   const seen = new Set<string>();

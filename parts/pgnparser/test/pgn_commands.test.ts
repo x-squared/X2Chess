@@ -77,6 +77,15 @@ test("setCommentTextById — whitespace and repeated [[br]] only removes comment
   assert.equal(getMoveCommentsAfter(nextE4).length, 0);
 });
 
+test("setCommentTextById — html/literal break marker text only removes comment", () => {
+  const model = parsePgnToModel("1. e4 {x} e5");
+  const e4 = model.root.entries.find(isMoveEntry) as PgnMoveNode;
+  const commentId = getMoveCommentsAfter(e4)[0].id;
+  const next = setCommentTextById(model, commentId, "  <br />  \\n  ") as typeof model;
+  const nextE4 = next.root.entries.find(isMoveEntry) as PgnMoveNode;
+  assert.equal(getMoveCommentsAfter(nextE4).length, 0);
+});
+
 test("setCommentTextById — unknown id returns model unchanged", () => {
   const model = parsePgnToModel("1. e4");
   const result = setCommentTextById(model, "no-such-id", "text");

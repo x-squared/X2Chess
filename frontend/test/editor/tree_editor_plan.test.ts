@@ -195,7 +195,7 @@ test("rawText preserved in tree mode — [[br]] survives for text-mode round-tri
   assert.equal(commentTok!.rawText, "Note [[br]] continued");
 });
 
-test("tree mode strips visible [[indent]] marker text from comment display", () => {
+test("tree mode keeps [[indent]] marker text visible in comment display", () => {
   const m = model(variation(0, [
     comment("c1", "[[indent]] Intro line"),
     moveNumber("1."),
@@ -206,7 +206,7 @@ test("tree mode strips visible [[indent]] marker text from comment display", () 
     | { text: string; rawText: string }
     | undefined;
   assert.ok(commentTok);
-  assert.equal(commentTok!.text, "Intro line");
+  assert.equal(commentTok!.text, "[[indent]] Intro line");
   assert.equal(commentTok!.rawText, "[[indent]] Intro line");
 });
 
@@ -266,44 +266,40 @@ test("tree mode: commentsBefore on first move still get introStyling", () => {
 
 // ── Plain/text modes unaffected ───────────────────────────────────────────────
 
-test("text mode: [[indent]] alias \\i still triggers indent directive", () => {
-  const rav = variation(1, [moveNumber("1."), move("r1", "d4")]);
+test("text mode keeps \\i marker text visible in comments", () => {
   const m = model(variation(0, [
     comment("c1", "\\i Indented comment"),
-    rav,
-    moveNumber("1."), move("m1", "e4"),
-  ]));
-  const blocks = textBlocks(m);
-  // The indented RAV should produce a block with indentDepth > 0.
-  const indented = blocks.find((b) => b.indentDepth > 0);
-  assert.ok(indented, "expected at least one indented block in text mode");
-});
-
-test("text mode: indent directive does not force line breaks in mainline", () => {
-  const m = model(variation(0, [
-    comment("c1", "[[indent]]"),
     moveNumber("1."),
     move("m1", "e4"),
-    move("m2", "e5"),
   ]));
   const blocks = textBlocks(m);
-  assert.ok(blocks.length >= 2);
+  const commentTok = findCommentToken(blocks, "c1");
+  assert.equal(commentTok?.text, "\\i Indented comment");
 });
 
-test("text mode: [[deindent]] cancels prior indent for following content", () => {
+test("text mode keeps [[indent]] marker text visible in comments", () => {
   const m = model(variation(0, [
-    comment("c1", "[[indent]]"),
+    comment("c1", "[[indent]] keep literal"),
     moveNumber("1."),
     move("m1", "e4"),
+  ]));
+  const blocks = textBlocks(m);
+  const commentTok = findCommentToken(blocks, "c1");
+  assert.equal(commentTok?.text, "[[indent]] keep literal");
+});
+
+test("text mode keeps [[deindent]] marker text visible in comments", () => {
+  const m = model(variation(0, [
     comment("c2", "[[deindent]]"),
-    moveNumber("1..."),
-    move("m2", "e5"),
+    moveNumber("1."),
+    move("m1", "e4"),
   ]));
   const blocks = textBlocks(m);
-  assert.ok(blocks.length >= 2);
+  const commentTok = findCommentToken(blocks, "c2");
+  assert.equal(commentTok?.text, "[[deindent]]");
 });
 
-test("tree mode strips visible [[deindent]] marker text from comment display", () => {
+test("tree mode keeps [[deindent]] marker text visible in comment display", () => {
   const m = model(variation(0, [
     comment("c1", "[[deindent]] Back out"),
     moveNumber("1."),
@@ -314,7 +310,7 @@ test("tree mode strips visible [[deindent]] marker text from comment display", (
     | { text: string; rawText: string }
     | undefined;
   assert.ok(commentTok);
-  assert.equal(commentTok!.text, "Back out");
+  assert.equal(commentTok!.text, "[[deindent]] Back out");
   assert.equal(commentTok!.rawText, "[[deindent]] Back out");
 });
 
@@ -409,7 +405,7 @@ test("text mode keeps black move number when a mainline comment starts a new blo
   assert.match(text, /5\.\.\./);
 });
 
-test("text mode keeps black move-number token inside variation", () => {
+test("text mode can suppress black move-number token inside inline variation flow", () => {
   const rav = variation(1, [moveNumber("1..."), move("rv1", "Kh7")]);
   const m = model(variation(0, [
     moveNumber("1."),
@@ -424,10 +420,10 @@ test("text mode keeps black move-number token inside variation", () => {
   const hasBlackMoveNumber = ravBlock.tokens.some(
     (token) => token.kind === "inline" && token.tokenType === "move_number" && token.text === "1...",
   );
-  assert.equal(hasBlackMoveNumber, true);
+  assert.equal(hasBlackMoveNumber, false);
 });
 
-test("text mode renders mainline RAV on its own block", () => {
+test("text mode keeps mainline RAV inline in bare-bones flow", () => {
   const rav = variation(1, [moveNumber("1..."), move("rv1", "Kg7"), move("rv2", "a5")]);
   const m = model(variation(0, [
     moveNumber("1."),
@@ -447,11 +443,11 @@ test("text mode renders mainline RAV on its own block", () => {
   assert.notEqual(kh7Block, -1, "Kh7 should be rendered");
   assert.notEqual(kg7Block, -1, "Kg7 should be rendered");
   assert.notEqual(b8rBlock, -1, "b8=R should be rendered");
-  assert.notEqual(kh7Block, kg7Block, "RAV should not share block with parent mainline move");
-  assert.notEqual(kg7Block, b8rBlock, "RAV should not share block with mainline continuation");
+  assert.equal(kh7Block, kg7Block, "RAV should share block with parent mainline move");
+  assert.equal(kg7Block, b8rBlock, "RAV should share block with mainline continuation");
 });
 
-test("text mode keeps mainline left-aligned and indents the RAV block", () => {
+test("text mode keeps RAV block unindented in bare-bones flow", () => {
   const rav = variation(1, [moveNumber("1..."), move("rv1", "Kg7")]);
   const m = model(variation(0, [
     moveNumber("1."),
@@ -473,10 +469,10 @@ test("text mode keeps mainline left-aligned and indents the RAV block", () => {
   assert.notEqual(b8rBlockIndex, -1);
   assert.equal(blocks[kh7BlockIndex].indentDepth, 0, "mainline move should be left-aligned");
   assert.equal(blocks[b8rBlockIndex].indentDepth, 0, "mainline continuation should be left-aligned");
-  assert.ok(blocks[kg7BlockIndex].indentDepth > 0, "variation block should be indented");
+  assert.equal(blocks[kg7BlockIndex].indentDepth, 0, "variation block should not be auto-indented");
 });
 
-test("text mode keeps black move number after a mainline RAV", () => {
+test("text mode may suppress black move number after inline mainline RAV", () => {
   const rav = variation(1, [moveNumber("3."), move("rv1", "Rg8+"), move("rv2", "Kf7"), move("rv3", "Rg7+")]);
   const m = model(variation(0, [
     moveNumber("3."),
@@ -496,12 +492,10 @@ test("text mode keeps black move number after a mainline RAV", () => {
       token.text === "3..." &&
       Number(token.dataset.variationDepth ?? 0) === 0,
   );
-  assert.equal(hasMainlineBlackNumber, true);
+  assert.equal(hasMainlineBlackNumber, false);
 });
 
-test("text mode starts a new block after a mainline RAV before the continuation", () => {
-  // Regression: 3.cxd5 (3.Nc3 ...) 3...exd5 — exd5 must be in a
-  // different block from the last move inside the variation.
+test("text mode keeps continuation inline after a mainline RAV", () => {
   const rav = variation(1, [
     moveNumber("3."), move("rv1", "Nc3"),
     moveNumber("3..."), move("rv2", "Nf6"),
@@ -519,10 +513,10 @@ test("text mode starts a new block after a mainline RAV before the continuation"
     );
   assert.notEqual(blockOf("Nf6"), -1, "Nf6 should be rendered");
   assert.notEqual(blockOf("exd5"), -1, "exd5 should be rendered");
-  assert.notEqual(
+  assert.equal(
     blockOf("Nf6"),
     blockOf("exd5"),
-    "exd5 (mainline continuation) must be in a different block from the last RAV move",
+    "exd5 (mainline continuation) should remain in the same inline block as the RAV flow",
   );
 });
 
@@ -553,7 +547,7 @@ test("text mode keeps variation inline when preceding mainline comment has no tr
   assert.equal(commentTok?.inlineWithNextVariation, true);
 });
 
-test("text mode breaks variation to next block when comment ends with [[br]]", () => {
+test("text mode moves variation to next block when comment ends with [[br]]", () => {
   const rav = variation(1, [moveNumber("1..."), move("rv1", "c5")]);
   const m = model(variation(0, [
     moveNumber("1."),
@@ -574,7 +568,7 @@ test("text mode breaks variation to next block when comment ends with [[br]]", (
   assert.notEqual(
     blockOfMove("c5"),
     blockOfComment("c1"),
-    "variation should move to a new block when the comment ends with [[br]]",
+    "explicit [[br]] at end of comment should place the following variation on a new block",
   );
   const commentTok = findCommentToken(blocks, "c1");
   assert.equal(commentTok?.inlineWithNextVariation, false);

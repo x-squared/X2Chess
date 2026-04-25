@@ -229,7 +229,7 @@ export const createEditingOps = (
 
   updateGameInfoHeader: (sessionId: string, key: string, rawValue: string): void => {
     if (key === XSQR_HEAD_HEADER_KEY) {
-      log.info("session_editing_ops", "updateGameInfoHeader: ignored read-only XSqrHead");
+      log.info("session_editing_ops", "updateGameInfoHeader: ignored read-only Head");
       return;
     }
     const activeSessionId: string | null = bundle.sessionStore.getActiveSessionId();

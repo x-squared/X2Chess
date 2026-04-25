@@ -45,6 +45,7 @@ X2Chess has three main areas:
 ### Creating a new game
 
 - Click **+ New game** on the same row as the open resource tabs in the resource viewer.
+- Click **Delete game** in that same row to remove the currently active resource-backed game session from its resource (confirmation required).
 - The New Game dialog opens. Choose:
   - **Standard** — starts from the normal starting position.
   - **Custom FEN** — enter any FEN string to start from a specific position.
@@ -98,7 +99,7 @@ opening line for the active game.
 - **XSqr head** shows the main line as **moves only** (move numbers and piece
   moves, no comments or symbols) up to the first variation or the end of the main
   line. It is read-only in the UI (you can select and copy the text); when you save
-  the game, that text is stored in the PGN tag `[XSqrHead "..."]`.
+  the game, that text is stored in the PGN tag `[Head "..."]`.
 - Metadata fields in lists also depend on the active schema (see **Metadata schemas** below).
 - The **Result** field accepts `1-0`, `0-1`, `½-½`, or `*`.
 
@@ -149,10 +150,9 @@ Use the **Plain / Text / Tree** buttons in the toolbar to switch layout:
 
 - **Plain** — compact, literal PGN notation, close to the raw file format.
   Comments are shown verbatim; no formatting markers are interpreted.
-- **Text** — narrative layout with line breaks and indentation for readability.
-  The `[[br]]` marker inside a comment inserts a visible line break. Variation
-  blocks are indented structurally by variation depth (including comments between
-  their moves).
+- **Text** — bare-bones narrative flow. `[[br]]` inserts visible line breaks in
+  comments; subvariations are not auto-indented and are not auto-moved to a new
+  line.
 - **Tree** — structured view emphasising variation branching.  Each variation
   appears as its own block, opened by a labelled pill button (e.g. **A**, **B.1**).
   Formatting markers are shown as greyed literal text rather than applied.
@@ -198,7 +198,8 @@ mode, marker text remains literal.
    - **Insert comment right** — adds a comment after the selected move.
 3. Click into a comment and type to edit it directly.
 4. Leaving a comment empty removes it automatically.
-5. Newly inserted comments are briefly highlighted.
+5. When PGN text is loaded, comments that are empty in source notation are discarded automatically.
+6. Newly inserted comments are briefly highlighted.
 
 ### Move action popup
 
@@ -242,7 +243,8 @@ In Text and Tree layout modes, comments support explicit line breaks:
 - `[[br]]` — inserts a line break at that point in the narrative.
 
 Use the toolbar button **Insert line break** to insert this marker at the
-cursor position. Variation indentation is automatic and follows the move tree.
+cursor position. Subvariation spacing/line-breaking is left to manual `[[br]]`
+placement.
 
 ### Editor style options for comments and variations
 
@@ -597,7 +599,7 @@ resource table.
   not offered as a column.
 - Use **Add metadata…** (dropdown next to **Manage schemas…**) to append any
   field from the full **known** PGN list (including X2 tags such as style,
-  `Material`, `XSqrHead`) plus any extra header keys discovered in loaded games.
+  `Material`, `Head`) plus any extra header keys discovered in loaded games.
   Entries are sorted **alphabetically** by name. Columns are inserted in canonical order next to related tags.
   Click **×** on a column header (except **Game**) to remove that column from the table.
 - Click **Manage schemas…** to open the **Schema Editor**:

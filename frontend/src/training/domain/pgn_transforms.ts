@@ -21,6 +21,7 @@
 
 import { Chess } from "chess.js";
 import { parsePgnToModel } from "../../../../parts/pgnparser/src/pgn_model";
+import { getHeaderValue } from "../../../../parts/pgnparser/src/pgn_headers";
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
@@ -235,9 +236,8 @@ type ExtractedGame = {
 const extractGame = (pgnText: string): ExtractedGame | null => {
   try {
     const model = parsePgnToModel(pgnText);
-    const fenHeader = model.headers.find((h) => h.key === "FEN");
     const startFen =
-      fenHeader?.value ?? "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+      getHeaderValue(model, "FEN") || "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
     const chess = new Chess();
     try {

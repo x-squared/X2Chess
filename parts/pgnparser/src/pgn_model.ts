@@ -181,6 +181,18 @@ export const parseCommentRuns = (raw: string): CommentRun[] => {
   return runs;
 };
 
+/**
+ * True when a comment body should be treated as empty for persistence.
+ * Empty editor states can appear as whitespace, line breaks, or only `[[br]]` markers.
+ */
+export const isCommentBodyEffectivelyEmpty = (rawText: string): boolean => {
+  const normalized: string = rawText
+    .replace(/\r\n/g, "\n")
+    .trim();
+  if (normalized.length === 0) return true;
+  return /^(?:\s|\[\[br\]\]|<br\s*\/?>|\\n|\n)+$/i.test(normalized);
+};
+
 type PgnHeader = { key: string; value: string };
 
 /** A single comment node in the PGN tree, produced from text between `{` and `}`. */
@@ -405,6 +417,9 @@ export const parsePgnToModel = (rawPgn: string): PgnModel => {
     }
 
     if (token.type === "comment") {
+      if (isCommentBodyEffectivelyEmpty(token.value)) {
+        continue;
+      }
       const comment: PgnCommentNode = createComment(token.value);
       if (frame.lastMove) {
         insertAfterCommentBeforeFirstRav(frame.lastMove, comment);

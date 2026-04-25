@@ -1,7 +1,7 @@
 .resource-viewer-card {
   border: 1px solid var(--border-subtle);
   border-radius: 10px;
-  background: linear-gradient(180deg, var(--surface-1), var(--surface-2));
+  background: var(--surface-1);
   box-shadow: var(--shadow-s);
   padding: 0.55rem 0.65rem 0.65rem;
 }
@@ -718,7 +718,7 @@
   flex-direction: column;
   gap: 0.55rem;
   padding: 0.8rem;
-  background: linear-gradient(180deg, var(--surface-1), var(--surface-2));
+  background: var(--surface-1);
 }
 
 .resource-metadata-title {
@@ -793,7 +793,7 @@
   z-index: 125;
   border: 1px solid var(--border-strong);
   border-radius: 10px;
-  background: linear-gradient(180deg, #fcfdff, #f2f7ff);
+  background: var(--surface-1);
   box-shadow: var(--shadow-m);
   height: var(--dev-dock-height);
   min-height: 180px;
@@ -893,7 +893,7 @@
   margin: 0.75rem 0 0.95rem;
   border: 1px solid var(--border-subtle);
   border-radius: 10px;
-  background: linear-gradient(180deg, var(--surface-1), var(--surface-2));
+  background: var(--surface-1);
   box-shadow: var(--shadow-s);
   position: relative;
   overflow: visible;
@@ -984,7 +984,7 @@
   border-top: none;
   border-radius: 0 0 10px 10px;
   padding: 0.65rem 0.7rem 0.75rem;
-  background: linear-gradient(180deg, var(--surface-1), var(--surface-2));
+  background: var(--surface-1);
   box-shadow: var(--shadow-s);
 }
 
@@ -1344,7 +1344,7 @@
 .right-panel-stack {
   border: 1px solid var(--border-subtle);
   border-radius: 10px;
-  background: linear-gradient(180deg, var(--surface-1), var(--surface-2));
+  background: var(--surface-1);
   box-shadow: var(--shadow-s);
   margin-bottom: 0.9rem;
   overflow: hidden;

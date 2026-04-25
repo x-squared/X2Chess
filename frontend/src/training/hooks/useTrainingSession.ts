@@ -180,7 +180,9 @@ export const useTrainingSession = (
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
   const movePlyStartTimeRef = useRef<number>(Date.now());
   const protocolsArr = Array.isArray(protocols) ? protocols : [protocols];
-  const activeProtocolRef = useRef<TrainingProtocol>(protocolsArr[0]!);
+  const firstProtocol = protocolsArr[0];
+  if (!firstProtocol) throw new Error("useTrainingSession: protocols must not be empty");
+  const activeProtocolRef = useRef<TrainingProtocol>(firstProtocol);
   const activeSourceGameRefRef = useRef<string>("");
 
   // Convenience accessor — always use ref so callbacks don't need to re-create.

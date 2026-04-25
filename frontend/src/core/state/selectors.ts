@@ -15,6 +15,7 @@
 import type { PgnModel } from "../../../../parts/pgnparser/src/pgn_model";
 import type { AppStoreState, ResourceTabSnapshot, SessionItemState } from "./app_reducer";
 import { findMoveNode } from "../../../../parts/pgnparser/src/pgn_move_ops";
+import { getHeaderValue } from "../../../../parts/pgnparser/src/pgn_headers";
 import { getMoveCommentsAfter } from "../../../../parts/pgnparser/src/pgn_move_attachments";
 import { parseShapes } from "../../board/shape_parser";
 import type { BoardShape } from "../../board/board_shapes";
@@ -53,7 +54,7 @@ export const selectIsGameInfoEditorOpen = (state: AppStoreState): boolean => sta
 export const selectUndoDepth = (state: AppStoreState): number => state.undoDepth;
 export const selectRedoDepth = (state: AppStoreState): number => state.redoDepth;
 export const selectStartingFen = (state: AppStoreState): string =>
-  state.pgnModel?.headers?.find((h) => h.key === "FEN")?.value?.trim() ?? "";
+  getHeaderValue(state.pgnModel, "FEN").trim();
 export const selectAnnotationShapes = (state: AppStoreState): BoardShape[] => {
   const model: PgnModel | null = state.pgnModel;
   const moveId: string | null = state.selectedMoveId;

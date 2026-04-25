@@ -1,6 +1,7 @@
 {
   "menu.open": "Menue oeffnen",
   "menu.close": "Menue schliessen",
+  "menu.newGame": "Neue Partie\u2026",
   "menu.title": "Menue",
   "controls.speed": "Zugtempo (ms)",
   "controls.sound": "Ton",
@@ -23,8 +24,8 @@
   "gameInfo.date": "Datum",
   "gameInfo.opening": "Eroeffnung",
   "gameInfo.edit": "Partieinformationen bearbeiten",
-  "gameInfo.xsqrHead": "XSqr-Kopf",
-  "gameInfo.xsqrHead.hint": "Nur Hauptpartie-Zuege (ohne Kommentare oder Symbole), bis zur ersten Variante oder Partieende (wird als XSqrHead gespeichert)",
+  "gameInfo.head": "XSqr-Kopf",
+  "gameInfo.head.hint": "Nur Hauptpartie-Zuege (ohne Kommentare oder Symbole), bis zur ersten Variante oder Partieende (wird als Head gespeichert)",
   "status.label": "Stellung",
   "pgn.label": "PGN-Eingabe",
   "pgn.load": "PGN laden",

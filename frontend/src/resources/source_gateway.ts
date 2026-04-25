@@ -19,7 +19,6 @@ import {
   type LegacyListEntry,
   type LegacyLoadResult,
   type LegacySaveResult,
-  type LegacySourceRef,
 } from "../../../parts/resource/src/client/compatibility";
 import type { PgnResourceRef } from "../../../parts/resource/src/domain/resource_ref";
 import { createSourcePickerAdapter } from "./source_picker_adapter";
@@ -50,6 +49,8 @@ type SourceGatewayDeps = {
   state: SourceGatewayState;
 };
 
+type SourceRefInput = { kind?: string; locator?: string; recordId?: string };
+
 /**
  * Create source gateway boundary.
  *
@@ -66,6 +67,7 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
       | null
     >;
     pickFileOnlyTarget: () => Promise<{ type: "file" | "db"; title: string; locator: string } | null>;
+    pickDatabaseOnlyTarget: () => Promise<{ type: "db"; title: string; locator: string } | null>;
     detectDefaultSourceRoot: () => Promise<unknown>;
     createNewDatabase: (suggestedName: string) => Promise<{ type: "db"; title: string; locator: string } | null>;
     createNewPgnFile: (suggestedName: string) => Promise<{ type: "file"; title: string; locator: string } | null>;
@@ -189,6 +191,13 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
     throw new TypeError("Unknown resource type selected.");
   };
 
+  const chooseDatabaseByPicker = async (): Promise<{ resourceRef: PgnResourceRef; activeKind: string } | null> => {
+    const selected = await sourcePickerAdapter.pickDatabaseOnlyTarget();
+    if (!selected) return null;
+    if (!supportsFileKind) throw new Error("Database resources require the desktop application.");
+    return { resourceRef: { kind: "db", locator: selected.locator }, activeKind: "db" };
+  };
+
   /**
    * Open a folder picker.
    *
@@ -237,7 +246,7 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
 
   // ── Resource operations ───────────────────────────────────────────────────────
 
-  const listGamesForResource = async (resourceRef: LegacySourceRef): Promise<LegacyListEntry[]> => {
+  const listGamesForResource = async (resourceRef: SourceRefInput): Promise<LegacyListEntry[]> => {
     const canonicalRef = toCanonicalResourceRef(resourceRef || { kind: "directory", locator: "" });
     if (canonicalRef.kind === "file" && !supportsFileKind) return [];
     const listed = await resourceClient.listGames(canonicalRef);
@@ -250,13 +259,13 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
     }));
   };
 
-  const loadBySourceRef = async (sourceRef: LegacySourceRef): Promise<LegacyLoadResult> => {
+  const loadBySourceRef = async (sourceRef: SourceRefInput): Promise<LegacyLoadResult> => {
     const loaded = await resourceClient.loadGame(toCanonicalGameRef(sourceRef));
     return { pgnText: loaded.pgnText, revisionToken: loaded.revisionToken, titleHint: loaded.title };
   };
 
   const saveBySourceRef = async (
-    sourceRef: LegacySourceRef,
+    sourceRef: SourceRefInput,
     pgnText: string,
     revisionToken: string,
     _options: Record<string, unknown> = {},
@@ -268,7 +277,7 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
   };
 
   const createGameInResource = async (
-    resourceRef: LegacySourceRef,
+    resourceRef: SourceRefInput,
     pgnText: string,
     titleHint: string = "",
   ): Promise<LegacyCreateResult> => {
@@ -284,11 +293,15 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
     };
   };
 
-  const reorderGame = async (sourceRef: LegacySourceRef, afterSourceRef: LegacySourceRef | null): Promise<void> => {
+  const reorderGame = async (sourceRef: SourceRefInput, afterSourceRef: SourceRefInput | null): Promise<void> => {
     await resourceClient.reorderGame(
       toCanonicalGameRef(sourceRef),
       afterSourceRef ? toCanonicalGameRef(afterSourceRef) : null,
     );
+  };
+
+  const deleteGame = async (sourceRef: SourceRefInput): Promise<void> => {
+    await resourceClient.deleteGame(toCanonicalGameRef(sourceRef));
   };
 
   const searchByPositionAcross = async (positionHash: string, resourceRefs: PgnResourceRef[]): Promise<PositionSearchHit[]> =>
@@ -304,6 +317,7 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
     chooseFileSourceRoot,
     chooseResourceByPicker,
     chooseFileByPicker,
+    chooseDatabaseByPicker,
     chooseFolderByPicker,
     createResourceByKind,
     createGameInResource,
@@ -315,6 +329,7 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
     loadBySourceRef,
     maybePreloadDefaultDevSource,
     reorderGame,
+    deleteGame,
     saveBySourceRef,
   };
 };

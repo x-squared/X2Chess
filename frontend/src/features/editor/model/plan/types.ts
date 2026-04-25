@@ -506,44 +506,25 @@ export const buildVariationWalker = (
       }
       if (postItem.type === "rav" && postItem.rav) {
         const child: PgnVariation = postItem.rav;
-        const blockTokens: PlanToken[] = currentBlock(state).tokens;
-        const lastSignificantToken: PlanToken | null = (() => {
-          for (let i: number = blockTokens.length - 1; i >= 0; i -= 1) {
-            const token: PlanToken = blockTokens[i];
-            if (token.kind === "inline" && token.tokenType === "space") continue;
-            return token;
-          }
-          return null;
-        })();
-        const commentKeepsVariationInline: boolean =
-          lastSignificantToken?.kind === "comment" && lastSignificantToken.inlineWithNextVariation;
-        const shouldForceTextModeLineBreak: boolean =
-          state.layoutMode === "text" &&
-          currentBlock(state).tokens.length > 0 &&
-          !commentKeepsVariationInline;
-        if (shouldForceTextModeLineBreak) {
-          nextBlock(state);
-        }
-        const startsOnNewLine: boolean = currentBlock(state).tokens.length === 0;
         emitVariation(child, state, registry);
-        if (shouldControlMainlineRavBreaks) {
+        if (state.layoutMode === "text") {
+          addSpace(state);
+        } else if (shouldControlMainlineRavBreaks) {
           // Keep the mainline continuation on its own block after each mainline RAV.
           nextBlock(state);
-        } else if (startsOnNewLine) {
-          nextBlock(state);
         } else {
-          addSpace(state);
+          const startsOnNewLine: boolean = currentBlock(state).tokens.length === 0;
+          if (startsOnNewLine) {
+            nextBlock(state);
+          } else {
+            addSpace(state);
+          }
         }
       }
     }
   };
 
   emitVariation = (variation: PgnVariation, state: PlanState, registry: StrategyRegistry): void => {
-    const previousVariationDepth: number = state.blockVariationDepth;
-    if (state.layoutMode === "text") {
-      setBlockVariationDepth(state, variation.depth);
-      state.indentDepth = Math.max(0, variation.depth);
-    }
     const flow: VariationFlow = {
       nextMoveSide: "white",
       hoistedBeforeCommentMoveIds: new Set<string>(),
@@ -580,10 +561,6 @@ export const buildVariationWalker = (
       }
     }
     variation.trailingComments.forEach((c: PgnComment): void => internalAddComment(state, c, variation.depth));
-    if (state.layoutMode === "text") {
-      setBlockVariationDepth(state, previousVariationDepth);
-      state.indentDepth = Math.max(0, previousVariationDepth);
-    }
   };
 
   const strategyRegistry: StrategyRegistry = {

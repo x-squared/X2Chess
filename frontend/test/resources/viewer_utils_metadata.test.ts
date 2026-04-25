@@ -82,7 +82,7 @@ test("listAddableMetadataFields exposes full built-in catalog including X2 tags"
   assert.ok(keys.includes("Termination"));
   assert.ok(keys.includes(X2CHESS_STYLE_METADATA_KEY));
   assert.ok(keys.includes("Material"));
-  assert.ok(keys.includes("XSqrHead"));
+  assert.ok(keys.includes("Head"));
 });
 
 test("listAddableMetadataFields includes discovered custom header keys", (): void => {

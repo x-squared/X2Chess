@@ -30,6 +30,7 @@ import type {
 import type { TrainingTranscript } from "../domain/training_transcript";
 import { parsePgnToModel } from "../../../../parts/pgnparser/src/pgn_model";
 import { getMoveRavs } from "../../../../parts/pgnparser/src/pgn_move_attachments";
+import { getHeaderValue } from "../../../../parts/pgnparser/src/pgn_headers";
 
 // ── Options ───────────────────────────────────────────────────────────────────
 
@@ -58,10 +59,8 @@ const buildFenMap = (
   const fenMap = new Map<string, string[]>();
 
   const chess = new Chess();
-  const fenHeader = model.headers.find((h) => h.key === "FEN");
-  if (fenHeader) {
-    try { chess.load(fenHeader.value); } catch { /* ignore invalid FEN */ }
-  }
+  const fenValue = getHeaderValue(model, "FEN");
+  if (fenValue) { try { chess.load(fenValue); } catch { /* ignore invalid FEN */ } }
   const startFen = chess.fen();
 
   const walk = (entries: typeof model.root.entries, walker: Chess): void => {

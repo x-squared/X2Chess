@@ -31,7 +31,7 @@ import {
   rootCursor,
 } from "./support/pgn_harness.js";
 import type { PgnCursor } from "../src/pgn_move_ops.js";
-import type { PgnMoveNode } from "../src/pgn_model.js";
+import type { PgnMoveNode, PgnMoveNumberNode, PgnVariationNode } from "../src/pgn_model.js";
 
 // ── appendMove ─────────────────────────────────────────────────────────────────
 
@@ -308,6 +308,46 @@ test("insertVariation — black-turn RAV is attached to the black move, not the 
   assert.deepEqual(mainlineSans(updated), ["e4", "e5"]);
 });
 
+test("insertVariation — sibling RAVs on nested black move keep fullmove number", () => {
+  const model = parsePgnToModel(
+    "[Event \"?\"]\n\n1. d4 d5 2. c4 e6 3. cxd5 (3. Nc3 Nf6 4. cxd5 exd5 5. Bg5 c6 6. e3 h6 7. Bh4 Be7 8. Bd3 O-O 9. Qc2 Re8 10. Nge2 Qc7) *",
+  );
+
+  const findMoveBySan = (variation: PgnVariationNode, san: string): PgnMoveNode | null => {
+    for (const entry of variation.entries) {
+      if (entry.type !== "move") continue;
+      const move: PgnMoveNode = entry;
+      if (move.san === san) return move;
+      for (const rav of getMoveRavs(move)) {
+        const found: PgnMoveNode | null = findMoveBySan(rav, san);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+
+  const qc7 = findMoveBySan(model.root, "Qc7");
+  assert.ok(qc7, "expected to find nested move 10... Qc7");
+  const cursor: PgnCursor = findCursorForMoveId(model, qc7.id) as PgnCursor;
+
+  const [withFirst] = insertVariation(model, cursor, "Qd7");
+  const cursorAfterFirst: PgnCursor = findCursorForMoveId(withFirst, qc7.id) as PgnCursor;
+  const [withSecond] = insertVariation(withFirst, cursorAfterFirst, "Qd6");
+  expectContractModelInvariantSafe(withSecond, "insertVariation");
+
+  const qc7Updated = findMoveBySan(withSecond.root, "Qc7");
+  assert.ok(qc7Updated, "expected to find nested move after insertions");
+  const ravs = getMoveRavs(qc7Updated);
+  assert.equal(ravs.length, 2);
+
+  const firstPrefix = ravs[0].entries[0];
+  const secondPrefix = ravs[1].entries[0];
+  assert.equal(firstPrefix?.type, "move_number");
+  assert.equal(secondPrefix?.type, "move_number");
+  assert.equal((firstPrefix as { text: string }).text, "10...");
+  assert.equal((secondPrefix as { text: string }).text, "10...");
+});
+
 test("insertVariation — inserts black move number in mainline after root-cursor RAV", () => {
   const model = parsePgnToModel("[Event \"?\"]\n\n1. e4 e5 2. Nf3 *");
   const [result] = insertVariation(model, rootCursor(model), "d4");
@@ -331,6 +371,27 @@ test("appendMove — appending mainline black reply after a RAV inserts black mo
   const numbers = mainlineMoveNumbers(updated);
   assert.ok(numbers.includes("3..."), `expected "3..." after RAV, got ${JSON.stringify(numbers)}`);
   assert.deepEqual(mainlineSans(updated).slice(-2), ["Rb7+", "Kg6"]);
+});
+
+test("appendMove — nested black-turn variation continuation inserts white move number", () => {
+  const model = parsePgnToModel(
+    "[Event \"?\"]\n\n1. d4 d5 2. c4 e6 3. cxd5 exd5 4. Nc3 c6 5. Nf3 Nf6 *",
+  );
+  const nf6 = model.root.entries.find(isMoveWithSan("Nf6")) as PgnMoveNode;
+  const cursorAtNf6: PgnCursor = { moveId: nf6.id, variationId: model.root.id };
+  const [withVariation, varCursor] = insertVariation(model, cursorAtNf6, "Bd6");
+  const [withBg5, bg5Cursor] = appendMove(withVariation, varCursor, "Bg5");
+  const [updated] = appendMove(withBg5, bg5Cursor, "Ne7");
+  expectContractModelInvariantSafe(updated, "appendMove");
+
+  const nf6Updated = updated.root.entries.find(isMoveWithId(nf6.id)) as PgnMoveNode;
+  const rav = getMoveRavs(nf6Updated)[0];
+  const moveNumbers = rav.entries
+    .filter((entry): entry is PgnMoveNumberNode => entry.type === "move_number")
+    .map((entry) => entry.text);
+  assert.deepEqual(moveNumbers, ["5...", "6."]);
+  const ravMoves = rav.entries.filter(isMoveEntry) as PgnMoveNode[];
+  assert.deepEqual(ravMoves.map((move) => move.san), ["Bd6", "Bg5", "Ne7"]);
 });
 
 // ── deleteVariation ────────────────────────────────────────────────────────────

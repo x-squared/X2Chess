@@ -174,6 +174,16 @@ const execDML = (
     return true;
   }
 
+  const deleteById = /DELETE\s+FROM\s+(\w+)\s+WHERE\s+id\s*=\s*\?/i.exec(sql);
+  if (deleteById) {
+    const tbl = getOrCreateTbl(tables, deleteById[1]);
+    const id = asStr(params[0]);
+    for (const [k, v] of tbl.entries()) {
+      if (asStr(v.id) === id) tbl.delete(k);
+    }
+    return true;
+  }
+
   if (/UPDATE\s+metadata_keys\s+SET\s+cardinality\s*=/i.test(sql)) {
     execDMLUpdateCardinality(tables, params);
     return true;
@@ -404,6 +414,24 @@ test("db adapter: load missing game throws not_found", async () => {
 
   await assert.rejects(
     () => adapter.load({ kind: "db", locator: dbPath, recordId: "no-such-id" }),
+    (err: unknown) => {
+      assert.ok(err instanceof Error);
+      assert.match(err.message, /not found/i);
+      return true;
+    },
+  );
+});
+
+test("db adapter: delete removes game and related indexes", async () => {
+  const dbPath = nextPath();
+  const db = buildInMemoryGateway();
+  const adapter = createDbAdapter(() => db);
+  const created = await adapter.create({ kind: "db", locator: dbPath }, GAME_A_PGN, "A");
+  await adapter.delete?.(created.gameRef);
+  const listed = await adapter.list({ kind: "db", locator: dbPath });
+  assert.equal(listed.entries.length, 0);
+  await assert.rejects(
+    () => adapter.load(created.gameRef),
     (err: unknown) => {
       assert.ok(err instanceof Error);
       assert.match(err.message, /not found/i);

@@ -1,22 +1,26 @@
 /**
  * Text mode plan builder.
- *
+ * 
+ * Text mode essentially means that main lines are shown clearly seperated from
+ * comments and variations. Comments and variations are shown as text blocks. The
+ * layout of these blocks is fully handled by the user. The main tool is to break
+ * lines with [[br]] markers (which are handled invisibly but are apparent in pgn
+ * text). Also handling subvariations is left to the user. In particular, they are 
+ * not sepetared from the siurrounding block, or indented in any way. Thus this
+ * is bare-bones text-editing.
+ * 
  * Text-mode layout contract (normative):
- * - Mainline content is left-aligned (`indentDepth === 0`).
- * - RAV branches render on their own blocks and are indented by variation depth.
- * - Comments after a mainline move start on a new line.
- * - Whether a mainline variation starts on a new line is controlled by the
- *   preceding comment: append a trailing break marker (`[[br]]`, `<br>`, `\n`)
- *   to start the variation on a new line; otherwise it stays inline.
- * - Variation comments follow the same alignment behavior as variation moves.
- * - Mainline continuation after a RAV starts on a new left-aligned block.
- * - Black move numbers are suppressed only when redundant in the same block;
- *   when a continuation starts on a new block (for example after a RAV),
- *   the black move number is shown.
+ * - Text mode is bare-bones prose editing; the user controls layout.
+ * - Subvariations are not automatically moved to new lines.
+ * - Subvariations are not automatically indented.
+ * - `[[br]]` controls explicit line breaks in comment text.
+ * - Comments follow `commentLineBreakPolicy`; with `mainline_only`, variation
+ *   comments stay inline unless the user inserts explicit breaks.
+ * - Black move numbers are suppressed only when redundant in the same block.
  *
  * Integration API:
  * - `buildTextModeEditorPlan(model, state)` — populates `state.blocks` with a
- *   token plan where structural variation depth drives block indentation, `[[br]]` becomes
+ *   token plan where `[[br]]` becomes
  *   a visible newline in the contentEditable comment, and the first comment of
  *   each variation receives intro styling.
  */
@@ -64,11 +68,12 @@ const emitTextComment = (
   const defaultBreakAfterComment: boolean = applyIntroStyling
     || state.commentLineBreakPolicy === "always"
     || (state.commentLineBreakPolicy === "mainline_only" && variationDepth === 0);
-  const shouldBreakAfterComment: boolean = breakBehavior === "force_break"
-    ? true
-    : breakBehavior === "force_inline"
-      ? false
-      : defaultBreakAfterComment;
+  let shouldBreakAfterComment: boolean = defaultBreakAfterComment;
+  if (breakBehavior === "force_break") {
+    shouldBreakAfterComment = true;
+  } else if (breakBehavior === "force_inline") {
+    shouldBreakAfterComment = false;
+  }
   if (shouldBreakAfterComment) {
     nextBlock(state);
   } else {

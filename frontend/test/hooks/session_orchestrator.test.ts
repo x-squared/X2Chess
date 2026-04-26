@@ -63,6 +63,9 @@ test("saveCommentText marks session dirty when comment update succeeds", (): voi
   session.pgnModel = parsePgnToModel("1. e4 {old comment} *");
   const firstMove = session.pgnModel.root?.entries.find((entry) => entry.type === "move");
   assert.ok(firstMove?.type === "move");
+  if (firstMove?.type !== "move") {
+    assert.fail("expected first move node");
+  }
   const commentId: string = getMoveCommentsAfter(firstMove)[0]?.id ?? "";
   assert.ok(commentId);
 
@@ -94,6 +97,190 @@ test("saveCommentText marks session dirty when comment update succeeds", (): voi
   const services = createSessionOrchestrator(bundle, dispatchRef as never, stateRef as never);
   services.saveCommentText(commentId, "updated comment");
   assert.ok(dirtyPatches.some((patch) => patch.dirtyState === "dirty"));
+});
+
+test("copyGameToClipboard copies full game and can start from selected move", async (): Promise<void> => {
+  const session = createEmptyGameSessionState();
+  session.pgnText = "1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 *";
+  session.pgnModel = parsePgnToModel(session.pgnText);
+  const mainlineMoveIds: string[] = session.pgnModel.root.entries
+    .filter((entry): boolean => entry.type === "move")
+    .map((entry) => String((entry as { id?: string }).id ?? ""));
+  session.selectedMoveId = mainlineMoveIds[3] ?? null;
+  const selectedMoveId: string | null = session.selectedMoveId;
+  const previousMoveId: string | null = mainlineMoveIds[2] ?? null;
+  if (selectedMoveId && previousMoveId) {
+    session.movePositionById = {
+      [previousMoveId]: {
+        fen: "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2",
+        lastMove: ["g1", "f3"],
+        mainlinePly: 3,
+        parentMoveId: null,
+        variationFirstMoveIds: [],
+        previousMoveId: mainlineMoveIds[1] ?? null,
+      },
+      [selectedMoveId]: {
+        fen: "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3",
+        lastMove: ["b8", "c6"],
+        mainlinePly: 4,
+        parentMoveId: null,
+        variationFirstMoveIds: [],
+        previousMoveId,
+      },
+    };
+  }
+  const { dispatchRef } = makeDispatchRef();
+  const stateRef = { current: {} as never };
+  const copiedTexts: string[] = [];
+  const originalNavigator = globalThis.navigator;
+  Object.defineProperty(globalThis, "navigator", {
+    configurable: true,
+    writable: true,
+    value: {
+      clipboard: {
+        writeText: async (text: string): Promise<void> => {
+          copiedTexts.push(text);
+        },
+      },
+    },
+  });
+  const bundle = {
+    activeSessionRef: { current: session },
+    navigation: {
+      gotoPly: async (): Promise<void> => {},
+      gotoRelativeStep: async (): Promise<void> => {},
+      handleSelectedMoveArrowHotkey: (): boolean => false,
+    },
+    applyModelUpdate: (): void => {},
+    history: { performUndo: (): void => {}, performRedo: (): void => {} },
+    pgnRuntime: { syncChessParseState: (): void => {} },
+    resources: {},
+    resourceViewer: {},
+    sessionModel: {},
+    sessionStore: {},
+    sessionPersistence: {},
+    moveLookup: {},
+    moveSoundPlayer: { playMoveSound: async (): Promise<void> => {} },
+  } as unknown as Parameters<typeof createSessionOrchestrator>[0];
+  try {
+    const services = createSessionOrchestrator(bundle, dispatchRef as never, stateRef as never);
+    const copiedFull: boolean = await services.copyGameToClipboard();
+    const copiedFromSelected: boolean = await services.copyGameToClipboard(selectedMoveId ?? undefined);
+    assert.equal(copiedFull, true);
+    assert.equal(copiedFromSelected, true);
+    assert.equal(copiedTexts.length, 2);
+    assert.match(copiedTexts[0] ?? "", /1\. e4 e5 2\. Nf3 Nc6 3\. Bb5 a6 \*/);
+    assert.match(copiedTexts[1] ?? "", /2\.\.\. Nc6 3\. Bb5 a6/);
+    assert.ok(!(copiedTexts[1] ?? "").includes("1. e4 e5"));
+  } finally {
+    Object.defineProperty(globalThis, "navigator", {
+      configurable: true,
+      writable: true,
+      value: originalNavigator,
+    });
+  }
+});
+
+test("copyGameToClipboard can start from a variation move", async (): Promise<void> => {
+  const session = createEmptyGameSessionState();
+  session.pgnText = "1. e4 (1... c5 2. Nf3) e5 2. Nf3 *";
+  session.pgnModel = parsePgnToModel(session.pgnText);
+  let selectedVariationMoveId: string | null = null;
+  const walk = (variation: { entries: Array<{ type: string; id?: string; san?: string; postItems?: unknown[] }> }): void => {
+    for (const entry of variation.entries) {
+      if (entry.type !== "move") continue;
+      if (entry.san === "c5" && entry.id) {
+        selectedVariationMoveId = entry.id;
+        return;
+      }
+      const postItems = Array.isArray(entry.postItems) ? entry.postItems : [];
+      for (const item of postItems) {
+        if (
+          typeof item === "object" &&
+          item !== null &&
+          "type" in item &&
+          item.type === "rav" &&
+          "rav" in item &&
+          typeof item.rav === "object" &&
+          item.rav !== null &&
+          "entries" in item.rav &&
+          Array.isArray(item.rav.entries)
+        ) {
+          walk(item.rav as { entries: Array<{ type: string; id?: string; san?: string; postItems?: unknown[] }> });
+          if (selectedVariationMoveId) return;
+        }
+      }
+    }
+  };
+  walk(session.pgnModel.root as { entries: Array<{ type: string; id?: string; san?: string; postItems?: unknown[] }> });
+  assert.ok(selectedVariationMoveId);
+  session.selectedMoveId = selectedVariationMoveId;
+  session.movePositionById = {
+    [selectedVariationMoveId as string]: {
+      fen: "rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
+      lastMove: ["c7", "c5"],
+      mainlinePly: null,
+      parentMoveId: "m1",
+      variationFirstMoveIds: [],
+      previousMoveId: "m1",
+    },
+    m1: {
+      fen: "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
+      lastMove: ["e2", "e4"],
+      mainlinePly: 1,
+      parentMoveId: null,
+      variationFirstMoveIds: [],
+      previousMoveId: null,
+    },
+  };
+  const { dispatchRef } = makeDispatchRef();
+  const stateRef = { current: {} as never };
+  const copiedTexts: string[] = [];
+  const originalNavigator = globalThis.navigator;
+  Object.defineProperty(globalThis, "navigator", {
+    configurable: true,
+    writable: true,
+    value: {
+      clipboard: {
+        writeText: async (text: string): Promise<void> => {
+          copiedTexts.push(text);
+        },
+      },
+    },
+  });
+  const bundle = {
+    activeSessionRef: { current: session },
+    navigation: {
+      gotoPly: async (): Promise<void> => {},
+      gotoRelativeStep: async (): Promise<void> => {},
+      handleSelectedMoveArrowHotkey: (): boolean => false,
+    },
+    applyModelUpdate: (): void => {},
+    history: { performUndo: (): void => {}, performRedo: (): void => {} },
+    pgnRuntime: { syncChessParseState: (): void => {} },
+    resources: {},
+    resourceViewer: {},
+    sessionModel: {},
+    sessionStore: {},
+    sessionPersistence: {},
+    moveLookup: {},
+    moveSoundPlayer: { playMoveSound: async (): Promise<void> => {} },
+  } as unknown as Parameters<typeof createSessionOrchestrator>[0];
+  try {
+    const services = createSessionOrchestrator(bundle, dispatchRef as never, stateRef as never);
+    const copied: boolean = await services.copyGameToClipboard(selectedVariationMoveId ?? undefined);
+    assert.equal(copied, true);
+    assert.equal(copiedTexts.length, 1);
+    assert.match(copiedTexts[0] ?? "", /\[FEN "rnbqkbnr\/pppppppp\/8\/8\/4P3\/8\/PPPP1PPP\/RNBQKBNR b KQkq - 0 1"\]/);
+    assert.match(copiedTexts[0] ?? "", /1\.\.\. c5 2\. Nf3/);
+    assert.ok(!(copiedTexts[0] ?? "").includes("1. e4"));
+  } finally {
+    Object.defineProperty(globalThis, "navigator", {
+      configurable: true,
+      writable: true,
+      value: originalNavigator,
+    });
+  }
 });
 
 test("openGameFromRef opens a new session instead of replacing active", async (): Promise<void> => {
@@ -137,7 +324,7 @@ test("openGameFromRef opens a new session instead of replacing active", async ()
       openSession: (input: {
         ownState: ReturnType<typeof createEmptyGameSessionState>;
         title: string;
-        sourceRef?: { kind: string; locator: string; recordId?: string } | null;
+        sourceRef: { kind: string; locator: string; recordId?: string } | null | undefined;
       }): void => {
         openedSessions.push(input);
       },

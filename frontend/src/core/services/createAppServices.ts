@@ -28,6 +28,7 @@ import {
   getHeaderValue,
   normalizeX2StyleValue,
   setHeaderValue,
+  lookupEco,
 } from "../../model";
 import { toSessionItem, toResourceTab } from "./app_state_mappers";
 import { emitAfterSuccessfulSave, createEnsureSourceForActiveSession } from "./session_save_ops";
@@ -324,10 +325,18 @@ export function createAppServicesBundle(
       if (!model) return g.pgnText || "";
       try {
         const headFragment: string = serializeXsqrHeadMovetext(model);
-        const withXsqrHead: unknown = setHeaderValue(model, XSQR_HEAD_HEADER_KEY, headFragment);
-        return serializeModelToPgn(withXsqrHead);
+        let working = setHeaderValue(model, XSQR_HEAD_HEADER_KEY, headFragment);
+        // Auto-stamp ECO/Opening headers when absent and the opening is recognised.
+        if (!getHeaderValue(model, "ECO", "") && !getHeaderValue(model, "Opening", "")) {
+          const match = lookupEco(g.moves);
+          if (match) {
+            working = setHeaderValue(working, "ECO", match.eco);
+            working = setHeaderValue(working, "Opening", match.name);
+          }
+        }
+        return serializeModelToPgn(working);
       } catch (error: unknown) {
-        log.error("createAppServices", "getPgnText: Head serialization failed", {
+        log.error("createAppServices", "getPgnText: serialization failed", {
           message: error instanceof Error ? error.message : String(error),
         });
         return g.pgnText || "";

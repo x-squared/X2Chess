@@ -1,6 +1,6 @@
 # X2Chess User Manual
 
-Last updated: 2026-04-20
+Last updated: 2026-04-26
 
 ## Who this manual is for
 
@@ -128,6 +128,7 @@ opening line for the active game.
 | Shift + Arrow Up (at variation start) | Cycle to previous sibling variation |
 | Shift + Arrow Left | Jump to comment before selected move |
 | Shift + Arrow Right | Jump to comment after selected move |
+| Cmd/Ctrl + C (outside text input) | Copy active game PGN to clipboard |
 | Cmd/Ctrl + Z | Undo |
 | Cmd/Ctrl + Shift + Z  or  Cmd/Ctrl + Y | Redo |
 
@@ -205,6 +206,7 @@ mode, marker text remains literal.
 
 - Clicking a half-move opens a small popup with **insert comment before**, **Q/A**, and **insert comment after** actions.
 - The same popup also includes **Insert null move after** to add a single `--` move after the selected move.
+- The same popup also includes **Copy game from this move** to export a PGN that starts at the selected move.
 - For a null move (`--`), the same popup also provides **Delete this null move** to remove only that single null move.
 - If a null move has exactly one continuation variation and no competing continuation, deleting that null move merges that continuation back into the mainline automatically.
 - The popup is rendered above nearby move tokens and comment text in both **Text** and **Tree** layouts.
@@ -665,5 +667,6 @@ The dock always reflects the same game and position as the main editor after you
 | Cmd/Ctrl + Z | Undo |
 | Cmd/Ctrl + Shift + Z | Redo |
 | Cmd/Ctrl + S | Save |
+| Cmd/Ctrl + C (outside text input) | Copy active game PGN |
 | Cmd/Ctrl + V | Paste PGN |
 | Esc | Close dialogs / menu |

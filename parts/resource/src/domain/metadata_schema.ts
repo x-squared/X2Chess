@@ -11,14 +11,18 @@
  * - Pure schema/value parsing utilities; no I/O and no runtime state mutation.
  */
 
-export type X2StyleValue = "plain" | "text" | "tree";
+/** The key for the X2 chess style metadata. This will hold a value of type `X2StyleValue`.*/
 export const X2CHESS_STYLE_METADATA_KEY = "XSqrChessStyle";
-/** Transitional header key from older builds; still recognized when parsing PGN. */
+/** The value for the X2 chess style metadata. This can be either "plain", "text", or "tree". */
+export type X2StyleValue = "plain" | "text" | "tree";
+/** The key for the X2 chess style metadata. This will hold a value of type `X2StyleValue`. */
 export const LEGACY_XTWOCHESS_STYLE_METADATA_KEY = "XTwoChessStyle";
+/** The key for the X2 chess style metadata. This will hold a value of type `X2StyleValue`. */
 export const LEGACY_X2_STYLE_METADATA_KEY = "X2Style";
 
+/** A result value. This can be either "1-0", "0-1", "1/2-1/2", or "*". */
 export type PgnResultValue = "1-0" | "0-1" | "1/2-1/2" | "*";
-
+/** A date value. This can be either a date in the format "YYYY.MM.DD" or "????.??.??". */
 export type PgnDateValue = {
   raw: string;
   year: number | null;
@@ -26,6 +30,7 @@ export type PgnDateValue = {
   day: number | null;
 };
 
+/** A known metadata value. This can be either a string, a number, a date value, or an X2 style value. */
 export type PgnMetadataKnownValues = {
   Event?: string;
   Site?: string;
@@ -48,7 +53,8 @@ export type PgnMetadataKnownValues = {
   Head?: string;
 };
 
-export type PgnMetadataScalar = string | number | PgnDateValue | X2StyleValue | PgnResultValue;
+/** A scalar metadata value. */
+export type PgnMetadataScalar = string | number | PgnDateValue;
 
 export type HybridPgnMetadata = PgnMetadataKnownValues & Record<string, PgnMetadataScalar | undefined>;
 
@@ -57,11 +63,13 @@ export type MetadataFieldSchemaEntry = {
   parse: (rawValue: string) => PgnMetadataScalar | undefined;
 };
 
+/** Parse a string value. */
 const parseStringValue = (rawValue: string): string | undefined => {
   const normalized: string = String(rawValue || "").trim();
   return normalized.length > 0 ? normalized : undefined;
 };
 
+/** Parse a rating value. */
 const parseRatingValue = (rawValue: string): number | undefined => {
   const normalized: string = String(rawValue || "").trim();
   if (!normalized) return undefined;
@@ -69,6 +77,7 @@ const parseRatingValue = (rawValue: string): number | undefined => {
   return Number.isFinite(parsed) ? parsed : undefined;
 };
 
+/** Parse a result value. */
 const parseResultValue = (rawValue: string): PgnResultValue | undefined => {
   const normalized: string = String(rawValue || "").trim();
   if (normalized === "1-0" || normalized === "0-1" || normalized === "1/2-1/2" || normalized === "*") {
@@ -77,6 +86,7 @@ const parseResultValue = (rawValue: string): PgnResultValue | undefined => {
   return undefined;
 };
 
+/** Parse an X2 style value. */
 const parseX2StyleValue = (rawValue: string): X2StyleValue | undefined => {
   const normalized: string = String(rawValue || "").trim().toLowerCase();
   if (normalized === "plain" || normalized === "text" || normalized === "tree") {
@@ -85,10 +95,11 @@ const parseX2StyleValue = (rawValue: string): X2StyleValue | undefined => {
   return undefined;
 };
 
+/** Parse a date value. */
 const parseDateValue = (rawValue: string): PgnDateValue | undefined => {
   const normalized: string = String(rawValue || "").trim();
   if (!normalized) return undefined;
-  const match = normalized.match(/^(\d{4}|\?{4})\.(\d{2}|\?{2})\.(\d{2}|\?{2})$/);
+  const match: RegExpExecArray | null = /^(\d{4}|\?{4})\.(\d{2}|\?{2})\.(\d{2}|\?{2})$/.exec(normalized);
   if (!match) return { raw: normalized, year: null, month: null, day: null };
   const rawYear: string = String(match[1] || "");
   const rawMonth: string = String(match[2] || "");
@@ -98,9 +109,9 @@ const parseDateValue = (rawValue: string): PgnDateValue | undefined => {
   const day: number | null = rawDay.includes("?") ? null : Number.parseInt(rawDay, 10);
   return {
     raw: normalized,
-    year: Number.isFinite(year as number) ? year : null,
-    month: Number.isFinite(month as number) ? month : null,
-    day: Number.isFinite(day as number) ? day : null,
+    year: Number.isFinite(year) ? year : null,
+    month: Number.isFinite(month) ? month : null,
+    day: Number.isFinite(day) ? day : null,
   };
 };
 

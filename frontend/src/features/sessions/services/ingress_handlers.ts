@@ -40,6 +40,8 @@ export type FileWithOptionalPath = File & {
   webkitRelativePath?: string;
 };
 
+const INTERNAL_VARIATION_DND_TYPE = "application/x-x2chess-variation-move";
+
 type IngressDeps = {
   isLikelyPgnText: (value: string) => boolean;
   openGameFromIncomingText: (pgnText: string, options?: OpenGameOptions) => void;
@@ -136,6 +138,7 @@ export const collectDroppedFiles = (transfer: DataTransfer | null): File[] => {
  * @param transfer DataTransfer from a drag event.
  */
 export const hasAcceptedTransfer = (transfer: DataTransfer | null): boolean => {
+  if (Array.from(transfer?.types || []).includes(INTERNAL_VARIATION_DND_TYPE)) return false;
   const hasText: boolean = Array.from(transfer?.types || []).includes("text/plain");
   return hasTransferFiles(transfer) || hasText;
 };
@@ -211,10 +214,11 @@ export const createIngressEventHandlers = ({
     const dragEvent: DragEvent = event as DragEvent;
     dragDepth = 0;
     setOverlayVisible(false);
-    dragEvent.preventDefault();
 
     const transfer: DataTransfer | null = dragEvent.dataTransfer || null;
     if (!transfer) return;
+    if (Array.from(transfer.types || []).includes(INTERNAL_VARIATION_DND_TYPE)) return;
+    dragEvent.preventDefault();
 
     const files: File[] = collectDroppedFiles(transfer);
     if (files.length > 0) {

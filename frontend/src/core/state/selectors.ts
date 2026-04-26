@@ -14,6 +14,8 @@
 
 import type { PgnModel } from "../../../../parts/pgnparser/src/pgn_model";
 import type { AppStoreState, ResourceTabSnapshot, SessionItemState } from "./app_reducer";
+import { lookupEco } from "../../model/eco_lookup";
+import type { EcoMatch } from "../../model/eco_lookup";
 import { findMoveNode } from "../../../../parts/pgnparser/src/pgn_move_ops";
 import { getHeaderValue } from "../../../../parts/pgnparser/src/pgn_headers";
 import { getMoveCommentsAfter } from "../../../../parts/pgnparser/src/pgn_move_attachments";
@@ -80,3 +82,11 @@ export const selectActiveResourceRowCount = (state: AppStoreState): number => st
 export const selectActiveResourceErrorMessage = (state: AppStoreState): string => state.activeResourceErrorMessage;
 export const selectResourceViewerTabs = (state: AppStoreState): ResourceTabSnapshot[] => state.resourceViewerTabSnapshots;
 export const selectStorageImportPending = (state: AppStoreState): Record<string, string> | null => state.storageImportPending;
+
+/**
+ * Derive the ECO code and opening name from the current main-line move list.
+ * Returns null when no opening matches (e.g. empty game or completely unknown moves).
+ * This is a pure derivation from `state.moves` — no additional state needed.
+ */
+export const selectDerivedEco = (state: AppStoreState): EcoMatch | null =>
+  lookupEco(state.moves);

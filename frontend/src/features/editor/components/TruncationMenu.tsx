@@ -38,13 +38,17 @@ export type TruncationAction =
   | { type: "insert_todo"; moveId: string }
   | { type: "insert_link"; moveId: string }
   | { type: "insert_anchor"; moveId: string; san: string }
+  | { type: "copy_game_from_here"; moveId: string }
   | { type: "toggle_nag"; moveId: string; nag: string }
   | { type: "delete_from_here"; moveId: string }
   | { type: "delete_null_move"; moveId: string }
   | { type: "delete_before_here"; moveId: string }
   | { type: "delete_variation"; moveId: string }
   | { type: "delete_variations_after"; moveId: string }
-  | { type: "promote_to_mainline"; moveId: string };
+  | { type: "promote_to_mainline"; moveId: string }
+  | { type: "move_variation_up"; moveId: string }
+  | { type: "move_variation_down"; moveId: string }
+  | { type: "open_variation_sort_dialog"; moveId: string };
 
 type TruncationMenuProps = {
   moveId: string;
@@ -58,6 +62,9 @@ type TruncationMenuProps = {
   currentNags: readonly string[];
   /** Side to move, for resolving color-specific NAGs. */
   moveSide: "white" | "black";
+  canMoveVariationUp: boolean;
+  canMoveVariationDown: boolean;
+  canSortVariations: boolean;
   t: (key: string, fallback?: string) => string;
   onAction: (action: TruncationAction) => void;
   onClose: () => void;
@@ -74,6 +81,9 @@ export const TruncationMenu = ({
   anchorRect,
   currentNags,
   moveSide,
+  canMoveVariationUp,
+  canMoveVariationDown,
+  canSortVariations,
   t,
   onAction,
   onClose,
@@ -189,14 +199,6 @@ export const TruncationMenu = ({
         type="button"
         className="truncation-menu-item"
         role="menuitem"
-        onMouseDown={(e): void => { handlePickMouseDown(e, { type: "insert_null_move_after", moveId }); }}
-      >
-        {t("editor.insertNullMoveAfter", "Insert null move after")}
-      </button>
-      <button
-        type="button"
-        className="truncation-menu-item"
-        role="menuitem"
         onMouseDown={(e): void => { handlePickMouseDown(e, { type: "insert_qa", moveId }); }}
       >
         {t("editor.insertQa", "Add Q/A annotation")}
@@ -233,22 +235,28 @@ export const TruncationMenu = ({
       >
         {t("editor.insertAnchor", "Add anchor")}
       </button>
+      <button
+        type="button"
+        className="truncation-menu-item"
+        role="menuitem"
+        onMouseDown={(e): void => { handlePickMouseDown(e, { type: "copy_game_from_here", moveId }); }}
+      >
+        {t("editor.copyGameFromHere", "Copy game from this move")}
+      </button>
       <div className="truncation-menu-separator" />
       <button
         type="button"
-        className="truncation-menu-item truncation-menu-item--danger"
+        className="truncation-menu-item"
         role="menuitem"
-        onMouseDown={(e): void => { handlePickMouseDown(e, { type: "delete_from_here", moveId }); }}
+        onMouseDown={(e): void => { handlePickMouseDown(e, { type: "insert_null_move_after", moveId }); }}
       >
-        {t("editor.trunc.deleteFrom", "Delete this move and all following")}
-        {" "}
-        <span className="truncation-menu-san">({san}…)</span>
+        {t("editor.insertNullMoveAfter", "Insert null move after")}
       </button>
 
       {san === "--" && (
         <button
           type="button"
-          className="truncation-menu-item truncation-menu-item--danger"
+          className="truncation-menu-item truncation-menu-item--attention"
           role="menuitem"
           onMouseDown={(e): void => { handlePickMouseDown(e, { type: "delete_null_move", moveId }); }}
         >
@@ -258,7 +266,18 @@ export const TruncationMenu = ({
 
       <button
         type="button"
-        className="truncation-menu-item truncation-menu-item--danger"
+        className="truncation-menu-item truncation-menu-item--attention"
+        role="menuitem"
+        onMouseDown={(e): void => { handlePickMouseDown(e, { type: "delete_from_here", moveId }); }}
+      >
+        {t("editor.trunc.deleteFrom", "Delete this move and all following")}
+        {" "}
+        <span className="truncation-menu-san">({san}…)</span>
+      </button>
+
+      <button
+        type="button"
+        className="truncation-menu-item truncation-menu-item--attention"
         role="menuitem"
         onMouseDown={(e): void => { handlePickMouseDown(e, { type: "delete_before_here", moveId }); }}
       >
@@ -282,7 +301,37 @@ export const TruncationMenu = ({
 
           <button
             type="button"
-            className="truncation-menu-item truncation-menu-item--danger"
+            className="truncation-menu-item"
+            role="menuitem"
+            disabled={!canMoveVariationUp}
+            onMouseDown={(e): void => { handlePickMouseDown(e, { type: "move_variation_up", moveId }); }}
+          >
+            {t("editor.trunc.moveVarUp", "Move variation up")}
+          </button>
+
+          <button
+            type="button"
+            className="truncation-menu-item"
+            role="menuitem"
+            disabled={!canMoveVariationDown}
+            onMouseDown={(e): void => { handlePickMouseDown(e, { type: "move_variation_down", moveId }); }}
+          >
+            {t("editor.trunc.moveVarDown", "Move variation down")}
+          </button>
+
+          <button
+            type="button"
+            className="truncation-menu-item"
+            role="menuitem"
+            disabled={!canSortVariations}
+            onMouseDown={(e): void => { handlePickMouseDown(e, { type: "open_variation_sort_dialog", moveId }); }}
+          >
+            {t("editor.trunc.sortVars", "Sort variations…")}
+          </button>
+
+          <button
+            type="button"
+            className="truncation-menu-item truncation-menu-item--attention"
             role="menuitem"
             onMouseDown={(e): void => { handlePickMouseDown(e, { type: "delete_variation", moveId }); }}
           >

@@ -37,6 +37,7 @@ import { isTauriRuntime, openDevTools } from "../platform/desktop/tauri/tauri_ga
  * `menu_definition.ts`.
  */
 const MENU_ACTIONS: Record<MenuActionId, (s: AppStartupServices) => void> = {
+  "file.copy-game":              (s) => { void s.copyGameToClipboard(); },
   "file.new-database":           (s) => { s.createResource("db"); },
   "file.new-directory":          (s) => { s.createResource("directory"); },
   "file.open-resource-file":      (s) => { s.openResourceFile(); },

@@ -23,6 +23,15 @@ type ServiceLike = {
   saveActiveGameNow: () => void;
   undo: () => void;
   redo: () => void;
+  copyGameToClipboard: () => Promise<boolean>;
+};
+
+const isEditableTarget = (target: EventTarget | null): boolean => {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag: string = target.tagName.toLowerCase();
+  if (tag === "input" || tag === "textarea" || tag === "select") return true;
+  if (target.isContentEditable) return true;
+  return Boolean(target.closest("[contenteditable=\"true\"]"));
 };
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
@@ -30,7 +39,8 @@ type ServiceLike = {
 /**
  * Registers:
  * - `beforeunload` guard when any session has unsaved edits (M9).
- * - Ctrl/Cmd+S (save), Ctrl/Cmd+Z (undo), Ctrl/Cmd+Shift+Z / Ctrl/Cmd+Y (redo).
+ * - Ctrl/Cmd+S (save), Ctrl/Cmd+C (copy game when not editing),
+ *   Ctrl/Cmd+Z (undo), Ctrl/Cmd+Shift+Z / Ctrl/Cmd+Y (redo).
  */
 export const useAppShellKeyboard = (
   sessions: SessionLike[],
@@ -58,14 +68,19 @@ export const useAppShellKeyboard = (
   }, []);
 
   // Ctrl/Cmd+S — save active game.
+  // Ctrl/Cmd+C — copy active game PGN when not editing text.
   // Ctrl/Cmd+Z — undo.  Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y — redo.  (M5)
   useEffect((): (() => void) => {
     const handler = (e: KeyboardEvent): void => {
       const withMeta = e.metaKey || e.ctrlKey;
       if (!withMeta) return;
+      if (isEditableTarget(e.target)) return;
       if (e.key === "s") {
         e.preventDefault();
         services.saveActiveGameNow();
+      } else if (e.key === "c") {
+        e.preventDefault();
+        void services.copyGameToClipboard();
       } else if (e.key === "z" && !e.shiftKey) {
         e.preventDefault();
         services.undo();

@@ -41,6 +41,7 @@ import {
   selectIsGameInfoEditorOpen,
   selectPgnModel,
   selectBoardFlipped,
+  selectDerivedEco,
 } from "../../../core/state/selectors";
 import { useServiceContext } from "../../../app/providers/ServiceProvider";
 import { useTranslator } from "../../../app/hooks/useTranslator";
@@ -85,13 +86,20 @@ const buildPlayersSummary = (white: string, black: string): string => {
 
 type GameInfoFieldDef = (typeof GAME_INFO_HEADER_FIELDS)[number];
 
-const resolveFieldValue = (model: PgnModel | null, field: GameInfoFieldDef): string => {
+const resolveFieldValue = (
+  model: PgnModel | null,
+  field: GameInfoFieldDef,
+  derivedEco: { eco: string; name: string } | null,
+): string => {
   const raw: string = getHeaderValue(model, field.key, "");
-  const defaults: Record<string, string> = REQUIRED_PGN_TAG_DEFAULTS as Record<string, string>;
+  const defaults: Record<string, string> = REQUIRED_PGN_TAG_DEFAULTS;
   const withDefault: string = raw || (Object.hasOwn(defaults, field.key) ? defaults[field.key] : "") || "";
   let normalized: string = normalizeGameInfoHeaderValue(field.key, withDefault);
+  if (field.key === "ECO" && !normalized && derivedEco) {
+    normalized = derivedEco.eco;
+  }
   if (field.key === "Opening" && !normalized) {
-    normalized = resolveEcoOpeningName(getHeaderValue(model, "ECO", ""));
+    normalized = derivedEco?.name ?? resolveEcoOpeningName(getHeaderValue(model, "ECO", ""));
   }
   if (field.key === X2_STYLE_HEADER_KEY) {
     normalized = normalizeX2StyleValue(normalized);
@@ -176,16 +184,98 @@ export const FieldInput = ({ field, defaultVal, onCommit }: FieldInputProps): Re
   );
 };
 
+// ── GameInfoEditorGrid ────────────────────────────────────────────────────────
+
+type GameInfoEditorGridProps = {
+  pgnModel: PgnModel | null;
+  activeSessionId: string | null;
+  boardFlipped: boolean;
+  derivedEco: { eco: string; name: string } | null;
+  headDisplay: string;
+};
+
+const GameInfoEditorGrid = ({
+  pgnModel,
+  activeSessionId,
+  boardFlipped,
+  derivedEco,
+  headDisplay,
+}: GameInfoEditorGridProps): ReactElement => {
+  const services = useServiceContext();
+  const t: (key: string, fallback?: string) => string = useTranslator();
+
+  return (
+    <div className="game-info-editor-grid">
+      {GAME_INFO_HEADER_FIELDS.map((field: GameInfoFieldDef): ReactElement => {
+        const id: string = `game-info-${field.key.toLowerCase()}`;
+        const isPlayer: boolean =
+          (PLAYER_NAME_HEADER_KEYS as readonly string[]).includes(field.key);
+        let defaultVal: string = resolveFieldValue(pgnModel, field, derivedEco);
+        if (field.key === X2_BOARD_ORIENTATION_HEADER_KEY) {
+          defaultVal = boardFlipped ? "black" : "";
+        }
+        const fieldKey: string =
+          field.key === X2_BOARD_ORIENTATION_HEADER_KEY
+            ? `${field.key}-${String(boardFlipped)}`
+            : field.key;
+
+        return (
+          <label key={fieldKey} className="game-info-editor-field" htmlFor={id}>
+            <span>{field.label}</span>
+            {isPlayer ? (
+              <PlayerAutocomplete
+                fieldKey={field.key}
+                id={id}
+                defaultVal={defaultVal}
+                placeholder={field.placeholder}
+                onCommit={(key: string, value: string): void => {
+                  if (!activeSessionId) return;
+                  services.updateGameInfoHeader(activeSessionId, key, value);
+                }}
+              />
+            ) : (
+              <FieldInput
+                field={field}
+                defaultVal={defaultVal}
+                onCommit={(key: string, value: string): void => {
+                  if (!activeSessionId) return;
+                  services.updateGameInfoHeader(activeSessionId, key, value);
+                }}
+              />
+            )}
+          </label>
+        );
+      })}
+      <label className="game-info-editor-field" htmlFor="game-info-xsqr-head">
+        <span>{t("gameInfo.head", "XSqr head")}</span>
+        <textarea
+          id="game-info-xsqr-head"
+          className="game-info-xsqr-head"
+          readOnly
+          aria-readonly="true"
+          tabIndex={0}
+          rows={1}
+          wrap="off"
+          spellCheck={false}
+          data-ui-id={UI_IDS.GAME_INFO_XSQR_HEAD}
+          value={headDisplay}
+          title={t("gameInfo.head.hint", "Main line moves only (no comments or symbols), up to the first variation or end of game (saved as Head)")}
+        />
+      </label>
+    </div>
+  );
+};
+
 // ── GameInfoEditor (root) ─────────────────────────────────────────────────────
 
 /** Renders the compact game-info summary and collapsible editor form. */
 export const GameInfoEditor = (): ReactElement => {
-  const services = useServiceContext();
   const { state, dispatch } = useAppContext();
   const pgnModel: PgnModel | null = selectPgnModel(state);
   const isOpen: boolean = selectIsGameInfoEditorOpen(state);
   const boardFlipped: boolean = selectBoardFlipped(state);
   const activeSessionId: string | null = selectActiveSessionId(state);
+  const derivedEco: { eco: string; name: string } | null = selectDerivedEco(state);
   const t: (key: string, fallback?: string) => string = useTranslator();
 
   const playersSummary: string = useMemo((): string => {
@@ -205,11 +295,11 @@ export const GameInfoEditor = (): ReactElement => {
   );
 
   const openingSummary: string = useMemo((): string => {
-    const eco: string = getHeaderValue(pgnModel, "ECO", "");
+    const eco: string = getHeaderValue(pgnModel, "ECO", "") || (derivedEco?.eco ?? "");
     const opening: string = getHeaderValue(pgnModel, "Opening", "");
-    const name: string = opening || resolveEcoOpeningName(eco);
+    const name: string = opening || (derivedEco?.name ?? resolveEcoOpeningName(eco));
     return [eco, name].filter(Boolean).join(" ").trim();
-  }, [pgnModel]);
+  }, [pgnModel, derivedEco]);
 
   const headDisplay: string = useMemo((): string => {
     if (!pgnModel) return "";
@@ -280,72 +370,14 @@ export const GameInfoEditor = (): ReactElement => {
         data-ui-id={UI_IDS.GAME_INFO_EDITOR}
         hidden={!isOpen}
       >
-        {/*
-         * `key={formKey}` remounts the grid whenever the active game model
-         * changes, resetting all defaultValues to the newly loaded game.
-         */}
-        <div key={formKey} className="game-info-editor-grid">
-          {GAME_INFO_HEADER_FIELDS.map((field: GameInfoFieldDef): ReactElement => {
-            const id: string = `game-info-${field.key.toLowerCase()}`;
-            const isPlayer: boolean =
-              (PLAYER_NAME_HEADER_KEYS as readonly string[]).includes(field.key);
-            // XSqrChessBoardOrientation is derived from the live boardFlipped state so
-            // that the select always reflects the current board orientation, and
-            // remounts (via key) whenever the board is flipped programmatically.
-            let defaultVal: string = resolveFieldValue(pgnModel, field);
-            if (field.key === X2_BOARD_ORIENTATION_HEADER_KEY) {
-              defaultVal = boardFlipped ? "black" : "";
-            }
-            const fieldKey: string =
-              field.key === X2_BOARD_ORIENTATION_HEADER_KEY
-                ? `${field.key}-${String(boardFlipped)}`
-                : field.key;
-
-            return (
-              <label key={fieldKey} className="game-info-editor-field" htmlFor={id}>
-                <span>{field.label}</span>
-                {isPlayer ? (
-                  <PlayerAutocomplete
-                    fieldKey={field.key}
-                    id={id}
-                    defaultVal={defaultVal}
-                    placeholder={field.placeholder}
-                    onCommit={(key: string, value: string): void => {
-                      if (!activeSessionId) return;
-                      services.updateGameInfoHeader(activeSessionId, key, value);
-                    }}
-                  />
-                ) : (
-                  <FieldInput
-                    field={field}
-                    defaultVal={defaultVal}
-                    onCommit={(key: string, value: string): void => {
-                      if (!activeSessionId) return;
-                      services.updateGameInfoHeader(activeSessionId, key, value);
-                    }}
-                  />
-                )}
-              </label>
-            );
-          })}
-          {/* Head — moves-only preview (readonly); single grid column like other fields */}
-          <label className="game-info-editor-field" htmlFor="game-info-xsqr-head">
-            <span>{t("gameInfo.head", "XSqr head")}</span>
-            <textarea
-              id="game-info-xsqr-head"
-              className="game-info-xsqr-head"
-              readOnly
-              aria-readonly="true"
-              tabIndex={0}
-              rows={1}
-              wrap="off"
-              spellCheck={false}
-              data-ui-id={UI_IDS.GAME_INFO_XSQR_HEAD}
-              value={headDisplay}
-              title={t("gameInfo.head.hint", "Main line moves only (no comments or symbols), up to the first variation or end of game (saved as Head)")}
-            />
-          </label>
-        </div>
+        <GameInfoEditorGrid
+          key={formKey}
+          pgnModel={pgnModel}
+          activeSessionId={activeSessionId}
+          boardFlipped={boardFlipped}
+          derivedEco={derivedEco}
+          headDisplay={headDisplay}
+        />
         <GameMetadataStrip key={activeSessionId ?? "no-session"} />
       </div>
     </section>

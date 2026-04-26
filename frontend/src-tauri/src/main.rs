@@ -148,26 +148,6 @@ fn load_user_config(root_directory: String) -> Result<Option<String>, String> {
   Ok(Some(content))
 }
 
-#[tauri::command]
-fn load_player_list(root_directory: String) -> Result<Option<String>, String> {
-  let root_dir = canonicalize_dir(&root_directory)?;
-  let players_path = root_dir.join("data").join("players.json");
-  if !players_path.exists() {
-    return Ok(None);
-  }
-  let content = fs::read_to_string(players_path).map_err(|error| format!("Unable to read player list: {error}"))?;
-  Ok(Some(content))
-}
-
-#[tauri::command]
-fn save_player_list(root_directory: String, content: String) -> Result<(), String> {
-  let root_dir = canonicalize_dir(&root_directory)?;
-  let data_dir = root_dir.join("data");
-  fs::create_dir_all(&data_dir).map_err(|error| format!("Unable to create data directory: {error}"))?;
-  let players_path = data_dir.join("players.json");
-  fs::write(players_path, content).map_err(|error| format!("Unable to save player list: {error}"))
-}
-
 // ── SQLite state ──────────────────────────────────────────────────────────────
 
 struct DbState {
@@ -710,8 +690,6 @@ fn main() {
       load_game_file,
       save_game_file,
       load_user_config,
-      load_player_list,
-      save_player_list,
       query_db,
       execute_db,
       pick_x2chess_file,

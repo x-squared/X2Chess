@@ -1,0 +1,15 @@
+---
+description: Preserve move numbers in all PGN and move-list work
+alwaysApply: true
+---
+
+# PGN Move Number Integrity
+
+When working with PGN, SAN, move lists, or notation transforms:
+
+- Always preserve and output move numbers (for example `1. e4 e5 2. Nf3 Nc6`).
+- Never silently drop move numbers during parsing, formatting, editing, or summarization.
+- If source input is missing move numbers, explicitly reconstruct them where safe.
+- If safe reconstruction is not possible, state that clearly and ask for clarification instead of guessing.
+
+This rule applies to all assistant outputs and transformations involving chess moves.

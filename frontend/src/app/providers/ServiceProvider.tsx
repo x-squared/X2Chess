@@ -67,6 +67,7 @@ const defaultServices: AppStartupServices = {
   setEditorStylePrefs: noop,
   setDefaultLayoutPrefs: noop,
   setSaveMode: noop,
+  copyGameToClipboard: async (): Promise<boolean> => false,
   saveActiveGameNow: noop,
   saveSessionById: noop,
   discardActiveSessionChanges: async (): Promise<void> => {},

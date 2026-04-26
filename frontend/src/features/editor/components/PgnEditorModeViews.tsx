@@ -6,12 +6,14 @@
  * All rendering is driven by the `deps: TokenRenderDeps` bag — no context reads.
  */
 
-import type { ReactElement } from "react";
+import { useState, type CSSProperties, type DragEvent as ReactDragEvent, type ReactElement } from "react";
 import type { PlanBlock, InlineToken, PlanToken } from "../model/text_editor_plan";
 import { renderToken, hasVisibleTokenInBlock } from "./PgnEditorTokenView";
 import type { TokenRenderDeps } from "./PgnEditorTokenView";
 
 // ── Collapse path helpers ─────────────────────────────────────────────────────
+
+const INTERNAL_VARIATION_DND_TYPE = "application/x-x2chess-variation-move";
 
 export const pathKey = (path: readonly number[]): string => path.join(".");
 
@@ -46,7 +48,7 @@ export const buildLastSiblingByParent = (blocks: readonly PlanBlock[]): Readonly
     const path: readonly number[] | undefined = block.variationPath;
     if (!path || path.length <= 1) return;
     const parentKey: string = pathKey(path.slice(0, -1));
-    const siblingIndex: number = path[path.length - 1] ?? 0;
+    const siblingIndex: number = path.at(-1) ?? 0;
     const prev: number | undefined = byParent.get(parentKey);
     if (prev === undefined || siblingIndex > prev) {
       byParent.set(parentKey, siblingIndex);
@@ -60,20 +62,48 @@ export const buildLastSiblingByParent = (blocks: readonly PlanBlock[]): Readonly
 type BranchHeaderProps = {
   label: string;
   blockPathKey: string;
+  firstMoveId: string | null;
   isCollapsed: boolean;
   onToggle: (key: string) => void;
+  onDragStart: (e: ReactDragEvent<HTMLButtonElement>, firstMoveId: string | null) => void;
+  onDragEnd: () => void;
+  onDragOver: (e: ReactDragEvent<HTMLButtonElement>, firstMoveId: string | null) => void;
+  onDrop: (e: ReactDragEvent<HTMLButtonElement>, firstMoveId: string | null) => void;
+  isDropTarget: boolean;
+  isDragging: boolean;
 };
 
 /**
  * Renders the collapsible toggle button for a non-mainline variation block.
  * Triangle glyph flips between ▶ (collapsed) and ▼ (expanded).
  */
-const BranchHeader = ({ label, blockPathKey, isCollapsed, onToggle }: BranchHeaderProps): ReactElement => (
+const BranchHeader = ({
+  label,
+  blockPathKey,
+  firstMoveId,
+  isCollapsed,
+  onToggle,
+  onDragStart,
+  onDragEnd,
+  onDragOver,
+  onDrop,
+  isDropTarget,
+  isDragging,
+}: BranchHeaderProps): ReactElement => (
   <button
     type="button"
-    className="tree-collapse-toggle"
+    className={[
+      "tree-collapse-toggle",
+      isDropTarget ? "tree-collapse-toggle-drop-target" : "",
+      isDragging ? "is-dragging" : "",
+    ].filter(Boolean).join(" ")}
     aria-expanded={!isCollapsed}
+    draggable
     onClick={(): void => { onToggle(blockPathKey); }}
+    onDragStart={(e): void => { onDragStart(e, firstMoveId); }}
+    onDragEnd={onDragEnd}
+    onDragOver={(e): void => { onDragOver(e, firstMoveId); }}
+    onDrop={(e): void => { onDrop(e, firstMoveId); }}
   >
     <span className="tree-collapse-glyph" aria-hidden="true">{isCollapsed ? "▶" : "▼"}</span>
     {" "}{label}
@@ -132,6 +162,7 @@ type TreeModeViewProps = {
   collapsedPaths: ReadonlySet<string>;
   lastSiblingByParent: ReadonlyMap<string, number>;
   onToggle: (key: string) => void;
+  onVariationHeaderDrop: (sourceMoveId: string, targetMoveId: string) => void;
   deps: TokenRenderDeps;
 };
 
@@ -140,72 +171,147 @@ export const TreeModeView = ({
   collapsedPaths,
   lastSiblingByParent,
   onToggle,
+  onVariationHeaderDrop,
   deps,
-}: TreeModeViewProps): ReactElement => (
-  <>
-    {blocks.map((block: PlanBlock): ReactElement | null => {
-      if (isBlockHidden(block.variationPath, collapsedPaths)) return null;
+}: TreeModeViewProps): ReactElement => {
+  const [dragSourceMoveId, setDragSourceMoveId] = useState<string | null>(null);
+  const [dropTargetMoveId, setDropTargetMoveId] = useState<string | null>(null);
 
-      const depthClass: string = block.variationPath ? treeDepthClass(block.variationPath) : "";
-      const isCollapsed: boolean = block.variationPath
-        ? collapsedPaths.has(pathKey(block.variationPath))
-        : false;
-      const isTreeLastSibling: boolean = (() => {
-        const path: readonly number[] | undefined = block.variationPath;
-        if (!path || path.length <= 1) return false;
-        const parentKey: string = pathKey(path.slice(0, -1));
-        const siblingIndex: number = path[path.length - 1] ?? 0;
-        return lastSiblingByParent.get(parentKey) === siblingIndex;
-      })();
+  const handleDragStart = (
+    e: ReactDragEvent<HTMLButtonElement>,
+    firstMoveId: string | null,
+  ): void => {
+    if (!firstMoveId) return;
+    setDragSourceMoveId(firstMoveId);
+    setDropTargetMoveId(null);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData(INTERNAL_VARIATION_DND_TYPE, firstMoveId);
+  };
 
-      const branchLabelToken: InlineToken | undefined = block.isCollapsible
-        ? block.tokens.find(
-            (tok: PlanToken): tok is InlineToken =>
-              tok.kind === "inline" && tok.tokenType === "branch_header",
-          )
-        : undefined;
+  const handleDragOver = (
+    e: ReactDragEvent<HTMLButtonElement>,
+    firstMoveId: string | null,
+  ): void => {
+    if (!dragSourceMoveId || !firstMoveId || dragSourceMoveId === firstMoveId) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = "move";
+    setDropTargetMoveId(firstMoveId);
+  };
 
-      const collapsedPreview: string | null = (() => {
-        if (!isCollapsed || !block.isCollapsible) return null;
-        const previewTypes: Set<string> = new Set(["move_number", "move", "nag"]);
-        const parts: string[] = [];
-        for (const tok of block.tokens) {
-          if (tok.kind !== "inline") continue;
-          const it: InlineToken = tok as InlineToken;
-          if (!previewTypes.has(it.tokenType)) continue;
-          parts.push(it.text);
-          if (parts.length >= 8) break;
-        }
-        return parts.length > 0 ? parts.join(" ").replace(/\s+/g, " ").trim() : null;
-      })();
+  const handleDrop = (
+    e: ReactDragEvent<HTMLButtonElement>,
+    firstMoveId: string | null,
+  ): void => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!dragSourceMoveId || !firstMoveId || dragSourceMoveId === firstMoveId) {
+      setDropTargetMoveId(null);
+      setDragSourceMoveId(null);
+      return;
+    }
+    onVariationHeaderDrop(dragSourceMoveId, firstMoveId);
+    setDropTargetMoveId(null);
+    setDragSourceMoveId(null);
+  };
 
-      return (
-        <div
-          key={block.key}
-          className={["text-editor-block", depthClass].filter(Boolean).join(" ")}
-          style={block.indentDepth > 0 ? { paddingLeft: `${block.indentDepth * 1.5}em` } : undefined}
-          data-indent-depth={block.indentDepth > 0 ? block.indentDepth : undefined}
-          data-variation-path={block.variationPath ? pathKey(block.variationPath) : undefined}
-          data-tree-last-sibling={isTreeLastSibling ? "true" : undefined}
-        >
-          {block.isCollapsible && branchLabelToken && (
-            <BranchHeader
-              label={String(branchLabelToken.dataset.label ?? branchLabelToken.text)}
-              blockPathKey={pathKey(block.variationPath!)}
-              isCollapsed={isCollapsed}
-              onToggle={onToggle}
-            />
-          )}
-          {isCollapsed && collapsedPreview !== null && (
-            <span className="tree-collapsed-preview">{collapsedPreview} …</span>
-          )}
-          {!isCollapsed && block.tokens
-            .filter((tok: PlanToken): boolean =>
-              !(tok.kind === "inline" && tok.tokenType === "branch_header"),
+  const handleDragEnd = (): void => {
+    setDropTargetMoveId(null);
+    setDragSourceMoveId(null);
+  };
+
+  return (
+    <>
+      {blocks.map((block: PlanBlock): ReactElement | null => {
+        if (isBlockHidden(block.variationPath, collapsedPaths)) return null;
+
+        const depthClass: string = block.variationPath ? treeDepthClass(block.variationPath) : "";
+        const treeIndentLevel: number = block.variationPath ? Math.max(block.variationPath.length - 1, 0) : 0;
+        const treeBlockStyle: CSSProperties | undefined = (() => {
+          const style: CSSProperties = {};
+          let hasStyle: boolean = false;
+          if (treeIndentLevel > 0) {
+            style["--tree-indent-level" as keyof CSSProperties] = String(treeIndentLevel);
+            hasStyle = true;
+          }
+          if (block.indentDepth > 0) {
+            style.paddingLeft = `${block.indentDepth * 1.5}em`;
+            hasStyle = true;
+          }
+          return hasStyle ? style : undefined;
+        })();
+        const isCollapsed: boolean = block.variationPath
+          ? collapsedPaths.has(pathKey(block.variationPath))
+          : false;
+        const isTreeLastSibling: boolean = (() => {
+          const path: readonly number[] | undefined = block.variationPath;
+          if (!path || path.length <= 1) return false;
+          const parentKey: string = pathKey(path.slice(0, -1));
+          const siblingIndex: number = path.at(-1) ?? 0;
+          return lastSiblingByParent.get(parentKey) === siblingIndex;
+        })();
+
+        const branchLabelToken: InlineToken | undefined = block.isCollapsible
+          ? block.tokens.find(
+              (tok: PlanToken): tok is InlineToken =>
+                tok.kind === "inline" && tok.tokenType === "branch_header",
             )
-            .map((token: PlanToken): ReactElement => renderToken(token, deps))}
-        </div>
-      );
-    })}
-  </>
-);
+          : undefined;
+        const firstMoveToken: InlineToken | undefined = block.tokens.find(
+          (tok: PlanToken): tok is InlineToken =>
+            tok.kind === "inline" && tok.tokenType === "move" && typeof tok.dataset?.nodeId === "string",
+        );
+        const firstMoveId: string | null = firstMoveToken ? String(firstMoveToken.dataset.nodeId) : null;
+
+        const collapsedPreview: string | null = (() => {
+          if (!isCollapsed || !block.isCollapsible) return null;
+          const previewTypes: Set<string> = new Set(["move_number", "move", "nag"]);
+          const parts: string[] = [];
+          for (const tok of block.tokens) {
+            if (tok.kind !== "inline") continue;
+            if (!previewTypes.has(tok.tokenType)) continue;
+            parts.push(tok.text);
+            if (parts.length >= 8) break;
+          }
+          return parts.length > 0 ? parts.join(" ").replaceAll(/\s+/g, " ").trim() : null;
+        })();
+
+        return (
+          <div
+            key={block.key}
+            className={["text-editor-block", depthClass].filter(Boolean).join(" ")}
+            style={treeBlockStyle}
+            data-indent-depth={block.indentDepth > 0 ? block.indentDepth : undefined}
+            data-tree-indent-level={treeIndentLevel > 0 ? treeIndentLevel : undefined}
+            data-variation-path={block.variationPath ? pathKey(block.variationPath) : undefined}
+            data-tree-last-sibling={isTreeLastSibling ? "true" : undefined}
+          >
+            {block.isCollapsible && branchLabelToken && (
+              <BranchHeader
+                label={String(branchLabelToken.dataset.label ?? branchLabelToken.text)}
+                blockPathKey={pathKey(block.variationPath!)}
+                firstMoveId={firstMoveId}
+                isCollapsed={isCollapsed}
+                onToggle={onToggle}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+                isDropTarget={dropTargetMoveId !== null && firstMoveId === dropTargetMoveId}
+                isDragging={dragSourceMoveId !== null && firstMoveId === dragSourceMoveId}
+              />
+            )}
+            {isCollapsed && collapsedPreview !== null && (
+              <span className="tree-collapsed-preview">{collapsedPreview} …</span>
+            )}
+            {!isCollapsed && block.tokens
+              .filter((tok: PlanToken): boolean =>
+                !(tok.kind === "inline" && tok.tokenType === "branch_header"),
+              )
+              .map((token: PlanToken): ReactElement => renderToken(token, deps))}
+          </div>
+        );
+      })}
+    </>
+  );
+};

@@ -37,6 +37,7 @@
  * `useTauriMenu.ts`.
  */
 export type MenuActionId =
+  | "file.copy-game"
   | "file.new-database"
   | "file.new-directory"
   | "file.open-resource-file"
@@ -119,6 +120,8 @@ export const APP_MENU_DEFINITION: MenuDefinition = [
     kind: "submenu",
     label: "File",
     items: [
+      { kind: "action", id: "file.copy-game", label: "Copy Game" },
+      { kind: "separator" },
       { kind: "action", id: "file.new-database",  label: "New Database\u2026",    accelerator: "CmdOrCtrl+Shift+N" },
       { kind: "action", id: "file.new-directory",  label: "New Game Folder\u2026", accelerator: "CmdOrCtrl+Shift+D" },
       { kind: "separator" },

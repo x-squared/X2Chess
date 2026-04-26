@@ -77,6 +77,7 @@ export type AppStartupServices = {
   setEditorStylePrefs: (prefs: EditorStylePrefs) => void;
   setDefaultLayoutPrefs: (prefs: DefaultLayoutPrefs) => void;
   setSaveMode: (mode: string) => void;
+  copyGameToClipboard: (fromMoveId?: string) => Promise<boolean>;
   saveActiveGameNow: () => void;
   saveSessionById: (sessionId: string) => void;
   discardActiveSessionChanges: () => Promise<void>;

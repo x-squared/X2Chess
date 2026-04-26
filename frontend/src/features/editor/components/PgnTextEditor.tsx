@@ -49,12 +49,14 @@ import {
   deleteVariation,
   deleteVariationsAfter,
   promoteToMainline,
+  swapSiblingVariations,
   findCursorForMoveId,
   findMoveNode,
   findMoveSideById,
 } from "../../../../../parts/pgnparser/src/pgn_move_ops";
 import { TruncationMenu } from "./TruncationMenu";
 import type { TruncationAction } from "./TruncationMenu";
+import { VariationSortDialog } from "./VariationSortDialog";
 import { QaInsertDialog } from "../../../components/badges/QaBadge";
 import { useQaDialog } from "../hooks/useQaDialog";
 import { TrainInsertDialog } from "../../../components/badges/TrainBadge";
@@ -73,16 +75,90 @@ import type { ResolvedAnchor } from "../model/resolveAnchors";
 import { AnchorDefDialog } from "../../../components/anchors/AnchorDefDialog";
 import { AnchorPickerDialog } from "../../../components/anchors/AnchorPickerDialog";
 import { UI_IDS } from "../../../core/model/ui_ids";
-import type { PgnModel } from "../../../../../parts/pgnparser/src/pgn_model";
+import type { PgnModel, PgnMoveNode, PgnVariationNode } from "../../../../../parts/pgnparser/src/pgn_model";
 import { log } from "../../../logger";
 import { LinearModeView, TreeModeView, buildLastSiblingByParent } from "./PgnEditorModeViews";
 import { TRAILING_VARIATION_BREAK_SENTINEL } from "../model/plan/text_mode";
+import { getMoveRavs } from "../../../../../parts/pgnparser/src/pgn_move_attachments";
 
 export const shouldRearmConsumedFocusForInsert = (
   existingBeforeInsert: string | null,
   insertedCommentId: string,
   consumedFocusCommentId: string | null,
 ): boolean => existingBeforeInsert === insertedCommentId && consumedFocusCommentId === insertedCommentId;
+
+type VariationOrderContext = {
+  currentVariationId: string | null;
+  siblingVariationIds: string[];
+};
+
+const findVariationById = (
+  variation: PgnVariationNode,
+  variationId: string,
+): PgnVariationNode | null => {
+  if (variation.id === variationId) return variation;
+  for (const entry of variation.entries) {
+    if (entry.type !== "move") continue;
+    for (const child of getMoveRavs(entry as PgnMoveNode)) {
+      const found: PgnVariationNode | null = findVariationById(child, variationId);
+      if (found) return found;
+    }
+  }
+  return null;
+};
+
+const findSiblingVariationIds = (
+  variation: PgnVariationNode,
+  variationId: string,
+): string[] | null => {
+  for (const entry of variation.entries) {
+    if (entry.type !== "move") continue;
+    const ravs: PgnVariationNode[] = getMoveRavs(entry as PgnMoveNode);
+    const hasTarget: boolean = ravs.some((rav: PgnVariationNode): boolean => rav.id === variationId);
+    if (hasTarget) return ravs.map((rav: PgnVariationNode): string => rav.id);
+    for (const rav of ravs) {
+      const nested: string[] | null = findSiblingVariationIds(rav, variationId);
+      if (nested) return nested;
+    }
+  }
+  return null;
+};
+
+const resolveVariationOrderContext = (
+  model: PgnModel,
+  moveId: string,
+): VariationOrderContext => {
+  const cursor = findCursorForMoveId(model, moveId);
+  if (!cursor) return { currentVariationId: null, siblingVariationIds: [] };
+  if (cursor.variationId === model.root.id) {
+    return { currentVariationId: null, siblingVariationIds: [] };
+  }
+  const siblingVariationIds: string[] = findSiblingVariationIds(model.root, cursor.variationId) ?? [];
+  return {
+    currentVariationId: cursor.variationId,
+    siblingVariationIds,
+  };
+};
+
+const describeVariation = (
+  model: PgnModel,
+  variationId: string,
+  index: number,
+  t: (key: string, fallback?: string) => string,
+): string => {
+  const variation: PgnVariationNode | null = findVariationById(model.root, variationId);
+  const firstMove = variation?.entries.find((entry): boolean => entry.type === "move") as PgnMoveNode | undefined;
+  const fallback: string = `${t("editor.trunc.variationLabel", "Variation")} ${index + 1}`;
+  if (!firstMove) return fallback;
+  return `${fallback}: ${firstMove.san}`;
+};
+
+const haveSameSiblingSet = (a: readonly string[], b: readonly string[]): boolean => {
+  if (a.length !== b.length) return false;
+  const aSet: Set<string> = new Set(a);
+  if (aSet.size !== b.length) return false;
+  return b.every((id: string): boolean => aSet.has(id));
+};
 
 // ── PgnTextEditor (root) ──────────────────────────────────────────────────────
 
@@ -115,15 +191,34 @@ export const PgnTextEditor = (): ReactElement => {
     anchorRect: DOMRect;
     currentNags: readonly string[];
     moveSide: "white" | "black";
+    currentVariationId: string | null;
+    siblingVariationIds: string[];
   };
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [variationSortDialog, setVariationSortDialog] = useState<{
+    moveId: string;
+    currentVariationId: string;
+    siblingVariationIds: string[];
+  } | null>(null);
 
   const handleMoveContextMenu = useCallback(
     (moveId: string, san: string, isInVariation: boolean, rect: DOMRect): void => {
       window.getSelection()?.removeAllRanges();
       const nags = pgnModel ? (findMoveNode(pgnModel as PgnModel, moveId)?.nags ?? []) : [];
       const side = pgnModel ? (findMoveSideById(pgnModel as PgnModel, moveId) ?? "white") : "white";
-      setContextMenu({ moveId, san, isInVariation, anchorRect: rect, currentNags: nags, moveSide: side });
+      const variationCtx: VariationOrderContext = pgnModel
+        ? resolveVariationOrderContext(pgnModel as PgnModel, moveId)
+        : { currentVariationId: null, siblingVariationIds: [] };
+      setContextMenu({
+        moveId,
+        san,
+        isInVariation,
+        anchorRect: rect,
+        currentNags: nags,
+        moveSide: side,
+        currentVariationId: variationCtx.currentVariationId,
+        siblingVariationIds: variationCtx.siblingVariationIds,
+      });
     },
     [pgnModel],
   );
@@ -325,6 +420,9 @@ export const PgnTextEditor = (): ReactElement => {
         case "insert_anchor":
           handleOpenAnchorDefDialog(action.moveId, action.san);
           return;
+        case "copy_game_from_here":
+          void services.copyGameToClipboard(action.moveId);
+          return;
         case "toggle_nag":
           services.toggleMoveNag(action.moveId, action.nag);
           return;
@@ -358,6 +456,32 @@ export const PgnTextEditor = (): ReactElement => {
         case "promote_to_mainline":
           [newModel, newCursor] = promoteToMainline(pgnModel, cursor);
           break;
+        case "move_variation_up":
+        case "move_variation_down": {
+          const variationCtx: VariationOrderContext = resolveVariationOrderContext(pgnModel, action.moveId);
+          if (!variationCtx.currentVariationId) return;
+          const currentIndex: number = variationCtx.siblingVariationIds.indexOf(variationCtx.currentVariationId);
+          if (currentIndex < 0) return;
+          const targetIndex: number = action.type === "move_variation_up" ? currentIndex - 1 : currentIndex + 1;
+          if (targetIndex < 0 || targetIndex >= variationCtx.siblingVariationIds.length) return;
+          newModel = swapSiblingVariations(
+            pgnModel,
+            variationCtx.siblingVariationIds[currentIndex],
+            variationCtx.siblingVariationIds[targetIndex],
+          );
+          newCursor = { moveId: action.moveId, variationId: variationCtx.currentVariationId };
+          break;
+        }
+        case "open_variation_sort_dialog": {
+          const variationCtx: VariationOrderContext = resolveVariationOrderContext(pgnModel, action.moveId);
+          if (!variationCtx.currentVariationId || variationCtx.siblingVariationIds.length < 2) return;
+          setVariationSortDialog({
+            moveId: action.moveId,
+            currentVariationId: variationCtx.currentVariationId,
+            siblingVariationIds: variationCtx.siblingVariationIds,
+          });
+          return;
+        }
         default:
           return;
       }
@@ -365,6 +489,58 @@ export const PgnTextEditor = (): ReactElement => {
     },
     [pgnModel, services, handleInsertComment, handleInsertQa, handleInsertTodo, handleInsertLink, handleOpenAnchorDefDialog],
   );
+
+  const handleVariationSortMove = useCallback(
+    (variationId: string, direction: "up" | "down"): void => {
+      if (!variationSortDialog || !pgnModel) return;
+      const currentOrder: string[] = [...variationSortDialog.siblingVariationIds];
+      const index: number = currentOrder.indexOf(variationId);
+      if (index < 0) return;
+      const targetIndex: number = direction === "up" ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= currentOrder.length) return;
+      const updatedModel: PgnModel = swapSiblingVariations(
+        pgnModel,
+        currentOrder[index],
+        currentOrder[targetIndex],
+      );
+      const nextOrder: string[] = [...currentOrder];
+      const tmp: string = nextOrder[index];
+      nextOrder[index] = nextOrder[targetIndex];
+      nextOrder[targetIndex] = tmp;
+      setVariationSortDialog({
+        ...variationSortDialog,
+        siblingVariationIds: nextOrder,
+      });
+      services.applyPgnModelEdit(updatedModel, variationSortDialog.moveId);
+    },
+    [variationSortDialog, pgnModel, services],
+  );
+
+  const handleVariationHeaderDrop = useCallback(
+    (sourceMoveId: string, targetMoveId: string): void => {
+      if (!pgnModel || sourceMoveId === targetMoveId) return;
+      const sourceCtx: VariationOrderContext = resolveVariationOrderContext(pgnModel, sourceMoveId);
+      const targetCtx: VariationOrderContext = resolveVariationOrderContext(pgnModel, targetMoveId);
+      if (!sourceCtx.currentVariationId || !targetCtx.currentVariationId) return;
+      if (sourceCtx.currentVariationId === targetCtx.currentVariationId) return;
+      if (!haveSameSiblingSet(sourceCtx.siblingVariationIds, targetCtx.siblingVariationIds)) return;
+      const updatedModel: PgnModel = swapSiblingVariations(
+        pgnModel,
+        sourceCtx.currentVariationId,
+        targetCtx.currentVariationId,
+      );
+      services.applyPgnModelEdit(updatedModel, sourceMoveId);
+    },
+    [pgnModel, services],
+  );
+
+  const variationSortItems = useMemo(() => {
+    if (!variationSortDialog || !pgnModel) return [];
+    return variationSortDialog.siblingVariationIds.map((variationId: string, index: number) => ({
+      id: variationId,
+      label: describeVariation(pgnModel, variationId, index, t),
+    }));
+  }, [variationSortDialog, pgnModel, t]);
 
   const handleCommentEditStart = useCallback(
     (_commentId: string): void => {
@@ -414,6 +590,10 @@ export const PgnTextEditor = (): ReactElement => {
     };
   }, [services]);
 
+  const contextMenuVariationIndex: number = contextMenu?.currentVariationId
+    ? contextMenu.siblingVariationIds.indexOf(contextMenu.currentVariationId)
+    : -1;
+
   if (!pgnModel) {
     return (
       <div className="text-editor text-editor-empty" style={editorStyleVars as CSSProperties}>
@@ -438,6 +618,7 @@ export const PgnTextEditor = (): ReactElement => {
           collapsedPaths={collapsedPaths}
           lastSiblingByParent={lastSiblingByParent}
           onToggle={handleToggle}
+          onVariationHeaderDrop={handleVariationHeaderDrop}
           deps={{
             selectedMoveId,
             pendingFocusCommentId,
@@ -574,9 +755,23 @@ export const PgnTextEditor = (): ReactElement => {
           anchorRect={contextMenu.anchorRect}
           currentNags={contextMenu.currentNags}
           moveSide={contextMenu.moveSide}
+          canMoveVariationUp={contextMenuVariationIndex > 0}
+          canMoveVariationDown={contextMenuVariationIndex >= 0
+            && contextMenuVariationIndex < contextMenu.siblingVariationIds.length - 1}
+          canSortVariations={contextMenu.siblingVariationIds.length > 1}
           t={t}
           onAction={handleTruncationAction}
           onClose={(): void => { setContextMenu(null); }}
+        />
+      )}
+      {variationSortDialog !== null && (
+        <VariationSortDialog
+          variations={variationSortItems}
+          activeVariationId={variationSortDialog.currentVariationId}
+          onMoveUp={(variationId: string): void => { handleVariationSortMove(variationId, "up"); }}
+          onMoveDown={(variationId: string): void => { handleVariationSortMove(variationId, "down"); }}
+          onClose={(): void => { setVariationSortDialog(null); }}
+          t={t}
         />
       )}
       </div>

@@ -160,8 +160,24 @@
 .truncation-menu-item:hover {
   background: var(--bg-hover, rgba(255,255,255,0.06));
 }
-.truncation-menu-item--danger {
-  color: #ef4444;
+.truncation-menu-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.truncation-menu-item--attention::before {
+  content: "!";
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.05rem;
+  height: 1.05rem;
+  margin-right: 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--border, #64748b);
+  color: var(--text-secondary, #94a3b8);
+  font-size: 0.68rem;
+  font-weight: 700;
+  vertical-align: middle;
 }
 .truncation-menu-san {
   color: var(--text-secondary, #94a3b8);
@@ -184,6 +200,98 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   user-select: none;
+}
+
+/* ── VariationSortDialog ───────────────────────────────────────────────────── */
+
+.variation-sort-dialog {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0;
+  width: min(540px, 92vw);
+  background: var(--bg-panel);
+  color: var(--text);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+}
+
+.variation-sort-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.variation-sort-dialog-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  padding: 1rem 1.1rem;
+}
+
+.variation-sort-dialog-title {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 600;
+}
+
+.variation-sort-dialog-desc {
+  margin: 0;
+  font-size: 0.83rem;
+  color: var(--text-secondary, #94a3b8);
+}
+
+.variation-sort-dialog-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.variation-sort-dialog-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--border, #334155);
+  border-radius: 6px;
+}
+
+.variation-sort-dialog-row.is-active {
+  border-color: var(--accent, #3b82f6);
+  background: color-mix(in srgb, var(--accent, #3b82f6) 12%, transparent);
+}
+
+.variation-sort-dialog-row-label {
+  font-size: 0.84rem;
+  color: var(--text);
+}
+
+.variation-sort-dialog-row-actions {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.variation-sort-dialog-btn,
+.variation-sort-dialog-btn-close {
+  border: 1px solid var(--border, #475569);
+  border-radius: 4px;
+  background: var(--bg-input, #1e293b);
+  color: var(--text);
+  font-size: 0.78rem;
+  padding: 0.27rem 0.52rem;
+  cursor: pointer;
+}
+
+.variation-sort-dialog-btn:hover,
+.variation-sort-dialog-btn-close:hover {
+  border-color: var(--accent, #3b82f6);
+}
+
+.variation-sort-dialog-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.variation-sort-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 

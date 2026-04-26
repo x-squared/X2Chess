@@ -221,7 +221,9 @@
   --tree-line-width: 2px;
   --tree-step: 1.2em;
   --tree-margin-bottom: 0.2em;
+  --tree-indent-level: 0;
   margin-bottom: var(--tree-margin-bottom);
+  margin-left: calc(var(--tree-indent-level) * var(--tree-step));
   padding-left: 0;
   position: relative;
 }
@@ -232,20 +234,17 @@
 }
 
 .text-editor-block.tree-depth-2 {
-  margin-left: var(--tree-step);
   padding-left: 0.65em;
   border-left: var(--tree-line-width) solid var(--tree-line-color);
 }
 
 .text-editor-block.tree-depth-3 {
-  margin-left: calc(var(--tree-step) * 2);
   padding-left: 0.65em;
   border-left: var(--tree-line-width) solid rgba(17, 17, 17, 0.22);
   font-size: 0.95em;
 }
 
 .text-editor-block.tree-depth-4plus {
-  margin-left: calc(var(--tree-step) * 3);
   padding-left: 0.65em;
   border-left: var(--tree-line-width) solid rgba(17, 17, 17, 0.17);
   font-size: 0.9em;
@@ -278,6 +277,15 @@
   background: color-mix(in srgb, var(--tree-pill-bg, rgba(17, 17, 17, 0.08)) 80%, #000 20%);
   border-color: var(--tree-pill-border, rgba(17, 17, 17, 0.40));
   filter: brightness(0.94);
+}
+
+.tree-collapse-toggle.is-dragging {
+  opacity: 0.55;
+}
+
+.tree-collapse-toggle-drop-target {
+  outline: 2px dashed var(--accent, #3b82f6);
+  outline-offset: 1px;
 }
 
 /* Progressively lighter badges at deeper nesting */

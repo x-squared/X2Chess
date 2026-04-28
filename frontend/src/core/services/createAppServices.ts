@@ -33,6 +33,7 @@ import {
 import { toSessionItem, toResourceTab } from "./app_state_mappers";
 import { emitAfterSuccessfulSave, createEnsureSourceForActiveSession } from "./session_save_ops";
 import { parsePgnToModel } from "../../../../parts/pgnparser/src/pgn_model";
+import type { PgnModel } from "../../../../parts/pgnparser/src/pgn_model";
 import {
   serializeModelToPgn,
   serializeXsqrHeadMovetext,
@@ -193,7 +194,7 @@ export function createAppServicesBundle(
     defaultPgn: "",
     parsePgnToModelFn: (source: string): unknown =>
       ensureRequiredPgnHeaders(parsePgnToModel(source)),
-    serializeModelToPgnFn: serializeModelToPgn,
+    serializeModelToPgnFn: (model: unknown): string => serializeModelToPgn(model as PgnModel),
     buildMovePositionByIdFn: (model: unknown): Record<string, unknown> =>
       buildMovePositionById(
         model as Parameters<typeof buildMovePositionById>[0],
@@ -282,7 +283,7 @@ export function createAppServicesBundle(
       ) as Record<string, unknown>,
     stripAnnotationsForBoardParserFn: stripAnnotationsForBoardParser,
     getHeaderValueFn: (model: unknown, key: string, fallback: string): string =>
-      getHeaderValue(model, key, fallback),
+      getHeaderValue(model as PgnModel | null | undefined, key, fallback),
     t: getTranslator(),
   });
 
@@ -403,7 +404,9 @@ export function createAppServicesBundle(
       return true;
     },
     findCommentIdAroundMove: (moveId: string, position: "before" | "after"): string | null =>
-      findExistingCommentIdAroundMove(activeSessionRef.current.pgnModel, moveId, position),
+      activeSessionRef.current.pgnModel
+        ? findExistingCommentIdAroundMove(activeSessionRef.current.pgnModel, moveId, position)
+        : null,
     focusCommentById: (commentId: string): boolean => {
       activeSessionRef.current.pendingFocusCommentId = commentId;
       dispatchSessionStateSnapshot(activeSessionRef.current, dispatchRef.current);

@@ -65,7 +65,7 @@ const logChessJsRejection = (pgnModel: unknown, primaryErr: unknown, fallbackErr
  */
 
 type BivariantCallback<TArgs extends unknown[], TResult> = {
-  bivarianceHack: (...args: TArgs) => TResult;
+  bivarianceHack(...args: TArgs): TResult;
 }["bivarianceHack"];
 
 type SessionModelDeps = {

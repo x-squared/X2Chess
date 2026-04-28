@@ -189,6 +189,8 @@ fn open_or_get<'a>(
       .map_err(|e| format!("Failed to open database: {e}"))?;
     conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")
       .map_err(|e| format!("Failed to set pragmas: {e}"))?;
+    // Recover any WAL frames left by a crash or force-quit in the previous session.
+    let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
     guard.insert(db_path.to_string(), conn);
   }
   Ok(guard.get(db_path).unwrap())
@@ -672,6 +674,27 @@ fn main() {
       }
 
       let window = builder.build()?;
+
+      // Checkpoint all open SQLite databases when the main window is destroyed so
+      // that the WAL and SHM sidecar files are eliminated on a clean exit.
+      let checkpoint_handle = app.handle().clone();
+      window.on_window_event(move |event| {
+        if let tauri::WindowEvent::Destroyed = event {
+          let state = checkpoint_handle.state::<DbState>();
+          let Ok(guard) = state.connections.lock() else { return; };
+          for (path, conn) in guard.iter() {
+            // Switching to DELETE journal mode checkpoints the WAL and removes
+            // both the -wal and -shm sidecar files.  We switch back to WAL on
+            // the next open, so this only affects the on-disk journal-mode flag.
+            if let Err(e) = conn.execute_batch("PRAGMA journal_mode=DELETE;") {
+              warn!("WAL cleanup failed for {}: {}", path, e);
+            } else {
+              info!("WAL cleaned up for {}", path);
+            }
+          }
+        }
+      });
+
       // Open the WebKit inspector before any JS runs when X2CHESS_OPEN_DEVTOOLS is set.
       // Only active in debug builds.
       #[cfg(debug_assertions)]

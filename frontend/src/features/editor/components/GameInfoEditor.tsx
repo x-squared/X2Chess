@@ -204,6 +204,7 @@ const GameInfoEditorGrid = ({
   const services = useServiceContext();
   const t: (key: string, fallback?: string) => string = useTranslator();
 
+
   return (
     <div className="game-info-editor-grid">
       {GAME_INFO_HEADER_FIELDS.map((field: GameInfoFieldDef): ReactElement => {
@@ -378,7 +379,7 @@ export const GameInfoEditor = (): ReactElement => {
           derivedEco={derivedEco}
           headDisplay={headDisplay}
         />
-        <GameMetadataStrip key={activeSessionId ?? "no-session"} />
+        <GameMetadataStrip key={`meta-${activeSessionId ?? "no-session"}`} />
       </div>
     </section>
   );

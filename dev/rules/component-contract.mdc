@@ -30,6 +30,33 @@ Every component (especially GUI components) must follow a Component-Contract.
 - Behavior, inputs, outputs, defaults, and side effects must be documented in public code documentation.
 - Avoid hidden coupling through internal state mutation or undocumented global side effects.
 
+## UI flow observability
+
+A component's Communication API must be observable in a running app, not only
+readable in source.  When writing or reviewing the Communication API section,
+confirm that the following are either logged or trivially discoverable from
+logs:
+
+- **Data entering the component** — what prop or context value triggers a
+  re-render, and what its new value is.
+- **State transitions** — every `useState`/`useReducer` update that changes
+  visible output should be reachable from a log entry (either in the component
+  or the caller that dispatched the change).
+- **Effects and async activity** — which `useEffect` fired, what it fetched,
+  and whether it completed or was cancelled.
+- **Key identity** — when a component is mounted with a `key` prop, the key
+  value must be logged at mount time.  If sibling components coexist in the
+  same parent and any of their keys share a common source (e.g. `sessionId`),
+  document the uniqueness strategy — a comment at the JSX site naming each key
+  and its prefix/suffix is sufficient.
+- **Early exits** — if the component returns `null` or a no-op variant based
+  on runtime conditions, log the reason at `log.debug` level.
+
+These requirements do not mandate adding debug output everywhere.  They mean
+that when a UI flow goes wrong, the logs produced by normal operation should be
+sufficient to reconstruct the sequence of events without adding new
+instrumentation.
+
 ## Delivery checklist (substantial component changes)
 
 - Confirm all 3 API parts exist or are intentionally marked as not applicable with rationale.

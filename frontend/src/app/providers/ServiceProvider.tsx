@@ -71,6 +71,8 @@ const defaultServices: AppStartupServices = {
   saveActiveGameNow: noop,
   saveSessionById: noop,
   discardActiveSessionChanges: async (): Promise<void> => {},
+  loadResourceSchemaId: async (): Promise<string | null> => null,
+  persistResourceSchemaId: async (): Promise<void> => {},
   getPlayerNameSuggestions: (): string[] => [],
   getPlayers: (): PlayerRecord[] => [],
   addPlayer: async (): Promise<void> => {},

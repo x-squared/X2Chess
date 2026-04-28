@@ -23,8 +23,9 @@ import {
   resolveEcoOpeningName,
 } from "../../../model";
 import type { PlayerRecord } from "../../../app/shell/model/app_state";
+import type { PgnModel } from "../../../../../parts/pgnparser/src/pgn_model";
 
-type PgnModelLike = unknown;
+type PgnModelLike = PgnModel | null | undefined;
 type TranslatorFn = (key: string, fallback?: string) => string;
 type HeaderKey = string;
 

@@ -16,7 +16,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import { Chess } from "chess.js";
-import type { PgnModel, PgnMoveNode, PgnEntryNode } from "../../../../../parts/pgnparser/src/pgn_model";
+import type { PgnModel, PgnMoveNode } from "../../../../../parts/pgnparser/src/pgn_model";
 import { insertCommentAroundMove, toggleMoveNag } from "../../../../../parts/pgnparser/src/pgn_commands";
 import type { EngineBestMove, MoveSearchOptions, EnginePosition } from "../../../../../parts/engines/src/domain/analysis_types";
 
@@ -62,9 +62,9 @@ export type GameAnnotationState = {
 const collectMainlineMoves = (model: PgnModel): Array<{ ply: number; node: PgnMoveNode }> => {
   const result: Array<{ ply: number; node: PgnMoveNode }> = [];
   let ply = 0;
-  for (const entry of model.root.entries as PgnEntryNode[]) {
+  for (const entry of model.root.entries) {
     if (entry.type !== "move") continue;
-    result.push({ ply, node: entry as PgnMoveNode });
+    result.push({ ply, node: entry });
     ply++;
   }
   return result;
@@ -79,6 +79,26 @@ const nagForDelta = (
   if (cpLoss >= opts.mistakeThreshold) return "$2";  // ?
   if (cpLoss >= opts.inaccuracyThreshold) return "$6"; // ?!
   return null;
+};
+
+/** Apply NAG and optional comment to a working model for one non-best move. */
+const applyMoveAnnotation = (
+  model: PgnModel,
+  moveNode: PgnMoveNode,
+  best: EngineBestMove,
+  opts: AnnotateOptions,
+): PgnModel => {
+  const nag = opts.inaccuracyThreshold > 0 ? "$6" : null;
+  const comment = opts.addEvalComments && best.san ? `Better: ${best.san}` : "";
+  let current = model;
+  if (nag) {
+    current = toggleMoveNag(current, moveNode.id, nag);
+  }
+  if (comment) {
+    const { model: updated } = insertCommentAroundMove(current, moveNode.id, "after", comment);
+    current = updated;
+  }
+  return current;
 };
 
 /**
@@ -110,7 +130,7 @@ export const useGameAnnotation = (findBestMove: FindBestMoveFn): GameAnnotationS
 
       const chess = new Chess();
       // Replay from scratch to track position before each move.
-      let workingModel: unknown = model;
+      let workingModel: PgnModel = model;
 
       for (let i = 0; i < movesToAnnotate.length; i++) {
         if (cancelledRef.current) return;
@@ -134,34 +154,13 @@ export const useGameAnnotation = (findBestMove: FindBestMoveFn): GameAnnotationS
         const gameUci = gameResult.from + gameResult.to + (gameResult.promotion ?? "");
         const isBestMove = best.uci === gameUci || best.uci.startsWith(gameUci.slice(0, 4));
 
-        // Evaluate the position after game move to compute cp loss.
-        // For a simple heuristic: if game move != best, flag it.
-        // Full eval comparison requires two engine calls per ply — skip for now.
-        // Instead use: if game move ≠ best move, classify as inaccuracy minimum.
         if (!isBestMove) {
-          const nag = opts.inaccuracyThreshold > 0 ? "$6" : null;
-          let comment = "";
-          if (opts.addEvalComments && best.san) {
-            comment = `Better: ${best.san}`;
-          }
-
-          if (nag) {
-            workingModel = toggleMoveNag(workingModel, moveNode.id, nag);
-          }
-          if (comment) {
-            const { model: updated } = insertCommentAroundMove(
-              workingModel,
-              moveNode.id,
-              "after",
-              comment,
-            );
-            workingModel = updated;
-          }
+          workingModel = applyMoveAnnotation(workingModel, moveNode, best, opts);
         }
       }
 
       if (!cancelledRef.current) {
-        setAnnotatedModel(workingModel as PgnModel);
+        setAnnotatedModel(workingModel);
         setPhase("done");
       }
     },

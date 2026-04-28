@@ -103,7 +103,7 @@ export const createEditingOps = (
     const g: GameSessionState = bundle.activeSessionRef.current;
     let nextModel: PgnModel;
     try {
-      nextModel = ensureRequiredPgnHeaders(parsePgnToModel(pgnText)) as PgnModel;
+      nextModel = ensureRequiredPgnHeaders(parsePgnToModel(pgnText));
     } catch (err: unknown) {
       const message: string = err instanceof Error ? err.message : String(err);
       log.error("session_editing_ops", `applyDeveloperDockRawPgn: parse failed: ${message}`);
@@ -134,6 +134,7 @@ export const createEditingOps = (
 
   insertComment: (moveId: string, position: "before" | "after"): { id: string; rawText: string } | null => {
     const g: GameSessionState = bundle.activeSessionRef.current;
+    if (!g.pgnModel) return null;
     const existing = findExistingCommentIdAroundMove(g.pgnModel, moveId, position);
     if (existing) {
       g.pendingFocusCommentId = existing;
@@ -153,6 +154,7 @@ export const createEditingOps = (
 
   focusCommentAroundMove: (moveId: string, position: "before" | "after"): void => {
     const g: GameSessionState = bundle.activeSessionRef.current;
+    if (!g.pgnModel) return;
     const existing = findExistingCommentIdAroundMove(g.pgnModel, moveId, position);
     if (existing) {
       g.pendingFocusCommentId = existing;
@@ -162,6 +164,7 @@ export const createEditingOps = (
 
   saveCommentText: (commentId: string, text: string): void => {
     const g: GameSessionState = bundle.activeSessionRef.current;
+    if (!g.pgnModel) return;
     const newModel = setCommentTextById(g.pgnModel, commentId, text);
     if (newModel) {
       bundle.applyModelUpdate(newModel, null, {
@@ -176,6 +179,7 @@ export const createEditingOps = (
 
   applyDefaultIndent: (): void => {
     const g: GameSessionState = bundle.activeSessionRef.current;
+    if (!g.pgnModel) return;
     const prefs = stateRef.current.defaultLayoutPrefs;
     const newModel = applyDefaultLayout(g.pgnModel, prefs);
     if (newModel) {
@@ -187,10 +191,11 @@ export const createEditingOps = (
 
   saveBoardShapes: (moveId: string, shapes: BoardShape[]): void => {
     const g: GameSessionState = bundle.activeSessionRef.current;
-    if (!findMoveNode(g.pgnModel as PgnModel, moveId)) return;
+    if (!g.pgnModel) return;
+    if (!findMoveNode(g.pgnModel, moveId)) return;
 
     let commentId: string | null = findExistingCommentIdAroundMove(g.pgnModel, moveId, "after");
-    let workingModel: unknown = g.pgnModel;
+    let workingModel: PgnModel = g.pgnModel;
 
     if (!commentId) {
       if (shapes.length === 0) return;
@@ -218,6 +223,7 @@ export const createEditingOps = (
 
   toggleMoveNag: (moveId: string, nag: string): void => {
     const g: GameSessionState = bundle.activeSessionRef.current;
+    if (!g.pgnModel) return;
     const newModel = toggleMoveNag(g.pgnModel, moveId, nag);
     bundle.applyModelUpdate(newModel, null, {
       recordHistory: true,

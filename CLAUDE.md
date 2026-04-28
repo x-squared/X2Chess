@@ -48,6 +48,7 @@ before working on frontend or resource code.** Key files:
 | `ui-style-and-theming.mdc` | CSS or UI changes |
 | `i18n-gui-alignment.mdc` | Any user-facing string change |
 | `manual-checklist-maintenance.mdc` | Any user-facing feature change |
+| `deployment-checklist.mdc` | Preparing a release build or deployment |
 
 The remaining rules govern manual/doc maintenance and are lower-priority for
 code tasks but should be consulted when editing `doc/`.

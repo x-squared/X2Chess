@@ -30,6 +30,7 @@
 import {
   useState,
   useCallback,
+  useEffect,
   useId,
   useMemo,
   type ReactElement,
@@ -90,6 +91,7 @@ export const ResourceViewer = (): ReactElement => {
   const [dialogKey, setDialogKey] = useState<number>(0);
   const [columnFiltersMap, setColumnFiltersMap] = useState<Record<string, Record<string, string>>>({});
   const [sortMap, setSortMap] = useState<Record<string, SortConfig | null>>({});
+  const [missingSchemaNotice, setMissingSchemaNotice] = useState<Record<string, boolean>>({});
 
   // ── Schema management ─────────────────────────────────────────────────
 
@@ -99,11 +101,30 @@ export const ResourceViewer = (): ReactElement => {
     activeSchema,
     schemaEditorOpen,
     editingSchema,
+    initTabSchema,
     handleSchemaSelect,
     handleSchemaManage,
     handleSchemaSave,
     handleSchemaEditorClose,
-  } = useSchemaManagement(activeTabId);
+  } = useSchemaManagement(activeTabId, {
+    persistSchemaId: services.persistResourceSchemaId,
+  });
+
+  const activeTabResourceRef = useMemo(() => {
+    const snap = tabSnapshots.find((t) => t.tabId === activeTabId);
+    return snap ? { kind: snap.kind, locator: snap.locator } : null;
+  }, [activeTabId, tabSnapshots]);
+
+  useEffect(() => {
+    if (!activeTabId || !activeTabResourceRef) return;
+    const tabId = activeTabId;
+    void services.loadResourceSchemaId(activeTabResourceRef).then((schemaId) => {
+      initTabSchema(tabId, schemaId);
+      if (schemaId !== null && !schemas.some((s) => s.id === schemaId)) {
+        setMissingSchemaNotice((prev) => ({ ...prev, [tabId]: true }));
+      }
+    });
+  }, [activeTabId, activeTabResourceRef?.kind, activeTabResourceRef?.locator]);
 
   // ── Tab state + row loading + live refresh ────────────────────────────
 
@@ -400,6 +421,31 @@ export const ResourceViewer = (): ReactElement => {
         onNewDirectory={(): void => { services.createResource("directory"); }}
         t={t}
       />
+
+      {activeTabId && missingSchemaNotice[activeTabId] && (
+        <output className="resource-schema-notice">
+          <span className="resource-schema-notice__text">
+            {t("schema.resource.missingNotice", "This resource uses a metadata schema that is not installed on this device.")}
+          </span>
+          <button
+            type="button"
+            className="resource-schema-notice__action"
+            onClick={handleSchemaManage}
+          >
+            {t("schema.resource.manageSchemasLink", "Manage schemas\u2026")}
+          </button>
+          <button
+            type="button"
+            className="resource-schema-notice__dismiss"
+            aria-label={t("schema.resource.dismissNotice", "Dismiss")}
+            onClick={(): void => {
+              setMissingSchemaNotice((prev) => ({ ...prev, [activeTabId]: false }));
+            }}
+          >
+            ✕
+          </button>
+        </output>
+      )}
 
       {activeTab && (
         <ResourceToolbar

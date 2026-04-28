@@ -105,4 +105,14 @@ export const createResourceClient = (
     if (typeof adapter.searchByMetadataValues !== "function") return [];
     return adapter.searchByMetadataValues(key, values, mode, resourceRef);
   },
+  getResourceSchemaId: async (resourceRef: PgnResourceRef): Promise<string | null> => {
+    const adapter: PgnResourceAdapter = resolveAdapter(adapters, resourceRef.kind);
+    if (typeof adapter.getSchemaId !== "function") return null;
+    return adapter.getSchemaId(resourceRef);
+  },
+  setResourceSchemaId: async (resourceRef: PgnResourceRef, schemaId: string | null): Promise<void> => {
+    const adapter: PgnResourceAdapter = resolveAdapter(adapters, resourceRef.kind);
+    if (typeof adapter.setSchemaId !== "function") return;
+    return adapter.setSchemaId(resourceRef, schemaId);
+  },
 });

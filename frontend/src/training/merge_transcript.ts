@@ -9,7 +9,7 @@
  * - Pure functions; no side effects.
  */
 
-import type { PgnModel, PgnEntryNode, PgnMoveNode } from "../../../parts/pgnparser/src/pgn_model";
+import type { PgnModel, PgnEntryNode } from "../../../parts/pgnparser/src/pgn_model";
 import { insertCommentAroundMove } from "../../../parts/pgnparser/src/pgn_commands";
 import { serializeModelToPgn } from "../../../parts/pgnparser/src/pgn_serialize";
 import type { MergeSelection } from "./domain/training_transcript";
@@ -23,7 +23,7 @@ const buildPlyToMoveId = (model: PgnModel): Map<number, string> => {
   const walk = (entries: PgnEntryNode[]): void => {
     for (const entry of entries) {
       if (entry.type !== "move") continue;
-      map.set(ply, (entry as PgnMoveNode).id);
+      map.set(ply, entry.id);
       ply += 1;
     }
   };
@@ -42,7 +42,7 @@ export const applyMergeToModel = (
   selection: MergeSelection,
 ): PgnModel => {
   const plyMap = buildPlyToMoveId(model);
-  let current: unknown = model;
+  let current: PgnModel = model;
 
   for (const { annotation, include } of selection.annotations) {
     if (!include) continue;
@@ -57,7 +57,7 @@ export const applyMergeToModel = (
     current = updated;
   }
 
-  return current as PgnModel;
+  return current;
 };
 
 /**
@@ -70,12 +70,11 @@ export const mergeToNewPgn = (
   eventSuffix: string = "Training",
 ): string => {
   // Clone headers, appending suffix to Event.
+  const eventTag = eventSuffix ? ` (${eventSuffix})` : "";
   const headers = model.headers.map((h) =>
-    h.key === "Event"
-      ? { ...h, value: `${h.value || "?"}${eventSuffix ? ` (${eventSuffix})` : ""}` }
-      : h,
+    h.key === "Event" ? { ...h, value: `${h.value || "?"}${eventTag}` } : h,
   );
-  const cloned = { ...model, headers } as PgnModel;
+  const cloned: PgnModel = { ...model, headers };
   const withAnnotations = applyMergeToModel(cloned, selection);
   return serializeModelToPgn(withAnnotations);
 };

@@ -81,4 +81,6 @@ export type AppStartupServices = {
   saveActiveGameNow: () => void;
   saveSessionById: (sessionId: string) => void;
   discardActiveSessionChanges: () => Promise<void>;
+  loadResourceSchemaId: (resourceRef: { kind: string; locator: string }) => Promise<string | null>;
+  persistResourceSchemaId: (resourceRef: { kind: string; locator: string }, schemaId: string | null) => Promise<void>;
 };

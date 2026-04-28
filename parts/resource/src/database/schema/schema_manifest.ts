@@ -129,4 +129,13 @@ export const MIGRATIONS: readonly Migration[] = [
       `ALTER TABLE metadata_keys ADD COLUMN cardinality TEXT NOT NULL DEFAULT 'one'`,
     ],
   },
+  {
+    version: 9,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS resource_meta (
+        key   TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      )`,
+    ],
+  },
 ] as const;

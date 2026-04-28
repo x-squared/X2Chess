@@ -1,7 +1,7 @@
 {
   "menu.open": "Open menu",
   "menu.close": "Close menu",
-  "menu.newGame": "New game\u2026",
+  "menu.newGame": "New game…",
   "menu.title": "Menu",
   "controls.first": "|<",
   "controls.prev": "<",
@@ -153,7 +153,7 @@
   "resources.table.unknown": "Untitled",
   "resources.groupby.none": "none",
   "resources.metadata.addField": "Add metadata column",
-  "resources.metadata.addFieldPlaceholder": "Add metadata\u2026",
+  "resources.metadata.addFieldPlaceholder": "Add metadata…",
   "pgn.comment.editPrompt": "Edit comment text",
   "moves.label": "Moves",
   "moves.none": "No moves loaded.",
@@ -183,7 +183,7 @@
   "anchorList.noAnchors": "No anchors defined in this game",
   "anchorList.noResults": "No anchors match your search",
   "anchorPicker.title": "Insert anchor reference",
-  "anchorPicker.search": "Search by label or ID\u2026",
+  "anchorPicker.search": "Search by label or ID…",
   "editorStyle.commentLineBreakPolicy": "Comment line breaks",
   "editorStyle.commentLineBreakPolicy.hint": "Always: every comment starts a new line. Mainline only: variation comments stay inline.",
   "editorStyle.commentLineBreakPolicy.mainlineOnly": "Mainline only",
@@ -213,7 +213,7 @@
   "training.launcher.boardTransform": "Board transform:",
   "training.launcher.transform.none": "None",
   "training.launcher.transform.mirror": "Mirror colors",
-  "training.launcher.transform.mirrorHint": "(swap White\u2044Black and reverse ranks)",
+  "training.launcher.transform.mirrorHint": "(swap White⁄Black and reverse ranks)",
   "training.launcher.transform.rotate": "Rotate board",
   "training.launcher.transform.rotateHint": "(pawnless positions only)",
   "training.launcher.side": "Side:",
@@ -227,5 +227,8 @@
   "training.launcher.allowRetry": "Allow retry on wrong move",
   "training.launcher.allowHints": "Allow hints",
   "training.launcher.cancel": "Cancel",
-  "training.launcher.start": "Start Training"
+  "training.launcher.start": "Start Training",
+  "schema.resource.missingNotice": "This resource uses a metadata schema that is not installed on this device.",
+  "schema.resource.manageSchemasLink": "Manage schemas…",
+  "schema.resource.dismissNotice": "Dismiss"
 }

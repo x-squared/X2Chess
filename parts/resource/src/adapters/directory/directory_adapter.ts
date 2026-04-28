@@ -118,6 +118,23 @@ export const createDirectoryAdapter = (deps: DirectoryAdapterDeps): PgnResourceA
     };
   },
 
+  getSchemaId: async (resourceRef: PgnResourceRef): Promise<string | null> => {
+    const dirLocator = String(resourceRef.locator || "").trim();
+    const sidecar = await readSidecar(deps.fsGateway, dirLocator);
+    return sidecar.schemaId ?? null;
+  },
+
+  setSchemaId: async (resourceRef: PgnResourceRef, schemaId: string | null): Promise<void> => {
+    const dirLocator = String(resourceRef.locator || "").trim();
+    const sidecar = await readSidecar(deps.fsGateway, dirLocator);
+    if (schemaId === null) {
+      delete sidecar.schemaId;
+    } else {
+      sidecar.schemaId = schemaId;
+    }
+    await writeSidecar(deps.fsGateway, dirLocator, sidecar);
+  },
+
   reorder: async (gameRef: PgnGameRef, afterRef: PgnGameRef | null): Promise<void> => {
     const dirLocator = String(gameRef.locator || "").trim();
     const sidecar = await readSidecar(deps.fsGateway, dirLocator);

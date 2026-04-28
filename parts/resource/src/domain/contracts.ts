@@ -141,4 +141,22 @@ export interface PgnResourceAdapter {
     mode: MetadataSearchMode,
     resourceRef: PgnResourceRef,
   ): Promise<PgnGameRef[]>;
+
+  /**
+   * Return the schema ID associated with this resource, or `null` if none is set.
+   * Used to transfer schema associations when resources are moved between installations.
+   * Optional: adapters that do not support persistent schema association return `null`.
+   *
+   * @param resourceRef Resource locator.
+   */
+  getSchemaId?(resourceRef: PgnResourceRef): Promise<string | null>;
+
+  /**
+   * Persist (or clear) the schema ID associated with this resource.
+   * Optional: adapters that do not support persistent schema association are no-ops.
+   *
+   * @param resourceRef Resource locator.
+   * @param schemaId Schema UUID to associate, or `null` to clear.
+   */
+  setSchemaId?(resourceRef: PgnResourceRef, schemaId: string | null): Promise<void>;
 }

@@ -149,8 +149,8 @@ export const createNavOps = (
  * dispatch action. Exported for use in session-open operations.
  */
 export const makeBoardFlipAction = (
-  pgnModel: unknown,
+  pgnModel: PgnModel | null,
 ): AppAction => ({
   type: "set_board_flipped",
-  flipped: deriveInitialBoardFlipped(pgnModel),
+  flipped: pgnModel ? deriveInitialBoardFlipped(pgnModel) : false,
 });

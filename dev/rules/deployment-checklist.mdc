@@ -1,0 +1,73 @@
+---
+description: Steps that must be completed before every production deployment or release build
+alwaysApply: false
+---
+
+# Deployment Checklist Rule
+
+This rule lists the checks and updates that must be completed each time a
+production artifact is prepared — whether a desktop package (`tauri build`) or
+a web deployment.
+
+## Trigger
+
+Apply this checklist whenever:
+- A tagged release is created, or
+- A production build artifact is packaged for distribution, or
+- A CI/CD pipeline produces a distributable output.
+
+## Required steps
+
+### 1 — Update the third-party license inventory
+
+**File:** `frontend/public/THIRD_PARTY_LICENSES.md`
+
+The license inventory is shipped inside every build artifact (it is served
+from `public/` in the Vite output). Before each deployment:
+
+1. Compare all entries in the inventory against the current lock files:
+   - **npm:** `frontend/package-lock.json` (sections 1 and 3 of the inventory)
+   - **Rust:** `frontend/src-tauri/Cargo.lock` (section 2 of the inventory)
+2. Add new packages, update changed versions, and remove packages that are no
+   longer a dependency.
+3. Re-evaluate the license of any package whose version changed — a version
+   bump occasionally introduces a license change.
+4. Update the `*Last updated*` line at the bottom of the file to today's date.
+5. Pay special attention to copyleft licenses (GPL, LGPL, AGPL, EUPL). Any new
+   copyleft dependency must be reviewed before the build is distributed.
+
+### 2 — Verify the build is clean
+
+```bash
+cd frontend
+npm run typecheck   # must pass with zero errors
+npm test            # must pass with zero failures
+npm run build       # must complete without errors
+```
+
+For desktop builds, additionally run:
+
+```bash
+npm run desktop:pack
+```
+
+### 3 — Confirm no untracked secrets or dev artifacts are bundled
+
+- Verify `frontend/public/` contains no `.env` files, private keys, or local
+  developer data.
+- Verify `frontend/src-tauri/` configuration does not include development-only
+  endpoints or API tokens.
+
+### 4 — Update the architecture health log (if applicable)
+
+If the deployment includes significant structural changes, append an entry to
+`dev/architecture/health-log.md` per the review cadence described there.
+
+## What "license inventory up to date" means
+
+The inventory is considered current when every package in sections 1 and 2 of
+`THIRD_PARTY_LICENSES.md` matches the version recorded in the relevant lock
+file, and the `*Last updated*` date reflects the deployment date.
+
+A deployment is **not ready** if the inventory is stale or if a newly added
+package has not been reviewed for license compatibility.

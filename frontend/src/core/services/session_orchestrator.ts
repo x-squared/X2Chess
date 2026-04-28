@@ -294,6 +294,12 @@ export const createSessionOrchestrator = (
       void bundle.sessionPersistence.persistActiveSessionNow();
     },
 
+    loadResourceSchemaId: async (resourceRef: { kind: string; locator: string }): Promise<string | null> =>
+      bundle.resources.loadResourceSchemaId(resourceRef as PgnResourceRef),
+
+    persistResourceSchemaId: async (resourceRef: { kind: string; locator: string }, schemaId: string | null): Promise<void> =>
+      bundle.resources.persistResourceSchemaId(resourceRef as PgnResourceRef, schemaId),
+
     // ── Player management ───────────────────────────────────────────────────
     getPlayerNameSuggestions: (query: string): string[] =>
       buildPlayerNameSuggestions(bundle.resources.getPlayerStore(), query),

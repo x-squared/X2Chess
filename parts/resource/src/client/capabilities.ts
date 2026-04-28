@@ -131,4 +131,22 @@ export type ResourceCapabilities = {
     mode: MetadataSearchMode,
     resourceRef: PgnResourceRef,
   ) => Promise<PgnGameRef[]>;
+
+  /**
+   * Return the schema ID persisted inside a resource, or `null` if none.
+   * Returns `null` for adapters that do not support schema association (e.g. single-file PGN).
+   *
+   * @param resourceRef Resource locator.
+   */
+  getResourceSchemaId: (resourceRef: PgnResourceRef) => Promise<string | null>;
+
+  /**
+   * Persist (or clear) the schema ID inside a resource so it travels with the resource
+   * when copied to another installation.
+   * No-op for adapters that do not support schema association.
+   *
+   * @param resourceRef Resource locator.
+   * @param schemaId Schema UUID to associate, or `null` to clear.
+   */
+  setResourceSchemaId: (resourceRef: PgnResourceRef, schemaId: string | null) => Promise<void>;
 };

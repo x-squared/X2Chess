@@ -304,6 +304,12 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
     await resourceClient.deleteGame(toCanonicalGameRef(sourceRef));
   };
 
+  const getResourceSchemaId = async (resourceRef: PgnResourceRef): Promise<string | null> =>
+    resourceClient.getResourceSchemaId(resourceRef);
+
+  const setResourceSchemaId = async (resourceRef: PgnResourceRef, schemaId: string | null): Promise<void> =>
+    resourceClient.setResourceSchemaId(resourceRef, schemaId);
+
   const searchByPositionAcross = async (positionHash: string, resourceRefs: PgnResourceRef[]): Promise<PositionSearchHit[]> =>
     searchAcrossResources(positionHash, resourceRefs, (hash, ref) => resourceClient.searchByPositionHash(hash, ref));
 
@@ -322,6 +328,7 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
     createResourceByKind,
     createGameInResource,
     getAdapterKinds: (): string[] => (supportsFileKind ? ["file", "directory", "db"] : ["directory"]),
+    getResourceSchemaId,
     listGamesForResource,
     searchByPositionAcross,
     searchTextAcross,
@@ -331,6 +338,7 @@ export const createSourceGateway = ({ state }: SourceGatewayDeps) => {
     reorderGame,
     deleteGame,
     saveBySourceRef,
+    setResourceSchemaId,
   };
 };
 

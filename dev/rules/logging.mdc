@@ -116,6 +116,55 @@ calls and add them before finishing the task:
 This rule applies to all layers: hooks, components, pure-logic modules,
 resource adapters, and the Rust backend (`log::info!`, `log::warn!`, etc.).
 
+## React component and UI flow logging
+
+UI bugs are often invisible until a flow is traced end-to-end: a prop enters a
+component, drives a state update, triggers an effect, and produces a DOM change.
+Because the Tauri desktop build has no persistent DevTools session, structured
+logging is the primary way to reconstruct what happened.
+
+### What to instrument in React components
+
+Apply `log.debug` (or temporarily `log.info` while under scrutiny) to:
+
+- **Mount / unmount** for any component that is keyed for remounting or that
+  manages non-trivial cleanup effects.  Log the key or session identifier so
+  mount/unmount pairs can be matched in the log.
+- **Context-driven renders** — when a component re-renders because a context
+  value changed (session switch, model reload, schema change), log the new
+  identity (`sessionId`, `recordId`, `schemaId`, etc.).
+- **Effect entry and exit** — for `useEffect` hooks that perform I/O, async
+  fetches, or non-obvious side effects, log what triggered the effect and what
+  it produced.  Include the dependency that changed.
+- **Async state transitions** — log both the initiation of an async call and
+  the resolved/rejected outcome, with enough context to correlate them (e.g.
+  `refTargetId`, `recordId`).
+- **Guard branches** — when a component returns early (`null`, no-op) due to
+  missing data, log at `log.debug` level so silent non-renders are visible.
+
+### Key design and sibling identity
+
+When multiple keyed siblings coexist in a parent, log the computed key at
+mount time.  Before shipping, verify that no two siblings can produce the same
+key value — document the uniqueness invariant in a comment at the key site.
+
+```typescript
+// Keys: grid uses formKey (= activeSessionId), strip uses "meta-" + activeSessionId.
+// Prefix required — both derive from the same session id and would collide otherwise.
+<GridComponent key={formKey} ... />
+<StripComponent key={`meta-${formKey}`} ... />
+```
+
+### Factory form reminder
+
+All of the above are `log.debug` calls in stable code.  Because they reference
+session/record identifiers, use the factory form:
+
+```typescript
+log.debug("GameInfoEditorGrid", () => `mounted — sessionId=${activeSessionId}`);
+log.debug("GameMetadataStrip", () => `schema resolved — id=${schema?.id} fields=${customFields.length}`);
+```
+
 ## Infrastructure
 
 - Logger module: `frontend/src/logger.ts`

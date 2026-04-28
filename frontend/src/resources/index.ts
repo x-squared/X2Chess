@@ -159,6 +159,12 @@ export const createResourcesCapabilities = ({
     titleHint,
   );
 
+  const loadResourceSchemaId = async (resourceRef: PgnResourceRef): Promise<string | null> =>
+    sourceGateway.getResourceSchemaId(resourceRef);
+
+  const persistResourceSchemaId = async (resourceRef: PgnResourceRef, schemaId: string | null): Promise<void> =>
+    sourceGateway.setResourceSchemaId(resourceRef, schemaId);
+
   const searchByPositionAcross = async (
     positionHash: string,
     resourceRefs: PgnResourceRef[],
@@ -283,6 +289,8 @@ export const createResourcesCapabilities = ({
     saveGameBySourceRef,
     savePlayerStoreToClientData: playerStoreService.savePlayerStoreToClientData,
     scheduleAutosave,
+    loadResourceSchemaId,
+    persistResourceSchemaId,
     searchByPositionAcross,
     searchTextAcross,
     explorePositionAcross,

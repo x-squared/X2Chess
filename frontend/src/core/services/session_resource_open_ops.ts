@@ -196,7 +196,7 @@ export const createResourceOpenOps = (
             flushSessionState();
             dispatchRef.current({
               type: "set_board_flipped",
-              flipped: deriveInitialBoardFlipped(bundle.activeSessionRef.current.pgnModel),
+              flipped: deriveInitialBoardFlipped(bundle.activeSessionRef.current.pgnModel!),
             });
           }
           return;
@@ -228,7 +228,7 @@ export const createResourceOpenOps = (
             `recordId="${nextSourceRef.recordId ?? ""}" ${summarizeHeaders(newState)}`,
         );
         flushSessionState();
-        dispatchRef.current({ type: "set_board_flipped", flipped: deriveInitialBoardFlipped(newState.pgnModel) });
+        dispatchRef.current({ type: "set_board_flipped", flipped: deriveInitialBoardFlipped(newState.pgnModel!) });
       } catch (err: unknown) {
         const message: string = toErrorMessage(err);
         log.error("session_resource_open_ops", message);
@@ -255,7 +255,7 @@ export const createResourceOpenOps = (
         sourceRef: { kind: String(sourceRef.kind), locator: String(sourceRef.locator), recordId },
       });
       flushSessionState();
-      dispatchRef.current({ type: "set_board_flipped", flipped: deriveInitialBoardFlipped(newState.pgnModel) });
+      dispatchRef.current({ type: "set_board_flipped", flipped: deriveInitialBoardFlipped(newState.pgnModel!) });
     } catch (err: unknown) {
       const message: string = toErrorMessage(err);
       log.error("session_resource_open_ops", message);

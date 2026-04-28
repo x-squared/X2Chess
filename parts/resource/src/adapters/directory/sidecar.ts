@@ -32,6 +32,8 @@ export type SidecarGameMeta = {
 
 export type SidecarData = {
   version: 1;
+  /** Schema UUID associated with this directory resource. Travels with the resource when copied. */
+  schemaId?: string;
   games: Record<string, SidecarGameMeta>;
 };
 

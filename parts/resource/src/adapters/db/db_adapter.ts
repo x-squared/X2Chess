@@ -451,6 +451,32 @@ export const createDbAdapter = (
     return rows.map((r) => asGameRef(r, dbPath)).filter((ref) => ref.recordId !== "");
   },
 
+  getSchemaId: async (resourceRef: PgnResourceRef): Promise<string | null> => {
+    const dbPath = String(resourceRef.locator || "").trim();
+    if (!dbPath) return null;
+    const db = gatewayForPath(dbPath);
+    await ensureMigrated(db, dbPath);
+    const rows = await db.query("SELECT value FROM resource_meta WHERE key = ?", ["schema_id"]);
+    if (rows.length === 0) return null;
+    const val = strOf((rows[0] as Record<string, unknown>).value);
+    return val || null;
+  },
+
+  setSchemaId: async (resourceRef: PgnResourceRef, schemaId: string | null): Promise<void> => {
+    const dbPath = String(resourceRef.locator || "").trim();
+    if (!dbPath) return;
+    const db = gatewayForPath(dbPath);
+    await ensureMigrated(db, dbPath);
+    if (schemaId === null) {
+      await db.execute("DELETE FROM resource_meta WHERE key = ?", ["schema_id"]);
+    } else {
+      await db.execute(
+        "INSERT OR REPLACE INTO resource_meta (key, value) VALUES (?, ?)",
+        ["schema_id", schemaId],
+      );
+    }
+  },
+
   reorder: async (gameRef: PgnGameRef, afterRef: PgnGameRef | null): Promise<void> => {
     const dbPath = String(gameRef.locator || "").trim();
     if (!dbPath) return;

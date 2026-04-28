@@ -1,6 +1,6 @@
 # X2Chess User Manual
 
-Last updated: 2026-04-26
+Last updated: 2026-04-27
 
 ## Who this manual is for
 
@@ -609,6 +609,64 @@ resource table.
   - For each schema, define fields: name, type (text, number, flag, select),
     and optional default value.
   - Schemas are saved locally and persist across sessions.
+
+---
+
+## Database files (`.x2chess`)
+
+X2Chess stores game collections in SQLite database files with the `.x2chess`
+extension.  Understanding how these files work helps you manage your collection
+safely.
+
+### File layout
+
+A single `.x2chess` database consists of up to three files on disk:
+
+| File | Role |
+|---|---|
+| `MyGames.x2chess` | Main database file — the permanent record of all games. |
+| `MyGames.x2chess-wal` | Write-ahead log — recent writes staged here before being merged into the main file. |
+| `MyGames.x2chess-shm` | Shared memory index — a small coordination file used alongside the WAL. |
+
+The `-wal` and `-shm` files are created automatically by SQLite when the
+database is opened and are part of normal operation.  You do not need to create
+or manage them manually.
+
+### Normal lifecycle
+
+| Moment | What happens |
+|---|---|
+| App opens a database | SQLite creates the `-wal` and `-shm` files if not present.  Any WAL frames left from the previous session are replayed automatically — no data is lost. |
+| While the app is running | Writes go to the `-wal` file first; the main file is updated periodically. |
+| Clean app exit | X2Chess switches the journal mode to `DELETE`: all WAL data is merged into the main file and both the `-wal` and `-shm` files are removed by SQLite.  WAL mode is re-enabled the next time the database is opened. |
+| App crash or force-quit | The checkpoint does not run.  Both sidecar files remain on disk with their last content. |
+
+### What to do if you see non-empty sidecar files
+
+Non-empty `-wal` or `-shm` files after the app has exited mean the previous
+session ended without a clean checkpoint — typically a crash or forced quit.
+
+**Do not delete these files.** They hold the most recent writes.  The next
+time you open the database, X2Chess automatically replays the WAL and your
+data is fully recovered.  After the next clean exit the files shrink back to
+zero.
+
+### Moving or backing up a database
+
+To safely copy or move a `.x2chess` database:
+
+1. **Quit X2Chess first.** A clean exit merges all writes into the main file.
+2. Copy all three files together: `MyGames.x2chess`, `MyGames.x2chess-wal`,
+   and `MyGames.x2chess-shm`.  After a clean exit the sidecar files are
+   zero-length or absent — that is expected and fine.
+3. The main `.x2chess` file alone is sufficient for a backup *after a clean
+   exit*; you may omit the sidecar files if they are zero-length.
+
+::: {.callout-warning}
+Copying only the main `.x2chess` file while the app is running, or when
+non-empty sidecar files exist, will produce an incomplete backup.  Always
+quit the app before copying.
+:::
 
 ---
 

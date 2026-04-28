@@ -37,10 +37,18 @@ type UseSchemaManagementResult = {
   handleSchemaManage: () => void;
   handleSchemaSave: (saved: MetadataSchema) => void;
   handleSchemaEditorClose: () => void;
+  /** Seed `tabSchemaMap` from a resource on tab activation. No-op if already set this session. */
+  initTabSchema: (tabId: string, schemaId: string | null) => void;
+};
+
+type UseSchemaManagementDeps = {
+  /** Called after localStorage write to also persist schema ID inside the resource file/DB. */
+  persistSchemaId?: (resourceRef: { kind: string; locator: string }, schemaId: string | null) => Promise<void>;
 };
 
 export const useSchemaManagement = (
   activeTabId: string | null,
+  deps?: UseSchemaManagementDeps,
 ): UseSchemaManagementResult => {
   const [schemas, setSchemas] = useState<MetadataSchema[]>(() => loadSchemas());
   const [tabSchemaMap, setTabSchemaMap] = useState<Record<string, string | null>>({});
@@ -55,8 +63,18 @@ export const useSchemaManagement = (
     if (!activeTabId) return;
     const schemaId: string | null = id === "builtin" ? null : id;
     setTabSchemaMap((prev) => ({ ...prev, [activeTabId]: schemaId }));
-    if (resourceRef) setResourceSchemaId(resourceRef, schemaId);
-  }, [activeTabId]);
+    if (resourceRef) {
+      setResourceSchemaId(resourceRef, schemaId);
+      deps?.persistSchemaId?.(resourceRef, schemaId);
+    }
+  }, [activeTabId, deps]);
+
+  const initTabSchema = useCallback((tabId: string, schemaId: string | null): void => {
+    setTabSchemaMap((prev) => {
+      if (prev[tabId] !== undefined) return prev;
+      return { ...prev, [tabId]: schemaId };
+    });
+  }, []);
 
   const handleSchemaManage = useCallback((): void => {
     setEditingSchema(null);
@@ -85,6 +103,7 @@ export const useSchemaManagement = (
     activeSchema,
     schemaEditorOpen,
     editingSchema,
+    initTabSchema,
     handleSchemaSelect,
     handleSchemaManage,
     handleSchemaSave,

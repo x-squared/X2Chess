@@ -231,7 +231,7 @@ export const TreeModeView = ({
           const style: CSSProperties = {};
           let hasStyle: boolean = false;
           if (treeIndentLevel > 0) {
-            style["--tree-indent-level" as keyof CSSProperties] = String(treeIndentLevel);
+            (style as Record<string, string | number>)["--tree-indent-level"] = treeIndentLevel;
             hasStyle = true;
           }
           if (block.indentDepth > 0) {

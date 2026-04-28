@@ -24,6 +24,7 @@ import type {
   ExtGameEntry,
   ExtGameRef,
 } from "./game_db_types";
+import { matchesGameFilters } from "./game_db_types";
 
 const BASE = "https://lichess.org";
 
@@ -139,12 +140,13 @@ export const LICHESS_GAMES_ADAPTER: GameDatabaseAdapter = {
     const text = await response.text();
     const lines = text.split("\n").filter((l) => l.trim().length > 0);
 
-    const hasMore = lines.length > max;
+    const apiHasMore = lines.length > max;
     const rows = lines.slice(0, max).map((line): LichessGameRow | null => {
       try { return JSON.parse(line) as LichessGameRow; } catch { return null; }
     }).filter((r): r is LichessGameRow => r !== null);
 
-    return { entries: rows.map(rowToEntry), hasMore };
+    const entries = rows.map(rowToEntry).filter((e) => matchesGameFilters(e, query));
+    return { entries, hasMore: apiHasMore };
   },
 
   async loadGame(ref: ExtGameRef): Promise<string> {

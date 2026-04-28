@@ -21,6 +21,7 @@ area: Resource viewer (game list, grouping, filtering, search)
 - `frontend/src/features/resources/search/PositionSearchPanel.tsx` — cross-resource position search panel (manual trigger + live refresh support)
 - `frontend/src/features/resources/search/TextSearchPanel.tsx` — cross-resource text search panel (manual trigger + live refresh support)
 - `frontend/src/features/resources/search/GameSearchPanel.tsx` — external game search/import panel
+- `frontend/src/components/dialogs/GamePickerDialog.tsx` — searchable game picker dialog used by metadata/game-link reference fields
 - `frontend/src/components/ExtractPositionDialog.tsx` — position extraction dialog
 - `frontend/src/components/QaBadge.tsx` — Q/A annotation badge in resource rows
 - `resource/client/api.ts` — canonical resource client used to list/query records
@@ -57,4 +58,6 @@ See dev/check/00_README.md. These rules must be strictly adhered to when this fi
 - [ ] **RESOURCE-21** — With **Position Search** results visible, saving/reordering a game in one of the searched resources refreshes the result list automatically (without pressing Search again).
 - [ ] **RESOURCE-22** — With **Text Search** results visible for a non-empty query, saving/reordering a game in one of the searched resources refreshes the result list automatically (without pressing Search again).
 - [ ] **RESOURCE-23** — Resource table rows show no extra leading disclosure triangle; only row-reorder controls (`▲`/`▼`) appear at the start of the row when reordering is available.
-- [ ] **RESOURCE-24** — Clicking **Delete game** in the resource tab-strip row prompts for confirmation, deletes the currently active resource-backed game (DB resources), closes that session tab, and refreshes the affected resource table.
+- [ ] **RESOURCE-24** — Clicking **Delete game** in the resource tab-strip row arms an inline confirmation; clicking **Confirm delete** deletes the currently active resource-backed game (DB resources), closes that session tab, and refreshes the affected resource table; clicking **Cancel** aborts without changes.
+- [ ] **RESOURCE-25** — In **Game Search**, clicking **Search** with an empty **Player** keeps the request bounded by blocking provider calls and shows a clear validation error that this source requires the player's name.
+- [ ] **RESOURCE-26** — In the game picker dialog, single-clicking a row only changes selection highlight; the referenced game is applied only after **Select**, `Enter`, or double-clicking a row; **Cancel** and `Esc` both close the dialog.

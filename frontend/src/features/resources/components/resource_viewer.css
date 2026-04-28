@@ -1031,6 +1031,29 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 25%, transparent);
 }
 
+.game-metadata-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-top: 0.55rem;
+}
+
+.game-metadata-strip-field .metadata-field-reference {
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 0.45rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  background: var(--surface-1);
+  box-sizing: border-box;
+}
+
+.game-metadata-strip-field .metadata-field-reference:focus-within {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
 .game-info-xsqr-head {
   width: 100%;
   height: 30px;
@@ -1337,6 +1360,27 @@
 .resource-new-game-btn:hover {
   background: var(--accent, #6366f1);
   color: #fff;
+}
+
+.resource-delete-game-btn-armed {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger-soft) 70%, var(--surface-1));
+}
+
+.resource-delete-game-btn-armed:hover {
+  background: color-mix(in srgb, var(--danger-soft) 85%, var(--surface-1));
+  color: var(--danger);
+}
+
+.resource-delete-game-cancel-btn {
+  border-color: var(--border-strong);
+  color: var(--text-secondary);
+}
+
+.resource-delete-game-cancel-btn:hover {
+  background: var(--surface-3);
+  color: var(--text-primary);
 }
 
 /* ── Right panel stack: tabbed layout ─────────────────────────────────── */

@@ -1,6 +1,6 @@
 # X2Chess Manuals Index
 
-Last updated: 2026-03-23
+Last updated: 2026-04-28
 
 ## Manuals and owning rules
 
@@ -36,3 +36,6 @@ Last updated: 2026-03-23
   - `.cursor/rules/ui-style-and-theming.mdc`
 - Manuals-as-specification rule:
   - `.cursor/rules/manuals-as-specification.mdc`
+- Runtime dialog independence rule:
+  - `dev/rules/runtime-dialog-independence.mdc`
+  - Focus: avoid browser-native dialog globals for core workflows; use app-owned confirmation UI.

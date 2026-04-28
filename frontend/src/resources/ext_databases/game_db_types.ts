@@ -21,10 +21,16 @@ export type GameSearchQuery = {
   position?: string;
   /** Filter by event name (substring match). */
   event?: string;
+  /** Filter by game result. */
+  result?: "1-0" | "0-1" | "1/2-1/2";
   /** Earliest game date in ISO format "YYYY-MM-DD". */
   dateFrom?: string;
   /** Latest game date in ISO format "YYYY-MM-DD". */
   dateTo?: string;
+  /** Filter by ECO code prefix (e.g. "B90" matches B90 exactly; "B" matches all B codes). */
+  eco?: string;
+  /** Filter by opening name (case-insensitive substring match). */
+  openingName?: string;
   /** Max number of results to return. Default: 20. */
   maxResults?: number;
 };
@@ -58,6 +64,19 @@ export type GameSearchResult = {
   hasMore: boolean;
   /** Total count estimate, if available from the provider. */
   totalEstimate?: number;
+};
+
+// ── Client-side filter helper ─────────────────────────────────────────────
+
+/** Returns true when `entry` satisfies the optional post-fetch filters in `query`. */
+export const matchesGameFilters = (entry: ExtGameEntry, query: GameSearchQuery): boolean => {
+  if (query.result !== undefined && entry.result !== query.result) return false;
+  if (query.eco !== undefined && !entry.eco?.startsWith(query.eco)) return false;
+  if (query.openingName !== undefined) {
+    const needle = query.openingName.toLowerCase();
+    if (!entry.opening?.toLowerCase().includes(needle)) return false;
+  }
+  return true;
 };
 
 // ── Adapter interface ─────────────────────────────────────────────────────

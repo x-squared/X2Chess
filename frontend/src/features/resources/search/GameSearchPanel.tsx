@@ -1,8 +1,9 @@
 /**
  * GameSearchPanel — search external game databases and import results (E6, E7).
  *
- * Provides a username search form for Lichess and Chess.com games, displays
- * results in a scrollable list, and lets the user import selected games.
+ * Provides a search form for Lichess and Chess.com games (by username, result,
+ * date range, ECO opening, and opening name), displays results in a scrollable
+ * table, and lets the user import selected games.
  *
  * Integration API:
  * - `<GameSearchPanel onImport={...} t={...} />`
@@ -19,7 +20,6 @@ import {
   useCallback,
   type ReactElement,
   type ChangeEvent,
-  type FormEvent,
 } from "react";
 import { LICHESS_GAMES_ADAPTER } from "../../../resources/ext_databases/lichess_games";
 import { CHESSDOTCOM_GAMES_ADAPTER } from "../../../resources/ext_databases/chessdotcom_games";
@@ -29,6 +29,10 @@ import type {
   GameSearchQuery,
 } from "../../../resources/ext_databases/game_db_types";
 import { UI_IDS } from "../../../core/model/ui_ids";
+import { useAppContext } from "../../../app/providers/AppStateProvider";
+import { selectLocale } from "../../../core/state/selectors";
+import ecoOpenings from "../../../../data/eco-openings.json";
+import { log } from "../../../logger";
 
 // ── Registered adapters ────────────────────────────────────────────────────────
 
@@ -47,19 +51,31 @@ type GameSearchPanelProps = {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Renders a formatted ELO string, or an em-dash if missing. */
-const elo = (v?: number): string => (v !== undefined ? String(v) : "—");
+const elo = (v?: number): string => (v === undefined ? "—" : String(v));
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 /**
  * Game database search panel.
- * Searches Lichess or Chess.com by username; shows a table with an import button.
+ * Searches Lichess or Chess.com by username and optional filters; shows a table
+ * with an import button per row.
  */
+type EcoLangKey = keyof (typeof ecoOpenings)["openings"][0]["names"];
+
 export const GameSearchPanel = ({ onImport, t }: GameSearchPanelProps): ReactElement => {
+  const { state } = useAppContext();
+  const ecoLangKey = selectLocale(state).toUpperCase() as EcoLangKey;
+
   const [adapterId, setAdapterId] = useState<string>(ADAPTERS[0].id);
   const [username, setUsername] = useState<string>("");
   const [color, setColor] = useState<"any" | "white" | "black">("any");
+  const [result, setResult] = useState<"any" | "1-0" | "0-1" | "1/2-1/2">("any");
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
+  const [eco, setEco] = useState<string>("");
+  const [openingName, setOpeningName] = useState<string>("");
   const [results, setResults] = useState<ExtGameEntry[]>([]);
+  const [hasSearched, setHasSearched] = useState<boolean>(false);
   const [hasMore, setHasMore] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,29 +84,45 @@ export const GameSearchPanel = ({ onImport, t }: GameSearchPanelProps): ReactEle
   const activeAdapter = ADAPTERS.find((a) => a.id === adapterId) ?? ADAPTERS[0];
 
   const handleSearch = useCallback(
-    async (e: FormEvent<HTMLFormElement>): Promise<void> => {
+    async (e: { preventDefault(): void }): Promise<void> => {
       e.preventDefault();
       const name = username.trim();
-      if (!name) return;
+      setHasSearched(true);
+      if (!name) {
+        log.warn("GameSearchPanel", `search blocked: missing username for adapter=${activeAdapter.id}`);
+        setError(t("gameSearch.usernameRequired", "Player's name is required by this source."));
+        setResults([]);
+        setHasMore(false);
+        return;
+      }
       setIsLoading(true);
       setError(null);
       setResults([]);
       setHasMore(false);
       const query: GameSearchQuery = {
         player: { name, color: color === "any" ? "any" : color },
+        result: result === "any" ? undefined : result,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        eco: eco || undefined,
+        openingName: openingName.trim() || undefined,
         maxResults: 25,
       };
       try {
-        const result = await activeAdapter.search(query);
-        setResults(result.entries);
-        setHasMore(result.hasMore);
-      } catch {
+        const searchResult = await activeAdapter.search(query);
+        setResults(searchResult.entries);
+        setHasMore(searchResult.hasMore);
+      } catch (error: unknown) {
+        log.error("GameSearchPanel", "search failed", {
+          adapterId: activeAdapter.id,
+          message: error instanceof Error ? error.message : String(error),
+        });
         setError(t("gameSearch.error", "Search failed. Please try again."));
       } finally {
         setIsLoading(false);
       }
     },
-    [username, color, activeAdapter, t],
+    [username, color, result, dateFrom, dateTo, eco, openingName, activeAdapter, t],
   );
 
   const handleImport = useCallback(
@@ -110,7 +142,7 @@ export const GameSearchPanel = ({ onImport, t }: GameSearchPanelProps): ReactEle
     <div className="game-search-panel" data-ui-id={UI_IDS.GAME_SEARCH_PANEL}>
       <form className="game-search-form" onSubmit={handleSearch}>
 
-        {/* Source selector */}
+        {/* Source */}
         <label className="game-search-label">
           <span className="game-search-label-text">
             {t("gameSearch.source", "Source:")}
@@ -129,9 +161,10 @@ export const GameSearchPanel = ({ onImport, t }: GameSearchPanelProps): ReactEle
           </select>
         </label>
 
+        {/* Username */}
         <label className="game-search-label">
           <span className="game-search-label-text">
-            {t("gameSearch.username", "Username:")}
+            {t("gameSearch.username", "Player:")}
           </span>
           <input
             type="text"
@@ -144,6 +177,7 @@ export const GameSearchPanel = ({ onImport, t }: GameSearchPanelProps): ReactEle
           />
         </label>
 
+        {/* Color */}
         <label className="game-search-label">
           <span className="game-search-label-text">
             {t("gameSearch.color", "Color:")}
@@ -161,10 +195,96 @@ export const GameSearchPanel = ({ onImport, t }: GameSearchPanelProps): ReactEle
           </select>
         </label>
 
+        {/* Result */}
+        <label className="game-search-label">
+          <span className="game-search-label-text">
+            {t("gameSearch.result", "Result:")}
+          </span>
+          <select
+            className="game-search-select"
+            value={result}
+            onChange={(e: ChangeEvent<HTMLSelectElement>): void => {
+              setResult(e.target.value as "any" | "1-0" | "0-1" | "1/2-1/2");
+            }}
+          >
+            <option value="any">{t("gameSearch.resultAny", "Any")}</option>
+            <option value="1-0">1-0</option>
+            <option value="0-1">0-1</option>
+            <option value="1/2-1/2">½-½</option>
+          </select>
+        </label>
+
+        {/* Date from */}
+        <label className="game-search-label">
+          <span className="game-search-label-text">
+            {t("gameSearch.dateFrom", "From:")}
+          </span>
+          <input
+            type="date"
+            className="game-search-input game-search-input--date"
+            value={dateFrom}
+            onChange={(e: ChangeEvent<HTMLInputElement>): void => {
+              setDateFrom(e.target.value);
+            }}
+          />
+        </label>
+
+        {/* Date to */}
+        <label className="game-search-label">
+          <span className="game-search-label-text">
+            {t("gameSearch.dateTo", "To:")}
+          </span>
+          <input
+            type="date"
+            className="game-search-input game-search-input--date"
+            value={dateTo}
+            onChange={(e: ChangeEvent<HTMLInputElement>): void => {
+              setDateTo(e.target.value);
+            }}
+          />
+        </label>
+
+        {/* ECO opening dropdown */}
+        <label className="game-search-label">
+          <span className="game-search-label-text">
+            {t("gameSearch.eco", "ECO:")}
+          </span>
+          <select
+            className="game-search-select game-search-select--eco"
+            value={eco}
+            onChange={(e: ChangeEvent<HTMLSelectElement>): void => {
+              setEco(e.target.value);
+            }}
+          >
+            <option value="">{t("gameSearch.ecoAny", "Any opening")}</option>
+            {ecoOpenings.openings.map((entry) => (
+              <option key={entry.code} value={entry.code}>
+                {entry.code} – {entry.names[ecoLangKey] ?? entry.names["EN"]}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {/* Opening name substring filter */}
+        <label className="game-search-label">
+          <span className="game-search-label-text">
+            {t("gameSearch.openingName", "Opening name:")}
+          </span>
+          <input
+            type="text"
+            className="game-search-input"
+            value={openingName}
+            placeholder={t("gameSearch.openingNamePlaceholder", "e.g. Sicilian")}
+            onChange={(e: ChangeEvent<HTMLInputElement>): void => {
+              setOpeningName(e.target.value);
+            }}
+          />
+        </label>
+
         <button
           type="submit"
           className="game-search-btn-search"
-          disabled={isLoading || !username.trim()}
+          disabled={isLoading}
         >
           {isLoading
             ? t("gameSearch.searching", "Searching…")
@@ -230,7 +350,7 @@ export const GameSearchPanel = ({ onImport, t }: GameSearchPanelProps): ReactEle
         </div>
       )}
 
-      {!isLoading && results.length === 0 && !error && username.trim() && (
+      {!isLoading && results.length === 0 && !error && hasSearched && (
         <p className="game-search-empty">
           {t("gameSearch.noResults", "No games found.")}
         </p>

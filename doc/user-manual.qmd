@@ -1,6 +1,6 @@
 # X2Chess User Manual
 
-Last updated: 2026-04-27
+Last updated: 2026-04-28
 
 ## Who this manual is for
 
@@ -45,7 +45,7 @@ X2Chess has three main areas:
 ### Creating a new game
 
 - Click **+ New game** on the same row as the open resource tabs in the resource viewer.
-- Click **Delete game** in that same row to remove the currently active resource-backed game session from its resource (confirmation required).
+- Click **Delete game** in that same row to arm deletion, then click **Confirm delete** to remove the currently active resource-backed game session from its resource, or **Cancel** to abort.
 - The New Game dialog opens. Choose:
   - **Standard** — starts from the normal starting position.
   - **Custom FEN** — enter any FEN string to start from a specific position.
@@ -101,6 +101,7 @@ opening line for the active game.
   line. It is read-only in the UI (you can select and copy the text); when you save
   the game, that text is stored in the PGN tag `[Head "..."]`.
 - Metadata fields in lists also depend on the active schema (see **Metadata schemas** below).
+- For metadata fields of type **reference**, clicking **Clear** now asks for confirmation before the reference is removed.
 - The **Result** field accepts `1-0`, `0-1`, `½-½`, or `*`.
 
 ---
@@ -589,6 +590,20 @@ groups:
 - Click a column header value to filter by that value.
 - Active filters are shown above the table.
 - Click **Clear filters** to remove all active filters.
+
+### External game search (Lichess / Chess.com)
+
+- The **Game Search** panel can import games from Lichess or Chess.com.
+- You can always click **Search** to run the current filter set.
+- A valid **Player** name is still required by both providers' public APIs; if it
+  is missing, the panel shows a validation message instead of running an
+  unbounded query.
+- Reference fields that use **Pick…** open a larger game-picker dialog with a
+  searchable table (Players, Result, Date, Event).
+- In that picker, changing the highlighted row only updates the selection.
+  The referenced game is applied only when you press **Select**, press `Enter`,
+  or double-click a row.
+- Close the picker with **Cancel**, the close button, or `Esc`.
 
 ### Metadata schemas
 

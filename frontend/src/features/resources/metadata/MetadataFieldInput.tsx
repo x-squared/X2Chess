@@ -7,17 +7,20 @@
  * - `select`    → `<select>` dropdown with defined values
  * - `number`    → `<input type="number">`
  * - `flag`      → `<input type="checkbox">`
- * - `reference` → game picker button + selected label; requires `resourceRef` and `t` props
+ * - `reference` → compact one-line game chip. Pick/Change opens the game picker;
+ *   opening the referenced game is an explicit action from that chip.
+ *   Requires `resourceRef`, `t`, `onFetchMetadata`, and `onOpen`.
  *
  * Integration API:
  * - `<MetadataFieldInput field={...} value={...} onChange={...} />`
- * - For `reference` fields also pass `resourceRef` and `t`.
+ * - For `reference` fields also pass `resourceRef`, `t`, `onFetchMetadata`, and `onOpen`.
  *
  * Configuration API:
- * - `resourceRef`    — required for `reference`; identifies the resource to pick from.
- * - `t`              — translator; required for `reference`.
- * - `gameLabel`      — optional cached display label for the current `reference` value.
- * - `inheritedValue` — value inherited from a referenced game via schema inheritance.
+ * - `resourceRef`     — required for `reference`; identifies the resource to pick from.
+ * - `t`               — translator; required for `reference`.
+ * - `onFetchMetadata` — async fn resolving a game's metadata by recordId; used to build the chip.
+ * - `onOpen`          — called with `recordId` when the chip is clicked to open the referenced game.
+ * - `inheritedValue`  — value inherited from a referenced game via schema inheritance.
  *   Shown as a ghost hint below the input when `value` is empty. Never written to storage.
  *   Omit (or leave undefined) when there is nothing to inherit.
  *
@@ -27,7 +30,8 @@
  *   Game-link fields emit the selected `recordId`, or `""` when cleared.
  */
 
-import { useState, useCallback, type ReactElement, type ChangeEvent } from "react";
+import { useState, useEffect, useCallback, type ReactElement, type ChangeEvent, type MouseEvent } from "react";
+import { log } from "../../../logger";
 import type { MetadataFieldDefinition } from "../../../../../parts/resource/src/domain/metadata_schema";
 import { GamePickerDialog, type PickerRow } from "../../../components/dialogs/GamePickerDialog";
 
@@ -44,8 +48,15 @@ type MetadataFieldInputProps = {
   resourceRef?: { kind: string; locator: string };
   /** Translator function — required for `reference` fields. */
   t?: (key: string, fallback?: string) => string;
-  /** Cached human-readable label for the current `reference` value (e.g. "White vs Black"). */
-  gameLabel?: string;
+  /**
+   * Async function that resolves a game's full metadata by `recordId`.
+   * Used by `reference` fields to populate the chip (primary/secondary lines and tooltip).
+   */
+  onFetchMetadata?: (recordId: string) => Promise<Record<string, string> | null>;
+  /**
+   * Called with `recordId` when the user clicks the chip to open the referenced game.
+   */
+  onOpen?: (recordId: string) => void;
   /**
    * Value inherited from a referenced game. Shown as a ghost hint below the
    * input when `value` is empty. Has no effect when `value` is non-empty.
@@ -147,60 +158,177 @@ const DateInput = ({
 const ReferenceInput = ({
   value,
   onChange,
-  gameLabel,
   resourceRef,
   t: tFn,
+  onFetchMetadata,
+  onOpen,
 }: {
   value: string;
   onChange: (v: string) => void;
-  gameLabel?: string;
   resourceRef?: { kind: string; locator: string };
   t?: (key: string, fallback?: string) => string;
+  onFetchMetadata?: (recordId: string) => Promise<Record<string, string> | null>;
+  onOpen?: (recordId: string) => void;
 }): ReactElement => {
   const [pickerOpen, setPickerOpen] = useState<boolean>(false);
+  const [resolvedMeta, setResolvedMeta] = useState<Record<string, string> | null>(null);
+  const [clearConfirmOpen, setClearConfirmOpen] = useState<boolean>(false);
   const t = tFn ?? ((_key: string, fallback = ""): string => fallback);
 
-  const handlePick = useCallback((): void => { setPickerOpen(true); }, []);
-  const handleClear = useCallback((): void => { onChange(""); }, [onChange]);
+  // Fetch metadata for the chip whenever the referenced recordId changes.
+  useEffect((): (() => void) | void => {
+    if (!value || !onFetchMetadata) {
+      setResolvedMeta(null);
+      return;
+    }
+    let cancelled = false;
+    log.debug("ReferenceInput", () => `fetching metadata — recordId=${value}`);
+    void (async (): Promise<void> => {
+      const meta: Record<string, string> | null = await onFetchMetadata(value);
+      if (cancelled) return;
+      if (meta) {
+        log.debug("ReferenceInput", () => `metadata resolved — recordId=${value}`);
+      } else {
+        log.warn("ReferenceInput", `metadata not found — recordId=${value}`);
+      }
+      setResolvedMeta(meta);
+    })();
+    return (): void => { cancelled = true; };
+  // onFetchMetadata is a stable service reference; value is the meaningful dep.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
 
-  const handleSelect = useCallback(
-    (row: PickerRow): void => {
-      onChange(row.recordId);
-      setPickerOpen(false);
-    },
-    [onChange],
-  );
+  useEffect((): void => {
+    if (!value) setClearConfirmOpen(false);
+  }, [value]);
+
+  // Derive compact one-line chip content from resolved metadata.
+  const white: string = String(resolvedMeta?.White ?? "").trim();
+  const black: string = String(resolvedMeta?.Black ?? "").trim();
+  const event: string = String(resolvedMeta?.Event ?? "").trim();
+  const date: string = String(resolvedMeta?.Date ?? "").trim();
+  const result: string = String(resolvedMeta?.Result ?? "").trim();
+
+  const playersLabel: string =
+    white && black ? `${white} — ${black}` :
+    white || black || value;
+
+  const metaInline: string = [result, event, date].filter(Boolean).join(" · ");
+
+  const tooltip: string = [
+    white && `White: ${white}`,
+    black && `Black: ${black}`,
+    result && `Result: ${result}`,
+    event && `Event: ${event}`,
+    date && `Date: ${date}`,
+  ].filter(Boolean).join("\n");
+
+  const handlePick = useCallback((): void => { setPickerOpen(true); }, []);
+
+  const handleClearClick = useCallback((event: MouseEvent<HTMLButtonElement>): void => {
+    event.preventDefault();
+    event.stopPropagation();
+    // [log: may downgrade to debug once reference-clear flow is stable]
+    log.info("ReferenceInput", "clear-click: opened inline confirmation", {
+      hasValue: value !== "",
+      pickerOpen,
+    });
+    setClearConfirmOpen(true);
+  }, [pickerOpen, value]);
+
+  const handleClearConfirm = useCallback((event: MouseEvent<HTMLButtonElement>): void => {
+    event.preventDefault();
+    event.stopPropagation();
+    // [log: may downgrade to debug once reference-clear flow is stable]
+    log.info("ReferenceInput", "clear-click: dispatching empty reference value");
+    onChange("");
+    setResolvedMeta(null);
+    setPickerOpen(false);
+    setClearConfirmOpen(false);
+  }, [onChange]);
+
+  const handleClearCancel = useCallback((event: MouseEvent<HTMLButtonElement>): void => {
+    event.preventDefault();
+    event.stopPropagation();
+    // [log: may downgrade to debug once reference-clear flow is stable]
+    log.info("ReferenceInput", "clear-click: inline confirmation cancelled");
+    setClearConfirmOpen(false);
+  }, []);
+
+  const handleSelect = useCallback((row: PickerRow): void => {
+    onChange(row.recordId);
+    setPickerOpen(false);
+  }, [onChange]);
 
   const handleCancel = useCallback((): void => { setPickerOpen(false); }, []);
 
-  const displayLabel: string = gameLabel || value;
+  const handleOpenGame = useCallback((): void => {
+    if (value && onOpen) onOpen(value);
+  }, [value, onOpen]);
 
   return (
     <span className="metadata-field-reference">
-      <span className="metadata-field-reference-label">
-        {displayLabel
-          ? <span className="metadata-field-reference-chip">{displayLabel}</span>
-          : <span className="metadata-field-reference-empty">{t("gamePicker.none", "None")}</span>}
+      {/* Current value chip — styled like a game tab */}
+      {value ? (
+        <button
+          type="button"
+          className={[
+            "metadata-field-reference-game-chip",
+            resolvedMeta ? "" : "metadata-field-reference-game-chip--unresolved",
+            onOpen ? "" : "metadata-field-reference-game-chip--no-open",
+          ].filter(Boolean).join(" ")}
+          onClick={onOpen ? handleOpenGame : undefined}
+          title={tooltip || value}
+          aria-label={`${t("gamePicker.openGame", "Open game")}: ${playersLabel}`}
+        >
+          <span className="metadata-field-reference-game-primary">{playersLabel}</span>
+          {metaInline && <span className="metadata-field-reference-game-secondary">{` · ${metaInline}`}</span>}
+        </button>
+      ) : (
+        <span className="metadata-field-reference-empty">{t("gamePicker.none", "None")}</span>
+      )}
+
+      {/* Action buttons */}
+      <span className="metadata-field-reference-actions">
+        {resourceRef && (
+          <button
+            type="button"
+            className="metadata-field-reference-btn"
+            onClick={handlePick}
+          >
+            {value ? t("gamePicker.change", "Change…") : t("gamePicker.pick", "Pick…")}
+          </button>
+        )}
+        {value && !clearConfirmOpen && (
+          <button
+            type="button"
+            className="metadata-field-reference-clear"
+            aria-label={t("gamePicker.clear", "Clear")}
+            onClick={handleClearClick}
+          >
+            ×
+          </button>
+        )}
+        {value && clearConfirmOpen && (
+          <>
+            <button
+              type="button"
+              className="metadata-field-reference-btn metadata-field-reference-btn-confirm"
+              onClick={handleClearConfirm}
+            >
+              {t("gamePicker.clearYes", "Remove")}
+            </button>
+            <button
+              type="button"
+              className="metadata-field-reference-btn"
+              onClick={handleClearCancel}
+            >
+              {t("gamePicker.cancel", "Cancel")}
+            </button>
+          </>
+        )}
       </span>
-      {resourceRef && (
-        <button
-          type="button"
-          className="metadata-field-reference-btn"
-          onClick={handlePick}
-        >
-          {value ? t("gamePicker.change", "Change…") : t("gamePicker.pick", "Pick…")}
-        </button>
-      )}
-      {value && (
-        <button
-          type="button"
-          className="metadata-field-reference-clear"
-          aria-label={t("gamePicker.clear", "Clear")}
-          onClick={handleClear}
-        >
-          ×
-        </button>
-      )}
+
       {pickerOpen && resourceRef && (
         <GamePickerDialog
           resourceRef={resourceRef}
@@ -226,7 +354,8 @@ export const MetadataFieldInput = ({
   className = "",
   resourceRef,
   t,
-  gameLabel,
+  onFetchMetadata,
+  onOpen,
   inheritedValue,
 }: MetadataFieldInputProps): ReactElement => {
   const baseClass = `metadata-field-input${className ? ` ${className}` : ""}`;
@@ -298,9 +427,10 @@ export const MetadataFieldInput = ({
         <ReferenceInput
           value={value}
           onChange={onChange}
-          gameLabel={gameLabel}
           resourceRef={resourceRef}
           t={t}
+          onFetchMetadata={onFetchMetadata}
+          onOpen={onOpen}
         />
       );
 

@@ -30,11 +30,16 @@ type UseSchemaManagementResult = {
   tabSchemaMap: Record<string, string | null>;
   activeSchemaId: string | null;
   activeSchema: MetadataSchema;
+  schemaManagerOpen: boolean;
   schemaEditorOpen: boolean;
   editingSchema: MetadataSchema | null;
   /** `resourceRef` is the active tab's resource ref — pass `activeTab?.resourceRef ?? null`. */
   handleSchemaSelect: (id: string, resourceRef: TabState["resourceRef"] | null) => void;
   handleSchemaManage: () => void;
+  handleSchemaManagerClose: () => void;
+  handleSchemaEdit: (schema: MetadataSchema) => void;
+  handleSchemaNew: () => void;
+  handleSchemaDelete: (id: string) => void;
   handleSchemaSave: (saved: MetadataSchema) => void;
   handleSchemaEditorClose: () => void;
   /** Seed `tabSchemaMap` from a resource on tab activation. No-op if already set this session. */
@@ -52,6 +57,7 @@ export const useSchemaManagement = (
 ): UseSchemaManagementResult => {
   const [schemas, setSchemas] = useState<MetadataSchema[]>(() => loadSchemas());
   const [tabSchemaMap, setTabSchemaMap] = useState<Record<string, string | null>>({});
+  const [schemaManagerOpen, setSchemaManagerOpen] = useState<boolean>(false);
   const [schemaEditorOpen, setSchemaEditorOpen] = useState<boolean>(false);
   const [editingSchema, setEditingSchema] = useState<MetadataSchema | null>(null);
 
@@ -77,8 +83,31 @@ export const useSchemaManagement = (
   }, []);
 
   const handleSchemaManage = useCallback((): void => {
-    setEditingSchema(null);
+    setSchemaManagerOpen(true);
+  }, []);
+
+  const handleSchemaManagerClose = useCallback((): void => {
+    setSchemaManagerOpen(false);
+  }, []);
+
+  const handleSchemaEdit = useCallback((schema: MetadataSchema): void => {
+    setEditingSchema(schema);
+    setSchemaManagerOpen(false);
     setSchemaEditorOpen(true);
+  }, []);
+
+  const handleSchemaNew = useCallback((): void => {
+    setEditingSchema(null);
+    setSchemaManagerOpen(false);
+    setSchemaEditorOpen(true);
+  }, []);
+
+  const handleSchemaDelete = useCallback((id: string): void => {
+    setSchemas((prev) => {
+      const next = prev.filter((s) => s.id !== id);
+      saveSchemas(next);
+      return next;
+    });
   }, []);
 
   const handleSchemaSave = useCallback((saved: MetadataSchema): void => {
@@ -101,11 +130,16 @@ export const useSchemaManagement = (
     tabSchemaMap,
     activeSchemaId,
     activeSchema,
+    schemaManagerOpen,
     schemaEditorOpen,
     editingSchema,
     initTabSchema,
     handleSchemaSelect,
     handleSchemaManage,
+    handleSchemaManagerClose,
+    handleSchemaEdit,
+    handleSchemaNew,
+    handleSchemaDelete,
     handleSchemaSave,
     handleSchemaEditorClose,
   };

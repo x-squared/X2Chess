@@ -98,6 +98,25 @@
   border-radius: 999px;
 }
 
+.schema-field-referenceable {
+  font-size: 0.78em;
+  color: var(--success-text, #15803d);
+  background: var(--success-soft, #f0fdf4);
+  padding: 0.1em 0.4em;
+  border-radius: 999px;
+}
+
+.schema-field-reference-note {
+  margin: 0;
+  font-size: 0.82em;
+  color: var(--text-muted, #64748b);
+  font-style: italic;
+  background: var(--surface-2, #f8fafc);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 4px;
+  padding: 0.4em 0.6em;
+}
+
 .schema-field-actions {
   display: flex;
   gap: 2px;
@@ -250,41 +269,106 @@
   gap: 0.4rem;
 }
 
-/* Shared schema button styles */
+/* Schema buttons piggyback on shared dialog button metrics (`x2-dialog-btn`). */
 .schema-btn {
-  padding: 0.35em 0.9em;
-  border-radius: 4px;
-  font-size: 0.9em;
-  cursor: pointer;
-  border: 1px solid var(--border, #cbd5e1);
+  white-space: nowrap;
 }
 
-.schema-btn--primary {
-  background: var(--accent, #2563eb);
-  color: #fff;
-  border-color: var(--accent, #2563eb);
-  font-weight: 600;
+.schema-btn--danger {
+  color: var(--danger, #dc2626);
 }
 
-.schema-btn--primary:disabled {
-  opacity: 0.45;
-  cursor: default;
+/* ── MetadataSchemaManager ──────────────────────────────────────────────── */
+
+.schema-manager-dialog {
+  border: none;
+  border-radius: 8px;
+  padding: 0;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  max-width: 440px;
+  width: 96vw;
+  max-height: 80vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
-.schema-btn--secondary {
-  background: var(--surface, #fff);
+.schema-manager-dialog::backdrop {
+  background: rgba(0,0,0,0.3);
+}
+
+.schema-manager-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  overflow-y: auto;
+}
+
+.schema-manager-title {
+  margin: 0;
+  font-weight: 700;
+  font-size: 1em;
   color: var(--text, #0f172a);
 }
 
-.schema-btn--ghost {
-  background: transparent;
+.schema-manager-empty {
+  margin: 0;
   color: var(--text-muted, #64748b);
-  border-color: transparent;
+  font-size: 0.87em;
 }
 
-.schema-btn--ghost:hover {
-  background: var(--surface-2, #f1f5f9);
-  border-color: var(--border, #cbd5e1);
+.schema-manager-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.schema-manager-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  background: var(--surface-2, #f8fafc);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 4px;
+}
+
+.schema-manager-name {
+  flex: 1;
+  font-size: 0.9em;
+  font-weight: 500;
+  color: var(--text, #0f172a);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.schema-manager-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.schema-manager-confirm-label {
+  font-size: 0.85em;
+  color: var(--danger, #dc2626);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.schema-manager-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  border-top: 1px solid var(--border, #e2e8f0);
+  padding-top: 0.75rem;
+  margin-top: 0.25rem;
 }
 
 /* ── MetadataFieldInput ─────────────────────────────────────────────────── */
@@ -359,34 +443,72 @@
   align-items: center;
   gap: 0.35rem;
   min-height: 1.75rem;
+  flex-wrap: wrap;
 }
 
-.metadata-field-reference-label {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.82rem;
-}
-
-.metadata-field-reference-chip {
-  display: inline-block;
-  padding: 0.1rem 0.45rem;
-  border-radius: 999px;
-  background: var(--accent-subtle, #e0f2fe);
-  color: var(--accent-text, #0369a1);
-  font-size: 0.78rem;
+/* Game-tab-style chip for the referenced game */
+.metadata-field-reference-game-chip {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.18rem 0.5rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface-1, var(--surface));
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
   max-width: 18rem;
   overflow: hidden;
-  text-overflow: ellipsis;
+}
+
+.metadata-field-reference-game-chip:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.metadata-field-reference-game-chip--unresolved {
+  opacity: 0.55;
+}
+
+/* No onOpen handler — chip is non-interactive */
+.metadata-field-reference-game-chip--no-open {
+  cursor: default;
+  pointer-events: none;
+}
+
+.metadata-field-reference-game-primary {
+  font-size: 0.78rem;
+  font-weight: 600;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.metadata-field-reference-game-secondary {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .metadata-field-reference-empty {
   color: var(--text-secondary);
   font-style: italic;
   font-size: 0.78rem;
+}
+
+.metadata-field-reference-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
 }
 
 .metadata-field-reference-btn {
@@ -404,6 +526,16 @@
 
 .metadata-field-reference-btn:hover {
   background: var(--surface-3, #e2e8f0);
+}
+
+.metadata-field-reference-btn-confirm {
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--border-strong));
+  background: color-mix(in srgb, var(--danger-soft) 70%, var(--surface-1));
+  color: var(--danger);
+}
+
+.metadata-field-reference-btn-confirm:hover {
+  background: color-mix(in srgb, var(--danger-soft) 85%, var(--surface-1));
 }
 
 .metadata-field-reference-clear {

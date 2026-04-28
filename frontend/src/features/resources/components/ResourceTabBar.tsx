@@ -31,6 +31,8 @@ type ResourceTabBarProps = {
   onTabClose: (tabId: string) => void;
   onNewGame: () => void;
   onDeleteGame: () => void;
+  onDeleteGameCancel: () => void;
+  isDeleteGameConfirmArmed: boolean;
   canDeleteGame: boolean;
   onMetadataOpen: () => void;
   onOpenResourceFile: () => void;
@@ -52,6 +54,8 @@ export const ResourceTabBar = ({
   onTabClose,
   onNewGame,
   onDeleteGame,
+  onDeleteGameCancel,
+  isDeleteGameConfirmArmed,
   canDeleteGame,
   onMetadataOpen,
   onOpenResourceFile,
@@ -190,14 +194,29 @@ export const ResourceTabBar = ({
         </button>
         <button
           type="button"
-          className="resource-new-game-btn resource-delete-game-btn"
+          className={[
+            "resource-new-game-btn",
+            "resource-delete-game-btn",
+            isDeleteGameConfirmArmed ? "resource-delete-game-btn-armed" : "",
+          ].filter(Boolean).join(" ")}
           data-ui-id={UI_IDS.RESOURCES_DELETE_GAME_BUTTON}
           onClick={onDeleteGame}
           disabled={!canDeleteGame}
           title={t("resources.deleteGame", "Delete active game from resource")}
         >
-          {t("resources.deleteGame", "Delete game")}
+          {isDeleteGameConfirmArmed
+            ? t("resources.deleteGame.confirmAction", "Confirm delete")
+            : t("resources.deleteGame", "Delete game")}
         </button>
+        {isDeleteGameConfirmArmed && (
+          <button
+            type="button"
+            className="resource-new-game-btn resource-delete-game-cancel-btn"
+            onClick={onDeleteGameCancel}
+          >
+            {t("resources.deleteGame.cancelAction", "Cancel")}
+          </button>
+        )}
       </div>
       )}
     </div>

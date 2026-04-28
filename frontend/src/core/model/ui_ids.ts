@@ -142,6 +142,7 @@ export const UI_IDS = {
   EXTRACT_POSITION_DIALOG: "dialog.extract-position",
   ANCHOR_PICKER_DIALOG: "dialog.anchor-picker",
   ANCHOR_DEF_DIALOG: "dialog.anchor-def",
+  METADATA_SCHEMA_EDITOR_DIALOG: "dialog.metadata-schema-editor",
 
   // ── Developer dock ──────────────────────────────────────────────────────
   DEV_DOCK: "dev.dock",

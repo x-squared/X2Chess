@@ -24,6 +24,7 @@ import type {
   ExtGameEntry,
   ExtGameRef,
 } from "./game_db_types";
+import { matchesGameFilters } from "./game_db_types";
 
 const BASE = "https://api.chess.com/pub";
 
@@ -102,12 +103,12 @@ const formatDate = (unixSec: number): string => {
 /** Extract the last path segment of a Chess.com game URL as a stable ID. */
 const gameId = (game: ChessDotComGame): string => {
   const parts = game.url.split("/");
-  return `chessdotcom:${parts[parts.length - 1]}`;
+  return `chessdotcom:${parts.at(-1) ?? ""}`;
 };
 
 /** Extract ECO from embedded PGN headers. */
 const pgnHeader = (pgn: string, key: string): string | undefined => {
-  const m = new RegExp(`\\[${key} "([^"]+)"\\]`).exec(pgn);
+  const m = new RegExp(String.raw`\[${key} "([^"]+)"\]`).exec(pgn);
   return m?.[1];
 };
 
@@ -129,6 +130,41 @@ const gameToEntry = (game: ChessDotComGame): ExtGameEntry => ({
 
 const pgnStore = new Map<string, string>();
 
+// ── Internal helpers ──────────────────────────────────────────────────────────
+
+const colorMatches = (g: ChessDotComGame, username: string, color: string): boolean => {
+  if (color === "white") return g.white.username.toLowerCase() === username.toLowerCase();
+  if (color === "black") return g.black.username.toLowerCase() === username.toLowerCase();
+  return true;
+};
+
+const fetchMonthEntries = async (
+  username: string,
+  year: number,
+  month: number,
+  color: string,
+  query: GameSearchQuery,
+  limit: number,
+  out: ExtGameEntry[],
+): Promise<void> => {
+  let response: Response;
+  try {
+    response = await fetch(monthUrl(username, year, month), { headers: { Accept: "application/json" } });
+  } catch {
+    return;
+  }
+  if (!response.ok) return;
+
+  const data = await response.json() as ChessDotComMonthResponse;
+  for (const g of (data.games ?? []).reverse()) {
+    if (out.length >= limit) break;
+    if (!colorMatches(g, username, color)) continue;
+    const entry = gameToEntry(g);
+    pgnStore.set(entry.ref.id, g.pgn);
+    if (matchesGameFilters(entry, query)) out.push(entry);
+  }
+};
+
 // ── Adapter ───────────────────────────────────────────────────────────────────
 
 export const CHESSDOTCOM_GAMES_ADAPTER: GameDatabaseAdapter = {
@@ -141,40 +177,13 @@ export const CHESSDOTCOM_GAMES_ADAPTER: GameDatabaseAdapter = {
     if (!username) return { entries: [], hasMore: false };
 
     const max = query.maxResults ?? 25;
+    const color = query.player?.color ?? "any";
     const months = monthsToFetch(query.dateFrom, query.dateTo);
-
     const entries: ExtGameEntry[] = [];
 
     for (const { year, month } of months) {
       if (entries.length >= max) break;
-
-      let response: Response;
-      try {
-        response = await fetch(monthUrl(username, year, month), {
-          headers: { Accept: "application/json" },
-        });
-      } catch {
-        continue;
-      }
-      if (!response.ok) continue;
-
-      const data = await response.json() as ChessDotComMonthResponse;
-      const games = (data.games ?? []).reverse(); // newest first
-
-      const colorFilter = query.player?.color ?? "any";
-      const filtered = games.filter((g) => {
-        if (colorFilter === "white") return g.white.username.toLowerCase() === username.toLowerCase();
-        if (colorFilter === "black") return g.black.username.toLowerCase() === username.toLowerCase();
-        return true;
-      });
-
-      for (const g of filtered) {
-        if (entries.length >= max + 1) break;
-        const entry = gameToEntry(g);
-        // Cache PGN keyed by stable ID.
-        pgnStore.set(entry.ref.id, g.pgn);
-        entries.push(entry);
-      }
+      await fetchMonthEntries(username, year, month, color, query, max + 1, entries);
     }
 
     const hasMore = entries.length > max;

@@ -7,6 +7,7 @@ area: Game info and metadata headers
 - `frontend/src/features/editor/components/GameInfoEditor.tsx` — fold-down header editor (includes readonly XSqr head)
 - `frontend/src/features/editor/model/game_info.ts` — header field defs and normalization
 - `frontend/src/features/editor/model/game_info_ui_ids.ts` — stable `data-ui-id` values for game-info tooling
+- `frontend/src/features/resources/metadata/MetadataFieldInput.tsx` — metadata field controls in the game-info editor, including game-reference chip rendering
 - `frontend/src/core/services/createAppServices.ts` — save path merges `[Head]` via `getPgnText`
 - `parts/pgnparser/src/pgn_serialize.ts` — `serializeXsqrHeadMovetext`, full PGN serialization
 - `parts/resource/src/domain/metadata_schema.ts` — canonical metadata field schema
@@ -18,6 +19,8 @@ See dev/check/00_README.md. These rules must be strictly adhered to when this fi
 ## Checklist
 
 - [ ] **GAMEINFO-5** — Open the game-info editor (▼): **XSqr head** shows readonly mainline **moves only** (selectable); after save, the saved PGN contains `[Head "..."]` matching that prefix (through the first variation or end of main line).
+- [ ] **GAMEINFO-6** — In game-info metadata fields of type **reference**, the selected game chip is rendered on a single line (players plus inline meta such as result/event/date) without wrapping into a stacked two-line pill.
+- [ ] **GAMEINFO-7** — In game-info metadata fields of type **reference**, clicking **Clear (×)** asks for confirmation; cancelling keeps the reference unchanged, confirming removes it.
 
 ## ---------- Completed -----------------------------------------
 

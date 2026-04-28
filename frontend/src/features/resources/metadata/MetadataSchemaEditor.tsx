@@ -22,6 +22,7 @@ import {
   type ReactElement,
   type ChangeEvent,
 } from "react";
+import { UI_IDS } from "../../../core/model/ui_ids";
 import type {
   MetadataSchema,
   MetadataFieldDefinition,
@@ -33,13 +34,14 @@ import {
   exportSchemaToJson,
   validateSchemaJson,
 } from "../services/schema_storage";
+import { log } from "../../../logger";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 const generateId = (): string =>
   `schema-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
-const FIELD_TYPES: MetadataFieldType[] = ["text", "date", "select", "number", "flag"];
+const FIELD_TYPES: MetadataFieldType[] = ["text", "date", "select", "number", "flag", "reference"];
 
 const emptyField = (orderIndex: number): MetadataFieldDefinition => ({
   key: "",
@@ -138,6 +140,26 @@ const FieldRow = ({
             </select>
           </label>
         </div>
+        {/* Reference note / referenceable toggle */}
+        {draft.type === "reference" && (
+          <p className="schema-field-reference-note">
+            {t("schema.field.referenceNote", "When set on a game, activates inheritance for all referenceable fields.")}
+          </p>
+        )}
+        {draft.type !== "reference" && (
+          <div className="schema-field-edit-row">
+            <label className="schema-field-edit-label schema-field-edit-label--inline">
+              <input
+                type="checkbox"
+                checked={draft.referenceable === true}
+                onChange={(e: ChangeEvent<HTMLInputElement>): void => {
+                  setDraft((d) => ({ ...d, referenceable: e.target.checked ? true : undefined }));
+                }}
+              />
+              {t("schema.field.referenceable", "Available for inheritance")}
+            </label>
+          </div>
+        )}
         {draft.type === "select" && (
           <div className="schema-field-edit-row">
             <label className="schema-field-edit-label schema-field-edit-label--full">
@@ -190,12 +212,12 @@ const FieldRow = ({
           </label>
         </div>
         <div className="schema-field-edit-actions">
-          <button type="button" className="schema-btn schema-btn--secondary" onClick={onCancelEdit}>
+          <button type="button" className="x2-dialog-btn schema-btn schema-btn--secondary" onClick={onCancelEdit}>
             {t("common.cancel", "Cancel")}
           </button>
           <button
             type="button"
-            className="schema-btn schema-btn--primary"
+            className="x2-dialog-btn x2-dialog-btn--primary schema-btn schema-btn--primary"
             disabled={!draft.key.trim()}
             onClick={(): void => { onSaveField(index, draft); }}
           >
@@ -212,6 +234,7 @@ const FieldRow = ({
       <span className="schema-field-key">{field.key}</span>
       <span className="schema-field-type">{field.type}</span>
       {field.required && <span className="schema-field-required">{t("schema.field.requiredBadge", "required")}</span>}
+      {field.referenceable && <span className="schema-field-referenceable">{t("schema.field.referenceableBadge", "referenceable")}</span>}
       <div className="schema-field-actions">
         <button type="button" className="schema-icon-btn" onClick={(): void => { onEdit(index); }} aria-label={t("schema.field.edit", "Edit field")}>✎</button>
         <button type="button" className="schema-icon-btn schema-icon-btn--danger" onClick={(): void => { onDelete(index); }} aria-label={t("schema.field.delete", "Delete field")}>×</button>
@@ -247,7 +270,10 @@ export const MetadataSchemaEditor = ({
   const [importError, setImportError] = useState<string | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect((): void => { dialogRef.current?.showModal(); }, []);
+  useEffect((): void => {
+    dialogRef.current?.showModal();
+    log.debug("MetadataSchemaEditor", () => `mounted — editing=${schema?.id ?? "new"}`);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSave = useCallback((): void => {
     if (!name.trim()) return;
@@ -293,6 +319,7 @@ export const MetadataSchemaEditor = ({
 
   const handleExport = useCallback((): void => {
     if (!schema) return;
+    log.debug("MetadataSchemaEditor", () => `export — schemaId=${schema.id}`);
     const json = exportSchemaToJson(schema);
     const blob = new Blob([json], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -317,8 +344,11 @@ export const MetadataSchemaEditor = ({
         setName(imported.name);
         setFields([...imported.fields]);
         setImportError(null);
+        log.info("MetadataSchemaEditor", `import succeeded — schemaId=${imported.id}`, { schemaId: imported.id });
       } catch (err) {
-        setImportError(String(err instanceof Error ? err.message : err));
+        const message = String(err instanceof Error ? err.message : err);
+        log.error("MetadataSchemaEditor", "import failed", { message });
+        setImportError(message);
       }
     };
     reader.readAsText(file);
@@ -327,8 +357,13 @@ export const MetadataSchemaEditor = ({
   }, []);
 
   return (
-    <dialog ref={dialogRef} className="schema-editor-dialog" onClose={onClose}>
-      <div className="schema-editor-form">
+    <dialog
+      ref={dialogRef}
+      className="x2-dialog schema-editor-dialog"
+      data-ui-id={UI_IDS.METADATA_SCHEMA_EDITOR_DIALOG}
+      onClose={onClose}
+    >
+      <div className="x2-dialog-body schema-editor-form">
         <p className="schema-editor-title">
           {schema
             ? t("schema.editor.editTitle", "Edit Schema")
@@ -368,7 +403,7 @@ export const MetadataSchemaEditor = ({
         </div>
 
         <div className="schema-editor-add-row">
-          <button type="button" className="schema-btn schema-btn--secondary" onClick={handleAddField}>
+          <button type="button" className="x2-dialog-btn schema-btn schema-btn--secondary" onClick={handleAddField}>
             {t("schema.editor.addField", "+ Add Field")}
           </button>
         </div>
@@ -380,11 +415,11 @@ export const MetadataSchemaEditor = ({
         <div className="schema-editor-footer">
           <div className="schema-editor-footer-left">
             {schema && (
-              <button type="button" className="schema-btn schema-btn--ghost" onClick={handleExport}>
+              <button type="button" className="x2-dialog-btn x2-dialog-btn--ghost schema-btn schema-btn--ghost" onClick={handleExport}>
                 {t("schema.editor.export", "Export…")}
               </button>
             )}
-            <button type="button" className="schema-btn schema-btn--ghost" onClick={handleImportClick}>
+            <button type="button" className="x2-dialog-btn x2-dialog-btn--ghost schema-btn schema-btn--ghost" onClick={handleImportClick}>
               {t("schema.editor.import", "Import…")}
             </button>
             <input
@@ -396,12 +431,12 @@ export const MetadataSchemaEditor = ({
             />
           </div>
           <div className="schema-editor-footer-right">
-            <button type="button" className="schema-btn schema-btn--secondary" onClick={handleClose}>
+            <button type="button" className="x2-dialog-btn schema-btn schema-btn--secondary" onClick={handleClose}>
               {t("common.cancel", "Cancel")}
             </button>
             <button
               type="button"
-              className="schema-btn schema-btn--primary"
+              className="x2-dialog-btn x2-dialog-btn--primary schema-btn schema-btn--primary"
               disabled={!name.trim()}
               onClick={handleSave}
             >

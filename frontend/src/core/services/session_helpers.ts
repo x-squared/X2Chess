@@ -76,3 +76,30 @@ export const isPlaceholderHeaderValue = (key: string, value: string): boolean =>
   }
   return false;
 };
+
+/**
+ * Decide whether a placeholder overwrite should be blocked.
+ *
+ * Allows explicit user clears (`rawValue.trim() === ""`) so users can remove
+ * previously filled values, but still blocks accidental normalization to
+ * placeholder values for non-empty edits.
+ *
+ * @param key Header key being edited.
+ * @param rawValue Raw value provided by the input control before normalization.
+ * @param normalizedValue Normalized value that would be written to the header.
+ * @param currentValue Existing header value currently stored in the model.
+ * @returns `true` when the edit should be rejected.
+ */
+export const shouldBlockPlaceholderOverwrite = (
+  key: string,
+  rawValue: string,
+  normalizedValue: string,
+  currentValue: string,
+): boolean => {
+  const isExplicitClear: boolean = rawValue.trim() === "";
+  if (isExplicitClear) return false;
+  return (
+    isPlaceholderHeaderValue(key, normalizedValue) &&
+    !isPlaceholderHeaderValue(key, currentValue)
+  );
+};

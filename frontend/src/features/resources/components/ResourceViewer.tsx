@@ -67,6 +67,7 @@ import { ResourceTabBar } from "./ResourceTabBar";
 import { ResourceTable } from "./ResourceTable";
 import { ResourceMetadataDialog } from "./ResourceMetadataDialog";
 import { MetadataSchemaEditor } from "../metadata/MetadataSchemaEditor";
+import { MetadataSchemaManager } from "../metadata/MetadataSchemaManager";
 import { ResourceToolbar } from "./ResourceToolbar";
 import {
   BUILT_IN_SCHEMA,
@@ -75,6 +76,16 @@ import {
 import { log } from "../../../logger";
 import { loadBadgesForRefs } from "../../../training/transcript_storage";
 import type { TrainingBadge } from "../../../training/transcript_storage";
+
+/** Renders the resource viewer: tab bar, group-by toolbar, game table, and metadata dialog. */
+export const resolveDeleteGameConfirmNext = (
+  isDeleteGameConfirmArmed: boolean,
+): { nextArmed: boolean; shouldDelete: boolean } => {
+  if (!isDeleteGameConfirmArmed) {
+    return { nextArmed: true, shouldDelete: false };
+  }
+  return { nextArmed: false, shouldDelete: true };
+};
 
 /** Renders the resource viewer: tab bar, group-by toolbar, game table, and metadata dialog. */
 export const ResourceViewer = (): ReactElement => {
@@ -92,6 +103,7 @@ export const ResourceViewer = (): ReactElement => {
   const [columnFiltersMap, setColumnFiltersMap] = useState<Record<string, Record<string, string>>>({});
   const [sortMap, setSortMap] = useState<Record<string, SortConfig | null>>({});
   const [missingSchemaNotice, setMissingSchemaNotice] = useState<Record<string, boolean>>({});
+  const [isDeleteGameConfirmArmed, setIsDeleteGameConfirmArmed] = useState<boolean>(false);
 
   // ── Schema management ─────────────────────────────────────────────────
 
@@ -99,11 +111,16 @@ export const ResourceViewer = (): ReactElement => {
     schemas,
     tabSchemaMap,
     activeSchema,
+    schemaManagerOpen,
     schemaEditorOpen,
     editingSchema,
     initTabSchema,
     handleSchemaSelect,
     handleSchemaManage,
+    handleSchemaManagerClose,
+    handleSchemaEdit,
+    handleSchemaNew,
+    handleSchemaDelete,
     handleSchemaSave,
     handleSchemaEditorClose,
   } = useSchemaManagement(activeTabId, {
@@ -349,12 +366,31 @@ export const ResourceViewer = (): ReactElement => {
   const handleNewGame = useCallback((): void => { services.openNewGameDialog(); }, [services]);
 
   const handleDeleteGame = useCallback((): void => {
-    const confirmed: boolean = globalThis.confirm(
-      t("resources.deleteGame.confirm", "Delete the active game from this resource? This cannot be undone."),
-    );
-    if (!confirmed) return;
+    const next: { nextArmed: boolean; shouldDelete: boolean } =
+      resolveDeleteGameConfirmNext(isDeleteGameConfirmArmed);
+    if (!next.shouldDelete) {
+      // [log: may downgrade to debug once delete-game confirmation UX is stable]
+      log.info("ResourceViewer", "Delete game: armed inline confirmation");
+      setIsDeleteGameConfirmArmed(next.nextArmed);
+      return;
+    }
+    // [log: may downgrade to debug once delete-game confirmation UX is stable]
+    log.info("ResourceViewer", "Delete game: confirmed; deleting active resource game");
     void services.deleteActiveGameInResource();
-  }, [services, t]);
+    setIsDeleteGameConfirmArmed(next.nextArmed);
+  }, [isDeleteGameConfirmArmed, services]);
+
+  const handleDeleteGameCancel = useCallback((): void => {
+    // [log: may downgrade to debug once delete-game confirmation UX is stable]
+    log.info("ResourceViewer", "Delete game: confirmation cancelled");
+    setIsDeleteGameConfirmArmed(false);
+  }, []);
+
+  useEffect((): void => {
+    if (!canDeleteGame && isDeleteGameConfirmArmed) {
+      setIsDeleteGameConfirmArmed(false);
+    }
+  }, [canDeleteGame, isDeleteGameConfirmArmed]);
 
   // ── MD8: derive effective tab with column order from active schema ─────
 
@@ -411,6 +447,8 @@ export const ResourceViewer = (): ReactElement => {
         onTabClose={handleTabClose}
         onNewGame={handleNewGame}
         onDeleteGame={handleDeleteGame}
+        onDeleteGameCancel={handleDeleteGameCancel}
+        isDeleteGameConfirmArmed={isDeleteGameConfirmArmed}
         canDeleteGame={canDeleteGame}
         onMetadataOpen={handleMetadataOpen}
         onOpenResourceFile={(): void => { services.openResourceFile(); }}
@@ -500,6 +538,17 @@ export const ResourceViewer = (): ReactElement => {
         onClose={handleMetadataClose}
         onReset={handleMetadataReset}
       />
+
+      {schemaManagerOpen && (
+        <MetadataSchemaManager
+          schemas={schemas}
+          t={t}
+          onEdit={handleSchemaEdit}
+          onNew={handleSchemaNew}
+          onDelete={handleSchemaDelete}
+          onClose={handleSchemaManagerClose}
+        />
+      )}
 
       {schemaEditorOpen && (
         <MetadataSchemaEditor

@@ -43,7 +43,7 @@ import type { AppStartupServices } from "../contracts/app_services";
 import type { ServicesBundle } from "./createAppServices";
 import type { GameSessionState } from "../../features/sessions/services/game_session_state";
 import { log } from "../../logger";
-import { isPlaceholderHeaderValue } from "./session_helpers";
+import { shouldBlockPlaceholderOverwrite } from "./session_helpers";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -234,6 +234,12 @@ export const createEditingOps = (
   // ── Game info headers ───────────────────────────────────────────────────────
 
   updateGameInfoHeader: (sessionId: string, key: string, rawValue: string): void => {
+    // [log: may downgrade to debug once game-info header edit flow is stable]
+    log.info("session_editing_ops", "updateGameInfoHeader: request received", {
+      key,
+      sessionId,
+      isExplicitClear: rawValue.trim() === "",
+    });
     if (key === XSQR_HEAD_HEADER_KEY) {
       log.info("session_editing_ops", "updateGameInfoHeader: ignored read-only Head");
       return;
@@ -254,10 +260,14 @@ export const createEditingOps = (
     const g: GameSessionState = targetSession.ownState;
     const normalizedValue: string = normalizeGameInfoHeaderValue(key, rawValue);
     const currentValue: string = getHeaderValue(g.pgnModel, key, "");
-    if (
-      isPlaceholderHeaderValue(key, normalizedValue) &&
-      !isPlaceholderHeaderValue(key, currentValue)
-    ) {
+    // [log: may downgrade to debug once game-info header edit flow is stable]
+    log.info("session_editing_ops", "updateGameInfoHeader: normalized values", {
+      key,
+      isRawEmpty: rawValue.trim() === "",
+      isNormalizedEmpty: normalizedValue.trim() === "",
+      isCurrentEmpty: currentValue.trim() === "",
+    });
+    if (shouldBlockPlaceholderOverwrite(key, rawValue, normalizedValue, currentValue)) {
       log.warn(
         "session_editing_ops",
         `updateGameInfoHeader: blocked placeholder overwrite key="${key}" current="${currentValue}" next="${normalizedValue}" session="${sessionId}"`,
@@ -265,6 +275,12 @@ export const createEditingOps = (
       return;
     }
     const newModel = setHeaderValue(g.pgnModel as PgnModel, key, normalizedValue);
+    const writtenValue: string = getHeaderValue(newModel, key, "");
+    // [log: may downgrade to debug once game-info header edit flow is stable]
+    log.info("session_editing_ops", "updateGameInfoHeader: header written", {
+      key,
+      isWrittenEmpty: writtenValue.trim() === "",
+    });
     if (key === X2_STYLE_HEADER_KEY) {
       const mode: "plain" | "text" | "tree" = normalizeX2StyleValue(normalizedValue);
       g.pgnLayoutMode = mode;
@@ -282,6 +298,12 @@ export const createEditingOps = (
     bundle.applyModelUpdate(newModel, null, { recordHistory: true });
     // Header edits must refresh session-pill metadata immediately.
     bundle.sessionStore.updateActiveSessionMeta({});
+    // [log: may downgrade to debug once game-info header edit flow is stable]
+    log.info("session_editing_ops", "updateGameInfoHeader: model update applied", {
+      key,
+      sessionId,
+      isWrittenEmpty: writtenValue.trim() === "",
+    });
   },
 
   // ── History ─────────────────────────────────────────────────────────────────

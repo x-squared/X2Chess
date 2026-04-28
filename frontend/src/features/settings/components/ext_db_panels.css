@@ -825,6 +825,8 @@
 .game-search-label-text { font-size: 0.78rem; }
 .game-search-input {
   padding: 5px 8px;
+  height: 30px;
+  box-sizing: border-box;
   border: 1px solid var(--border-subtle);
   border-radius: 6px;
   background: var(--surface-2);
@@ -834,11 +836,19 @@
 }
 .game-search-select {
   padding: 5px 8px;
+  height: 30px;
+  box-sizing: border-box;
   border: 1px solid var(--border-subtle);
   border-radius: 6px;
   background: var(--surface-2);
   color: var(--text-primary);
   font-size: 0.85rem;
+}
+.game-search-input--date {
+  min-width: 130px;
+}
+.game-search-select--eco {
+  min-width: 240px;
 }
 .game-search-btn-search {
   padding: 6px 16px;

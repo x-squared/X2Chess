@@ -1,0 +1,40 @@
+# Runtime Dialog Independence Rule
+
+User workflows must not depend on browser-native dialog globals.
+
+## Why
+
+X2Chess runs in browser and desktop webview runtimes. Native dialog globals
+such as `window.confirm()` may behave inconsistently across those runtimes and
+can silently break critical user flows.
+
+## Required constraints
+
+1. Do not rely on `window.confirm`, `window.alert`, or `window.prompt` for
+   application workflows.
+2. Do not rely on `globalThis.confirm`, `globalThis.alert`, or
+   `globalThis.prompt` as fallback behavior.
+3. Implement confirmations, warnings, and user choices using in-app UI
+   components (dialogs, inline confirmation controls, or existing modal
+   components) that are owned by the app.
+4. Keep all user-facing confirmation text in i18n bundles
+   (`frontend/data/i18n/`), not hardcoded strings.
+5. When replacing a native dialog flow, add or update a regression test for the
+   decision path (confirm + cancel behavior).
+
+## Preferred implementation pattern
+
+- Use an explicit app-level confirmation surface:
+  - inline confirm controls for small local actions, or
+  - shared dialog components for broader or destructive actions.
+- Make both outcomes explicit and testable:
+  - cancel path leaves state unchanged,
+  - confirm path applies exactly one intended state change.
+
+## Delivery checks before finalizing changes
+
+- No new usage of `window.confirm` / `alert` / `prompt` or their `globalThis`
+  equivalents in changed code.
+- Confirmation UX works identically in browser (`npm run dev`) and desktop
+  (`npm run desktop:dev`) runtimes.
+- i18n keys are added for new confirmation copy in all supported locales.

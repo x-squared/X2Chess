@@ -7,7 +7,7 @@ Important files:
 - `NewGameDialog.tsx`: create a new game with headers/start-position setup.
 - `GamePickerDialog.tsx`: choose a game from a resource.
 - `EditStartPositionDialog.tsx`, `AnnotateGameDialog.tsx`, `PlayVsEngineDialog.tsx`
-- shared dialog CSS such as `dialog.css` and `new_game_dialog.css`
+- shared dialog CSS such as `dialog.css`, `new_game_dialog.css`, and `game_picker_dialog.css`
 
 These dialogs stay here because they are shared UI shells. Feature-specific state and parsing logic should remain in feature packages and be passed in via props.
 

@@ -30,6 +30,7 @@ import { useTranslator } from "../../../app/hooks/useTranslator";
 import { GAME_INFO_HEADER_FIELDS } from "../../editor/model/game_info";
 import { loadSchemas, getResourceSchemaId } from "../services/schema_storage";
 import { MetadataFieldInput } from "./MetadataFieldInput";
+import { log } from "../../../logger";
 
 // Keys shown in the standard GameInfoEditor form — exclude from this strip.
 const STANDARD_KEYS: ReadonlySet<string> = new Set(
@@ -86,7 +87,7 @@ export const GameMetadataStrip = (): ReactElement | null => {
     services
       .fetchGameMetadataByRecordId(refTargetId)
       .then((meta) => {
-        if (!cancelled) setInheritedMeta((meta as Record<string, string> | null) ?? {});
+        if (!cancelled) setInheritedMeta(meta ?? {});
       })
       .catch(() => { if (!cancelled) setInheritedMeta({}); });
     return (): void => { cancelled = true; };
@@ -110,20 +111,28 @@ export const GameMetadataStrip = (): ReactElement | null => {
           : undefined;
 
         return (
-          <label key={field.key} className="game-info-editor-field game-metadata-strip-field">
+          <div key={field.key} className="game-info-editor-field game-metadata-strip-field">
             <span>{field.label}</span>
             <MetadataFieldInput
               field={field}
               value={value}
               onChange={(newValue: string): void => {
                 if (!activeSessionId) return;
+                // [log: may downgrade to debug once reference-clear flow is stable]
+                log.info("GameMetadataStrip", "field change forwarded to updateGameInfoHeader", {
+                  fieldKey: field.key,
+                  sessionId: activeSessionId,
+                  isEmpty: newValue.trim() === "",
+                });
                 services.updateGameInfoHeader(activeSessionId, field.key, newValue);
               }}
               resourceRef={resourceRef ?? undefined}
               t={t}
+              onFetchMetadata={services.fetchGameMetadataByRecordId}
+              onOpen={(recordId: string): void => { void services.openGameFromRecordId(recordId); }}
               inheritedValue={inheritedValue}
             />
-          </label>
+          </div>
         );
       })}
     </div>

@@ -30,6 +30,11 @@ type GameSession = {
   revisionToken: string;
   dirtyState: DirtyState;
   saveMode: SaveMode;
+  /**
+   * Snapshot of `listGamesForResource` metadata row when this session was opened from a resource.
+   * Used so session-tab GRP sees the same conditional keys (e.g. Type) as the resource table when PGN headers use placeholders.
+   */
+  resourceMetadataOverlay?: Record<string, string> | null;
   /** Live state object owned by this session. The activeSessionRef points here when active. */
   ownState: GameSessionState;
 };
@@ -41,6 +46,7 @@ type OpenSessionInput = {
   pendingResourceRef?: SourceRefLike | null;
   revisionToken?: string;
   saveMode?: string;
+  resourceMetadataOverlay?: Record<string, string> | null;
 };
 
 type ActiveSessionPatch = {
@@ -94,6 +100,14 @@ export const createGameSessionStore = ({
     onSessionsChanged?.(getSessions(), activeSessionId);
   };
 
+  /**
+   * Fire `onSessionsChanged` without mutating sessions — used after async work (e.g. mirroring
+   * the canonical resource schema id into localStorage) so `resolveRenderedLines` recomputes.
+   */
+  const notifySessionsChanged = (): void => {
+    notifyChanged();
+  };
+
   const headerValue = (state: GameSessionState, key: string): string => {
     const headers = state.pgnModel?.headers;
     if (!Array.isArray(headers)) return "";
@@ -122,6 +136,7 @@ export const createGameSessionStore = ({
     pendingResourceRef = null,
     revisionToken = "",
     saveMode = "auto",
+    resourceMetadataOverlay = null,
   }: OpenSessionInput): GameSession => {
     const requestedSourceKey: string = sourceRefIdentityKey(sourceRef);
     if (requestedSourceKey) {
@@ -146,6 +161,9 @@ export const createGameSessionStore = ({
       revisionToken: String(revisionToken || ""),
       dirtyState: "clean",
       saveMode: saveMode === "manual" ? "manual" : "auto",
+      ...(resourceMetadataOverlay != null && Object.keys(resourceMetadataOverlay).length > 0
+        ? { resourceMetadataOverlay }
+        : {}),
       ownState,
     };
     getSessions().push(session);
@@ -195,6 +213,27 @@ export const createGameSessionStore = ({
     active.ownState = newState;
     active.dirtyState = "clean";
     activeSessionRef.current = newState;
+    notifyChanged();
+  };
+
+  /**
+   * Attach or clear list-row metadata used for session-tab GRP (`resourceMetadataOverlay`).
+   * Used after workspace restore when overlays are re-fetched from the resource index.
+   *
+   * @param sessionId - Target session id.
+   * @param overlay - Normalized metadata map, or `null` / empty to remove overlay.
+   */
+  const setSessionResourceMetadataOverlay = (
+    sessionId: string,
+    overlay: Record<string, string> | null,
+  ): void => {
+    const session: GameSession | null = getSessionById(sessionId);
+    if (!session) return;
+    if (overlay == null || Object.keys(overlay).length === 0) {
+      delete session.resourceMetadataOverlay;
+    } else {
+      session.resourceMetadataOverlay = overlay;
+    }
     notifyChanged();
   };
 
@@ -253,8 +292,10 @@ export const createGameSessionStore = ({
     buildSessionSnapshots,
     hasUnsavedSessions,
     listSessions: (): GameSession[] => [...getSessions()],
+    notifySessionsChanged,
     openSession,
     replaceActiveSessionOwnState,
+    setSessionResourceMetadataOverlay,
     switchToSession,
     updateActiveSessionMeta,
   };

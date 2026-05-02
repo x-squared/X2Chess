@@ -1,8 +1,16 @@
 /**
- * ResourceToolbar — group-by, filter-clear, schema chooser, and new-game controls.
+ * ResourceToolbar — schema chooser, metadata-field visibility, and group-by controls.
  *
- * Renders the toolbar row shown below the resource tab bar when a tab is active.
- * All state and callbacks are passed as props from ResourceViewer.
+ * Control order (left → right):
+ *   [Schema label + chooser/locked display]
+ *   [Show metadata dropdown]
+ *   [Group by: label + pills + add dropdown + clear]
+ *   [Clear filters]
+ *
+ * Schema chooser lock: once a custom schema is assigned to the active resource,
+ * the chooser is replaced by a locked display.  The user must click "Change…"
+ * to unlock it and acknowledge the stale-metadata warning before selecting a
+ * different schema.
  *
  * Integration API:
  * - `<ResourceToolbar ... />` — rendered by ResourceViewer when an active tab exists.
@@ -10,10 +18,10 @@
  * Communication API:
  * - All interactions fire callbacks: `onGroupByAdd`, `onGroupByRemove`,
  *   `onGroupByMoveUp`, `onGroupByClear`, `onClearFilters`,
- *   `onSchemaSelect`, `onSchemaManage`, `onAddMetadataField`.
+ *   `onSchemaSelect`, `onAddMetadataField`.
  */
 
-import type { ReactElement } from "react";
+import { useState, type ReactElement } from "react";
 import type { GroupByState } from "../services/viewer_utils";
 import {
   BUILT_IN_SCHEMA,
@@ -35,7 +43,6 @@ type ResourceToolbarProps = {
   onGroupByClear: () => void;
   onClearFilters: () => void;
   onSchemaSelect: (id: string) => void;
-  onSchemaManage: () => void;
   /** Schema fields not yet shown as table columns (same order as schema editor). */
   addableSchemaFields: MetadataFieldDefinition[];
   onAddMetadataField: (fieldKey: string) => void;
@@ -54,112 +61,152 @@ export const ResourceToolbar = ({
   onGroupByClear,
   onClearFilters,
   onSchemaSelect,
-  onSchemaManage,
   addableSchemaFields,
   onAddMetadataField,
-}: ResourceToolbarProps): ReactElement => (
-  <div className="resource-groupby-toolbar" data-ui-id={UI_IDS.RESOURCES_TOOLBAR}>
-    <span className="resource-groupby-label">
-      {t("resources.groupby.label", "Group by:")}
-    </span>
-    {groupByState.fields.length > 0 && (
-      <span className="resource-groupby-pills">
-        {groupByState.fields.map((field: string, idx: number): ReactElement => (
-          <span key={field} className="resource-groupby-pill">
-            <button
-              type="button"
-              className="resource-groupby-pill-up"
-              disabled={idx === 0}
-              aria-label={t("resources.groupby.moveUp", "Move level up")}
-              onClick={(): void => { onGroupByMoveUp(field); }}
-            >↑</button>
-            <span className="resource-groupby-pill-label">{field}</span>
-            <button
-              type="button"
-              className="resource-groupby-pill-remove"
-              aria-label={t("resources.groupby.remove", "Remove group level")}
-              onClick={(): void => { onGroupByRemove(field); }}
-            >×</button>
-          </span>
-        ))}
+}: ResourceToolbarProps): ReactElement => {
+  const [isChangingSchema, setIsChangingSchema] = useState<boolean>(false);
+
+  const isCustomSchema: boolean = activeSchema.id !== BUILT_IN_SCHEMA.id;
+  const showLocked: boolean = isCustomSchema && !isChangingSchema;
+
+  return (
+    <div className="resource-groupby-toolbar" data-ui-id={UI_IDS.RESOURCES_TOOLBAR}>
+
+      {/* ── Schema chooser ─────────────────────────────────────────────── */}
+      <span className="resource-schema-label">
+        {t("resources.schema.label", "Schema:")}
       </span>
-    )}
-    {groupByState.fields.length === 0 && (
-      <span className="resource-groupby-none">
-        {t("resources.groupby.none", "none")}
+
+      {showLocked ? (
+        <>
+          <span className="resource-schema-locked-name">{activeSchema.name}</span>
+          <button
+            type="button"
+            className="resource-schema-change-btn"
+            onClick={(): void => { setIsChangingSchema(true); }}
+          >
+            {t("resources.schema.change", "Change…")}
+          </button>
+        </>
+      ) : (
+        <>
+          <select
+            className="resource-schema-select"
+            value={activeSchema.id}
+            aria-label={t("resources.schema.select", "Select metadata schema")}
+            onChange={(e): void => {
+              onSchemaSelect(e.target.value);
+              setIsChangingSchema(false);
+            }}
+          >
+            <option value={BUILT_IN_SCHEMA.id}>{BUILT_IN_SCHEMA.name}</option>
+            {schemas.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+          {isChangingSchema && (
+            <>
+              <span className="resource-schema-change-warning">
+                {t("resources.schema.changeWarning", "Changing schema may leave existing game metadata stale.")}
+              </span>
+              <button
+                type="button"
+                className="resource-schema-change-cancel"
+                onClick={(): void => { setIsChangingSchema(false); }}
+              >
+                {t("common.cancel", "Cancel")}
+              </button>
+            </>
+          )}
+        </>
+      )}
+
+      {/* ── Show metadata column ───────────────────────────────────────── */}
+      {addableSchemaFields.length > 0 && (
+        <select
+          className="resource-metadata-add-field"
+          value=""
+          aria-label={t("resources.metadata.showField", "Show metadata field")}
+          onChange={(e): void => {
+            const sel: HTMLSelectElement = e.target;
+            const v: string = sel.value;
+            if (v) {
+              onAddMetadataField(v);
+              sel.value = "";
+            }
+          }}
+        >
+          <option value="">{t("resources.metadata.showFieldPlaceholder", "Show metadata…")}</option>
+          {addableSchemaFields.map((f: MetadataFieldDefinition) => (
+            <option key={f.key} value={f.key}>{f.label}</option>
+          ))}
+        </select>
+      )}
+
+      {/* ── Group by ───────────────────────────────────────────────────── */}
+      <span className="resource-groupby-label">
+        {t("resources.groupby.label", "Group by:")}
       </span>
-    )}
-    {availableGroupByFields.length > 0 && (
-      <select
-        className="resource-groupby-add"
-        value=""
-        aria-label={t("resources.groupby.add", "Add group level")}
-        onChange={(e): void => {
-          if (e.target.value) onGroupByAdd(e.target.value);
-        }}
+      {groupByState.fields.length > 0 && (
+        <span className="resource-groupby-pills">
+          {groupByState.fields.map((field: string, idx: number): ReactElement => (
+            <span key={field} className="resource-groupby-pill">
+              <button
+                type="button"
+                className="resource-groupby-pill-up"
+                disabled={idx === 0}
+                aria-label={t("resources.groupby.moveUp", "Move level up")}
+                onClick={(): void => { onGroupByMoveUp(field); }}
+              >↑</button>
+              <span className="resource-groupby-pill-label">{field}</span>
+              <button
+                type="button"
+                className="resource-groupby-pill-remove"
+                aria-label={t("resources.groupby.remove", "Remove group level")}
+                onClick={(): void => { onGroupByRemove(field); }}
+              >×</button>
+            </span>
+          ))}
+        </span>
+      )}
+      {groupByState.fields.length === 0 && (
+        <span className="resource-groupby-none">
+          {t("resources.groupby.none", "none")}
+        </span>
+      )}
+      {availableGroupByFields.length > 0 && (
+        <select
+          className="resource-groupby-add"
+          value=""
+          aria-label={t("resources.groupby.add", "Add group level")}
+          onChange={(e): void => {
+            if (e.target.value) onGroupByAdd(e.target.value);
+          }}
+        >
+          <option value="">{t("resources.groupby.addPlaceholder", "+ Add level")}</option>
+          {availableGroupByFields.map((f) => (
+            <option key={f} value={f}>{f}</option>
+          ))}
+        </select>
+      )}
+      <button
+        type="button"
+        className="resource-groupby-clear"
+        onClick={onGroupByClear}
+        disabled={groupByState.fields.length === 0}
+        aria-disabled={groupByState.fields.length === 0 ? "true" : undefined}
+        title={t("resources.groupby.clear", "Clear")}
       >
-        <option value="">{t("resources.groupby.addPlaceholder", "+ Add level")}</option>
-        {availableGroupByFields.map((f) => (
-          <option key={f} value={f}>{f}</option>
-        ))}
-      </select>
-    )}
-    <button
-      type="button"
-      className="resource-groupby-clear"
-      onClick={onGroupByClear}
-      disabled={groupByState.fields.length === 0}
-      aria-disabled={groupByState.fields.length === 0 ? "true" : undefined}
-      title={t("resources.groupby.clear", "Clear")}
-    >
-      {t("resources.groupby.clear", "Clear")}
-    </button>
-    {hasActiveFilters && (
-      <button type="button" className="resource-filter-clear-all" onClick={onClearFilters}>
-        {t("resources.filter.clearAll", "Clear filters")}
+        {t("resources.groupby.clear", "Clear")}
       </button>
-    )}
 
-    {/* Schema chooser (MD4) */}
-    <span className="resource-schema-label">
-      {t("resources.schema.label", "Schema:")}
-    </span>
-    <select
-      className="resource-schema-select"
-      value={activeSchema.id}
-      aria-label={t("resources.schema.select", "Select metadata schema")}
-      onChange={(e): void => { onSchemaSelect(e.target.value); }}
-    >
-      <option value={BUILT_IN_SCHEMA.id}>{BUILT_IN_SCHEMA.name}</option>
-      {schemas.map((s) => (
-        <option key={s.id} value={s.id}>{s.name}</option>
-      ))}
-    </select>
-    <button type="button" className="resource-schema-manage-btn" onClick={onSchemaManage}>
-      {t("resources.schema.manage", "Manage schemas…")}
-    </button>
+      {/* ── Clear filters ──────────────────────────────────────────────── */}
+      {hasActiveFilters && (
+        <button type="button" className="resource-filter-clear-all" onClick={onClearFilters}>
+          {t("resources.filter.clearAll", "Clear filters")}
+        </button>
+      )}
 
-    {/* Add metadata column — fields from active schema not yet in the table */}
-    {addableSchemaFields.length > 0 && (
-      <select
-        className="resource-metadata-add-field"
-        value=""
-        aria-label={t("resources.metadata.addField", "Add metadata column")}
-        onChange={(e): void => {
-          const sel: HTMLSelectElement = e.target;
-          const v: string = sel.value;
-          if (v) {
-            onAddMetadataField(v);
-            sel.value = "";
-          }
-        }}
-      >
-        <option value="">{t("resources.metadata.addFieldPlaceholder", "Add metadata…")}</option>
-        {addableSchemaFields.map((f: MetadataFieldDefinition) => (
-          <option key={f.key} value={f.key}>{f.label}</option>
-        ))}
-      </select>
-    )}
-
-  </div>
-);
+    </div>
+  );
+};

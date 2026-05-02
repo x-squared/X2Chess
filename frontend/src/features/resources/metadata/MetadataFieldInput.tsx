@@ -1,12 +1,13 @@
 /**
  * MetadataFieldInput — type-appropriate input control for a metadata field.
  *
- * Renders the correct input widget based on `MetadataFieldDefinition.type`:
- * - `text`      → single-line `<input>`
+ * Renders the correct input widget based on `MetadataFieldDefinition.type` and `cardinality`:
+ * - `text`      → single-line `<input>` · `many`: pill list + text input (Enter/blur commits)
  * - `date`      → three optional numeric fields (dd · mm · yyyy)
- * - `select`    → `<select>` dropdown with defined values
- * - `number`    → `<input type="number">`
+ * - `select`    → `<select>` dropdown · `many`: checkbox list over `selectValues`
+ * - `number`    → `<input type="number">` · `many`: pill list + number input
  * - `flag`      → `<input type="checkbox">`
+ * - `link`      → URL text input with an inline open-in-browser button · `many`: pill list + URL input
  * - `reference` → compact one-line game chip. Pick/Change opens the game picker;
  *   opening the referenced game is an explicit action from that chip.
  *   Requires `resourceRef`, `t`, `onFetchMetadata`, and `onOpen`.
@@ -33,6 +34,8 @@
 import { useState, useEffect, useCallback, type ReactElement, type ChangeEvent, type MouseEvent } from "react";
 import { log } from "../../../logger";
 import type { MetadataFieldDefinition } from "../../../../../parts/resource/src/domain/metadata_schema";
+import { MULTI_VALUE_SEP } from "../../../../../parts/resource/src/domain/metadata_schema";
+import { openExternalUrl } from "../../../resources/open_url";
 import { GamePickerDialog, type PickerRow } from "../../../components/dialogs/GamePickerDialog";
 
 type MetadataFieldInputProps = {
@@ -341,6 +344,253 @@ const ReferenceInput = ({
   );
 };
 
+// ── Link input helpers ────────────────────────────────────────────────────────
+
+const normalizeUrl = (raw: string): string => {
+  const s = raw.trim();
+  if (!s || s.startsWith("http://") || s.startsWith("https://")) return s;
+  return `https://${s}`;
+};
+
+const isValidUrl = (url: string): boolean => {
+  try {
+    const { protocol } = new URL(url);
+    return protocol === "http:" || protocol === "https:";
+  } catch { return false; }
+};
+
+// ── Link input (single value) ─────────────────────────────────────────────────
+
+const LinkInput = ({
+  value,
+  onChange,
+  baseClass,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  baseClass: string;
+}): ReactElement => {
+  const [error, setError] = useState<string | null>(null);
+
+  const handleBlur = (): void => {
+    const normalized = normalizeUrl(value);
+    if (normalized !== value) onChange(normalized);
+    if (normalized && !isValidUrl(normalized)) setError("Invalid URL");
+    else setError(null);
+  };
+
+  const handleOpen = (e: MouseEvent<HTMLButtonElement>): void => {
+    e.stopPropagation();
+    openExternalUrl(normalizeUrl(value)).catch((err: unknown) => {
+      log.warn("LinkInput", "failed to open URL", { err: String(err) });
+      setError("Could not open link");
+    });
+  };
+
+  return (
+    <span className="metadata-field-link-wrap">
+      <span className="metadata-field-link">
+        <input
+          type="url"
+          className={`${baseClass} metadata-field-link-input${error ? " metadata-field-link-input--error" : ""}`}
+          value={value}
+          onChange={(e: ChangeEvent<HTMLInputElement>): void => {
+            onChange(e.target.value);
+            if (error) setError(null);
+          }}
+          onBlur={handleBlur}
+        />
+        {value.trim() && (
+          <button
+            type="button"
+            className="metadata-field-link-open"
+            title="Open in browser"
+            onClick={handleOpen}
+          >↗</button>
+        )}
+      </span>
+      {error && <span className="metadata-field-link-error">{error}</span>}
+    </span>
+  );
+};
+
+// ── Multi-value text/number inputs ────────────────────────────────────────────
+
+const MultiTextInput = ({
+  value,
+  onChange,
+  inputType = "text",
+  validate,
+  placeholder = "Add value…",
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  inputType?: "text" | "number";
+  validate?: (v: string) => string | null;
+  placeholder?: string;
+}): ReactElement => {
+  const items: string[] = value.split(MULTI_VALUE_SEP).filter(Boolean);
+  const [input, setInput] = useState<string>("");
+  const [addError, setAddError] = useState<string | null>(null);
+
+  const commit = (): void => {
+    const s = input.trim();
+    if (!s) return;
+    if (validate) {
+      const err = validate(s);
+      if (err) { setAddError(err); return; }
+    }
+    onChange([...items, s].join(MULTI_VALUE_SEP));
+    setInput("");
+    setAddError(null);
+  };
+
+  const remove = (idx: number): void => {
+    onChange(items.filter((_, i) => i !== idx).join(MULTI_VALUE_SEP));
+  };
+
+  return (
+    <span className="metadata-field-multivalue">
+      {items.map((item, i) => (
+        <span key={i} className="metadata-field-multivalue-pill">
+          <span className="metadata-field-multivalue-pill-text" title={item}>{item}</span>
+          <button
+            type="button"
+            className="metadata-field-multivalue-remove"
+            aria-label="Remove"
+            onClick={(): void => { remove(i); }}
+          >×</button>
+        </span>
+      ))}
+      <span className="metadata-field-multivalue-add-row">
+        <input
+          type={inputType}
+          className={`metadata-field-input metadata-field-${inputType}${addError ? " metadata-field-link-input--error" : ""}`}
+          value={input}
+          placeholder={placeholder}
+          onChange={(e: ChangeEvent<HTMLInputElement>): void => {
+            setInput(e.target.value);
+            if (addError) setAddError(null);
+          }}
+          onKeyDown={(e): void => { if (e.key === "Enter") { e.preventDefault(); commit(); } }}
+          onBlur={(): void => { if (input.trim()) commit(); }}
+        />
+      </span>
+      {addError && <span className="metadata-field-link-error">{addError}</span>}
+    </span>
+  );
+};
+
+// ── Multi-value select input ──────────────────────────────────────────────────
+
+const MultiSelectInput = ({
+  value,
+  onChange,
+  selectValues,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  selectValues: string[];
+}): ReactElement => {
+  const selected = new Set(value.split(MULTI_VALUE_SEP).filter(Boolean));
+
+  const toggle = (v: string): void => {
+    const next = new Set(selected);
+    if (next.has(v)) next.delete(v); else next.add(v);
+    onChange(selectValues.filter((sv) => next.has(sv)).join(MULTI_VALUE_SEP));
+  };
+
+  return (
+    <span className="metadata-field-multiselect">
+      {selectValues.map((sv) => (
+        <label key={sv} className="metadata-field-multiselect-option">
+          <input
+            type="checkbox"
+            checked={selected.has(sv)}
+            onChange={(): void => { toggle(sv); }}
+          />
+          <span>{sv}</span>
+        </label>
+      ))}
+    </span>
+  );
+};
+
+// ── Link input (multi-value) ──────────────────────────────────────────────────
+
+const MultiLinkInput = ({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}): ReactElement => {
+  const urls: string[] = value.split(MULTI_VALUE_SEP).filter(Boolean);
+  const [input, setInput] = useState<string>("");
+  const [addError, setAddError] = useState<string | null>(null);
+
+  const commit = (): void => {
+    const normalized = normalizeUrl(input);
+    if (!normalized) return;
+    if (!isValidUrl(normalized)) { setAddError("Invalid URL"); return; }
+    onChange([...urls, normalized].join(MULTI_VALUE_SEP));
+    setInput("");
+    setAddError(null);
+  };
+
+  const remove = (idx: number): void => {
+    onChange(urls.filter((_, i) => i !== idx).join(MULTI_VALUE_SEP));
+  };
+
+  return (
+    <span className="metadata-field-multilink">
+      {urls.map((url, i) => (
+        <span key={i} className="metadata-field-multilink-pill">
+          <span className="metadata-field-multilink-pill-text" title={url}>{url}</span>
+          <button
+            type="button"
+            className="metadata-field-link-open"
+            title="Open in browser"
+            onClick={(e: MouseEvent<HTMLButtonElement>): void => {
+              e.stopPropagation();
+              void openExternalUrl(url);
+            }}
+          >↗</button>
+          <button
+            type="button"
+            className="metadata-field-multilink-remove"
+            aria-label="Remove"
+            onClick={(): void => { remove(i); }}
+          >×</button>
+        </span>
+      ))}
+      <span className="metadata-field-link">
+        <input
+          type="url"
+          className={`metadata-field-input metadata-field-link-input${addError ? " metadata-field-link-input--error" : ""}`}
+          value={input}
+          placeholder="Add URL…"
+          onChange={(e: ChangeEvent<HTMLInputElement>): void => {
+            setInput(e.target.value);
+            if (addError) setAddError(null);
+          }}
+          onKeyDown={(e): void => {
+            if (e.key === "Enter") { e.preventDefault(); commit(); }
+          }}
+          onBlur={(): void => { if (input.trim()) commit(); }}
+        />
+        <button
+          type="button"
+          className="metadata-field-link-open"
+          title="Add URL"
+          onClick={commit}
+        >+</button>
+      </span>
+      {addError && <span className="metadata-field-link-error">{addError}</span>}
+    </span>
+  );
+};
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 /**
@@ -383,6 +633,9 @@ export const MetadataFieldInput = ({
       );
 
     case "select":
+      if (field.cardinality === "many") {
+        return <MultiSelectInput value={value} onChange={onChange} selectValues={field.selectValues ?? []} />;
+      }
       return withInheritedHint(
         <select
           className={`${baseClass} metadata-field-select`}
@@ -399,6 +652,17 @@ export const MetadataFieldInput = ({
       );
 
     case "number":
+      if (field.cardinality === "many") {
+        return (
+          <MultiTextInput
+            value={value}
+            onChange={onChange}
+            inputType="number"
+            validate={(s): string | null => (Number.isFinite(Number(s)) ? null : "Invalid number")}
+            placeholder="Add number…"
+          />
+        );
+      }
       return withInheritedHint(
         <input
           type="number"
@@ -434,7 +698,18 @@ export const MetadataFieldInput = ({
         />
       );
 
+    case "link":
+      if (field.cardinality === "many") {
+        return <MultiLinkInput value={value} onChange={onChange} />;
+      }
+      return withInheritedHint(
+        <LinkInput value={value} onChange={onChange} baseClass={baseClass} />,
+      );
+
     default: // "text"
+      if (field.cardinality === "many") {
+        return <MultiTextInput value={value} onChange={onChange} />;
+      }
       return withInheritedHint(
         <input
           type="text"

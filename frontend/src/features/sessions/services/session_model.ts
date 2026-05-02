@@ -2,7 +2,13 @@ import { Chess } from "chess.js";
 import type { Move } from "chess.js";
 import type { GameSessionState } from "./game_session_state";
 import type { MovePositionIndex } from "../../../board/move_position";
-import { getHeaderValue, normalizeForChessJs } from "../../../../../parts/pgnparser/src/pgn_headers";
+import {
+  getHeaderValue,
+  normalizeForChessJs,
+  normalizeX2StyleValue,
+  X2_STYLE_HEADER_KEY,
+  LEGACY_X2_STYLE_HEADER_KEY,
+} from "../../../../../parts/pgnparser/src/pgn_headers";
 import { log } from "../../../logger";
 
 /** Walk mainline entries from pgnModel.root and return their SANs. */
@@ -176,7 +182,10 @@ export const createGameSessionModel = ({
       moves,
       verboseMoves,
       movePositionById,
-      pgnLayoutMode: "plain",
+      pgnLayoutMode: normalizeX2StyleValue(
+        getHeaderValueFn(pgnModel, X2_STYLE_HEADER_KEY, "")
+        || getHeaderValueFn(pgnModel, LEGACY_X2_STYLE_HEADER_KEY, ""),
+      ),
       currentPly: 0,
       selectedMoveId: null,
       boardPreview: null,

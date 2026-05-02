@@ -46,6 +46,11 @@ import { createSessionOrchestrator } from "../../core/services/session_orchestra
 import { dispatchSessionStateSnapshot } from "../../hooks/session_state_sync";
 import { useTauriMenu } from "../../hooks/useTauriMenu";
 import { log } from "../../logger";
+import {
+  collectResourceRefsFromWorkspaceSnapshot,
+  mirrorCanonicalResourceSchemaIds,
+} from "./mirror_resource_schema_ids";
+import { refreshResourceMetadataOverlaysAfterWorkspaceRestore } from "./workspace_restore_resource_metadata";
 
 const dispatchInitialSessionState = (g: GameSessionState, dispatch: Dispatch<AppAction>): void => {
   dispatchSessionStateSnapshot(g, dispatch);
@@ -179,7 +184,7 @@ export const useAppStartup = (): AppStartupServices => {
       if (workspaceSaveTimerRef.current !== null) clearTimeout(workspaceSaveTimerRef.current);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.sessions, state.activeSessionId, state.resourceViewerTabSnapshots, state.activeResourceTabId]);
+  }, [state.sessions, state.activeSessionId, state.resourceViewerTabSnapshots, state.activeResourceTabId, state.pgnLayoutMode]);
 
   useEffect((): void => {
     if (startupRanRef.current) return;
@@ -200,13 +205,26 @@ export const useAppStartup = (): AppStartupServices => {
     if (snapshot.sessions.length > 0) {
       log.info("useAppStartup", `Restoring workspace: ${snapshot.sessions.length} session(s), ${snapshot.resourceTabs.length} resource tab(s)`);
       restoreWorkspaceSnapshot(bundle, snapshot, dispatch);
+      void (async (): Promise<void> => {
+        try {
+          await mirrorCanonicalResourceSchemaIds(
+            bundle,
+            collectResourceRefsFromWorkspaceSnapshot(snapshot),
+          );
+          await refreshResourceMetadataOverlaysAfterWorkspaceRestore(bundle);
+        } catch (err: unknown) {
+          const message: string = err instanceof Error ? err.message : String(err);
+          log.error("useAppStartup", `refreshResourceMetadataOverlaysAfterWorkspaceRestore: ${message}`);
+        }
+        dispatchInitialSessionState(bundle.activeSessionRef.current, dispatch);
+        log.info("useAppStartup", "App ready");
+      })();
     } else {
       log.debug("useAppStartup", "No snapshot found — opening fresh session");
       openFreshSession(bundle, pgnLayout, dispatch);
+      dispatchInitialSessionState(bundle.activeSessionRef.current, dispatch);
+      log.info("useAppStartup", "App ready");
     }
-
-    dispatchInitialSessionState(bundle.activeSessionRef.current, dispatch);
-    log.info("useAppStartup", "App ready");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

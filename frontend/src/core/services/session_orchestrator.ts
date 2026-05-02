@@ -201,6 +201,10 @@ export const createSessionOrchestrator = (
     explorePosition: async (positionHash: string, resourceRefs: PgnResourceRef[]): Promise<MoveFrequencyEntry[]> =>
       bundle.resources.explorePositionAcross(positionHash, resourceRefs),
 
+    notifySessionItemsChanged: (): void => {
+      bundle.sessionStore.notifySessionsChanged();
+    },
+
     // ── Persistence ─────────────────────────────────────────────────────────
     setSaveMode: (mode: string): void => {
       bundle.sessionPersistence.setActiveSessionSaveMode(mode);

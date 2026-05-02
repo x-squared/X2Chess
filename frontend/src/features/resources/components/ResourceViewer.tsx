@@ -31,6 +31,7 @@ import {
   useState,
   useCallback,
   useEffect,
+  useRef,
   useId,
   useMemo,
   type ReactElement,
@@ -66,14 +67,13 @@ import { UI_IDS } from "../../../core/model/ui_ids";
 import { ResourceTabBar } from "./ResourceTabBar";
 import { ResourceTable } from "./ResourceTable";
 import { ResourceMetadataDialog } from "./ResourceMetadataDialog";
-import { MetadataSchemaEditor } from "../metadata/MetadataSchemaEditor";
-import { MetadataSchemaManager } from "../metadata/MetadataSchemaManager";
 import { ResourceToolbar } from "./ResourceToolbar";
 import {
   BUILT_IN_SCHEMA,
   type MetadataFieldDefinition,
 } from "../../../../../parts/resource/src/domain/metadata_schema";
 import { log } from "../../../logger";
+import { mirrorResourceSchemaIdToLocalStorage } from "../services/schema_storage";
 import { loadBadgesForRefs } from "../../../training/transcript_storage";
 import type { TrainingBadge } from "../../../training/transcript_storage";
 
@@ -87,8 +87,13 @@ export const resolveDeleteGameConfirmNext = (
   return { nextArmed: false, shouldDelete: true };
 };
 
+type ResourceViewerProps = {
+  /** Navigate to the Metadata tab (used by the missing-schema notice). */
+  onOpenMetadataTab?: () => void;
+};
+
 /** Renders the resource viewer: tab bar, group-by toolbar, game table, and metadata dialog. */
-export const ResourceViewer = (): ReactElement => {
+export const ResourceViewer = ({ onOpenMetadataTab }: ResourceViewerProps): ReactElement => {
   const { state } = useAppContext();
   const services = useServiceContext();
   const tabSnapshots: ResourceTabSnapshot[] = selectResourceViewerTabs(state);
@@ -111,18 +116,8 @@ export const ResourceViewer = (): ReactElement => {
     schemas,
     tabSchemaMap,
     activeSchema,
-    schemaManagerOpen,
-    schemaEditorOpen,
-    editingSchema,
     initTabSchema,
     handleSchemaSelect,
-    handleSchemaManage,
-    handleSchemaManagerClose,
-    handleSchemaEdit,
-    handleSchemaNew,
-    handleSchemaDelete,
-    handleSchemaSave,
-    handleSchemaEditorClose,
   } = useSchemaManagement(activeTabId, {
     persistSchemaId: services.persistResourceSchemaId,
   });
@@ -137,6 +132,8 @@ export const ResourceViewer = (): ReactElement => {
     const tabId = activeTabId;
     void services.loadResourceSchemaId(activeTabResourceRef).then((schemaId) => {
       initTabSchema(tabId, schemaId);
+      mirrorResourceSchemaIdToLocalStorage(activeTabResourceRef, schemaId);
+      services.notifySessionItemsChanged();
       if (schemaId !== null && !schemas.some((s) => s.id === schemaId)) {
         setMissingSchemaNotice((prev) => ({ ...prev, [tabId]: true }));
       }
@@ -157,6 +154,22 @@ export const ResourceViewer = (): ReactElement => {
 
   const activeTab: TabState | null =
     tabs.find((t: TabState): boolean => t.tabId === activeTabId) ?? null;
+
+  /** Metadata for reference chips must use the **viewed** resource’s index rows, not `fetchGameMetadataByRecordId` (active chess session). */
+  const fetchMetadataForViewerResource = useCallback(
+    (recordId: string): Promise<Record<string, string> | null> => {
+      const ref = activeTab?.resourceRef;
+      if (!ref?.kind || !ref?.locator) {
+        return Promise.resolve(null);
+      }
+      return services.fetchGameMetadataByRecordIdInResource(
+        { kind: ref.kind, locator: ref.locator },
+        recordId,
+      );
+    },
+    [activeTab?.resourceRef?.kind, activeTab?.resourceRef?.locator, services],
+  );
+
   const activeSessionResourceRef: { kind: string; locator: string } | null =
     services.getActiveSessionResourceRef();
   const canDeleteGame: boolean = activeTabId !== null && activeSessionResourceRef?.kind === "db";
@@ -210,6 +223,57 @@ export const ResourceViewer = (): ReactElement => {
       .filter((ref): boolean => ref !== "");
     return loadBadgesForRefs(refs);
   }, [activeTab?.loadState]);
+
+  // ── Reference metadata cache (GRP / filter) ───────────────────────────
+  // Resolved metadata for all recordIds found in reference-type columns of the
+  // active tab. Populated once per tab load; used by ResourceTable for both
+  // ReferenceCell rendering and reference-field substring filtering.
+
+  const resolvedRefMeta = useRef<Map<string, Record<string, string>>>(new Map());
+
+  useEffect((): void => {
+    const rows = tabRows(activeTab);
+    if (rows.length === 0) {
+      resolvedRefMeta.current = new Map();
+      return;
+    }
+
+    // Collect unique recordIds from all reference-type columns.
+    const refKeys: string[] = activeSchema.fields
+      .filter((f) => f.type === "reference")
+      .map((f) => f.key);
+
+    if (refKeys.length === 0) {
+      resolvedRefMeta.current = new Map();
+      return;
+    }
+
+    const unique = new Set<string>();
+    for (const row of rows) {
+      for (const key of refKeys) {
+        const val = row.metadata[key];
+        if (val) unique.add(val);
+      }
+    }
+
+    if (unique.size === 0) {
+      resolvedRefMeta.current = new Map();
+      return;
+    }
+
+    // Batch-fetch; populate cache as results arrive.
+    const next = new Map<string, Record<string, string>>();
+    resolvedRefMeta.current = next;
+    for (const recordId of unique) {
+      void fetchMetadataForViewerResource(recordId).then((meta) => {
+        if (meta && resolvedRefMeta.current === next) {
+          next.set(recordId, meta);
+        }
+      });
+    }
+  // Re-run when rows reload or schema changes (refKeys may differ).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab?.loadState, activeSchema.id, fetchMetadataForViewerResource]);
 
   // ── Tab handlers ──────────────────────────────────────────────────────
 
@@ -465,13 +529,15 @@ export const ResourceViewer = (): ReactElement => {
           <span className="resource-schema-notice__text">
             {t("schema.resource.missingNotice", "This resource uses a metadata schema that is not installed on this device.")}
           </span>
-          <button
-            type="button"
-            className="resource-schema-notice__action"
-            onClick={handleSchemaManage}
-          >
-            {t("schema.resource.manageSchemasLink", "Manage schemas\u2026")}
-          </button>
+          {onOpenMetadataTab && (
+            <button
+              type="button"
+              className="resource-schema-notice__action"
+              onClick={onOpenMetadataTab}
+            >
+              {t("schema.resource.manageSchemasLink", "Manage schemas\u2026")}
+            </button>
+          )}
           <button
             type="button"
             className="resource-schema-notice__dismiss"
@@ -499,7 +565,6 @@ export const ResourceViewer = (): ReactElement => {
           onGroupByClear={handleGroupByClear}
           onClearFilters={handleClearFilters}
           onSchemaSelect={(id): void => { handleSchemaSelect(id, activeTab?.resourceRef ?? null); }}
-          onSchemaManage={handleSchemaManage}
           addableSchemaFields={addableSchemaFields}
           onAddMetadataField={handleAddMetadataField}
         />
@@ -526,6 +591,9 @@ export const ResourceViewer = (): ReactElement => {
         onToggleGroup={handleToggleGroup}
         onRemoveMetadataColumn={handleRemoveMetadataColumn}
         trainingBadges={trainingBadges}
+        resolvedRefMeta={resolvedRefMeta.current}
+        onFetchMetadata={fetchMetadataForViewerResource}
+        onOpenReference={(id): void => { void services.openGameFromRecordId(id); }}
       />
 
       <ResourceMetadataDialog
@@ -538,26 +606,6 @@ export const ResourceViewer = (): ReactElement => {
         onClose={handleMetadataClose}
         onReset={handleMetadataReset}
       />
-
-      {schemaManagerOpen && (
-        <MetadataSchemaManager
-          schemas={schemas}
-          t={t}
-          onEdit={handleSchemaEdit}
-          onNew={handleSchemaNew}
-          onDelete={handleSchemaDelete}
-          onClose={handleSchemaManagerClose}
-        />
-      )}
-
-      {schemaEditorOpen && (
-        <MetadataSchemaEditor
-          schema={editingSchema}
-          t={t}
-          onSave={handleSchemaSave}
-          onClose={handleSchemaEditorClose}
-        />
-      )}
 
     </section>
   );

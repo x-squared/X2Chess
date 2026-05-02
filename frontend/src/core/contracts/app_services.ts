@@ -48,6 +48,11 @@ export type AppStartupServices = {
   explorePosition: (positionHash: string, resourceRefs: PgnResourceRef[]) => Promise<MoveFrequencyEntry[]>;
   openGameFromRecordId: (recordId: string) => Promise<void>;
   fetchGameMetadataByRecordId: (recordId: string) => Promise<Record<string, string> | null>;
+  /** Resolve row metadata for a record within an explicit resource (resource viewer, chips); not tied to the active chess session. */
+  fetchGameMetadataByRecordIdInResource: (
+    resource: { kind: string; locator: string },
+    recordId: string,
+  ) => Promise<Record<string, string> | null>;
   getActiveSessionResourceRef: () => { kind: string; locator: string } | null;
   getPlayerNameSuggestions: (query: string) => string[];
   getPlayers: () => PlayerRecord[];
@@ -83,4 +88,6 @@ export type AppStartupServices = {
   discardActiveSessionChanges: () => Promise<void>;
   loadResourceSchemaId: (resourceRef: { kind: string; locator: string }) => Promise<string | null>;
   persistResourceSchemaId: (resourceRef: { kind: string; locator: string }, schemaId: string | null) => Promise<void>;
+  /** Re-dispatch session list items (e.g. after mirroring canonical schema id into localStorage for GRP). */
+  notifySessionItemsChanged: () => void;
 };

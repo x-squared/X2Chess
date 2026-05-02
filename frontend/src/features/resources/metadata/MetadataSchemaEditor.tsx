@@ -27,6 +27,12 @@ import type {
   MetadataSchema,
   MetadataFieldDefinition,
   MetadataFieldType,
+  MetadataValueCardinality,
+  GameRenderingProfile,
+  GameRenderingRule,
+  GameRenderingDisplay,
+  GameRenderingLine,
+  GameRenderingRef,
 } from "../../../../../parts/resource/src/domain/metadata_schema";
 import {
   moveField,
@@ -34,6 +40,7 @@ import {
   exportSchemaToJson,
   validateSchemaJson,
 } from "../services/schema_storage";
+import { BUILT_IN_SCHEMA } from "../../../../../parts/resource/src/domain/metadata_schema";
 import { log } from "../../../logger";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -41,7 +48,7 @@ import { log } from "../../../logger";
 const generateId = (): string =>
   `schema-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
-const FIELD_TYPES: MetadataFieldType[] = ["text", "date", "select", "number", "flag", "reference"];
+const FIELD_TYPES: MetadataFieldType[] = ["text", "date", "select", "number", "flag", "reference", "link"];
 
 const emptyField = (orderIndex: number): MetadataFieldDefinition => ({
   key: "",
@@ -160,6 +167,21 @@ const FieldRow = ({
             </label>
           </div>
         )}
+        {draft.type !== "reference" && draft.type !== "flag" && (
+          <div className="schema-field-edit-row">
+            <label className="schema-field-edit-label schema-field-edit-label--inline">
+              <input
+                type="checkbox"
+                checked={draft.cardinality === "many"}
+                onChange={(e: ChangeEvent<HTMLInputElement>): void => {
+                  const cardinality: MetadataValueCardinality | undefined = e.target.checked ? "many" : undefined;
+                  setDraft((d) => ({ ...d, cardinality }));
+                }}
+              />
+              {t("schema.field.many", "Allow multiple values")}
+            </label>
+          </div>
+        )}
         {draft.type === "select" && (
           <div className="schema-field-edit-row">
             <label className="schema-field-edit-label schema-field-edit-label--full">
@@ -235,11 +257,266 @@ const FieldRow = ({
       <span className="schema-field-type">{field.type}</span>
       {field.required && <span className="schema-field-required">{t("schema.field.requiredBadge", "required")}</span>}
       {field.referenceable && <span className="schema-field-referenceable">{t("schema.field.referenceableBadge", "referenceable")}</span>}
+      {field.cardinality === "many" && <span className="schema-field-many">{t("schema.field.manyBadge", "multiple")}</span>}
       <div className="schema-field-actions">
         <button type="button" className="schema-icon-btn" onClick={(): void => { onEdit(index); }} aria-label={t("schema.field.edit", "Edit field")}>✎</button>
         <button type="button" className="schema-icon-btn schema-icon-btn--danger" onClick={(): void => { onDelete(index); }} aria-label={t("schema.field.delete", "Delete field")}>×</button>
         <button type="button" className="schema-icon-btn" disabled={index === 0} onClick={(): void => { onMoveUp(index); }} aria-label={t("schema.field.moveUp", "Move up")}>↑</button>
         <button type="button" className="schema-icon-btn" disabled={index === total - 1} onClick={(): void => { onMoveDown(index); }} aria-label={t("schema.field.moveDown", "Move down")}>↓</button>
+      </div>
+    </div>
+  );
+};
+
+// ── Rendering editor: ref serialization ──────────────────────────────────────
+
+const encodeRef = (ref: GameRenderingRef): string => {
+  if (ref.kind === "players") return "players";
+  if (ref.kind === "date") return `date:${ref.key}:${ref.format}`;
+  return `field:${ref.key}`;
+};
+
+const decodeRef = (s: string): GameRenderingRef | null => {
+  if (!s) return null;
+  if (s === "players") return { kind: "players" };
+  if (s.startsWith("date:")) {
+    const [, key, fmt] = s.split(":");
+    if (!key) return null;
+    const format = (fmt === "month-year" || fmt === "year") ? fmt : "full";
+    return { kind: "date", key, format };
+  }
+  if (s.startsWith("field:")) {
+    const key = s.slice(6);
+    return key ? { kind: "field", key } : null;
+  }
+  return null;
+};
+
+// ── Rendering editor: draft types ─────────────────────────────────────────────
+
+type RenderingLineDraft = { item1: string; item2: string; separator: string };
+type RenderingDisplayDraft = { line1: RenderingLineDraft; line2: RenderingLineDraft | null };
+type RenderingRuleDraft = { when: Record<string, string>; display1: RenderingDisplayDraft; display2: RenderingDisplayDraft | null };
+
+const emptyLineDraft = (): RenderingLineDraft => ({ item1: "", item2: "", separator: " · " });
+const emptyDisplayDraft = (): RenderingDisplayDraft => ({ line1: emptyLineDraft(), line2: null });
+const emptyRuleDraft = (): RenderingRuleDraft => ({ when: {}, display1: emptyDisplayDraft(), display2: null });
+
+const lineDraftFromLine = (l: GameRenderingLine): RenderingLineDraft => ({
+  item1: encodeRef(l.items[0]),
+  item2: l.items[1] ? encodeRef(l.items[1]) : "",
+  separator: l.separator,
+});
+
+const displayDraftFromDisplay = (d: GameRenderingDisplay): RenderingDisplayDraft => ({
+  line1: lineDraftFromLine(d.line1),
+  line2: d.line2 ? lineDraftFromLine(d.line2) : null,
+});
+
+const ruleDraftFromRule = (r: GameRenderingRule): RenderingRuleDraft => ({
+  when: { ...r.when },
+  display1: r.display1 ? displayDraftFromDisplay(r.display1) : emptyDisplayDraft(),
+  display2: r.display2 ? displayDraftFromDisplay(r.display2) : null,
+});
+
+const lineDraftToLine = (d: RenderingLineDraft): GameRenderingLine | null => {
+  const ref1 = decodeRef(d.item1);
+  if (!ref1) return null;
+  const ref2 = decodeRef(d.item2);
+  return { items: ref2 ? [ref1, ref2] : [ref1], separator: d.separator || " · " };
+};
+
+const displayDraftToDisplay = (d: RenderingDisplayDraft): GameRenderingDisplay | null => {
+  const line1 = lineDraftToLine(d.line1);
+  if (!line1) return null;
+  const line2 = d.line2 ? lineDraftToLine(d.line2) : null;
+  return { line1, ...(line2 ? { line2 } : {}) };
+};
+
+const ruleDraftToRule = (d: RenderingRuleDraft): GameRenderingRule => ({
+  when: d.when,
+  display1: displayDraftToDisplay(d.display1) ?? undefined,
+  display2: d.display2 ? (displayDraftToDisplay(d.display2) ?? undefined) : undefined,
+});
+
+// ── RenderingRefPicker ────────────────────────────────────────────────────────
+
+const DATE_FORMATS = [
+  { value: "full" as const,       label: "Full date" },
+  { value: "month-year" as const, label: "Month & year" },
+  { value: "year" as const,       label: "Year only" },
+];
+
+const RenderingRefPicker = ({
+  value,
+  fields,
+  slotLabel,
+  onChange,
+}: {
+  value: string;
+  fields: MetadataFieldDefinition[];
+  slotLabel: string;
+  onChange: (v: string) => void;
+}): ReactElement => {
+  const isDate = value.startsWith("date:");
+  const parts = value.split(":");
+  const baseValue = isDate ? `date:${parts[1] ?? ""}` : value;
+  const fmt = (parts[2] ?? "full") as "full" | "month-year" | "year";
+
+  return (
+    <span className="rendering-ref-picker">
+      <span className="rendering-ref-picker-label">{slotLabel}</span>
+      <select
+        className="rendering-ref-select"
+        value={isDate ? baseValue : value}
+        onChange={(e: ChangeEvent<HTMLSelectElement>): void => {
+          const v = e.target.value;
+          onChange(v.startsWith("date:") ? `${v}:full` : v);
+        }}
+      >
+        <option value="">— none —</option>
+        <option value="players">Players (White — Black)</option>
+        {fields.map((f) => (
+          <option key={f.key} value={f.type === "date" ? `date:${f.key}` : `field:${f.key}`}>
+            {f.label || f.key}
+          </option>
+        ))}
+      </select>
+      {isDate && (
+        <select
+          className="rendering-ref-format-select"
+          value={fmt}
+          onChange={(e: ChangeEvent<HTMLSelectElement>): void => {
+            onChange(`${baseValue}:${e.target.value}`);
+          }}
+        >
+          {DATE_FORMATS.map((f) => (
+            <option key={f.value} value={f.value}>{f.label}</option>
+          ))}
+        </select>
+      )}
+    </span>
+  );
+};
+
+// ── RenderingLineEditor ───────────────────────────────────────────────────────
+
+const RenderingLineEditor = ({
+  draft,
+  fields,
+  onChange,
+}: {
+  draft: RenderingLineDraft;
+  fields: MetadataFieldDefinition[];
+  onChange: (d: RenderingLineDraft) => void;
+}): ReactElement => (
+  <span className="rendering-line-editor">
+    <RenderingRefPicker value={draft.item1} fields={fields} slotLabel="1st:" onChange={(v): void => onChange({ ...draft, item1: v })} />
+    <RenderingRefPicker value={draft.item2} fields={fields} slotLabel="2nd:" onChange={(v): void => onChange({ ...draft, item2: v })} />
+    {draft.item2 && (
+      <label className="rendering-sep-label">
+        Sep:
+        <input
+          className="rendering-sep-input"
+          value={draft.separator}
+          onChange={(e: ChangeEvent<HTMLInputElement>): void => onChange({ ...draft, separator: e.target.value })}
+        />
+      </label>
+    )}
+  </span>
+);
+
+// ── RenderingDisplayEditor ────────────────────────────────────────────────────
+
+const RenderingDisplayEditor = ({
+  draft,
+  fields,
+  onChange,
+}: {
+  draft: RenderingDisplayDraft;
+  fields: MetadataFieldDefinition[];
+  onChange: (d: RenderingDisplayDraft) => void;
+}): ReactElement => (
+  <div className="rendering-display-editor">
+    <div className="rendering-display-line">
+      <span className="rendering-line-label rendering-line-label--bold">Primary line:</span>
+      <RenderingLineEditor draft={draft.line1} fields={fields} onChange={(l): void => onChange({ ...draft, line1: l })} />
+    </div>
+    {draft.line2 !== null ? (
+      <div className="rendering-display-line">
+        <span className="rendering-line-label">Secondary line (optional):</span>
+        <RenderingLineEditor draft={draft.line2} fields={fields} onChange={(l): void => onChange({ ...draft, line2: l })} />
+        <button type="button" className="rendering-remove-btn" onClick={(): void => onChange({ ...draft, line2: null })}>Remove secondary</button>
+      </div>
+    ) : (
+      <button type="button" className="rendering-add-btn" onClick={(): void => onChange({ ...draft, line2: emptyLineDraft() })}>+ Secondary line</button>
+    )}
+  </div>
+);
+
+// ── RenderingRuleEditor ───────────────────────────────────────────────────────
+
+const RenderingRuleEditor = ({
+  draft,
+  conditionFields,
+  displayFields,
+  canDelete,
+  onChange,
+  onDelete,
+}: {
+  draft: RenderingRuleDraft;
+  conditionFields: MetadataFieldDefinition[];
+  displayFields: MetadataFieldDefinition[];
+  canDelete: boolean;
+  onChange: (d: RenderingRuleDraft) => void;
+  onDelete: () => void;
+}): ReactElement => {
+  const isDefault = conditionFields.every((f) => !draft.when[f.key]);
+  return (
+    <div className="rendering-rule">
+      <div className="rendering-rule-header">
+        <span className="rendering-rule-when-label">
+          {conditionFields.length === 0 || isDefault ? "Default (fallback):" : "When:"}
+        </span>
+        {conditionFields.map((f) => (
+          <label key={f.key} className="rendering-rule-condition">
+            <span className="rendering-rule-condition-key">{f.label || f.key} =</span>
+            <select
+              className="rendering-rule-condition-select"
+              value={draft.when[f.key] ?? ""}
+              onChange={(e: ChangeEvent<HTMLSelectElement>): void => {
+                const when = { ...draft.when };
+                if (e.target.value) { when[f.key] = e.target.value; } else { delete when[f.key]; }
+                onChange({ ...draft, when });
+              }}
+            >
+              <option value="">— any —</option>
+              {(f.selectValues ?? []).map((v) => <option key={v} value={v}>{v}</option>)}
+            </select>
+          </label>
+        ))}
+        {canDelete && (
+          <button type="button" className="rendering-rule-delete" aria-label="Remove rule" onClick={onDelete}>×</button>
+        )}
+      </div>
+      <div className="rendering-rule-displays">
+        <div className="rendering-rule-display-slot">
+          <span className="rendering-display-slot-label">Table / compact:</span>
+          <RenderingDisplayEditor
+            draft={draft.display1}
+            fields={displayFields}
+            onChange={(d): void => onChange({ ...draft, display1: d })}
+          />
+        </div>
+        {draft.display2 !== null ? (
+          <div className="rendering-rule-display-slot">
+            <span className="rendering-display-slot-label">Full / detail:</span>
+            <RenderingDisplayEditor draft={draft.display2} fields={displayFields} onChange={(d): void => onChange({ ...draft, display2: d })} />
+            <button type="button" className="rendering-remove-btn" onClick={(): void => onChange({ ...draft, display2: null })}>Remove full view</button>
+          </div>
+        ) : (
+          <button type="button" className="rendering-add-btn" onClick={(): void => onChange({ ...draft, display2: emptyDisplayDraft() })}>+ Full / detail view</button>
+        )}
       </div>
     </div>
   );
@@ -270,6 +547,16 @@ export const MetadataSchemaEditor = ({
   const [importError, setImportError] = useState<string | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Rendering profile draft ────────────────────────────────────────────
+  const [conditionKeys, setConditionKeys] = useState<string[]>(
+    schema?.rendering?.conditionKeys ?? [],
+  );
+  const [ruleDrafts, setRuleDrafts] = useState<RenderingRuleDraft[]>(
+    schema?.rendering?.rules?.length
+      ? schema.rendering.rules.map(ruleDraftFromRule)
+      : [emptyRuleDraft()],
+  );
+
   useEffect((): void => {
     dialogRef.current?.showModal();
     log.debug("MetadataSchemaEditor", () => `mounted — editing=${schema?.id ?? "new"}`);
@@ -277,15 +564,21 @@ export const MetadataSchemaEditor = ({
 
   const handleSave = useCallback((): void => {
     if (!name.trim()) return;
+    const rules = ruleDrafts.map(ruleDraftToRule);
+    const nonEmptyRules = rules.filter((r) => r.display1 ?? r.display2);
+    const rendering: GameRenderingProfile | undefined = nonEmptyRules.length > 0
+      ? { conditionKeys, rules: nonEmptyRules }
+      : undefined;
     const saved: MetadataSchema = {
       id: schema?.id ?? generateId(),
       name: name.trim(),
       version: (schema?.version ?? 0) + 1,
       fields: renumberFields(fields),
+      rendering,
     };
     onSave(saved);
     dialogRef.current?.close();
-  }, [name, fields, schema, onSave]);
+  }, [name, fields, schema, conditionKeys, ruleDrafts, onSave]);
 
   const handleClose = useCallback((): void => {
     dialogRef.current?.close();
@@ -411,6 +704,104 @@ export const MetadataSchemaEditor = ({
         {importError && (
           <p className="schema-editor-import-error">{importError}</p>
         )}
+
+        {/* ── Rendering profile (GRP) ──────────────────────────────────── */}
+        <details className="rendering-profile-section">
+          <summary className="rendering-profile-summary">
+            {t("schema.rendering.title", "Game rendering")}
+          </summary>
+          {(() => {
+            const selectFields = fields.filter((f) => f.type === "select");
+            // Merge built-in PGN fields with schema fields; exclude select-type from the
+            // display picker (they are condition inputs, not display values).
+            const mergedDisplayFields: MetadataFieldDefinition[] = (() => {
+              const byKey = new Map<string, MetadataFieldDefinition>();
+              for (const f of BUILT_IN_SCHEMA.fields) {
+                if (f.type !== "select") byKey.set(f.key, f);
+              }
+              for (const f of fields) {
+                if (f.type !== "select") byKey.set(f.key, f);
+              }
+              return [...byKey.values()];
+            })();
+            return (
+              <div className="rendering-profile-body">
+                <p className="rendering-profile-hint">
+                  {t("schema.rendering.hint",
+                    "Pick select fields for conditions. Table/compact sets the resource table and session tabs (primary line plus optional secondary). Full/detail is an alternate layout for reference chips."
+                  )}
+                </p>
+
+                {/* Condition fields */}
+                <div className="rendering-condition-fields">
+                  <span className="rendering-condition-label">
+                    {t("schema.rendering.conditionFields", "Condition fields (select type):")}
+                  </span>
+                  {selectFields.length === 0 ? (
+                    <span className="rendering-no-select-fields">
+                      {t("schema.rendering.noSelectFields", "No select-type fields in this schema.")}
+                    </span>
+                  ) : (
+                    selectFields.map((f) => (
+                      <label key={f.key} className="rendering-condition-check">
+                        <input
+                          type="checkbox"
+                          checked={conditionKeys.includes(f.key)}
+                          onChange={(e: ChangeEvent<HTMLInputElement>): void => {
+                            setConditionKeys((prev) =>
+                              e.target.checked
+                                ? [...prev, f.key]
+                                : prev.filter((k) => k !== f.key),
+                            );
+                          }}
+                        />
+                        {f.label || f.key}
+                      </label>
+                    ))
+                  )}
+                </div>
+
+                {/* Rules */}
+                <div className="rendering-rules-list">
+                  {ruleDrafts.map((rd, ri) => (
+                    <RenderingRuleEditor
+                      key={ri}
+                      draft={rd}
+                      conditionFields={selectFields.filter((f) => conditionKeys.includes(f.key))}
+                      displayFields={mergedDisplayFields}
+                      canDelete={ruleDrafts.length > 1}
+                      onChange={(updated): void => {
+                        setRuleDrafts((prev) => prev.map((r, i) => i === ri ? updated : r));
+                      }}
+                      onDelete={(): void => {
+                        setRuleDrafts((prev) => prev.filter((_, i) => i !== ri));
+                      }}
+                    />
+                  ))}
+                </div>
+
+                <div className="rendering-rules-actions">
+                  <button
+                    type="button"
+                    className="x2-dialog-btn schema-btn schema-btn--secondary"
+                    onClick={(): void => setRuleDrafts((prev) => [...prev, emptyRuleDraft()])}
+                  >
+                    {t("schema.rendering.addRule", "+ Add rule")}
+                  </button>
+                  {!ruleDrafts.some((r) => Object.keys(r.when).length === 0) && (
+                    <button
+                      type="button"
+                      className="x2-dialog-btn schema-btn schema-btn--secondary"
+                      onClick={(): void => setRuleDrafts((prev) => [...prev, emptyRuleDraft()])}
+                    >
+                      {t("schema.rendering.addDefault", "+ Default rule")}
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+        </details>
 
         <div className="schema-editor-footer">
           <div className="schema-editor-footer-left">

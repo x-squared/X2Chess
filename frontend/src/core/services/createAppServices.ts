@@ -31,6 +31,13 @@ import {
   lookupEco,
 } from "../../model";
 import { toSessionItem, toResourceTab } from "./app_state_mappers";
+import { loadSchemas, getResourceSchemaId, findSchema } from "../../features/resources/services/schema_storage";
+import {
+  getMetadataValueIgnoreKeyCase,
+  mergeResourceMetadataOverlayForGrp,
+  resolveDisplayForSessionTab,
+  renderDisplayText,
+} from "../../features/resources/services/game_rendering";
 import { emitAfterSuccessfulSave, createEnsureSourceForActiveSession } from "./session_save_ops";
 import { parsePgnToModel } from "../../../../parts/pgnparser/src/pgn_model";
 import type { PgnModel } from "../../../../parts/pgnparser/src/pgn_model";
@@ -86,6 +93,78 @@ type ResourceViewer = ReturnType<typeof createResourceViewerCapabilities>;
 
 type BoardPreviewValue = { fen: string; lastMove?: [string, string] | null } | null;
 
+
+// ── Session rendering helpers ─────────────────────────────────────────────────
+
+type RawSessionForRendering = {
+  sessionId?: string;
+  sourceRef?: { kind?: unknown; locator?: unknown } | null;
+  ownState?: { pgnModel?: unknown };
+  /** Resource row metadata captured at open — aligns tab GRP with the resource table. */
+  resourceMetadataOverlay?: Record<string, string> | null;
+};
+
+const buildMetadataFromPgnModel = (pgnModel: unknown): Record<string, string> => {
+  const metadata: Record<string, string> = {};
+  const rawHeaders = (pgnModel as { headers?: unknown } | null)?.headers;
+  if (!Array.isArray(rawHeaders)) return metadata;
+  for (const h of rawHeaders as Array<{ key?: unknown; value?: unknown }>) {
+    if (typeof h?.key === "string" && h.key) metadata[h.key] = typeof h.value === "string" ? h.value : "";
+  }
+  return metadata;
+};
+
+/**
+ * Resolve rendered display lines for a session from its resource's rendering profile.
+ * Reads schemas and the resource–schema association from localStorage on every call.
+ * Returns `{}` when no profile applies (no source ref, no schema, no matching rule).
+ */
+const resolveRenderedLines = (
+  session: RawSessionForRendering,
+  pgnModel: unknown,
+  schemas: ReturnType<typeof loadSchemas>,
+): { renderedLine1?: string; renderedLine2?: string; grpProfileApplied?: boolean } => {
+  const sessionId: string =
+    typeof session.sessionId === "string" && session.sessionId.length > 0 ? session.sessionId : "";
+  const kind = typeof session.sourceRef?.kind === "string" ? session.sourceRef.kind : "";
+  const locator = typeof session.sourceRef?.locator === "string" ? session.sourceRef.locator : "";
+  if (!kind || !locator) {
+    return {};
+  }
+  const schemaId = getResourceSchemaId({ kind, locator });
+  if (!schemaId) {
+    return {};
+  }
+  const schema = findSchema(schemas, schemaId);
+  const profile = schema?.rendering;
+  if (!profile) {
+    return {};
+  }
+  const metadata: Record<string, string> = mergeResourceMetadataOverlayForGrp(
+    buildMetadataFromPgnModel(pgnModel),
+    session.resourceMetadataOverlay ?? null,
+  );
+  const display = resolveDisplayForSessionTab(metadata, profile, schema.fields);
+  if (!display) {
+    // [log: may downgrade to debug once session-tab GRP is stable]
+    log.info("createAppServices", "resolveRenderedLines: profile present but no tab display", {
+      schemaId,
+      sessionId: sessionId || "unknown",
+      typeValue: getMetadataValueIgnoreKeyCase(metadata, "Type"),
+      overlayKeys: Object.keys(session.resourceMetadataOverlay ?? {}).join(","),
+    });
+    return {};
+  }
+  const { line1, line2 } = renderDisplayText(display, metadata);
+  log.debug(
+    "createAppServices",
+    () =>
+      `resolveRenderedLines: schemaId=${schemaId} sessionId=${sessionId || "unknown"} typeValue=${getMetadataValueIgnoreKeyCase(metadata, "Type")} line1Len=${String(line1.length)} line2Len=${String((line2 ?? "").length)}`,
+  );
+  // Always pass through line1/line2 when a display rule matched (even empty) and flag so
+  // GameTabs does not fall back to player names when GRP output is blank.
+  return { renderedLine1: line1, renderedLine2: line2 || undefined, grpProfileApplied: true };
+};
 
 // ── Services bundle ─────────────────────────────────────────────────────────────
 
@@ -292,10 +371,26 @@ export function createAppServicesBundle(
     activeSessionRef,
     onSessionsChanged: (sessions, activeSessionId): void => {
       const g = activeSessionRef.current;
+      const schemas = loadSchemas();
       const sessionItems: SessionItemState[] = sessions
-        .map((raw: unknown): SessionItemState =>
-          toSessionItem(raw, activeSessionId, g.pgnModel ?? null),
-        )
+        .map((raw: unknown): SessionItemState => {
+          const session = raw as RawSessionForRendering;
+          const isActive = session.sessionId === activeSessionId;
+          const pgnModel = isActive ? g.pgnModel : (session.ownState?.pgnModel ?? null);
+          const { renderedLine1, renderedLine2, grpProfileApplied } = resolveRenderedLines(
+            session,
+            pgnModel,
+            schemas,
+          );
+          return toSessionItem(
+            raw,
+            activeSessionId,
+            g.pgnModel ?? null,
+            renderedLine1,
+            renderedLine2,
+            grpProfileApplied,
+          );
+        })
         .filter((item: SessionItemState): boolean => item.sessionId !== "");
       const activeItem: SessionItemState | undefined = sessionItems.find(
         (item: SessionItemState): boolean => item.sessionId === activeSessionId,

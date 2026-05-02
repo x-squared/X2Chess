@@ -97,16 +97,22 @@ export const TruncationMenu = ({
     visibility: "hidden",
   });
 
-  // After the menu renders, measure its width and clamp so it stays on-screen.
+  // After the menu renders, measure its size and clamp so it stays on-screen.
   useLayoutEffect((): void => {
     const el = menuRef.current;
     if (!el) return;
     const menuWidth = el.offsetWidth;
-    const left = Math.min(anchorRect.left, window.innerWidth - menuWidth - 8);
+    const menuHeight = el.offsetHeight;
+    const left = Math.max(8, Math.min(anchorRect.left, window.innerWidth - menuWidth - 8));
+    // Prefer below the anchor; flip above when it would overflow the bottom edge.
+    const preferredTop = anchorRect.bottom + 4;
+    const top = preferredTop + menuHeight + 8 > window.innerHeight
+      ? Math.max(8, anchorRect.top - menuHeight - 4)
+      : preferredTop;
     setStyle({
       position: "fixed",
-      top: anchorRect.bottom + 4,
-      left: Math.max(8, left),
+      top,
+      left,
       zIndex: 9999,
     });
   }, [anchorRect]);

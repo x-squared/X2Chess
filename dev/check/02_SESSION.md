@@ -12,6 +12,8 @@ See dev/check/00_README.md. These rules must be strictly adhered to when this fi
 - `frontend/src/components/shell/AppShell.tsx` — close-guard `beforeunload` handler (M9)
 - `frontend/src/hooks/useNavigateGuard.ts` — dirty-state guard wrapping switchSession/closeSession
 - `frontend/src/hooks/useAppStartup.ts` — workspace restore on mount
+- `frontend/src/app/startup/workspace_restore_resource_metadata.ts` — re-attach `resourceMetadataOverlay` after snapshot restore
+- `frontend/src/core/services/resource_list_metadata_lookup.ts` — find list row metadata by `recordId`
 - `frontend/src/game_sessions/session_model.ts` — session data model
 - `frontend/src/game_sessions/session_store.ts` — session state store
 - `frontend/src/state/app_reducer.ts` — reducer actions for tab open/close/switch
@@ -20,6 +22,8 @@ See dev/check/00_README.md. These rules must be strictly adhered to when this fi
 - `dev/plans/multi-source_game_refactor_9d9ff012.plan.md` — multi-source game loading design
 
 ## Checklist
+
+- [ ] **SESSION-16** — With a metadata schema and GRP that show two lines for resource-backed games, quit and relaunch: each restored session tab’s GRP display still matches the resource table row (both lines), not a degraded single line or empty second line when the index row had fields the saved `pgnText` alone did not carry in the tab merge path.
 
 ## ---------- Completed -----------------------------------------
 

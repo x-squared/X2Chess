@@ -1,6 +1,6 @@
 # X2Chess Architecture Manual
 
-Last updated: 2026-04-20
+Last updated: 2026-05-02
 
 ## 1) Goals
 
@@ -141,6 +141,8 @@ Environment and toolchain setup is documented in `doc/setup-manual.qmd`.
   - Source-root preload (DEV convenience)
 - Save path is uniform:
   - Active session + source reference + revision token -> source adapter `save(...)`.
+- **PGN headers vs resource index:** The editable game is always the in-memory `PgnModel` and the text produced by `serializeModelToPgn` on save. For database-backed resources, SQL `game_metadata` is a derived index of header tags. **`list` for `db` resources** (`db_adapter.ts`) loads `pgn_text` and **merges bracket tags from the stored PGN over the index** (single-valued tags from `extractPgnMetadataFromSource`, multi-valued from `extractMultiPgnMetadata` per `metadata_keys` cardinality) so the resource table, GRP, and search-by-list use the same header values as raw PGN, even if the index row lagged or omitted a tag (e.g. `Type`). When opening a game from a resource, any list-row field whose PGN tag is missing or blank is copied into the model (`resource_metadata_hydrate.ts`) — existing non-blank tags from loaded PGN are not overwritten.
+- **GRP slot usage (`game_rendering.ts`):** Session tab labels and reference-column chips both prefer **compact → detail** (`display1` then `display2`). When the referenced game is **a loaded row in the same tab**, the chip reuses that row’s entry from `buildRenderedGameMap` (`display1`) — identical primary/secondary lines to the Game column (`ResourceTable` + `buildRecordIdToRowMap`). Otherwise metadata is fetched for the **active resource viewer tab’s** resource (`fetchGameMetadataByRecordIdInResource`), not the active chess session’s source ref. Full/detail is only used when compact is not defined for that rule. **Rule matching:** pass the schema’s `fields` into `resolveDisplay` / `buildRenderedGameMap` / `resolveDisplayForSessionTab` so **select-type** `when` **values** compare case-insensitively after trim, and **metadata map keys** match **case-insensitively** against rule keys (`Type` vs `type`). Display line **field** refs use the same key resolution. **Session tabs:** on resource open, store `resourceMetadataOverlay` (library row) on the session and merge via `mergeResourceMetadataOverlayForGrp` before tab GRP so conditional keys match the index even when PGN still has roster placeholders (e.g. `[Type "?"]`). **`SessionSnap` does not persist that overlay:** after a workspace restore, `refreshResourceMetadataOverlaysAfterWorkspaceRestore` re-lists the resource and re-attaches the same row metadata so tab GRP matches the resource table again (without relying only on headers parsed from saved `pgnText`). **Session tab labels** (`GameTabs` + `session_tab_labels.ts`) set `grpProfileApplied` when a rule matched so an **empty** compact/detail string does not fall back to `White`/`Black` (which previously hid GRP when metadata produced blank lines). **Per-resource schema id** is stored in the adapter (e.g. SQLite `resource_meta`, directory sidecar) and also under `x2chess.resource-schema.<kind>:<locator>` in `localStorage` for synchronous consumers. `resolveRenderedLines` uses the `localStorage` key via `getResourceSchemaId`; `ResourceViewer` loads the canonical id with `loadResourceSchemaId`. On startup, when opening a game, and when the active resource tab loads, the app **mirrors** the adapter’s id into `localStorage` (`mirrorResourceSchemaIdToLocalStorage`, `mirror_resource_schema_ids.ts`) and may call `notifySessionItemsChanged` so session tabs recompute GRP after the async mirror.
 - Save policy:
   - Default mode is autosave.
   - User can switch active-session mode between autosave and manual from the app menu.
@@ -314,8 +316,11 @@ single write.
 **Restore path:** `useAppStartup` reads the snapshot synchronously before opening any
 session. When `snapshot.sessions` is non-empty it reconstructs each session from the
 stored PGN text and restores the active session pointer and all resource viewer tabs.
-When the snapshot is empty (first launch, or after a reset) a blank default session is
-opened instead.
+Then it **re-fetches list-row metadata** for each session that has a `sourceRef` with
+`recordId` (`refreshResourceMetadataOverlaysAfterWorkspaceRestore`) and only then
+dispatches the initial session state (so `resourceMetadataOverlay` matches a fresh
+“open from resource” without requiring `SessionSnap` to grow). When the snapshot is
+empty (first launch, or after a reset) a blank default session is opened instead.
 
 **Close-guard:** `AppShell` registers a `beforeunload` handler that calls
 `e.preventDefault()` / sets `e.returnValue` whenever any session has `dirtyState ===

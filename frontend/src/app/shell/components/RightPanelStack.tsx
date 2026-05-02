@@ -27,6 +27,7 @@ import { PositionSearchPanel } from "../../../features/resources/search/Position
 import { TextSearchPanel } from "../../../features/resources/search/TextSearchPanel";
 import { PlayersPanel } from "./PlayersPanel";
 import { ResourceViewer } from "../../../features/resources/components/ResourceViewer";
+import { MetadataPanel } from "../../../features/resources/metadata/MetadataPanel";
 import { SettingsPanel } from "../../../features/settings/components/SettingsPanel";
 import { AstPanel } from "../../../features/editor/components/AstPanel";
 import { RawPgnPanel } from "../../../features/editor/components/RawPgnPanel";
@@ -35,6 +36,7 @@ import { UI_IDS } from "../../../core/model/ui_ids";
 
 export type PanelId =
   | "resources"
+  | "metadata"
   | "analysis"
   | "opening"
   | "tablebase"
@@ -89,6 +91,7 @@ type RightPanelStackProps = {
 
 const PANEL_TABS: Array<{ id: PanelId; label: string; labelKey: string; tabUiId: string; devOnly?: boolean }> = [
   { id: "resources",       label: "Resources",    labelKey: "panel.resources",      tabUiId: UI_IDS.RIGHT_PANEL_TAB_RESOURCES },
+  { id: "metadata",        label: "Metadata",     labelKey: "panel.metadata",       tabUiId: UI_IDS.RIGHT_PANEL_TAB_METADATA },
   { id: "analysis",        label: "Analysis",     labelKey: "panel.analysis",       tabUiId: UI_IDS.RIGHT_PANEL_TAB_ANALYSIS },
   { id: "opening",         label: "Opening",      labelKey: "panel.opening",        tabUiId: UI_IDS.RIGHT_PANEL_TAB_OPENING },
   { id: "tablebase",       label: "Endgame",      labelKey: "panel.tablebase",      tabUiId: UI_IDS.RIGHT_PANEL_TAB_TABLEBASE },
@@ -147,7 +150,17 @@ export const RightPanelStack = ({
           className="right-panel-content right-panel-content-resources"
           data-ui-id={UI_IDS.RIGHT_PANEL_RESOURCES}
         >
-          <ResourceViewer />
+          <ResourceViewer onOpenMetadataTab={(): void => { setActivePanel("metadata"); }} />
+        </div>
+
+        <div
+          id="right-panel-metadata"
+          role="tabpanel"
+          hidden={activePanel !== "metadata"}
+          className="right-panel-content"
+          data-ui-id={UI_IDS.RIGHT_PANEL_METADATA}
+        >
+          <MetadataPanel t={t} />
         </div>
 
         <div

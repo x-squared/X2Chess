@@ -180,10 +180,13 @@ export const KNOWN_PGN_METADATA_KEYS = Object.freeze([
 
 // ── User-defined schema types (MD1) ───────────────────────────────────────────
 
-export type MetadataFieldType = "text" | "date" | "select" | "number" | "flag" | "reference";
+export type MetadataFieldType = "text" | "date" | "select" | "number" | "flag" | "reference" | "link";
 
 /** Whether a metadata field holds at most one value or an ordered list of values. */
 export type MetadataValueCardinality = "one" | "many";
+
+/** Separator used to encode multi-value metadata fields as a single string. */
+export const MULTI_VALUE_SEP = "|";
 
 /** A metadata field definition. */
 export type MetadataFieldDefinition = {
@@ -218,6 +221,53 @@ export type MetadataKeyInfo = {
   cardinality: MetadataValueCardinality;
 };
 
+// ── Game rendering profile (GRP) ─────────────────────────────────────────────
+
+/**
+ * One item in a rendering line.
+ * - `players` — renders "White — Black" using the game's White/Black metadata.
+ * - `field`   — renders the value of any non-select metadata field.
+ * - `date`    — renders a date field with a chosen precision.
+ */
+export type GameRenderingRef =
+  | { kind: "players" }
+  | { kind: "field"; key: string }
+  | { kind: "date"; key: string; format: "full" | "month-year" | "year" };
+
+/** One rendered line: 1 or 2 field refs joined by a user-defined separator. */
+export type GameRenderingLine = {
+  items: [GameRenderingRef] | [GameRenderingRef, GameRenderingRef];
+  /** String placed between the two items when both are non-empty (e.g. " · ", " — ", " / "). */
+  separator: string;
+};
+
+/** A pair of lines (line1 bold, line2 normal+smaller). */
+export type GameRenderingDisplay = {
+  line1: GameRenderingLine;
+  line2?: GameRenderingLine;
+};
+
+/**
+ * One conditional rendering rule.
+ * `when` maps select-field keys to required values; `{}` = default/fallback rule.
+ * Both display slots are optional independently; at least one should be set.
+ */
+export type GameRenderingRule = {
+  when: Record<string, string>;
+  display1?: GameRenderingDisplay;
+  display2?: GameRenderingDisplay;
+};
+
+/**
+ * Rendering profile attached to a MetadataSchema.
+ * `conditionKeys` must all be select-type fields in the schema.
+ * Rules are evaluated in order; first match wins; rule with empty `when` is the fallback.
+ */
+export type GameRenderingProfile = {
+  conditionKeys: string[];
+  rules: GameRenderingRule[];
+};
+
 export type MetadataSchema = {
   /** Stable UUID. */
   id: string;
@@ -225,6 +275,8 @@ export type MetadataSchema = {
   /** Monotonically increasing; incremented on each save. */
   version: number;
   fields: MetadataFieldDefinition[];
+  /** Optional game rendering profile — controls how games are displayed in the resource table. */
+  rendering?: GameRenderingProfile;
 };
 
 /**

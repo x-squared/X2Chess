@@ -74,7 +74,7 @@ const renderInlineNode = (node: MarkdownInlineNode, key: string): ReactNode => {
                 onClick={(e: MouseEvent<HTMLAnchorElement>): void => {
                   e.preventDefault();
                   e.stopPropagation();
-                  openExternalUrl(seg.href);
+                  void openExternalUrl(seg.href);
                 }}
               >
                 {seg.text}

@@ -505,7 +505,6 @@
   font-size: 0.75rem;
   color: var(--text-secondary);
   white-space: nowrap;
-  margin-left: auto;
 }
 
 .resource-schema-select {
@@ -518,7 +517,19 @@
   cursor: pointer;
 }
 
-.resource-schema-manage-btn {
+/* Locked schema display: name chip + Change… button */
+.resource-schema-locked-name {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  border-radius: 4px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.resource-schema-change-btn {
   font-size: 0.75rem;
   padding: 2px 8px;
   border: 1px solid var(--border-strong);
@@ -529,9 +540,34 @@
   white-space: nowrap;
 }
 
-.resource-schema-manage-btn:hover {
+.resource-schema-change-btn:hover {
   background: var(--surface-2);
   color: var(--text-primary);
+}
+
+.resource-schema-change-warning {
+  font-size: 0.74rem;
+  color: var(--warning-text, #92400e);
+  background: var(--warning-soft, #fffbeb);
+  border: 1px solid color-mix(in srgb, var(--warning-text, #92400e) 25%, transparent);
+  border-radius: 4px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.resource-schema-change-cancel {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--surface-1);
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.resource-schema-change-cancel:hover {
+  background: var(--surface-2);
 }
 
 .resource-metadata-add-field {
@@ -697,8 +733,63 @@
   color: var(--accent-strong);
 }
 
+/* Two-line rendered game cell (GRP) */
+.resource-game-rendered {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  text-decoration: none;
+}
+
+.resource-game-line1 {
+  font-weight: 600;
+  font-size: 0.82rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.resource-game-line2 {
+  font-weight: 400;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.resource-table-link {
+  border: none;
+  background: transparent;
+  color: var(--accent, #2563eb);
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resource-table-link:hover {
+  color: var(--accent-strong);
+}
+
+.resource-game-row td {
+  background: var(--surface-1);
+}
+
 .resource-game-row {
   cursor: pointer;
+}
+
+.resource-game-row:hover td {
+  background: var(--surface-2);
 }
 
 .resource-metadata-dialog {

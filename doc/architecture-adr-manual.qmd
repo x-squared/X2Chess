@@ -1,6 +1,6 @@
 # X2Chess Architecture ADR Manual
 
-Last updated: 2026-04-20
+Last updated: 2026-05-02
 
 ## Purpose
 
@@ -147,6 +147,16 @@ This manual contains Architecture Decision Records (ADRs): why major architectur
   - Service modules remain framework-independent and do not require DOM event channels.
   - Regressions from duplicated cache synchronization paths are reduced.
 
+## ADR-015: Open-from-resource hydrates PGN headers (no parallel session metadata map)
+- Status: Accepted
+- Date: 2026-05-02
+- Decision:
+  - Session game rendering and save/export read metadata only from `PgnModel` headers (plus movetext), not from a second `resourceMetadataSnapshot` on `GameSession`.
+  - When loading a game from a resource, list-row metadata is merged into the model with `hydratePgnModelFromResourceMetadata` for keys where the loaded PGN tag is missing or blank; non-blank PGN values stay authoritative.
+  - Database `game_metadata` remains a derived index of tags extracted from stored PGN on save (existing adapter behavior).
+- Implication:
+  - One consistent header map for GRP, tabs, and file export; no duplicate merge at render time.
+
 ## Change Log
 
 - 2026-03-18:
@@ -159,3 +169,5 @@ This manual contains Architecture Decision Records (ADRs): why major architectur
   - Added ADR-013: React as sole frontend runtime.
 - 2026-04-20:
   - Added ADR-014: typed resource-domain events for mutation propagation.
+- 2026-05-02:
+  - Added ADR-015: open-from-resource PGN header hydration; single source for session metadata.

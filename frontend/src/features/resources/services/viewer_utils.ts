@@ -2,6 +2,8 @@
  * viewer_utils — shared column-preference utilities for ResourceViewer.
  *
  * Integration API:
+ * - Exports: `buildRecordIdToRowMap` — resolve reference-field ids to `ResourceRow`
+ *   for the loaded tab (same rows as the Game column).
  * - Exports: canonical `clampWidth`, `readPrefsMap`, `writePrefsMap`,
  *   `persistTabPrefs`, `reconcileColumns`, `insertMetadataColumnFromSchema`,
  *   `listAddableMetadataFields`, `resolveMergedFieldDefinition`, `removeMetadataColumnFromTab`, and shared types.
@@ -88,6 +90,25 @@ export type ResourceRow = {
   revision: string;
   metadata: Record<string, string>;
   sourceRef: Record<string, unknown> | null;
+};
+
+/**
+ * Map referenced record ids to loaded table rows for the active tab.
+ * Keys each row by `sourceRef.recordId` and by `identifier` (when they differ) so
+ * reference-field values resolve to the same `ResourceRow` the Game column uses.
+ */
+export const buildRecordIdToRowMap = (rows: readonly ResourceRow[]): Map<string, ResourceRow> => {
+  const m: Map<string, ResourceRow> = new Map();
+  for (const row of rows) {
+    const sr: Record<string, unknown> | null = row.sourceRef;
+    const fromRef: string =
+      sr && typeof sr["recordId"] === "string" ? String(sr["recordId"]).trim() : "";
+    const id: string = fromRef || String(row.identifier ?? "").trim();
+    if (id) m.set(id, row);
+    const ident: string = String(row.identifier ?? "").trim();
+    if (ident && ident !== id) m.set(ident, row);
+  }
+  return m;
 };
 
 export type TabLoadState =

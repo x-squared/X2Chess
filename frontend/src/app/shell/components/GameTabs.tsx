@@ -24,6 +24,10 @@
 import type { ReactElement } from "react";
 import type { SessionItemState } from "../../../core/state/app_reducer";
 import { useTranslator } from "../../hooks/useTranslator";
+import {
+  buildSessionTabPrimaryLabel,
+  buildSessionTabSecondaryLabel,
+} from "../session_tab_labels";
 
 /** Props for the GameTabs component. */
 type GameTabsProps = {
@@ -39,29 +43,6 @@ type GameTabsProps = {
    * @param sessionId - ID of the session to close.
    */
   onClose: (sessionId: string) => void;
-};
-
-/** Return true when a PGN player-name value is a genuine name (not a placeholder). */
-const isRealPlayerName = (name: string): boolean =>
-  name !== "" && name !== "?" && name !== "White" && name !== "Black";
-
-/** Build a human-readable primary label from PGN headers, falling back to the session title. */
-const buildPrimaryLabel = (session: SessionItemState): string => {
-  const { white, black } = session;
-  if (isRealPlayerName(white) && isRealPlayerName(black)) return `${white} — ${black}`;
-  if (isRealPlayerName(white)) return white;
-  if (isRealPlayerName(black)) return black;
-  return session.title;
-};
-
-/** Build a secondary info line from Event/Date/dirty markers. */
-const buildSecondaryLabel = (session: SessionItemState, unsavedLabel: string): string => {
-  const parts: string[] = [];
-  if (session.event && session.event !== "?" && session.event !== "Sample") parts.push(session.event);
-  if (session.date && session.date !== "?" && session.date !== "????.??.??") parts.push(session.date);
-  if (session.isUnsaved) parts.push(unsavedLabel);
-  if (session.saveMode === "manual") parts.push("M");
-  return parts.join(" · ");
 };
 
 /** Build a tooltip string for a session tab showing player names and source. */
@@ -88,10 +69,12 @@ export const GameTabs = ({ sessions, onSelect, onClose }: GameTabsProps): ReactE
       ) : (
         sessions.map((session: SessionItemState): ReactElement => {
           const isActive: boolean = session.isActive;
-          const primary: string = buildPrimaryLabel(session);
-          const secondary: string = buildSecondaryLabel(session, t("game.unsaved", "unsaved"));
+          const primary: string = buildSessionTabPrimaryLabel(session);
+          const secondary: string = buildSessionTabSecondaryLabel(session, t("game.unsaved", "unsaved"));
           const dirtyDot: boolean = session.dirtyState === "dirty";
-          const ariaLabel: string = `${primary}${dirtyDot ? " (modified)" : ""}${secondary ? `, ${secondary}` : ""}`;
+          const modifiedSuffix: string = dirtyDot ? " (modified)" : "";
+          const secondarySuffix: string = secondary ? `, ${secondary}` : "";
+          const ariaLabel: string = `${primary}${modifiedSuffix}${secondarySuffix}`;
           const tooltip: string = buildTooltip(session);
 
           return (

@@ -14,8 +14,8 @@
  *
  * Communication API:
  * - Outbound only: emits `set_navigation` (fast path) or the full set
- *   (`set_pgn_state`, `set_navigation`, `set_undo_redo_depth`, `set_pending_focus`)
- *   through the provided callback.
+ *   (`set_pgn_state`, `set_navigation`, `set_undo_redo_depth`, `set_pending_focus`,
+ *   `set_layout_mode`) through the provided callback.
  */
 
 import type { GameSessionState } from "../features/sessions/services/game_session_state";
@@ -106,4 +106,5 @@ export const dispatchSessionStateSnapshot = (
     redoDepth: Array.isArray(session.redoStack) ? session.redoStack.length : 0,
   });
   dispatchAction({ type: "set_pending_focus", commentId: session.pendingFocusCommentId });
+  dispatchAction({ type: "set_layout_mode", mode: session.pgnLayoutMode });
 };

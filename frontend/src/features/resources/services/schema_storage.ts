@@ -167,6 +167,34 @@ export const setResourceSchemaId = (
   }
 };
 
+/**
+ * Copy the schema id returned by the resource adapter (`loadResourceSchemaId`) into
+ * localStorage so synchronous callers match the viewer: `resolveRenderedLines` /
+ * `getResourceSchemaId` for session-tab GRP, `GameMetadataStrip`, etc.
+ *
+ * Only writes when `schemaId` is non-null/non-empty so we do not clear a stale local
+ * association when the adapter returns null (e.g. migration edge cases).
+ *
+ * @param ref - Resource kind + locator.
+ * @param schemaId - Id from `resourceClient.getResourceSchemaId`, or null.
+ */
+export const mirrorResourceSchemaIdToLocalStorage = (
+  ref: { kind: string; locator: string },
+  schemaId: string | null,
+): void => {
+  const id: string = typeof schemaId === "string" ? schemaId.trim() : "";
+  if (id !== "") {
+    setResourceSchemaId(ref, id);
+  }
+};
+
+// ── Cross-component notification ──────────────────────────────────────────────
+
+/** Dispatch a window event so other components (e.g. ResourceViewer) reload their schema list. */
+export const notifySchemasUpdated = (): void => {
+  globalThis.dispatchEvent(new CustomEvent("x2chess:schemas-updated"));
+};
+
 // ── Reorder helpers ────────────────────────────────────────────────────────────
 
 /**

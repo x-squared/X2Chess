@@ -449,6 +449,26 @@ fn open_devtools(app: tauri::AppHandle) {
   }
 }
 
+/// Open a URL in the system default browser.
+///
+/// Validates that the URL is http/https before handing off to the OS launcher
+/// so the caller cannot use this as an arbitrary command runner.
+#[tauri::command]
+fn open_external_url(url: String) -> Result<(), String> {
+  if !url.starts_with("http://") && !url.starts_with("https://") {
+    return Err("Only http/https URLs are supported".to_string());
+  }
+  #[cfg(target_os = "macos")]
+  let result = std::process::Command::new("open").arg(&url).spawn();
+  #[cfg(target_os = "windows")]
+  let result = std::process::Command::new("rundll32")
+    .args(["url.dll,FileProtocolHandler", url.as_str()])
+    .spawn();
+  #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+  let result = std::process::Command::new("xdg-open").arg(&url).spawn();
+  result.map(|_| ()).map_err(|e| format!("Failed to open URL: {e}"))
+}
+
 /// Close the browser panel window.  No-op if it is not open.
 #[tauri::command]
 fn close_browser_window(app: tauri::AppHandle) -> Result<(), String> {
@@ -724,6 +744,7 @@ fn main() {
       send_to_engine,
       kill_engine,
       native_http_get,
+      open_external_url,
       open_devtools,
       open_browser_window,
       close_browser_window,

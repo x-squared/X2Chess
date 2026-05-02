@@ -4,7 +4,8 @@
  * Handles all operations that open, create, or query resources and games:
  * openResource, openResourceFile, openResourceDirectory, createResource,
  * openGameFromRef, openGameFromRecordId, fetchGameMetadataByRecordId,
- * getActiveSessionResourceRef, reorderGameInResource, deleteActiveGameInResource.
+ * fetchGameMetadataByRecordIdInResource, getActiveSessionResourceRef,
+ * reorderGameInResource, deleteActiveGameInResource.
  *
  * Integration API:
  * - `createResourceOpenOps(bundle, dispatchRef, flushSessionState, summarizeHeaders)`
@@ -17,16 +18,22 @@
  * Communication API:
  * - Reads from `bundle.resources`, `bundle.resourceViewer`, `bundle.sessionStore`,
  *   `bundle.sessionModel`.
+ * - Opening a game from a resource merges list-row metadata into the live `PgnModel` for any
+ *   tag that is missing or blank in the loaded PGN (then re-parses), so headers stay the single
+ *   source of truth for session UI and save/export.
  * - Dispatches `set_board_flipped` and `set_error_message` via `dispatchRef`.
  * - Calls `flushSessionState()` after each successful operation.
  */
 
+import type { PgnResourceRef } from "../../../../parts/resource/src/domain/resource_ref";
 import type { Dispatch } from "react";
 import type { AppAction } from "../state/actions";
 import type { AppStartupServices } from "../contracts/app_services";
 import type { ServicesBundle } from "./createAppServices";
 import type { GameSessionState } from "../../features/sessions/services/game_session_state";
-import { deriveInitialBoardFlipped } from "../../model";
+import { deriveInitialBoardFlipped, serializeModelToPgn } from "../../model";
+import type { PgnModel } from "../../../../parts/pgnparser/src/pgn_model";
+import { hydratePgnModelFromResourceMetadata } from "../../features/sessions/services/resource_metadata_hydrate";
 import { log } from "../../logger";
 import {
   lastLocatorSegment,
@@ -34,7 +41,9 @@ import {
   normalizeStringField,
   buildSourceIdentityKey,
 } from "./session_helpers";
+import { findResourceRowMetadataByRecordId } from "./resource_list_metadata_lookup";
 import { resourceDomainEvents } from "../events/resource_domain_events";
+import { mirrorResourceSchemaIdToLocalStorage } from "../../features/resources/services/schema_storage";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -57,6 +66,7 @@ type ResourceOpenOps = Pick<
   | "openGameFromRef"
   | "openGameFromRecordId"
   | "fetchGameMetadataByRecordId"
+  | "fetchGameMetadataByRecordIdInResource"
   | "getActiveSessionResourceRef"
   | "reorderGameInResource"
   | "deleteActiveGameInResource"
@@ -69,6 +79,62 @@ const toErrorMessage = (err: unknown): string => {
   if (err instanceof Error) return err.message;
   if (typeof err === "string") return err;
   return "[unknown error]";
+};
+
+/**
+ * Look up stored metadata for a game row in the given resource (same data as the resource table).
+ *
+ * @param bundle - Services bundle (uses `listGamesForResource`).
+ * @param resourceKind - Resource kind (`db`, `directory`, …).
+ * @param resourceLocator - Resource locator string.
+ * @param recordId - Game record id within the resource.
+ * @returns Normalized metadata map, or `null` when the row is not found or listing fails.
+ */
+const lookupResourceMetadataByRecordId = async (
+  bundle: ServicesBundle,
+  resourceKind: string,
+  resourceLocator: string,
+  recordId: string,
+): Promise<Record<string, string> | null> => {
+  if (!recordId) return null;
+  try {
+    const rows: unknown[] = await bundle.resources.listGamesForResource({
+      kind: resourceKind,
+      locator: resourceLocator,
+    });
+    return findResourceRowMetadataByRecordId(rows, recordId);
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Rebuild session state so resource-only metadata columns exist as PGN tags on the in-memory model.
+ * Empty/missing header slots are filled; existing non-blank PGN tags win.
+ *
+ * @param initialState - Session built from loaded `pgnText`.
+ * @param resourceMeta - Row metadata from `listGamesForResource` (may be null).
+ * @param sessionModel - Session model factory (`createSessionFromPgnText`).
+ * @returns Possibly new state after re-parse; unchanged when nothing was hydrated.
+ */
+const rebuildSessionWithResourceMetadataHydration = (
+  initialState: GameSessionState,
+  resourceMeta: Record<string, string> | null,
+  sessionModel: ServicesBundle["sessionModel"],
+): GameSessionState => {
+  if (resourceMeta == null || Object.keys(resourceMeta).length === 0) {
+    return initialState;
+  }
+  const pgnModel: PgnModel | null = initialState.pgnModel;
+  if (pgnModel == null) return initialState;
+  const { model, keysFilled } = hydratePgnModelFromResourceMetadata(pgnModel, resourceMeta);
+  if (keysFilled.length === 0) return initialState;
+  const pgnText: string = serializeModelToPgn(model);
+  log.info("session_resource_open_ops", "hydrated PGN headers from resource row", {
+    keysCount: keysFilled.length,
+    keysFilled: keysFilled.join(","),
+  });
+  return sessionModel.createSessionFromPgnText(pgnText);
 };
 
 // ── Factory ───────────────────────────────────────────────────────────────────
@@ -214,13 +280,31 @@ export const createResourceOpenOps = (
           locator: resolvedLocator,
           recordId: normalizedRecordId,
         };
-        const newState: GameSessionState = bundle.sessionModel.createSessionFromPgnText(result.pgnText);
+        const resourceMeta: Record<string, string> | null =
+          normalizedRecordId != null && normalizedRecordId !== ""
+            ? await lookupResourceMetadataByRecordId(bundle, resolvedKind, resolvedLocator, normalizedRecordId)
+            : null;
+        const parsedState: GameSessionState = bundle.sessionModel.createSessionFromPgnText(result.pgnText);
+        const newState: GameSessionState = rebuildSessionWithResourceMetadataHydration(
+          parsedState,
+          resourceMeta,
+          bundle.sessionModel,
+        );
         const titleFallback: string = nextSourceRef.recordId ?? "New Game";
         const title: string = bundle.sessionModel.deriveSessionTitle(newState.pgnModel, titleFallback);
         bundle.sessionStore.openSession({
           ownState: newState,
           title,
           sourceRef: nextSourceRef,
+          resourceMetadataOverlay: resourceMeta,
+        });
+        const resourceRefForSchema: PgnResourceRef = {
+          kind: resolvedKind as PgnResourceRef["kind"],
+          locator: resolvedLocator,
+        };
+        void bundle.resources.loadResourceSchemaId(resourceRefForSchema).then((schemaId: string | null): void => {
+          mirrorResourceSchemaIdToLocalStorage(resourceRefForSchema, schemaId);
+          bundle.sessionStore.notifySessionsChanged();
         });
         log.info(
           "session_resource_open_ops",
@@ -247,12 +331,34 @@ export const createResourceOpenOps = (
         locator: String(sourceRef.locator),
         recordId,
       });
-      const newState: GameSessionState = bundle.sessionModel.createSessionFromPgnText(result.pgnText);
+      const resourceMeta: Record<string, string> | null = await lookupResourceMetadataByRecordId(
+        bundle,
+        String(sourceRef.kind),
+        String(sourceRef.locator),
+        recordId,
+      );
+      const parsedState: GameSessionState = bundle.sessionModel.createSessionFromPgnText(result.pgnText);
+      const newState: GameSessionState = rebuildSessionWithResourceMetadataHydration(
+        parsedState,
+        resourceMeta,
+        bundle.sessionModel,
+      );
       const title: string = bundle.sessionModel.deriveSessionTitle(newState.pgnModel, recordId);
       bundle.sessionStore.openSession({
         ownState: newState,
         title,
         sourceRef: { kind: String(sourceRef.kind), locator: String(sourceRef.locator), recordId },
+        resourceMetadataOverlay: resourceMeta,
+      });
+      const kindOpen: string = String(sourceRef.kind);
+      const locatorOpen: string = String(sourceRef.locator);
+      const resourceRefForSchemaOpen: PgnResourceRef = {
+        kind: kindOpen as PgnResourceRef["kind"],
+        locator: locatorOpen,
+      };
+      void bundle.resources.loadResourceSchemaId(resourceRefForSchemaOpen).then((schemaId: string | null): void => {
+        mirrorResourceSchemaIdToLocalStorage(resourceRefForSchemaOpen, schemaId);
+        bundle.sessionStore.notifySessionsChanged();
       });
       flushSessionState();
       dispatchRef.current({ type: "set_board_flipped", flipped: deriveInitialBoardFlipped(newState.pgnModel!) });
@@ -267,23 +373,25 @@ export const createResourceOpenOps = (
     const activeSession = bundle.sessionStore.getActiveSession();
     const sourceRef = activeSession?.sourceRef;
     if (!sourceRef?.kind || !sourceRef.locator) return null;
-    try {
-      const resourceRef: { kind: string; locator: string } = {
-        kind: String(sourceRef.kind),
-        locator: String(sourceRef.locator),
-      };
-      const rows: unknown[] = await bundle.resources.listGamesForResource(resourceRef);
-      const row = (rows as Array<Record<string, unknown>>).find((r: Record<string, unknown>): boolean => {
-        const ref = r.sourceRef as Record<string, unknown> | null;
-        const rowRecordId: string = normalizeOptionalRecordId(ref?.recordId) ?? "";
-        const rowIdentifier: string = normalizeOptionalRecordId(r.identifier) ?? "";
-        return rowRecordId === recordId || rowIdentifier === recordId;
-      });
-      if (!row) return null;
-      return (row.metadata as Record<string, string>) ?? null;
-    } catch {
-      return null;
-    }
+    const id: string = String(recordId ?? "").trim();
+    if (!id) return null;
+    return lookupResourceMetadataByRecordId(
+      bundle,
+      String(sourceRef.kind),
+      String(sourceRef.locator),
+      id,
+    );
+  },
+
+  fetchGameMetadataByRecordIdInResource: async (
+    resource: { kind: string; locator: string },
+    recordId: string,
+  ): Promise<Record<string, string> | null> => {
+    const kind: string = String(resource?.kind ?? "").trim();
+    const locator: string = String(resource?.locator ?? "").trim();
+    const id: string = String(recordId ?? "").trim();
+    if (!kind || !locator || !id) return null;
+    return lookupResourceMetadataByRecordId(bundle, kind, locator, id);
   },
 
   getActiveSessionResourceRef: (): { kind: string; locator: string } | null => {

@@ -47,11 +47,17 @@ type RawSession = {
  * @param raw - Raw session object from the store.
  * @param activeSessionId - ID of the currently active session.
  * @param liveModel - Live pgnModel from activeSessionRef for the active session; null for inactive sessions.
+ * @param renderedLine1 - Pre-computed primary label from the resource rendering profile; undefined when no profile applies.
+ * @param renderedLine2 - Pre-computed secondary label from the resource rendering profile; undefined when not defined.
+ * @param grpProfileApplied - True when GRP matched a rule (including empty rendered strings).
  */
 export const toSessionItem = (
   raw: unknown,
   activeSessionId: string | null,
   liveModel: unknown,
+  renderedLine1?: string,
+  renderedLine2?: string,
+  grpProfileApplied?: boolean,
 ): SessionItemState => {
   const session: RawSession = (raw as RawSession) ?? {};
   const sessionId: string = typeof session.sessionId === "string" ? session.sessionId : "";
@@ -83,6 +89,9 @@ export const toSessionItem = (
     date: hv("Date"),
     sourceLocator,
     sourceGameRef,
+    renderedLine1,
+    renderedLine2,
+    ...(grpProfileApplied === true ? { grpProfileApplied: true } : {}),
   };
 };
 

@@ -14,21 +14,38 @@
  */
 
 import {
+  useState,
+  useEffect,
+  useMemo,
   type ReactElement,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type ChangeEvent,
 } from "react";
-import { clampWidth, tabRows } from "../services/viewer_utils";
+import { buildRecordIdToRowMap, clampWidth, tabRows } from "../services/viewer_utils";
 import type {
   TabState,
   ResourceRow,
   GroupByState,
   SortConfig,
 } from "../services/viewer_utils";
-import type { MetadataSchema, MetadataFieldDefinition } from "../../../../../parts/resource/src/domain/metadata_schema";
+import type {
+  MetadataSchema,
+  MetadataFieldDefinition,
+  GameRenderingProfile,
+  GameRenderingDisplay,
+} from "../../../../../parts/resource/src/domain/metadata_schema";
+import {
+  buildRenderedGameMap,
+  resolveDisplayForReferenceChip,
+  renderDisplayText,
+  type ReferenceChipDisplaySource,
+  type RenderedGameDisplay,
+} from "../services/game_rendering";
 import type { TrainingBadge } from "../../../training/transcript_storage";
 import { UI_IDS } from "../../../core/model/ui_ids";
+import { openExternalUrl } from "../../../resources/open_url";
+import { log } from "../../../logger";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -59,6 +76,12 @@ type ResourceTableProps = {
   onRemoveMetadataColumn: (key: string) => void;
   /** Training badges keyed by `"kind:locator:recordId"` composite ref (T14). */
   trainingBadges?: Map<string, TrainingBadge>;
+  /** Async function resolving a game's metadata by recordId — used to populate reference-field chips. */
+  onFetchMetadata?: (recordId: string) => Promise<Record<string, string> | null>;
+  /** Called when the user clicks a reference chip in a table cell to open the referenced game. */
+  onOpenReference?: (recordId: string) => void;
+  /** Pre-resolved reference metadata cache; populated by ResourceViewer on tab load. Used for filtering. */
+  resolvedRefMeta?: Map<string, Record<string, string>>;
 };
 
 // ── Internal types ────────────────────────────────────────────────────────────
@@ -73,6 +96,117 @@ type TableItem =
       rowCount: number;
     }
   | { kind: "row"; row: ResourceRow; originalIndex: number };
+
+// ── Reference cell ────────────────────────────────────────────────────────────
+
+const ReferenceCell = ({
+  recordId,
+  /** Same `ResourceRow` object as in this tab when the reference points at a loaded game — chips match the Game column. */
+  syncedRow,
+  syncedRendered,
+  onFetchMetadata,
+  onOpen,
+  renderingProfile,
+  schemaFieldsForGrp,
+}: {
+  recordId: string;
+  syncedRow: ResourceRow | null;
+  syncedRendered: RenderedGameDisplay | null;
+  onFetchMetadata: (id: string) => Promise<Record<string, string> | null>;
+  onOpen?: (id: string) => void;
+  renderingProfile?: GameRenderingProfile;
+  /** Active schema fields — enables select `when` matching (case-insensitive Type, etc.). */
+  schemaFieldsForGrp?: readonly MetadataFieldDefinition[];
+}): ReactElement => {
+  const [meta, setMeta] = useState<Record<string, string> | null>(null);
+
+  const useTableSync: boolean = syncedRow !== null;
+
+  useEffect((): (() => void) | void => {
+    if (!recordId || useTableSync) return;
+    let cancelled = false;
+    void (async (): Promise<void> => {
+      const result = await onFetchMetadata(recordId);
+      if (!cancelled) setMeta(result);
+    })();
+    return (): void => {
+      cancelled = true;
+    };
+  }, [recordId, useTableSync, onFetchMetadata]);
+
+  const metaForDisplay: Record<string, string> | null =
+    syncedRow !== null ? syncedRow.metadata : meta;
+
+  const white = String(metaForDisplay?.White ?? "").trim();
+  const black = String(metaForDisplay?.Black ?? "").trim();
+  const result = String(metaForDisplay?.Result ?? "").trim();
+  const date = String(metaForDisplay?.Date ?? "").trim();
+  const event = String(metaForDisplay?.Event ?? "").trim();
+
+  const chipResolution: {
+    display: GameRenderingDisplay | null;
+    source: ReferenceChipDisplaySource;
+  } =
+    metaForDisplay && renderingProfile
+      ? resolveDisplayForReferenceChip(metaForDisplay, renderingProfile, schemaFieldsForGrp)
+      : { display: null, source: "none" };
+  const rendered =
+    !useTableSync && chipResolution.display
+      ? renderDisplayText(chipResolution.display, metaForDisplay!)
+      : null;
+
+  const playersLabel = white && black ? `${white} — ${black}` : white || black || recordId;
+  const metaInline = [result, event, date].filter(Boolean).join(" · ");
+  const tooltip = [
+    white && `White: ${white}`,
+    black && `Black: ${black}`,
+    result && `Result: ${result}`,
+    event && `Event: ${event}`,
+    date && `Date: ${date}`,
+  ].filter(Boolean).join("\n") || recordId;
+
+  const primaryFromGrp = rendered?.line1 || playersLabel;
+  const secondaryFromGrp = rendered?.line2 ?? metaInline;
+
+  const primaryText: string =
+    useTableSync && syncedRow
+      ? (syncedRendered?.line1 ?? syncedRow.game)
+      : primaryFromGrp;
+  const secondaryText: string =
+    useTableSync && syncedRow ? (syncedRendered?.line2 ?? "") : secondaryFromGrp;
+
+  const unresolvedClass = metaForDisplay ? "" : "metadata-field-reference-game-chip--unresolved";
+  const noOpenClass = onOpen ? "" : "metadata-field-reference-game-chip--no-open";
+
+  if (
+    metaForDisplay &&
+    renderingProfile &&
+    !useTableSync &&
+    !rendered &&
+    primaryFromGrp === recordId
+  ) {
+    log.warn("ResourceTable", "ReferenceCell falls back to raw record id — check GRP rules / metadata fetch", {
+      recordId,
+      grpSlot: chipResolution.source,
+      hasWhiteBlack: Boolean(white || black),
+    });
+  }
+
+  return (
+    <button
+      type="button"
+      className={["metadata-field-reference-game-chip", unresolvedClass, noOpenClass].filter(Boolean).join(" ")}
+      data-grp-reference-slot={chipResolution.source}
+      title={tooltip}
+      onClick={onOpen ? (e): void => { e.stopPropagation(); onOpen(recordId); } : undefined}
+    >
+      <span className="metadata-field-reference-game-primary">{primaryText}</span>
+      {secondaryText && (
+        <span className="metadata-field-reference-game-secondary"> · {secondaryText}</span>
+      )}
+    </button>
+  );
+};
 
 // ── Column-label helper ───────────────────────────────────────────────────────
 
@@ -98,6 +232,7 @@ const computeGroupItems = (
   fields: string[],
   depth: number,
   collapsedSet: Set<string>,
+  renderedGameMap?: Map<ResourceRow, RenderedGameDisplay> | null,
 ): TableItem[] => {
   if (fields.length === 0 || depth >= fields.length) {
     return rows.map((r): TableItem => ({ kind: "row", row: r.row, originalIndex: r.originalIndex }));
@@ -107,7 +242,9 @@ const computeGroupItems = (
   // Collect unique values in order of first appearance.
   const seen = new Map<string, { row: ResourceRow; originalIndex: number }[]>();
   for (const r of rows) {
-    const val = field === "game" ? r.row.game : String(r.row.metadata[field] ?? "—");
+    const val = field === "game"
+      ? (renderedGameMap?.get(r.row)?.line1 ?? r.row.game)
+      : String(r.row.metadata[field] ?? "—");
     let group = seen.get(val);
     if (!group) { group = []; seen.set(val, group); }
     group.push(r);
@@ -126,7 +263,7 @@ const computeGroupItems = (
       rowCount: groupRows.length,
     });
     if (!isCollapsed) {
-      items.push(...computeGroupItems(groupRows, fields, depth + 1, collapsedSet));
+      items.push(...computeGroupItems(groupRows, fields, depth + 1, collapsedSet, renderedGameMap));
     }
   }
   return items;
@@ -157,38 +294,55 @@ const TrainingBadgeChip = ({ badge }: { badge: TrainingBadge }): ReactElement =>
 
 // ── Type-aware filter helpers (UV2) ───────────────────────────────────────────
 
+const applyNumberFilter = (raw: string, filterVal: string): boolean => {
+  const trimmed = filterVal.trim();
+  const op = trimmed[0];
+  if (op === ">" || op === "<" || op === "=") {
+    const threshold = Number.parseFloat(trimmed.slice(1).trim());
+    const cellNum = Number.parseFloat(raw);
+    if (!Number.isFinite(threshold) || !Number.isFinite(cellNum)) return false;
+    if (op === ">") return cellNum > threshold;
+    if (op === "<") return cellNum < threshold;
+    return cellNum === threshold;
+  }
+  return raw.toLowerCase().includes(filterVal.toLowerCase());
+};
+
+const applyReferenceFilter = (
+  recordId: string,
+  filterVal: string,
+  resolvedRefMeta?: Map<string, Record<string, string>>,
+): boolean => {
+  const meta = resolvedRefMeta?.get(recordId);
+  // Currently: substring on concatenated game fields from resolved metadata.
+  // Future: use renderDisplayFilterText with a profile-aware display when
+  // the rendering profile is threaded into this call site.
+  const searchText = meta
+    ? [meta["White"], meta["Black"], meta["Result"], meta["Event"], meta["Date"]]
+        .filter(Boolean).join(" ")
+    : recordId;
+  return searchText.toLowerCase().includes(filterVal.toLowerCase());
+};
+
 /**
  * Apply a type-aware filter to a raw cell value.
- * - number columns: supports `>N`, `<N`, `=N` prefix operators.
- * - select columns: exact match (case-insensitive) or empty = show all.
+ * - number: supports `>N`, `<N`, `=N` prefix operators.
+ * - select: exact match (case-insensitive) or empty = show all.
+ * - reference: substring on concatenated game fields from resolvedRefMeta;
+ *   falls back to the raw recordId when not yet resolved.
  * - date / text: substring match (case-insensitive).
  */
 const applyFilter = (
   raw: string,
   filterVal: string,
   fieldDef?: MetadataFieldDefinition,
+  resolvedRefMeta?: Map<string, Record<string, string>>,
 ): boolean => {
   if (!filterVal) return true;
   const type = fieldDef?.type ?? "text";
-
-  if (type === "number") {
-    const trimmed = filterVal.trim();
-    const op = trimmed[0];
-    if (op === ">" || op === "<" || op === "=") {
-      const threshold = parseFloat(trimmed.slice(1).trim());
-      const cellNum = parseFloat(raw);
-      if (!isFinite(threshold) || !isFinite(cellNum)) return false;
-      if (op === ">") return cellNum > threshold;
-      if (op === "<") return cellNum < threshold;
-      return cellNum === threshold;
-    }
-    // No operator: substring match on the numeric string.
-  }
-
-  if (type === "select") {
-    return filterVal === "" || raw.toLowerCase() === filterVal.toLowerCase();
-  }
-
+  if (type === "number") return applyNumberFilter(raw, filterVal);
+  if (type === "select") return raw.toLowerCase() === filterVal.toLowerCase();
+  if (type === "reference") return applyReferenceFilter(raw, filterVal, resolvedRefMeta);
   return raw.toLowerCase().includes(filterVal.toLowerCase());
 };
 
@@ -216,8 +370,12 @@ export const ResourceTable = ({
   onToggleGroup,
   onRemoveMetadataColumn,
   trainingBadges,
+  onFetchMetadata,
+  onOpenReference,
+  resolvedRefMeta,
 }: ResourceTableProps): ReactElement => {
   const allRows = tabRows(activeTab);
+  const recordIdToRow = useMemo((): Map<string, ResourceRow> => buildRecordIdToRowMap(allRows), [allRows]);
 
   // Build field-definition lookup for type-aware filtering (UV2).
   const fieldDefMap = new Map<string, MetadataFieldDefinition>(
@@ -225,20 +383,34 @@ export const ResourceTable = ({
   );
   const hasActiveFilter = Object.values(columnFilters).some((v) => v !== "");
 
+  // Pre-compute rendered display strings for all rows (display1 slot).
+  // Used for filter, sort, group-by labels, and cell display.
+  const renderedGameMap = useMemo((): Map<ResourceRow, RenderedGameDisplay> | null => {
+    const profile = activeSchema?.rendering;
+    if (!profile) return null;
+    return buildRenderedGameMap(allRows, profile, "display1", activeSchema?.fields);
+  }, [allRows, activeSchema?.rendering, activeSchema?.fields]);
+
   // 1. Filter (UV2: type-aware operators)
   const filteredRows = allRows.filter((row: ResourceRow): boolean =>
     Object.entries(columnFilters).every(([key, val]: [string, string]): boolean => {
       if (!val) return true;
-      const text = key === "game" ? row.game : String(row.metadata[key] ?? "");
-      return applyFilter(text, val, fieldDefMap.get(key));
+      const text = key === "game"
+        ? (renderedGameMap?.get(row)?.filterText ?? row.game)
+        : String(row.metadata[key] ?? "");
+      return applyFilter(text, val, fieldDefMap.get(key), resolvedRefMeta);
     }),
   );
 
   // 2. Sort (UV4)
   const sortedRows: ResourceRow[] = sortConfig
     ? [...filteredRows].sort((a: ResourceRow, b: ResourceRow): number => {
-        const valA = sortConfig.key === "game" ? a.game : String(a.metadata[sortConfig.key] ?? "");
-        const valB = sortConfig.key === "game" ? b.game : String(b.metadata[sortConfig.key] ?? "");
+        const valA = sortConfig.key === "game"
+          ? (renderedGameMap?.get(a)?.line1 ?? a.game)
+          : String(a.metadata[sortConfig.key] ?? "");
+        const valB = sortConfig.key === "game"
+          ? (renderedGameMap?.get(b)?.line1 ?? b.game)
+          : String(b.metadata[sortConfig.key] ?? "");
         const cmp = valA.localeCompare(valB, undefined, { numeric: true, sensitivity: "base" });
         return sortConfig.dir === "asc" ? cmp : -cmp;
       })
@@ -253,7 +425,7 @@ export const ResourceTable = ({
 
   const tableItems: TableItem[] =
     groupByState.fields.length > 0
-      ? computeGroupItems(indexedRows, groupByState.fields, 0, collapsedSet)
+      ? computeGroupItems(indexedRows, groupByState.fields, 0, collapsedSet, renderedGameMap)
       : indexedRows.map((r): TableItem => ({ kind: "row", row: r.row, originalIndex: r.originalIndex }));
 
   // Flat list of visible rows (for ▲▼ reorder buttons)
@@ -461,7 +633,32 @@ export const ResourceTable = ({
                       <span className="resource-group-toggle" aria-hidden="true">
                         {item.collapsed ? "▶" : "▼"}
                       </span>
-                      <span className="resource-group-label">{item.label}</span>
+                      {(() => {
+                        const groupField = groupByState.fields[item.depth];
+                        if (
+                          groupField &&
+                          fieldDefMap.get(groupField)?.type === "reference" &&
+                          item.label !== "—" &&
+                          onFetchMetadata
+                        ) {
+                          const rid: string = item.label;
+                          const syncRow: ResourceRow | null = recordIdToRow.get(rid) ?? null;
+                          const syncRendered: RenderedGameDisplay | null =
+                            syncRow && renderedGameMap ? renderedGameMap.get(syncRow) ?? null : null;
+                          return (
+                            <ReferenceCell
+                              recordId={rid}
+                              syncedRow={syncRow}
+                              syncedRendered={syncRendered}
+                              onFetchMetadata={onFetchMetadata}
+                              onOpen={onOpenReference}
+                              renderingProfile={activeSchema?.rendering}
+                              schemaFieldsForGrp={activeSchema?.fields}
+                            />
+                          );
+                        }
+                        return <span className="resource-group-label">{item.label}</span>;
+                      })()}
                       <span className="resource-group-count">({item.rowCount})</span>
                     </td>
                   </tr>
@@ -486,9 +683,10 @@ export const ResourceTable = ({
                     }
                   }}
                 >
-                  {activeTab.metadataColumnOrder.map((key: string): ReactElement => (
-                    <td key={key}>
-                      {key === "game" ? (
+                  {activeTab.metadataColumnOrder.map((key: string): ReactElement => {
+                    let cellContent: ReactElement | string;
+                    if (key === "game") {
+                      cellContent = (
                         <span className="resource-game-cell">
                           {supportsReorder && (
                             <span className="resource-row-order-btns">
@@ -522,14 +720,57 @@ export const ResourceTable = ({
                             return badge ? <TrainingBadgeChip badge={badge} /> : null;
                           })()}
                           <button type="button" className="resource-open-button">
-                            {row.game}
+                            {(() => {
+                              const rendered = renderedGameMap?.get(row);
+                              if (!rendered) return row.game;
+                              return (
+                                <span className="resource-game-rendered">
+                                  <span className="resource-game-line1">{rendered.line1}</span>
+                                  {rendered.line2 && <span className="resource-game-line2">{rendered.line2}</span>}
+                                </span>
+                              );
+                            })()}
                           </button>
                         </span>
-                      ) : (
-                        String(row.metadata[key] ?? "-")
-                      )}
-                    </td>
-                  ))}
+                      );
+                    } else if (fieldDefMap.get(key)?.type === "reference" && row.metadata[key] && onFetchMetadata) {
+                      const refRecordId = String(row.metadata[key]);
+                      const syncRow: ResourceRow | null = recordIdToRow.get(refRecordId) ?? null;
+                      const syncRendered: RenderedGameDisplay | null =
+                        syncRow && renderedGameMap ? renderedGameMap.get(syncRow) ?? null : null;
+                      cellContent = (
+                        <ReferenceCell
+                          recordId={refRecordId}
+                          syncedRow={syncRow}
+                          syncedRendered={syncRendered}
+                          onFetchMetadata={onFetchMetadata}
+                          onOpen={onOpenReference}
+                          renderingProfile={activeSchema?.rendering}
+                          schemaFieldsForGrp={activeSchema?.fields}
+                        />
+                      );
+                    } else if (fieldDefMap.get(key)?.type === "link" && row.metadata[key]) {
+                      const url = String(row.metadata[key]);
+                      cellContent = (
+                        <button
+                          type="button"
+                          className="resource-table-link"
+                          title={url}
+                          onClick={(e: ReactMouseEvent): void => {
+                            e.stopPropagation();
+                            void openExternalUrl(url);
+                          }}
+                        >↗ {url}</button>
+                      );
+                    } else {
+                      cellContent = String(row.metadata[key] ?? "-");
+                    }
+                    return (
+                      <td key={key}>
+                        {cellContent}
+                      </td>
+                    );
+                  })}
                 </tr>
               );
             })}

@@ -26,6 +26,7 @@ import { runMigrations } from "../../database/migrations/runner";
 import type { BuildPositionIndex } from "./position_index";
 import type { BuildMoveEdgeIndex } from "./move_edge_index";
 import type { MoveFrequencyEntry } from "../../domain/move_frequency";
+import { extractMultiPgnMetadata, extractPgnMetadataFromSource } from "../../domain/metadata";
 import { asMetaRow, makeWritePositionIndex, makeWriteMoveEdgeIndex, writeMetadata } from "./db_indexer";
 
 // ── Per-path migration cache ───────────────────────────────────────────────────
@@ -82,6 +83,8 @@ type GameRow = {
   order_index: number;
   created_at: number;
   kind: string;
+  /** Stored game text — source of truth for bracket headers when merging list metadata. */
+  pgn_text: string;
 };
 
 const asGameRow = (r: unknown): GameRow => {
@@ -93,6 +96,7 @@ const asGameRow = (r: unknown): GameRow => {
     order_index:    Number(v.order_index ?? 0),
     created_at:     Number(v.created_at  ?? 0),
     kind:           strOf(v.kind) || "game",
+    pgn_text:       strOf(v.pgn_text),
   };
 };
 
@@ -174,6 +178,37 @@ const loadMetadataForGames = async (
   return result;
 };
 
+/**
+ * Overlay SQL metadata index with bracket tags parsed from `games.pgn_text`.
+ * Stored PGN is the canonical header source for list/search/GRP; index rows may lag or omit tags.
+ * Multi-valued keys (`metadata_keys.cardinality = many`) use {@link extractMultiPgnMetadata}.
+ */
+const mergeIndexedMetadataWithPgnHeaders = (
+  indexed: Record<string, string | string[]>,
+  pgnText: string,
+  cardinalityMap: ReadonlyMap<string, MetadataValueCardinality>,
+): Record<string, string | string[]> => {
+  const merged: Record<string, string | string[]> = { ...indexed };
+  const manyKeyList: string[] = [];
+  for (const [key, card] of cardinalityMap.entries()) {
+    if (card === "many") manyKeyList.push(key);
+  }
+  const multiFromPgn: Record<string, string[]> =
+    manyKeyList.length > 0 ? extractMultiPgnMetadata(pgnText, manyKeyList) : {};
+  for (const key of manyKeyList) {
+    const arr: string[] = multiFromPgn[key] ?? [];
+    if (arr.length > 0) {
+      merged[key] = arr;
+    }
+  }
+  const fromPgnSingle: Record<string, string> = extractPgnMetadataFromSource(pgnText).metadata;
+  for (const [k, v] of Object.entries(fromPgnSingle)) {
+    if ((cardinalityMap.get(k) ?? "one") === "many") continue;
+    merged[k] = v;
+  }
+  return merged;
+};
+
 // ── Adapter factory ────────────────────────────────────────────────────────────
 
 /**
@@ -203,7 +238,7 @@ export const createDbAdapter = (
     await ensureMigrated(db, dbPath);
 
     const gameRows = (await db.query(
-      "SELECT id, title_hint, revision_token, order_index, created_at, kind FROM games ORDER BY order_index ASC, created_at ASC",
+      "SELECT id, title_hint, revision_token, order_index, created_at, kind, pgn_text FROM games ORDER BY order_index ASC, created_at ASC",
     )).map(asGameRow);
 
     const gameIds = gameRows.map((r) => r.id);
@@ -213,7 +248,8 @@ export const createDbAdapter = (
 
     return {
       entries: gameRows.map((row) => {
-        const metadata = metaByGame.get(row.id) ?? {};
+        const indexed = metaByGame.get(row.id) ?? {};
+        const metadata = mergeIndexedMetadataWithPgnHeaders(indexed, row.pgn_text, cardinalityMap);
         return {
           gameRef: { kind: "db", locator: dbPath, recordId: row.id },
           title: deriveTitle(metadata, row.title_hint),

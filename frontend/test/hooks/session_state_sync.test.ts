@@ -80,12 +80,13 @@ test("dispatchSessionStateSnapshot emits the full canonical action set", (): voi
     actions.push(action);
   });
 
-  assert.equal(actions.length, 4);
+  assert.equal(actions.length, 5);
   assert.deepEqual(actions.map((a: AppAction): string => a.type), [
     "set_pgn_state",
     "set_navigation",
     "set_undo_redo_depth",
     "set_pending_focus",
+    "set_layout_mode",
   ]);
 
   const navigationAction = actions[1];

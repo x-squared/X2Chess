@@ -307,6 +307,7 @@ test("openGameFromRef opens a new session instead of replacing active", async ()
     pgnRuntime: { syncChessParseState: (): void => {} },
     resources: {
       loadGameBySourceRef: async (): Promise<{ pgnText: string }> => ({ pgnText: loadedPgn }),
+      loadResourceSchemaId: async (): Promise<string | null> => null,
     },
     resourceViewer: {},
     sessionModel: {
@@ -321,6 +322,7 @@ test("openGameFromRef opens a new session instead of replacing active", async ()
     sessionStore: {
       listSessions: (): Array<{ sourceRef?: { kind?: string; locator?: string; recordId?: string } }> => [],
       switchToSession: (): boolean => false,
+      notifySessionsChanged: (): void => {},
       openSession: (input: {
         ownState: ReturnType<typeof createEmptyGameSessionState>;
         title: string;

@@ -45,6 +45,15 @@ export type SessionItemState = {
   date: string;
   sourceLocator: string;
   sourceGameRef: string;
+  /** Pre-rendered primary label from the source resource's rendering profile. */
+  renderedLine1?: string;
+  /** Pre-rendered secondary label from the source resource's rendering profile. */
+  renderedLine2?: string;
+  /**
+   * True when `renderedLine1`/`renderedLine2` come from a matched GRP rule (even if both
+   * strings are empty). Session tab UI must not substitute player names in that case.
+   */
+  grpProfileApplied?: boolean;
 };
 
 export type AppStoreState = {

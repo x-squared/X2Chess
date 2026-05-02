@@ -1,23 +1,29 @@
 /**
- * useSchemaManagement — schema selection, schema CRUD, and per-tab schema wiring.
+ * useSchemaManagement — schema selection and per-tab schema wiring for ResourceViewer.
+ *
+ * Schema CRUD (create / edit / delete) is handled by MetadataPanel in the dedicated
+ * Metadata tab.  This hook is responsible only for:
+ *   - Maintaining the in-memory schema list (reloaded from localStorage when
+ *     MetadataPanel dispatches `x2chess:schemas-updated`).
+ *   - Tracking which schema is assigned to each open tab.
+ *   - Persisting schema changes per-resource.
  *
  * Integration API:
- * - `useSchemaManagement(activeTabId, activeTab)` →
- *   `{ schemas, tabSchemaMap, activeSchemaId, activeSchema, schemaEditorOpen,
- *      editingSchema, handleSchemaSelect, handleSchemaManage, handleSchemaSave,
- *      handleSchemaEditorClose }`
+ * - `useSchemaManagement(activeTabId, deps)` →
+ *   `{ schemas, tabSchemaMap, activeSchemaId, activeSchema,
+ *      initTabSchema, handleSchemaSelect }`
  *
  * Communication API:
- * - Persists schemas to localStorage via `schema_storage`.
+ * - Reads / writes schemas via `schema_storage`.
+ * - Listens for `x2chess:schemas-updated` (dispatched by MetadataPanel) to
+ *   refresh the schema list without a page reload.
  * - Persists per-tab schema assignment via `setResourceSchemaId`.
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type { TabState } from "../services/viewer_utils";
 import {
   loadSchemas,
-  saveSchemas,
-  upsertSchema,
   setResourceSchemaId,
 } from "../services/schema_storage";
 import {
@@ -30,18 +36,8 @@ type UseSchemaManagementResult = {
   tabSchemaMap: Record<string, string | null>;
   activeSchemaId: string | null;
   activeSchema: MetadataSchema;
-  schemaManagerOpen: boolean;
-  schemaEditorOpen: boolean;
-  editingSchema: MetadataSchema | null;
   /** `resourceRef` is the active tab's resource ref — pass `activeTab?.resourceRef ?? null`. */
   handleSchemaSelect: (id: string, resourceRef: TabState["resourceRef"] | null) => void;
-  handleSchemaManage: () => void;
-  handleSchemaManagerClose: () => void;
-  handleSchemaEdit: (schema: MetadataSchema) => void;
-  handleSchemaNew: () => void;
-  handleSchemaDelete: (id: string) => void;
-  handleSchemaSave: (saved: MetadataSchema) => void;
-  handleSchemaEditorClose: () => void;
   /** Seed `tabSchemaMap` from a resource on tab activation. No-op if already set this session. */
   initTabSchema: (tabId: string, schemaId: string | null) => void;
 };
@@ -57,9 +53,12 @@ export const useSchemaManagement = (
 ): UseSchemaManagementResult => {
   const [schemas, setSchemas] = useState<MetadataSchema[]>(() => loadSchemas());
   const [tabSchemaMap, setTabSchemaMap] = useState<Record<string, string | null>>({});
-  const [schemaManagerOpen, setSchemaManagerOpen] = useState<boolean>(false);
-  const [schemaEditorOpen, setSchemaEditorOpen] = useState<boolean>(false);
-  const [editingSchema, setEditingSchema] = useState<MetadataSchema | null>(null);
+
+  useEffect((): (() => void) => {
+    const handler = (): void => { setSchemas(loadSchemas()); };
+    globalThis.addEventListener("x2chess:schemas-updated", handler);
+    return (): void => { globalThis.removeEventListener("x2chess:schemas-updated", handler); };
+  }, []);
 
   const activeSchemaId: string | null = tabSchemaMap[activeTabId ?? ""] ?? null;
   const activeSchema: MetadataSchema =
@@ -82,65 +81,12 @@ export const useSchemaManagement = (
     });
   }, []);
 
-  const handleSchemaManage = useCallback((): void => {
-    setSchemaManagerOpen(true);
-  }, []);
-
-  const handleSchemaManagerClose = useCallback((): void => {
-    setSchemaManagerOpen(false);
-  }, []);
-
-  const handleSchemaEdit = useCallback((schema: MetadataSchema): void => {
-    setEditingSchema(schema);
-    setSchemaManagerOpen(false);
-    setSchemaEditorOpen(true);
-  }, []);
-
-  const handleSchemaNew = useCallback((): void => {
-    setEditingSchema(null);
-    setSchemaManagerOpen(false);
-    setSchemaEditorOpen(true);
-  }, []);
-
-  const handleSchemaDelete = useCallback((id: string): void => {
-    setSchemas((prev) => {
-      const next = prev.filter((s) => s.id !== id);
-      saveSchemas(next);
-      return next;
-    });
-  }, []);
-
-  const handleSchemaSave = useCallback((saved: MetadataSchema): void => {
-    setSchemas((prev) => {
-      const next = upsertSchema(prev, saved);
-      saveSchemas(next);
-      return next;
-    });
-    setSchemaEditorOpen(false);
-    setEditingSchema(null);
-  }, []);
-
-  const handleSchemaEditorClose = useCallback((): void => {
-    setSchemaEditorOpen(false);
-    setEditingSchema(null);
-  }, []);
-
   return {
     schemas,
     tabSchemaMap,
     activeSchemaId,
     activeSchema,
-    schemaManagerOpen,
-    schemaEditorOpen,
-    editingSchema,
-    initTabSchema,
     handleSchemaSelect,
-    handleSchemaManage,
-    handleSchemaManagerClose,
-    handleSchemaEdit,
-    handleSchemaNew,
-    handleSchemaDelete,
-    handleSchemaSave,
-    handleSchemaEditorClose,
+    initTabSchema,
   };
 };

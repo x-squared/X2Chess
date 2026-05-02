@@ -6,7 +6,7 @@
  *   for the loaded tab (same rows as the Game column).
  * - Exports: canonical `clampWidth`, `readPrefsMap`, `writePrefsMap`,
  *   `persistTabPrefs`, `reconcileColumns`, `insertMetadataColumnFromSchema`,
- *   `listAddableMetadataFields`, `resolveMergedFieldDefinition`, `removeMetadataColumnFromTab`, and shared types.
+ *   `listAddableMetadataFields`, `resolveMergedFieldDefinition`, `removeMetadataColumnFromTab`, `rowPrimaryRecordId`, and shared types.
  * - Exports: `GroupByState`, `SortConfig`, and their localStorage helpers.
  *
  * Configuration API:
@@ -40,8 +40,13 @@ import { createVersionedStore } from "../../../storage";
 export const PREFS_STORAGE_KEY = "x2chess.resourceViewerColumnPrefs.v1";
 export const GROUP_BY_STORAGE_PREFIX = "x2chess.groupby.";
 export const DEFAULT_COL_WIDTH_PX = 160;
-export const MIN_COL_WIDTH_PX = 90;
+export const MIN_COL_WIDTH_PX = 40;
 export const MAX_COL_WIDTH_PX = 560;
+
+/** Default width for the optional `game` (record id) column — hash icon only (~18px + minimal chrome). */
+export const DEFAULT_GAME_ID_COL_WIDTH_PX = 28;
+export const MIN_GAME_ID_COL_WIDTH_PX = 24;
+export const MAX_GAME_ID_COL_WIDTH_PX = 40;
 
 /** Metadata columns shown when no user preference exists for a tab (aligned with `DEFAULT_RESOURCE_VIEWER_METADATA_KEYS`). */
 export const DEFAULT_METADATA_KEYS: readonly string[] = DEFAULT_RESOURCE_VIEWER_METADATA_KEYS;
@@ -111,6 +116,20 @@ export const buildRecordIdToRowMap = (rows: readonly ResourceRow[]): Map<string,
   return m;
 };
 
+/**
+ * Canonical stable id for a loaded row: `sourceRef.recordId` when present, otherwise `identifier`.
+ * Matches keys used in `buildRecordIdToRowMap` and the resource table “Game ID” column.
+ *
+ * @param row Loaded resource row.
+ * @returns Non-empty id string, or empty when neither field is set.
+ */
+export const rowPrimaryRecordId = (row: ResourceRow): string => {
+  const sr: Record<string, unknown> | null = row.sourceRef;
+  const fromRef: string =
+    sr && typeof sr["recordId"] === "string" ? String(sr["recordId"]).trim() : "";
+  return fromRef || String(row.identifier ?? "").trim();
+};
+
 export type TabLoadState =
   | { status: "idle" }
   | { status: "loading" }
@@ -157,6 +176,17 @@ export const clampWidth = (value: unknown): number => {
   const n: number = Number(value);
   if (!Number.isFinite(n)) return DEFAULT_COL_WIDTH_PX;
   return Math.max(MIN_COL_WIDTH_PX, Math.min(MAX_COL_WIDTH_PX, Math.round(n)));
+};
+
+/**
+ * Clamp width for the Game ID (`game`) column — intentionally narrow for icon cells.
+ *
+ * @param value Stored width from prefs or pixel delta during resize.
+ */
+export const clampGameIdColumnWidth = (value: unknown): number => {
+  const n: number = Number(value);
+  if (!Number.isFinite(n)) return DEFAULT_GAME_ID_COL_WIDTH_PX;
+  return Math.max(MIN_GAME_ID_COL_WIDTH_PX, Math.min(MAX_GAME_ID_COL_WIDTH_PX, Math.round(n)));
 };
 
 // ── Column-prefs localStorage helpers ────────────────────────────────────────
@@ -286,7 +316,7 @@ export const resolveMergedFieldDefinition = (
  * Sorted **alphabetically by label** (then key).
  *
  * @param schema Active metadata schema.
- * @param metadataColumnOrder Current column keys (includes `game` first when persisted).
+ * @param metadataColumnOrder Current column keys (`game` when the Game ID column is visible).
  * @param discoveredKeys Keys reported for this tab’s games.
  */
 export const listAddableMetadataFields = (
@@ -309,6 +339,15 @@ export const listAddableMetadataFields = (
     }
     return byLabel;
   });
+  if (!metadataColumnOrder.includes("game")) {
+    out.unshift({
+      key: "game",
+      label: "Game ID",
+      type: "text",
+      required: false,
+      orderIndex: -1,
+    });
+  }
   return out;
 };
 
@@ -328,7 +367,14 @@ export const insertMetadataColumnFromSchema = <T extends TabState>(
   schema: MetadataSchema,
   discoveredKeys?: readonly string[],
 ): T => {
-  if (fieldKey === "game" || fieldKey === "source") return tab;
+  if (fieldKey === "source") return tab;
+  if (fieldKey === "game") {
+    if (tab.metadataColumnOrder.includes("game")) return tab;
+    return reconcileColumns({
+      ...tab,
+      metadataColumnOrder: ["game", ...tab.metadataColumnOrder],
+    });
+  }
   if (tab.visibleMetadataKeys.includes(fieldKey)) return tab;
 
   const merged: Map<string, MetadataFieldDefinition> = buildMergedFieldMap(schema, discoveredKeys);
@@ -353,12 +399,13 @@ export const insertMetadataColumnFromSchema = <T extends TabState>(
   }
   nextVisible.splice(insertPos, 0, fieldKey);
 
-  const nextOrder: string[] = ["game", ...nextVisible];
+  const includeGame: boolean = tab.metadataColumnOrder.includes("game");
+  const nextOrder: string[] = includeGame ? ["game", ...nextVisible] : [...nextVisible];
   return reconcileColumns({ ...tab, visibleMetadataKeys: nextVisible, metadataColumnOrder: nextOrder });
 };
 
 /**
- * Remove one metadata column from prefs (not the `game` column). Applies `reconcileColumns`.
+ * Remove one column from prefs (including optional `game` / Game ID). Applies `reconcileColumns`.
  *
  * @param tab Current tab.
  * @param fieldKey Metadata / system column key to remove.
@@ -368,8 +415,10 @@ export const removeMetadataColumnFromTab = <T extends TabState>(
   tab: T,
   fieldKey: string,
 ): T => {
-  if (fieldKey === "game") return tab;
-  const visible: string[] = tab.visibleMetadataKeys.filter((k: string): boolean => k !== fieldKey);
+  const visible: string[] =
+    fieldKey === "game"
+      ? [...tab.visibleMetadataKeys]
+      : tab.visibleMetadataKeys.filter((k: string): boolean => k !== fieldKey);
   const order: string[] = tab.metadataColumnOrder.filter((k: string): boolean => k !== fieldKey);
   const columnWidths: Record<string, number> = { ...tab.columnWidths };
   delete columnWidths[fieldKey];
@@ -399,7 +448,8 @@ export const reconcileColumns = <T extends TabState>(tab: T): T => {
     rawVisible = [...DEFAULT_METADATA_KEYS];
   }
   const visible: string[] = rawVisible.filter((k: string): boolean => k !== "source");
-  const allowed: string[] = ["game", ...visible];
+  const includeGame: boolean = tab.metadataColumnOrder.includes("game");
+  const allowed: string[] = includeGame ? ["game", ...visible] : [...visible];
   const seen = new Set<string>();
   const order: string[] = [];
   [...tab.metadataColumnOrder, ...allowed].forEach((k: string): void => {
@@ -410,7 +460,10 @@ export const reconcileColumns = <T extends TabState>(tab: T): T => {
   });
   const widths: Record<string, number> = {};
   order.forEach((k: string): void => {
-    widths[k] = clampWidth(tab.columnWidths[k] ?? DEFAULT_COL_WIDTH_PX);
+    widths[k] =
+      k === "game"
+        ? clampGameIdColumnWidth(tab.columnWidths[k])
+        : clampWidth(tab.columnWidths[k] ?? DEFAULT_COL_WIDTH_PX);
   });
   return { ...tab, visibleMetadataKeys: visible, metadataColumnOrder: order, columnWidths: widths };
 };

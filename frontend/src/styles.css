@@ -62,6 +62,12 @@ body.menu-open {
   padding: 0;
 }
 
+.app-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
 body.dev-dock-open .app {
   padding-bottom: calc(var(--dev-dock-height) + 1rem);
 }

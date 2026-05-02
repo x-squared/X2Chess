@@ -4,6 +4,7 @@
  * Control order (left → right):
  *   [Schema label + chooser/locked display]
  *   [Show metadata dropdown]
+ *   [Arrange columns…]
  *   [Group by: label + pills + add dropdown + clear]
  *   [Clear filters]
  *
@@ -46,6 +47,8 @@ type ResourceToolbarProps = {
   /** Schema fields not yet shown as table columns (same order as schema editor). */
   addableSchemaFields: MetadataFieldDefinition[];
   onAddMetadataField: (fieldKey: string) => void;
+  /** Opens the column order dialog (Move up / down). */
+  onOpenColumnOrder: () => void;
 };
 
 export const ResourceToolbar = ({
@@ -63,6 +66,7 @@ export const ResourceToolbar = ({
   onSchemaSelect,
   addableSchemaFields,
   onAddMetadataField,
+  onOpenColumnOrder,
 }: ResourceToolbarProps): ReactElement => {
   const [isChangingSchema, setIsChangingSchema] = useState<boolean>(false);
 
@@ -122,6 +126,15 @@ export const ResourceToolbar = ({
       )}
 
       {/* ── Show metadata column ───────────────────────────────────────── */}
+      <button
+        type="button"
+        className="resource-toolbar-arrange-columns-btn"
+        data-ui-id={`${UI_IDS.RESOURCES_TOOLBAR}.arrangeColumns`}
+        onClick={(): void => { onOpenColumnOrder(); }}
+      >
+        {t("resources.table.arrangeColumns", "Arrange columns…")}
+      </button>
+
       {addableSchemaFields.length > 0 && (
         <select
           className="resource-metadata-add-field"
@@ -138,7 +151,9 @@ export const ResourceToolbar = ({
         >
           <option value="">{t("resources.metadata.showFieldPlaceholder", "Show metadata…")}</option>
           {addableSchemaFields.map((f: MetadataFieldDefinition) => (
-            <option key={f.key} value={f.key}>{f.label}</option>
+            <option key={f.key} value={f.key}>
+              {f.key === "game" ? t("resources.table.gameId", "Game ID") : f.label}
+            </option>
           ))}
         </select>
       )}

@@ -13,6 +13,11 @@
  * - All I/O delegated to the injected `DbGateway`; no direct SQLite dependency.
  * - Implements `list`, `load`, `save`, `create` for the canonical `db` kind.
  * - Implements `searchByMetadataValues` with `"any"` and `"all"` modes.
+ * - **Writes:** `games.pgn_text` is the canonical game blob; `game_metadata`, `position_hashes`,
+ *   and `move_edges` are rebuilt only via {@link rewriteDerivedGameIndexes} inside the same
+ *   transaction as `save`/`create`. On `save`, `title_hint` is refreshed from PGN headers (same
+ *   rules as list titles) so `load` titles stay aligned; `create` keeps the caller-supplied
+ *   `title_hint` (e.g. session disambiguation suffixes).
  */
 
 import { PgnResourceError } from "../../domain/actions";
@@ -27,7 +32,7 @@ import type { BuildPositionIndex } from "./position_index";
 import type { BuildMoveEdgeIndex } from "./move_edge_index";
 import type { MoveFrequencyEntry } from "../../domain/move_frequency";
 import { extractMultiPgnMetadata, extractPgnMetadataFromSource } from "../../domain/metadata";
-import { asMetaRow, makeWritePositionIndex, makeWriteMoveEdgeIndex, writeMetadata } from "./db_indexer";
+import { asMetaRow, makeWritePositionIndex, makeWriteMoveEdgeIndex, rewriteDerivedGameIndexes } from "./db_indexer";
 
 // ── Per-path migration cache ───────────────────────────────────────────────────
 
@@ -72,6 +77,19 @@ const deriveTitle = (metadata: Record<string, string | string[]>, titleHint: str
   if (white && black && white !== "?" && black !== "?") return `${white} \u2013 ${black}`;
   if (titleHint) return titleHint;
   return "";
+};
+
+/**
+ * Keep `games.title_hint` aligned with list/tab titles: same rule as {@link deriveTitle},
+ * using bracket headers from `pgnText` and `previousTitleHint` when White/Black are missing.
+ */
+const deriveTitleHintFromPgn = (pgnText: string, previousTitleHint: string): string => {
+  const src: Record<string, string> = extractPgnMetadataFromSource(pgnText).metadata;
+  const multi = extractMultiPgnMetadata(pgnText, ["White", "Black"]);
+  const white0: string = (multi.White?.[0] ?? src.White ?? "").trim();
+  const black0: string = (multi.Black?.[0] ?? src.Black ?? "").trim();
+  const metaForTitle: Record<string, string | string[]> = { White: white0, Black: black0 };
+  return deriveTitle(metaForTitle, previousTitleHint);
 };
 
 // ── Row types returned from DB queries ────────────────────────────────────────
@@ -301,12 +319,13 @@ export const createDbAdapter = (
     const db = gatewayForPath(dbPath);
     await ensureMigrated(db, dbPath);
 
+    const existingRows = await db.query("SELECT title_hint, revision_token FROM games WHERE id = ?", [gameId]);
+    if (existingRows.length === 0) {
+      throw new PgnResourceError("not_found", `Game ${gameId} not found in ${dbPath}.`);
+    }
+    const existingRow = existingRows[0] as Record<string, unknown>;
     if (options?.expectedRevisionToken) {
-      const rows = await db.query("SELECT revision_token FROM games WHERE id = ?", [gameId]);
-      if (rows.length === 0) {
-        throw new PgnResourceError("not_found", `Game ${gameId} not found in ${dbPath}.`);
-      }
-      const stored = strOf((rows[0] as Record<string, unknown>).revision_token);
+      const stored = strOf(existingRow.revision_token);
       if (stored !== options.expectedRevisionToken) {
         throw new PgnResourceError(
           "conflict",
@@ -315,21 +334,19 @@ export const createDbAdapter = (
       }
     }
 
+    const previousTitleHint: string = strOf(existingRow.title_hint);
+    const newTitleHint: string = deriveTitleHintFromPgn(pgnText, previousTitleHint);
     const newToken = generateRevisionToken();
     const now = Date.now();
     const kind = detectKind(pgnText);
+    const indexWriters = { writePositionIndex, writeMoveEdgeIndex };
 
     await db.transaction(async (tx) => {
       await tx.execute(
-        "UPDATE games SET pgn_text = ?, revision_token = ?, updated_at = ?, kind = ? WHERE id = ?",
-        [pgnText, newToken, now, kind, gameId],
+        "UPDATE games SET pgn_text = ?, revision_token = ?, updated_at = ?, kind = ?, title_hint = ? WHERE id = ?",
+        [pgnText, newToken, now, kind, newTitleHint, gameId],
       );
-      await tx.execute("DELETE FROM game_metadata WHERE game_id = ?", [gameId]);
-      await writeMetadata(tx, gameId, pgnText);
-      await tx.execute("DELETE FROM position_hashes WHERE game_id = ?", [gameId]);
-      await writePositionIndex(tx, gameId, pgnText);
-      await tx.execute("DELETE FROM move_edges WHERE game_id = ?", [gameId]);
-      await writeMoveEdgeIndex(tx, gameId, pgnText);
+      await rewriteDerivedGameIndexes(tx, gameId, pgnText, indexWriters);
     });
 
     return { gameRef, revisionToken: newToken };
@@ -353,8 +370,9 @@ export const createDbAdapter = (
     const id = generateId();
     const revisionToken = generateRevisionToken();
     const now = Date.now();
-    const titleHint = String(title || "").trim();
+    const titleHint: string = String(title || "").trim();
     const kind = detectKind(pgnText);
+    const indexWriters = { writePositionIndex, writeMoveEdgeIndex };
 
     await db.transaction(async (tx) => {
       await tx.execute(
@@ -362,9 +380,7 @@ export const createDbAdapter = (
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [id, pgnText, titleHint, now, now, orderIndex, revisionToken, kind],
       );
-      await writeMetadata(tx, id, pgnText);
-      await writePositionIndex(tx, id, pgnText);
-      await writeMoveEdgeIndex(tx, id, pgnText);
+      await rewriteDerivedGameIndexes(tx, id, pgnText, indexWriters);
     });
 
     return {

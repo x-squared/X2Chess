@@ -184,7 +184,8 @@ export const createResourceMetadataPrefs = ({ state }: { state: ResourceViewerSt
       state.resourceViewerDefaultMetadataKeys,
     );
     tab.visibleMetadataKeys = [...visibleMetadataKeys];
-    const allowedColumnKeys: string[] = ["game", ...visibleMetadataKeys];
+    const orderHasGame: boolean = tab.metadataColumnOrder.includes("game");
+    const allowedColumnKeys: string[] = orderHasGame ? ["game", ...visibleMetadataKeys] : [...visibleMetadataKeys];
     tab.metadataColumnOrder = normalizeColumnOrder(tab.metadataColumnOrder, allowedColumnKeys);
     if (!tab.columnWidths || typeof tab.columnWidths !== "object") tab.columnWidths = {};
     tab.metadataColumnOrder.forEach((columnKey: string): void => {

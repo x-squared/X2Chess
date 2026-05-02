@@ -54,3 +54,4 @@ reuse the existing file — do not create a second icon for the same semantic ac
 | `mode-plain.svg` | PGN layout mode: Plain (raw/code — `< >` brackets) |
 | `mode-text.svg` | PGN layout mode: Text (narrative prose — paragraph lines) |
 | `mode-tree.svg` | PGN layout mode: Tree (variation tree — trunk + branches) |
+| `game-id.svg` | **Game ID** — hash glyph; resource table id column + sort header (not for “new ID” features) |

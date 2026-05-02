@@ -1,6 +1,6 @@
 # X2Chess User Manual
 
-Last updated: 2026-04-28
+Last updated: 2026-05-02
 
 ## Who this manual is for
 
@@ -563,11 +563,19 @@ collection.
 ### Browsing
 
 - Games and collections appear as rows in the table.
+- The **Game ID** column (when shown) uses a **#** icon: **hover** shows the full
+  record id and, when a schema is active, the same two-line summary as session
+  tabs (rendering profile). **Click** the icon to **copy** the id to the
+  clipboard. The column is narrow by design; you can place it anywhere in the
+  column order (for example before **White** or **Opening**).
 - Click a row to open that game.
 - The viewer supports multiple tabs for different open collections.
 - Saving a new game into an open resource refreshes matching resource-table rows automatically.
 - Reordering games in an open resource refreshes matching resource-table rows automatically.
-- Drag a column handle (⠿) in the table header to reorder columns.
+- Drag a column handle (⠿) in the table header to reorder columns; while dragging,
+  the source column is dimmed and the column under the cursor shows a **drop**
+  highlight. To reorder without dragging, use **Arrange columns…** in the toolbar
+  above the table (arrow buttons per column).
 - Column headers stay aligned horizontally with the data columns while sorting, filtering, and resizing.
 
 ### Grouping
@@ -617,8 +625,10 @@ resource table.
 - Use **Add metadata…** (dropdown next to **Manage schemas…**) to append any
   field from the full **known** PGN list (including X2 tags such as style,
   `Material`, `Head`) plus any extra header keys discovered in loaded games.
+  **Game ID** appears at the top of the list when that column is hidden, so you
+  can show it again.
   Entries are sorted **alphabetically** by name. Columns are inserted in canonical order next to related tags.
-  Click **×** on a column header (except **Game**) to remove that column from the table.
+  Click **×** on a column header to remove that column from the table, including **Game ID** if you do not need it.
 - Click **Manage schemas…** to open the **Schema Editor**:
   - Add, rename, or remove custom schemas.
   - For each schema, define fields: name, type (text, number, flag, select),

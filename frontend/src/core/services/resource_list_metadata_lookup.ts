@@ -24,6 +24,13 @@ export const normalizeResourceMetadataRow = (raw: unknown): Record<string, strin
       out[k] = String(v);
     } else if (typeof v === "boolean") {
       out[k] = v ? "true" : "false";
+    } else if (Array.isArray(v)) {
+      const first: unknown = v.find(
+        (item: unknown): boolean => typeof item === "string" && String(item).trim() !== "",
+      );
+      if (typeof first === "string") {
+        out[k] = first;
+      }
     }
   }
   return out;

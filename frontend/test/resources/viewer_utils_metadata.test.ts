@@ -12,43 +12,55 @@ import {
   X2CHESS_STYLE_METADATA_KEY,
 } from "../../../parts/resource/src/domain/metadata_schema.js";
 import {
+  clampGameIdColumnWidth,
   insertMetadataColumnFromSchema,
   listAddableMetadataFields,
+  MAX_GAME_ID_COL_WIDTH_PX,
+  MIN_GAME_ID_COL_WIDTH_PX,
   reconcileColumns,
   removeMetadataColumnFromTab,
   type TabState,
 } from "../../src/features/resources/services/viewer_utils.js";
 
-const baseTab = (): TabState =>
+const loadedTab = (partial: Partial<TabState> & Pick<TabState, "visibleMetadataKeys" | "metadataColumnOrder">): TabState =>
   reconcileColumns({
     tabId: "t1",
     title: "",
     resourceRef: { kind: "file", locator: "/" },
-    rows: [],
-    availableMetadataKeys: [],
-    visibleMetadataKeys: ["White", "Black", "Date"],
-    metadataColumnOrder: ["game", "White", "Black", "Date"],
+    loadState: { status: "loaded", rows: [], availableMetadataKeys: [] },
     columnWidths: {},
-    errorMessage: "",
-    isLoading: false,
+    ...partial,
   });
 
+const baseTab = (): TabState =>
+  loadedTab({
+    visibleMetadataKeys: ["White", "Black", "Date"],
+    metadataColumnOrder: ["game", "White", "Black", "Date"],
+  });
+
+test("clampGameIdColumnWidth keeps game id column narrow", (): void => {
+  assert.equal(clampGameIdColumnWidth(500), MAX_GAME_ID_COL_WIDTH_PX);
+  assert.equal(clampGameIdColumnWidth(10), MIN_GAME_ID_COL_WIDTH_PX);
+});
+
 test("removeMetadataColumnFromTab leaves only game when last metadata column removed", (): void => {
-  const tab: TabState = reconcileColumns({
-    tabId: "t1",
-    title: "",
-    resourceRef: { kind: "file", locator: "/" },
-    rows: [],
-    availableMetadataKeys: [],
+  const tab: TabState = loadedTab({
     visibleMetadataKeys: ["White"],
     metadataColumnOrder: ["game", "White"],
-    columnWidths: {},
-    errorMessage: "",
-    isLoading: false,
   });
   const after: TabState = removeMetadataColumnFromTab(tab, "White");
   assert.deepEqual(after.metadataColumnOrder, ["game"]);
   assert.deepEqual(after.visibleMetadataKeys, []);
+});
+
+test("removeMetadataColumnFromTab can remove optional game column", (): void => {
+  const tab: TabState = loadedTab({
+    visibleMetadataKeys: ["White"],
+    metadataColumnOrder: ["game", "White"],
+  });
+  const after: TabState = removeMetadataColumnFromTab(tab, "game");
+  assert.deepEqual(after.metadataColumnOrder, ["White"]);
+  assert.deepEqual(after.visibleMetadataKeys, ["White"]);
 });
 
 test("insertMetadataColumnFromSchema inserts before first column with higher orderIndex", (): void => {
@@ -58,9 +70,17 @@ test("insertMetadataColumnFromSchema inserts before first column with higher ord
   assert.deepEqual(updated.metadataColumnOrder, ["game", "White", "Black", "Event", "Date"]);
 });
 
+test("insertMetadataColumnFromSchema does not add game when tab had no game column", (): void => {
+  const tab: TabState = loadedTab({
+    visibleMetadataKeys: ["Black"],
+    metadataColumnOrder: ["Black"],
+  });
+  const updated: TabState = insertMetadataColumnFromSchema(tab, "White", BUILT_IN_SCHEMA);
+  assert.ok(!updated.metadataColumnOrder.includes("game"));
+});
+
 test("insertMetadataColumnFromSchema inserts Result before ECO when both absent", (): void => {
-  const tab: TabState = reconcileColumns({
-    ...baseTab(),
+  const tab: TabState = loadedTab({
     visibleMetadataKeys: ["White", "Black", "ECO"],
     metadataColumnOrder: ["game", "White", "Black", "ECO"],
   });
@@ -74,6 +94,15 @@ test("insertMetadataColumnFromSchema no-op when key unknown or duplicate", (): v
   assert.equal(unknown, tab);
   const dup: TabState = insertMetadataColumnFromSchema(tab, "White", BUILT_IN_SCHEMA);
   assert.equal(dup, tab);
+});
+
+test("insertMetadataColumnFromSchema can restore game column", (): void => {
+  const tab: TabState = loadedTab({
+    visibleMetadataKeys: ["White"],
+    metadataColumnOrder: ["White"],
+  });
+  const updated: TabState = insertMetadataColumnFromSchema(tab, "game", BUILT_IN_SCHEMA);
+  assert.deepEqual(updated.metadataColumnOrder[0], "game");
 });
 
 test("listAddableMetadataFields exposes full built-in catalog including X2 tags", (): void => {
@@ -94,6 +123,11 @@ test("listAddableMetadataFields includes discovered custom header keys", (): voi
   const keys: string[] = addable.map((f) => f.key);
   assert.ok(keys.includes("CustomTag"));
   assert.ok(keys.includes("AnotherTag"));
+});
+
+test("listAddableMetadataFields includes game when column hidden", (): void => {
+  const addable = listAddableMetadataFields(BUILT_IN_SCHEMA, ["White", "Black"], []);
+  assert.equal(addable[0]?.key, "game");
 });
 
 test("insertMetadataColumnFromSchema inserts a discovered-only header key", (): void => {

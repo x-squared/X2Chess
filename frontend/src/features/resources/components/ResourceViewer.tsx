@@ -4,8 +4,9 @@
  * Manages tab identity from `AppStoreState` (populated by `useAppStartup`) and
  * loads game rows via the `resource_loader` service registry.  Handles tab
  * selection/close, column resize (pointer capture), column drag-to-reorder
- * (pointer events — not HTML5 DnD to avoid conflict with file-drop), the
- * metadata column selector dialog, multi-level group-by, and column sorting.
+ * (pointer events + `elementFromPoint` drop detection — not HTML5 DnD), the
+ * column-order dialog, the metadata column selector dialog, multi-level group-by,
+ * and column sorting.
  *
  * Integration API:
  * - `<ResourceViewer />` — rendered by `AppShell` as the resource viewer card;
@@ -67,11 +68,10 @@ import { UI_IDS } from "../../../core/model/ui_ids";
 import { ResourceTabBar } from "./ResourceTabBar";
 import { ResourceTable } from "./ResourceTable";
 import { ResourceMetadataDialog } from "./ResourceMetadataDialog";
+import { ResourceColumnOrderDialog } from "./ResourceColumnOrderDialog";
 import { ResourceToolbar } from "./ResourceToolbar";
-import {
-  BUILT_IN_SCHEMA,
-  type MetadataFieldDefinition,
-} from "../../../../../parts/resource/src/domain/metadata_schema";
+import { resolveResourceTableColumnLabel } from "../resource_column_labels";
+import type { MetadataFieldDefinition } from "../../../../../parts/resource/src/domain/metadata_schema";
 import { log } from "../../../logger";
 import { mirrorResourceSchemaIdToLocalStorage } from "../services/schema_storage";
 import { loadBadgesForRefs } from "../../../training/transcript_storage";
@@ -109,6 +109,7 @@ export const ResourceViewer = ({ onOpenMetadataTab }: ResourceViewerProps): Reac
   const [sortMap, setSortMap] = useState<Record<string, SortConfig | null>>({});
   const [missingSchemaNotice, setMissingSchemaNotice] = useState<Record<string, boolean>>({});
   const [isDeleteGameConfirmArmed, setIsDeleteGameConfirmArmed] = useState<boolean>(false);
+  const [isColumnOrderDialogOpen, setIsColumnOrderDialogOpen] = useState<boolean>(false);
 
   // ── Schema management ─────────────────────────────────────────────────
 
@@ -181,9 +182,9 @@ export const ResourceViewer = ({ onOpenMetadataTab }: ResourceViewerProps): Reac
 
   const {
     colDragActiveKey,
+    colDropTargetKey,
     handleResizeStart,
     handleColDragStart,
-    handleColDrop,
   } = useColumnInteraction(activeTabId, activeTab, setTabs);
 
   // ── Group-by state ────────────────────────────────────────────────────
@@ -401,7 +402,7 @@ export const ResourceViewer = ({ onOpenMetadataTab }: ResourceViewerProps): Reac
   }, [activeTabId, activeSchema, setTabs]);
 
   const handleRemoveMetadataColumn = useCallback((fieldKey: string): void => {
-    if (!activeTabId || fieldKey === "game") return;
+    if (!activeTabId) return;
     setColumnFiltersMap((prev: Record<string, Record<string, string>>): Record<string, Record<string, string>> => {
       const tabFilters: Record<string, string> | undefined = prev[activeTabId];
       if (!tabFilters || !(fieldKey in tabFilters)) return prev;
@@ -424,6 +425,34 @@ export const ResourceViewer = ({ onOpenMetadataTab }: ResourceViewerProps): Reac
       }),
     );
   }, [activeTabId, setTabs]);
+
+  const getResourceColumnDialogLabel = useCallback(
+    (key: string): string => {
+      const def = activeSchema.fields.find((f): boolean => f.key === key);
+      if (def?.label) return def.label;
+      return resolveResourceTableColumnLabel(key, t);
+    },
+    [activeSchema.fields, t],
+  );
+
+  const handleApplyColumnOrderFromDialog = useCallback(
+    (newOrder: string[]): void => {
+      if (!activeTabId) return;
+      setTabs((prev: TabState[]): TabState[] =>
+        prev.map((t: TabState): TabState => {
+          if (t.tabId !== activeTabId) return t;
+          const updated: TabState = { ...t, metadataColumnOrder: [...newOrder] };
+          persistTabPrefs(updated);
+          log.info("ResourceViewer", "Applied column order from dialog", {
+            tabId: activeTabId,
+            columnCount: newOrder.length,
+          });
+          return updated;
+        }),
+      );
+    },
+    [activeTabId, setTabs],
+  );
 
   // ── New game (NG6) ────────────────────────────────────────────────────
 
@@ -455,33 +484,6 @@ export const ResourceViewer = ({ onOpenMetadataTab }: ResourceViewerProps): Reac
       setIsDeleteGameConfirmArmed(false);
     }
   }, [canDeleteGame, isDeleteGameConfirmArmed]);
-
-  // ── MD8: derive effective tab with column order from active schema ─────
-
-  const schemaOrderedKeys: string[] | null =
-    activeSchema.id === BUILT_IN_SCHEMA.id
-      ? null
-      : [...activeSchema.fields]
-          .sort((a, b) =>
-            a.orderIndex === b.orderIndex
-              ? a.key.localeCompare(b.key)
-              : a.orderIndex - b.orderIndex,
-          )
-          .map((f) => f.key);
-
-  const activeTabForTable: TabState | null = (() => {
-    if (!activeTab || !schemaOrderedKeys) return activeTab;
-    const schemaSet: Set<string> = new Set<string>(schemaOrderedKeys);
-    const stillShownSchemaKeys: string[] = schemaOrderedKeys.filter((k: string): boolean =>
-      activeTab.metadataColumnOrder.includes(k),
-    );
-    const extras: string[] = activeTab.metadataColumnOrder.filter(
-      (k: string): boolean => k !== "game" && !schemaSet.has(k),
-    );
-    const newOrder: string[] = ["game", ...stillShownSchemaKeys, ...extras];
-    const newVisible: string[] = [...stillShownSchemaKeys, ...extras];
-    return { ...activeTab, metadataColumnOrder: newOrder, visibleMetadataKeys: newVisible };
-  })();
 
   const availableGroupByFields: string[] = tabAvailableKeys(activeTab).filter(
     (k: string): boolean =>
@@ -567,16 +569,20 @@ export const ResourceViewer = ({ onOpenMetadataTab }: ResourceViewerProps): Reac
           onSchemaSelect={(id): void => { handleSchemaSelect(id, activeTab?.resourceRef ?? null); }}
           addableSchemaFields={addableSchemaFields}
           onAddMetadataField={handleAddMetadataField}
+          onOpenColumnOrder={(): void => {
+            setIsColumnOrderDialogOpen(true);
+          }}
         />
       )}
 
       <ResourceTable
-        activeTab={activeTabForTable}
+        activeTab={activeTab}
         columnFilters={columnFilters}
         groupByState={groupByState}
         sortConfig={sortConfig}
         activeSchema={activeSchema}
         colDragActiveKey={colDragActiveKey}
+        colDropTargetKey={colDropTargetKey}
         supportsReorder={supportsReorder}
         t={t}
         onRowOpen={handleRowOpen}
@@ -586,7 +592,6 @@ export const ResourceViewer = ({ onOpenMetadataTab }: ResourceViewerProps): Reac
         onMoveDown={handleMoveDown}
         onResizeStart={handleResizeStart}
         onColDragStart={handleColDragStart}
-        onColDrop={handleColDrop}
         onSortChange={handleSortChange}
         onToggleGroup={handleToggleGroup}
         onRemoveMetadataColumn={handleRemoveMetadataColumn}
@@ -605,6 +610,15 @@ export const ResourceViewer = ({ onOpenMetadataTab }: ResourceViewerProps): Reac
         onSave={handleMetadataSave}
         onClose={handleMetadataClose}
         onReset={handleMetadataReset}
+      />
+
+      <ResourceColumnOrderDialog
+        isOpen={isColumnOrderDialogOpen}
+        columnKeys={activeTab?.metadataColumnOrder ?? []}
+        getColumnLabel={getResourceColumnDialogLabel}
+        t={t}
+        onApply={handleApplyColumnOrderFromDialog}
+        onClose={(): void => { setIsColumnOrderDialogOpen(false); }}
       />
 
     </section>

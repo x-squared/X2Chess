@@ -20,7 +20,7 @@ export {
   XSQR_HEAD_HEADER_KEY,
 } from "../../../parts/pgnparser/src/pgn_serialize";
 export { ECO_OPENING_CODES, resolveEcoOpeningName } from "./eco_openings";
-export { lookupEco } from "./eco_lookup";
+export { lookupEco, allEcoMatches } from "./eco_lookup";
 export type { EcoMatch } from "./eco_lookup";
 export {
   applyDefaultIndentDirectives,

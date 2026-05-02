@@ -5,13 +5,20 @@
  * - `resolveDisplay(metadata, profile, slot, schemaFields?)` — finds the matching rule and returns its display;
  *   when a matching conditional rule omits the requested slot, falls back to the default rule’s slot.
  *   With `schemaFields`, **select**-type `when` values match case-insensitively; keys in the metadata map are also resolved case-insensitively (`Type` vs `type`). `getMetadataValueIgnoreKeyCase` is used for rule conditions and for field/date line items.
- * - `resolveDisplayForSessionTab(metadata, profile, schemaFields?)` — session tabs: `display1` then `display2`.
+ * - `resolveDisplayForSessionTab(metadata, profile, schemaFields?)` — single slot: compact (`display1`) else detail (`display2`).
+ * - `renderSessionTabGrpText(metadata, profile, schemaFields?)` — merges **compact + detail** for two-line GRP
+ *   (used by session tabs and `buildRenderedGameMap` for the resource table Game column).
  * - `resolveDisplayForReferenceChip(metadata, profile, schemaFields?)` — reference chips: **compact** (`display1`) then `display2` if compact is unset (same intent as the main Game column).
  * - `renderLine(line, metadata)` — converts a GameRenderingLine to a display string.
  * - `renderDisplayText(display, metadata)` — returns { line1, line2 } strings for a display slot.
  * - `renderDisplayFilterText(display, metadata)` — flat string for substring filtering.
- * - `buildRenderedGameMap(rows, profile, slot, schemaFields?)` — batch-render all rows; returns a Map for O(1) lookup.
+ * - `buildRenderedGameMap(rows, profile, schemaFields?)` — batch-render using the same **compact+detail** merge
+ *   as `renderSessionTabGrpText` (resource table Game column + filter/sort).
  * - `mergeResourceMetadataOverlayForGrp(pgn, overlay)` — merge index row into PGN map for session-tab GRP.
+ * - `buildSessionMetadataForGrp(pgnModel, pgnText, overlay, mainlineMoves?)` — same bracket-header basis as DB
+ *   `list` metadata (`extractPgnMetadataFromSource` + in-memory `pgnModel` overwrites + list-row overlay);
+ *   optional ECO-tree fill for empty `Opening` via {@link enrichMetadataWithEcoDerivedOpening}.
+ * - `enrichMetadataWithEcoDerivedOpening(metadata, mainlineMoves)` — display-only Opening/ECO from SAN list.
  *
  * Configuration API:
  * - No I/O; all functions are pure.
@@ -22,6 +29,8 @@
  */
 
 import { log } from "../../../logger";
+import { lookupEco } from "../../../model/eco_lookup";
+import { extractPgnMetadataFromSource } from "../../../../../parts/resource/src/domain/metadata";
 import type {
   GameRenderingDisplay,
   GameRenderingLine,
@@ -131,9 +140,29 @@ export const renderLine = (line: GameRenderingLine, metadata: Record<string, str
 const PLACEHOLDER_VALUES_FOR_GRP_OVERLAY: ReadonlySet<string> = new Set<string>(["", "?"]);
 
 /**
+ * Header key in `map` that matches `preferredKey` with case-insensitive comparison, or
+ * `preferredKey` if no collision (new key). Keeps a single canonical casing for writes.
+ */
+const resolveCanonicalHeaderKey = (
+  map: Record<string, string>,
+  preferredKey: string,
+): string => {
+  if (preferredKey === "") return preferredKey;
+  if (Object.prototype.hasOwnProperty.call(map, preferredKey)) return preferredKey;
+  const targetLower: string = preferredKey.toLowerCase();
+  for (const existingKey of Object.keys(map)) {
+    if (existingKey.toLowerCase() === targetLower) return existingKey;
+  }
+  return preferredKey;
+};
+
+/**
  * Merge resource-list metadata into PGN headers used only for GRP rule matching and rendering.
  * Fills blank tags and replaces `[Tag "?"]`-style placeholders so session chrome matches the
  * resource table when the library row holds Type / … but PGN still has roster placeholders.
+ *
+ * Overlay keys are resolved **case-insensitively** against existing PGN keys so a list row
+ * value under `Opening` updates `[opening "..."]` / `Opening` without duplicating keys.
  *
  * @param pgnHeaders - Map from `buildMetadataFromPgnModel` or equivalent.
  * @param overlay - Same shape as `listGamesForResource` row metadata (from session open).
@@ -148,12 +177,79 @@ export const mergeResourceMetadataOverlayForGrp = (
     if (!k) continue;
     const ov = String(v ?? "").trim();
     if (ov === "") continue;
-    const curTrimmed: string = String(out[k] ?? "").trim();
+    const writeKey: string = resolveCanonicalHeaderKey(out, k);
+    const curTrimmed: string = String(out[writeKey] ?? "").trim();
     if (PLACEHOLDER_VALUES_FOR_GRP_OVERLAY.has(curTrimmed)) {
-      out[k] = String(v ?? "");
+      out[writeKey] = String(v ?? "");
     }
   }
   return out;
+};
+
+/**
+ * Flat header map from `PgnModel.headers` (last duplicate key in the array wins).
+ */
+const buildMetadataFromPgnModel = (pgnModel: unknown): Record<string, string> => {
+  const metadata: Record<string, string> = {};
+  const rawHeaders = (pgnModel as { headers?: unknown } | null)?.headers;
+  if (!Array.isArray(rawHeaders)) return metadata;
+  for (const h of rawHeaders as Array<{ key?: unknown; value?: unknown }>) {
+    if (typeof h?.key === "string" && h.key) metadata[h.key] = typeof h.value === "string" ? h.value : "";
+  }
+  return metadata;
+};
+
+/**
+ * When `Opening` is still blank after merging bracket tags, model, and overlay, derive it from the
+ * ECO opening tree using mainline SAN moves (same dataset as {@link lookupEco} / save-time stamping
+ * in `getPgnText`). Does not mutate the PGN model — only the map used for GRP rule rendering.
+ *
+ * @param metadata - Merged header map.
+ * @param mainlineMoves - Session mainline SAN tokens (e.g. `GameSessionState.moves`).
+ */
+export const enrichMetadataWithEcoDerivedOpening = (
+  metadata: Record<string, string>,
+  mainlineMoves: readonly string[] | null | undefined,
+): Record<string, string> => {
+  const openingTrim: string = getMetadataValueIgnoreKeyCase(metadata, "Opening").trim();
+  if (openingTrim !== "") return metadata;
+  const moves: readonly string[] = Array.isArray(mainlineMoves) ? mainlineMoves : [];
+  if (moves.length === 0) return metadata;
+  const match = lookupEco([...moves]);
+  if (match == null) return metadata;
+  const out: Record<string, string> = { ...metadata };
+  const openingWriteKey: string = resolveCanonicalHeaderKey(out, "Opening");
+  out[openingWriteKey] = match.name;
+  const ecoTrim: string = getMetadataValueIgnoreKeyCase(metadata, "ECO").trim();
+  if (ecoTrim === "") {
+    const ecoWriteKey: string = resolveCanonicalHeaderKey(out, "ECO");
+    out[ecoWriteKey] = match.eco;
+  }
+  return out;
+};
+
+/**
+ * Header map for session-tab GRP: same bracket-tag basis as DB `list` metadata
+ * (`extractPgnMetadataFromSource` on stored `pgn_text`), then live `pgnModel` values (so edits win),
+ * then `resourceMetadataOverlay` from the resource row.
+ *
+ * @param pgnModel - Parsed model for this session (active or snapshot).
+ * @param pgnText - Stored PGN string for the session (matches DB blob for db resources).
+ * @param overlay - List-row metadata from open / workspace restore.
+ * @param mainlineMoves - Optional SAN list so an empty `Opening` tag can still resolve via ECO lookup.
+ */
+export const buildSessionMetadataForGrp = (
+  pgnModel: unknown,
+  pgnText: string,
+  overlay: Record<string, string> | null | undefined,
+  mainlineMoves?: readonly string[] | null,
+): Record<string, string> => {
+  const fromBracketTags: Record<string, string> = extractPgnMetadataFromSource(String(pgnText ?? "")).metadata;
+  const fromModel: Record<string, string> = buildMetadataFromPgnModel(pgnModel);
+  const mergedBeforeOverlay: Record<string, string> = { ...fromBracketTags, ...fromModel };
+  let merged: Record<string, string> = mergeResourceMetadataOverlayForGrp(mergedBeforeOverlay, overlay);
+  merged = enrichMetadataWithEcoDerivedOpening(merged, mainlineMoves ?? null);
+  return merged;
 };
 
 // ── Rule matching ─────────────────────────────────────────────────────────────
@@ -316,6 +412,56 @@ export const renderDisplayText = (
   line2: display.line2 ? renderLine(display.line2, metadata) : "",
 });
 
+export type SessionTabGrpTextResult = {
+  line1: string;
+  line2: string;
+  /** False when neither `display1` nor `display2` resolved for this metadata. */
+  matched: boolean;
+};
+
+/**
+ * Two-line strings for session tabs: combines **Table (display1)** and **Full/detail (display2)**
+ * from the same metadata so the tab strip can show a subtitle when the second line lives only
+ * on the detail slot (resource table still uses one slot at a time per row).
+ *
+ * @param metadata - Header map for GRP.
+ * @param profile - Schema rendering profile.
+ * @param schemaFields - Optional field defs for select matching.
+ */
+export const renderSessionTabGrpText = (
+  metadata: Record<string, string>,
+  profile: GameRenderingProfile,
+  schemaFields?: readonly MetadataFieldDefinition[],
+): SessionTabGrpTextResult => {
+  const d1: GameRenderingDisplay | null = resolveDisplay(metadata, profile, "display1", schemaFields);
+  const d2: GameRenderingDisplay | null = resolveDisplay(metadata, profile, "display2", schemaFields);
+  const hasDisplaySlot: boolean = d1 !== null || d2 !== null;
+  if (!hasDisplaySlot) {
+    return { line1: "", line2: "", matched: false };
+  }
+  const t1: { line1: string; line2: string } =
+    d1 === null ? { line1: "", line2: "" } : renderDisplayText(d1, metadata);
+  const t2: { line1: string; line2: string } =
+    d2 === null ? { line1: "", line2: "" } : renderDisplayText(d2, metadata);
+
+  let line1: string = t1.line1.trim();
+  if (line1 === "") {
+    line1 = t2.line1.trim();
+  }
+
+  let line2: string = t1.line2.trim();
+  if (line2 === "") {
+    const t2l1: string = t2.line1.trim();
+    const t2l2: string = t2.line2.trim();
+    if (t2l1 !== "" && t2l1 !== line1) {
+      line2 = t2l1;
+    } else if (t2l2 !== "") {
+      line2 = t2l2;
+    }
+  }
+  return { line1, line2, matched: true };
+};
+
 /** Flat concatenation of all rendered text — used for substring filter matching. */
 export const renderDisplayFilterText = (
   display: GameRenderingDisplay,
@@ -331,19 +477,19 @@ export const renderDisplayFilterText = (
 export type RenderedGameDisplay = { line1: string; line2: string; filterText: string };
 
 /**
- * Batch-render all rows for a profile slot and return a Map keyed by row object.
- * Rows without a matching display rule are omitted — callers fall back to `row.game`.
+ * Batch-render GRP lines for resource-table rows using the same **display1 + display2** merge as
+ * session tabs (`renderSessionTabGrpText`). Rows with no resolvable GRP display are omitted — callers
+ * fall back to `row.game` in the UI.
  */
 export const buildRenderedGameMap = <R extends { game: string; metadata: Record<string, string> }>(
   rows: readonly R[],
   profile: GameRenderingProfile,
-  slot: "display1" | "display2",
   schemaFields?: readonly MetadataFieldDefinition[],
 ): Map<R, RenderedGameDisplay> => {
   const map = new Map<R, RenderedGameDisplay>();
   for (const row of rows) {
-    const display = resolveDisplay(row.metadata, profile, slot, schemaFields);
-    if (!display) {
+    const { line1, line2, matched } = renderSessionTabGrpText(row.metadata, profile, schemaFields);
+    if (!matched) {
       const rid: string =
         row != null &&
         typeof row === "object" &&
@@ -354,14 +500,14 @@ export const buildRenderedGameMap = <R extends { game: string; metadata: Record<
       log.debug(
         "game_rendering",
         () =>
-          `buildRenderedGameMap: row omitted (no display) slot=${slot} recordId=${rid || "n/a"} Type=${getMetadataValueIgnoreKeyCase(row.metadata, "Type")}`,
+          `buildRenderedGameMap: row omitted (no GRP display) recordId=${rid || "n/a"} Type=${getMetadataValueIgnoreKeyCase(row.metadata, "Type")}`,
       );
       continue;
     }
-    const { line1, line2 } = renderDisplayText(display, row.metadata);
-    const resolved1 = line1 || row.game;
-    const filterText = line2 ? `${resolved1} ${line2}` : resolved1;
-    map.set(row, { line1: resolved1, line2, filterText });
+    const resolved1: string = line1 || row.game;
+    const line2Out: string = line2;
+    const filterText: string = line2Out ? `${resolved1} ${line2Out}` : resolved1;
+    map.set(row, { line1: resolved1, line2: line2Out, filterText });
   }
   return map;
 };

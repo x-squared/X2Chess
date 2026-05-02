@@ -39,3 +39,10 @@ test("normalizeResourceMetadataRow flattens primitives", () => {
   assert.equal(m.b, "2");
   assert.equal(m.c, "true");
 });
+
+test("normalizeResourceMetadataRow uses first non-empty string from string[] values", () => {
+  const m: Record<string, string> = normalizeResourceMetadataRow({
+    Opening: ["", "London", "x"],
+  } as unknown);
+  assert.equal(m.Opening, "London");
+});

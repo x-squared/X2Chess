@@ -23,7 +23,7 @@
  *   via `updateGameInfoHeader`; persisted only when the game is saved (`[Head]`).
  */
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import type { ReactElement, ChangeEvent } from "react";
 import { GAME_INFO_HEADER_FIELDS, PLAYER_NAME_HEADER_KEYS, normalizeGameInfoHeaderValue } from "../model/game_info";
 import {
@@ -34,7 +34,10 @@ import {
   resolveEcoOpeningName,
   normalizeX2StyleValue,
   serializeXsqrHeadMovetext,
+  allEcoMatches,
+  ECO_OPENING_CODES,
 } from "../../../model";
+import type { EcoMatch } from "../../../model";
 import { useAppContext } from "../../../app/providers/AppStateProvider";
 import {
   selectActiveSessionId,
@@ -42,6 +45,7 @@ import {
   selectPgnModel,
   selectBoardFlipped,
   selectDerivedEco,
+  selectMoves,
 } from "../../../core/state/selectors";
 import { useServiceContext } from "../../../app/providers/ServiceProvider";
 import { useTranslator } from "../../../app/hooks/useTranslator";
@@ -184,6 +188,83 @@ export const FieldInput = ({ field, defaultVal, onCommit }: FieldInputProps): Re
   );
 };
 
+// ── EcoPickerButton ───────────────────────────────────────────────────────────
+
+type EcoPickerButtonProps = {
+  moves: string[];
+  onSelect: (eco: string, name: string) => void;
+};
+
+const EcoPickerButton = ({ moves, onSelect }: EcoPickerButtonProps): ReactElement => {
+  const [open, setOpen] = useState<boolean>(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const matches: EcoMatch[] = useMemo((): EcoMatch[] => allEcoMatches(moves), [moves]);
+  const matchedCodes: Set<string> = useMemo(
+    (): Set<string> => new Set<string>(matches.map((m: EcoMatch): string => m.eco)),
+    [matches],
+  );
+
+  useEffect((): (() => void) => {
+    if (!open) return (): void => {};
+    const handler = (e: MouseEvent): void => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return (): void => { document.removeEventListener("mousedown", handler); };
+  }, [open]);
+
+  const title: string = matches.length === 0
+    ? "No ECO match for this game — click to browse all codes"
+    : `${matches.length} matching ECO code${matches.length === 1 ? "" : "s"}`;
+
+  return (
+    <div className="eco-picker" ref={containerRef}>
+      <button
+        type="button"
+        className="eco-picker-btn"
+        title={title}
+        onClick={(): void => { setOpen((o: boolean): boolean => !o); }}
+      >
+        ◎
+      </button>
+      {open && (
+        <ul className="eco-picker-popup" role="listbox">
+          {matches.map((m: EcoMatch): ReactElement => (
+            <li
+              key={`${m.eco}|${m.name}`}
+              role="option"
+              aria-selected={false}
+              className="eco-picker-option"
+              onClick={(): void => { onSelect(m.eco, m.name); setOpen(false); }}
+            >
+              <span className="eco-picker-code">{m.eco}</span>
+              <span className="eco-picker-name">{m.name}</span>
+              <span className="eco-picker-depth">{m.depth}m</span>
+            </li>
+          ))}
+          {matches.length > 0 && <hr className="eco-picker-separator" />}
+          {ECO_OPENING_CODES.filter((c: string): boolean => !matchedCodes.has(c)).map(
+            (code: string): ReactElement => (
+              <li
+                key={code}
+                role="option"
+                aria-selected={false}
+                className="eco-picker-option eco-picker-option--other"
+                onClick={(): void => { onSelect(code, resolveEcoOpeningName(code)); setOpen(false); }}
+              >
+                <span className="eco-picker-code">{code}</span>
+                <span className="eco-picker-name">{resolveEcoOpeningName(code)}</span>
+              </li>
+            ),
+          )}
+        </ul>
+      )}
+    </div>
+  );
+};
+
 // ── GameInfoEditorGrid ────────────────────────────────────────────────────────
 
 type GameInfoEditorGridProps = {
@@ -192,6 +273,7 @@ type GameInfoEditorGridProps = {
   boardFlipped: boolean;
   derivedEco: { eco: string; name: string } | null;
   headDisplay: string;
+  moves: string[];
 };
 
 const GameInfoEditorGrid = ({
@@ -200,25 +282,39 @@ const GameInfoEditorGrid = ({
   boardFlipped,
   derivedEco,
   headDisplay,
+  moves,
 }: GameInfoEditorGridProps): ReactElement => {
   const services = useServiceContext();
   const t: (key: string, fallback?: string) => string = useTranslator();
+  const [openingRevision, setOpeningRevision] = useState<number>(0);
+  const ecoFieldDef: GameInfoFieldDef = GAME_INFO_HEADER_FIELDS.find((f) => f.key === "ECO")!;
+  const [ecoDisplay, setEcoDisplay] = useState<string>(resolveFieldValue(pgnModel, ecoFieldDef, derivedEco));
 
+  const commitEco = (eco: string, name: string): void => {
+    if (!activeSessionId) return;
+    services.updateGameInfoHeader(activeSessionId, "ECO", eco);
+    services.updateGameInfoHeader(activeSessionId, "Opening", name);
+    setEcoDisplay(eco);
+    setOpeningRevision((r: number): number => r + 1);
+  };
 
   return (
     <div className="game-info-editor-grid">
       {GAME_INFO_HEADER_FIELDS.map((field: GameInfoFieldDef): ReactElement => {
         const id: string = `game-info-${field.key.toLowerCase()}`;
-        const isPlayer: boolean =
-          (PLAYER_NAME_HEADER_KEYS as readonly string[]).includes(field.key);
+        const isPlayer: boolean = PLAYER_NAME_HEADER_KEYS.includes(field.key);
         let defaultVal: string = resolveFieldValue(pgnModel, field, derivedEco);
         if (field.key === X2_BOARD_ORIENTATION_HEADER_KEY) {
           defaultVal = boardFlipped ? "black" : "";
         }
-        const fieldKey: string =
-          field.key === X2_BOARD_ORIENTATION_HEADER_KEY
-            ? `${field.key}-${String(boardFlipped)}`
-            : field.key;
+        let fieldKey: string = field.key;
+        if (field.key === X2_BOARD_ORIENTATION_HEADER_KEY) {
+          fieldKey = `${field.key}-${String(boardFlipped)}`;
+        } else if (field.key === "Opening") {
+          fieldKey = `Opening-${openingRevision}`;
+        }
+
+        const isEco: boolean = field.key === "ECO";
 
         return (
           <label key={fieldKey} className="game-info-editor-field" htmlFor={id}>
@@ -234,6 +330,21 @@ const GameInfoEditorGrid = ({
                   services.updateGameInfoHeader(activeSessionId, key, value);
                 }}
               />
+            ) : isEco ? (
+              <div className="eco-field-row">
+                <input
+                  id={id}
+                  type="text"
+                  className="eco-display"
+                  readOnly
+                  value={ecoDisplay}
+                  placeholder="—"
+                />
+                <EcoPickerButton
+                  moves={moves}
+                  onSelect={(eco: string, name: string): void => { commitEco(eco, name); }}
+                />
+              </div>
             ) : (
               <FieldInput
                 field={field}
@@ -277,6 +388,7 @@ export const GameInfoEditor = (): ReactElement => {
   const boardFlipped: boolean = selectBoardFlipped(state);
   const activeSessionId: string | null = selectActiveSessionId(state);
   const derivedEco: { eco: string; name: string } | null = selectDerivedEco(state);
+  const moves: string[] = selectMoves(state);
   const t: (key: string, fallback?: string) => string = useTranslator();
 
   const playersSummary: string = useMemo((): string => {
@@ -378,6 +490,7 @@ export const GameInfoEditor = (): ReactElement => {
           boardFlipped={boardFlipped}
           derivedEco={derivedEco}
           headDisplay={headDisplay}
+          moves={moves}
         />
         <GameMetadataStrip key={`meta-${activeSessionId ?? "no-session"}`} />
       </div>

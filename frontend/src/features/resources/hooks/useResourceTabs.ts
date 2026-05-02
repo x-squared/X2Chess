@@ -14,6 +14,7 @@ import { useState, useEffect, useCallback } from "react";
 import type { ResourceTabSnapshot } from "../../../core/state/app_reducer";
 import { getResourceLoaderService } from "../../../services/resource_loader";
 import {
+  clampGameIdColumnWidth,
   clampWidth,
   readPrefsMap,
   reconcileColumns,
@@ -46,7 +47,7 @@ const initTab = (snapshot: ResourceTabSnapshot): TabState => {
   const columnWidths: Record<string, number> = {};
   if (prefs?.columnWidths) {
     Object.entries(prefs.columnWidths).forEach(([k, v]: [string, number]): void => {
-      columnWidths[k] = clampWidth(v);
+      columnWidths[k] = k === "game" ? clampGameIdColumnWidth(v) : clampWidth(v);
     });
   }
   return reconcileColumns({

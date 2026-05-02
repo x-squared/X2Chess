@@ -27,6 +27,15 @@ export type EcoMatch = {
   depth: number;
 };
 
+const matchesPrefix = (entry: EcoEntry, gameMoves: string[]): boolean => {
+  const len = entry.moves.length;
+  if (len > gameMoves.length) return false;
+  for (let i = 0; i < len; i++) {
+    if (entry.moves[i] !== gameMoves[i]) return false;
+  }
+  return true;
+};
+
 /**
  * Build an ECO lookup function from a dataset of opening entries.
  *
@@ -44,22 +53,36 @@ export type EcoMatch = {
 export const buildEcoLookup = (entries: EcoEntry[]): ((gameMoves: string[]) => EcoMatch | null) => {
   return (gameMoves: string[]): EcoMatch | null => {
     let best: EcoMatch | null = null;
-
     for (const entry of entries) {
-      const len = entry.moves.length;
-      if (len > gameMoves.length) continue;
-      let matched = true;
-      for (let i = 0; i < len; i++) {
-        if (entry.moves[i] !== gameMoves[i]) {
-          matched = false;
-          break;
-        }
-      }
-      if (matched && (best === null || len >= best.depth)) {
-        best = { eco: entry.eco, name: entry.name, depth: len };
+      if (matchesPrefix(entry, gameMoves) && (best === null || entry.moves.length >= best.depth)) {
+        best = { eco: entry.eco, name: entry.name, depth: entry.moves.length };
       }
     }
-
     return best;
+  };
+};
+
+/**
+ * Build a function that returns all ECO entries whose move sequence is a
+ * prefix of the supplied game moves, deduplicated by (eco, name) and sorted
+ * deepest-first.
+ *
+ * @param {EcoEntry[]} entries - ECO dataset.
+ * @returns {(gameMoves: string[]) => EcoMatch[]} All-matches function.
+ */
+export const buildEcoAllMatches = (entries: EcoEntry[]): ((gameMoves: string[]) => EcoMatch[]) => {
+  return (gameMoves: string[]): EcoMatch[] => {
+    const bestByKey = new Map<string, EcoMatch>();
+    for (const entry of entries) {
+      if (!matchesPrefix(entry, gameMoves)) continue;
+      const key: string = `${entry.eco}|${entry.name}`;
+      const existing: EcoMatch | undefined = bestByKey.get(key);
+      if (!existing || entry.moves.length > existing.depth) {
+        bestByKey.set(key, { eco: entry.eco, name: entry.name, depth: entry.moves.length });
+      }
+    }
+    return [...bestByKey.values()].sort(
+      (a, b) => b.depth - a.depth || a.eco.localeCompare(b.eco) || a.name.localeCompare(b.name),
+    );
   };
 };

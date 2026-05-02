@@ -13,6 +13,10 @@
  * Cardinality is recalculated after every write so that removing multi-valued
  * fields from a game can downgrade a key back to `'one'` once no game in the
  * database retains multiple values for it.
+ *
+ * **Derived index pipeline:** `rewriteDerivedGameIndexes` is the only supported
+ * way to refresh `game_metadata`, `position_hashes`, and `move_edges` from a game’s
+ * `pgn_text` (with position/move indexers injected by the adapter factory).
  */
 
 import type { DbGateway } from "../../io/db_gateway";
@@ -140,6 +144,35 @@ const recalculateCardinality = async (db: DbGateway, keys: string[]): Promise<vo
  * @param gameId Game UUID.
  * @param pgnText Full PGN text for the game.
  */
+/** Position + move index writers produced by {@link makeWritePositionIndex} / {@link makeWriteMoveEdgeIndex}. */
+export type GameIndexWriters = {
+  writePositionIndex: (db: DbGateway, gameId: string, pgnText: string) => Promise<void>;
+  writeMoveEdgeIndex: (db: DbGateway, gameId: string, pgnText: string) => Promise<void>;
+};
+
+/**
+ * Rebuild all PGN-derived index tables for one game inside the current transaction.
+ * Deletes prior rows for that game, then repopulates from `pgnText`.
+ *
+ * @param db Transaction gateway (must not enqueue unrelated work interleaved on the same connection).
+ * @param gameId Game primary key.
+ * @param pgnText Full PGN to index.
+ * @param writers Injected index builders from the adapter factory.
+ */
+export const rewriteDerivedGameIndexes = async (
+  db: DbGateway,
+  gameId: string,
+  pgnText: string,
+  writers: GameIndexWriters,
+): Promise<void> => {
+  await db.execute("DELETE FROM game_metadata WHERE game_id = ?", [gameId]);
+  await writeMetadata(db, gameId, pgnText);
+  await db.execute("DELETE FROM position_hashes WHERE game_id = ?", [gameId]);
+  await writers.writePositionIndex(db, gameId, pgnText);
+  await db.execute("DELETE FROM move_edges WHERE game_id = ?", [gameId]);
+  await writers.writeMoveEdgeIndex(db, gameId, pgnText);
+};
+
 export const writeMetadata = async (
   db: DbGateway,
   gameId: string,

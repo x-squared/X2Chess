@@ -4,7 +4,8 @@
  * When a resource rendering profile (GRP) applies, labels must come from profile output,
  * not from a fallback to White/Black headers. Empty compact (`renderedLine1`) strings must
  * not trigger player-name substitution — that previously hid GRP entirely when metadata
- * produced blank rendered lines.
+ * produced blank rendered lines. `renderedLine1`/`renderedLine2` are produced by
+ * `renderSessionTabGrpText` (compact + detail merged for the tab strip).
  */
 
 import type { SessionItemState } from "../../core/state/app_reducer";

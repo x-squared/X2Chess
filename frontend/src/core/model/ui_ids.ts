@@ -132,6 +132,10 @@ export const UI_IDS = {
   /** Kind column badge for a position row. */
   RESOURCES_TABLE_KIND_BADGE_POSITION: "resources.panel.table.kindBadge.position",
   RESOURCES_TABLE_TRAINING_BADGE: "resources.panel.table.trainingBadge",
+  /** Copy-record-id control in the Game ID column (hash icon). */
+  RESOURCES_TABLE_GAME_ID_BTN: "resources.panel.table.gameIdBtn",
+  /** Reorder resource table columns (Move up / down). */
+  RESOURCE_COLUMN_ORDER_DIALOG: "resources.panel.columnOrderDialog",
 
   // ── Dialogs ─────────────────────────────────────────────────────────────
   DISAMBIGUATION_DIALOG: "dialog.disambiguation",

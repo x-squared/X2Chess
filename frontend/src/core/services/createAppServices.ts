@@ -33,10 +33,9 @@ import {
 import { toSessionItem, toResourceTab } from "./app_state_mappers";
 import { loadSchemas, getResourceSchemaId, findSchema } from "../../features/resources/services/schema_storage";
 import {
+  buildSessionMetadataForGrp,
   getMetadataValueIgnoreKeyCase,
-  mergeResourceMetadataOverlayForGrp,
-  resolveDisplayForSessionTab,
-  renderDisplayText,
+  renderSessionTabGrpText,
 } from "../../features/resources/services/game_rendering";
 import { emitAfterSuccessfulSave, createEnsureSourceForActiveSession } from "./session_save_ops";
 import { parsePgnToModel } from "../../../../parts/pgnparser/src/pgn_model";
@@ -99,19 +98,9 @@ type BoardPreviewValue = { fen: string; lastMove?: [string, string] | null } | n
 type RawSessionForRendering = {
   sessionId?: string;
   sourceRef?: { kind?: unknown; locator?: unknown } | null;
-  ownState?: { pgnModel?: unknown };
+  ownState?: { pgnModel?: unknown; pgnText?: unknown; moves?: unknown };
   /** Resource row metadata captured at open — aligns tab GRP with the resource table. */
   resourceMetadataOverlay?: Record<string, string> | null;
-};
-
-const buildMetadataFromPgnModel = (pgnModel: unknown): Record<string, string> => {
-  const metadata: Record<string, string> = {};
-  const rawHeaders = (pgnModel as { headers?: unknown } | null)?.headers;
-  if (!Array.isArray(rawHeaders)) return metadata;
-  for (const h of rawHeaders as Array<{ key?: unknown; value?: unknown }>) {
-    if (typeof h?.key === "string" && h.key) metadata[h.key] = typeof h.value === "string" ? h.value : "";
-  }
-  return metadata;
 };
 
 /**
@@ -122,6 +111,8 @@ const buildMetadataFromPgnModel = (pgnModel: unknown): Record<string, string> =>
 const resolveRenderedLines = (
   session: RawSessionForRendering,
   pgnModel: unknown,
+  pgnText: string,
+  mainlineMoves: readonly string[] | null,
   schemas: ReturnType<typeof loadSchemas>,
 ): { renderedLine1?: string; renderedLine2?: string; grpProfileApplied?: boolean } => {
   const sessionId: string =
@@ -140,12 +131,14 @@ const resolveRenderedLines = (
   if (!profile) {
     return {};
   }
-  const metadata: Record<string, string> = mergeResourceMetadataOverlayForGrp(
-    buildMetadataFromPgnModel(pgnModel),
+  const metadata: Record<string, string> = buildSessionMetadataForGrp(
+    pgnModel,
+    pgnText,
     session.resourceMetadataOverlay ?? null,
+    mainlineMoves,
   );
-  const display = resolveDisplayForSessionTab(metadata, profile, schema.fields);
-  if (!display) {
+  const { line1, line2, matched } = renderSessionTabGrpText(metadata, profile, schema.fields);
+  if (!matched) {
     // [log: may downgrade to debug once session-tab GRP is stable]
     log.info("createAppServices", "resolveRenderedLines: profile present but no tab display", {
       schemaId,
@@ -155,12 +148,28 @@ const resolveRenderedLines = (
     });
     return {};
   }
-  const { line1, line2 } = renderDisplayText(display, metadata);
   log.debug(
     "createAppServices",
     () =>
       `resolveRenderedLines: schemaId=${schemaId} sessionId=${sessionId || "unknown"} typeValue=${getMetadataValueIgnoreKeyCase(metadata, "Type")} line1Len=${String(line1.length)} line2Len=${String((line2 ?? "").length)}`,
   );
+  // When a rule matched but every ref in line1/line2 resolved empty, the bug is never React —
+  // it is display-template keys vs the merged header map (wrong ref.key, missing PGN tag, or overlay gap).
+  // [log: may downgrade to debug once empty-ref mismatches are ruled out for shipped schemas]
+  if (line1.length === 0 && String(line2 ?? "").length === 0) {
+    log.info(
+      "createAppServices",
+      "resolveRenderedLines: matched GRP display but both rendered lines empty — compare display refs to metadataKeys",
+      {
+        schemaId,
+        sessionId: sessionId || "unknown",
+        metadataKeyCount: Object.keys(metadata).length,
+        metadataKeys: Object.keys(metadata)
+          .sort((a: string, b: string): number => a.localeCompare(b))
+          .join(","),
+      },
+    );
+  }
   // Always pass through line1/line2 when a display rule matched (even empty) and flag so
   // GameTabs does not fall back to player names when GRP output is blank.
   return { renderedLine1: line1, renderedLine2: line2 || undefined, grpProfileApplied: true };
@@ -377,9 +386,23 @@ export function createAppServicesBundle(
           const session = raw as RawSessionForRendering;
           const isActive = session.sessionId === activeSessionId;
           const pgnModel = isActive ? g.pgnModel : (session.ownState?.pgnModel ?? null);
+          let pgnTextForGrp: string = "";
+          if (isActive) {
+            pgnTextForGrp = String(g.pgnText ?? "");
+          } else if (typeof session.ownState?.pgnText === "string") {
+            pgnTextForGrp = session.ownState.pgnText;
+          }
+          let mainlineMovesForGrp: string[] | null = null;
+          if (isActive) {
+            mainlineMovesForGrp = Array.isArray(g.moves) ? g.moves : null;
+          } else if (Array.isArray(session.ownState?.moves)) {
+            mainlineMovesForGrp = session.ownState.moves as string[];
+          }
           const { renderedLine1, renderedLine2, grpProfileApplied } = resolveRenderedLines(
             session,
             pgnModel,
+            pgnTextForGrp,
+            mainlineMovesForGrp,
             schemas,
           );
           return toSessionItem(

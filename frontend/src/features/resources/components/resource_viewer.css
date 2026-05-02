@@ -206,7 +206,6 @@
 .resource-table-wrap {
   display: flex;
   flex-direction: column;
-  min-height: 0;
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
   background: var(--surface-0);
@@ -237,13 +236,15 @@
 
 .resource-games-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 0.82rem;
+  line-height: 1.2;
 }
 
 .resource-games-table th,
 .resource-games-table td {
-  padding: 0.42rem 0.5rem;
+  padding: 0.22rem 0.45rem;
   border-bottom: 1px solid var(--border-subtle);
   text-align: left;
   white-space: nowrap;
@@ -261,6 +262,7 @@
   background: var(--surface-1);
   position: relative;
   user-select: none;
+  padding-block: 0.3rem;
 }
 
 .resource-games-table tbody tr:last-child td {
@@ -274,9 +276,20 @@
   min-width: 0;
 }
 
-.resource-games-table thead th[data-col-drag-active="true"] {
-  background: var(--accent-soft);
-  color: var(--accent);
+/* Column drag — source / drop target (pointer reorder, UV1) */
+.resource-games-table thead th.resource-col-th--drag-source {
+  opacity: 0.58;
+  box-shadow: inset 0 0 0 1px var(--accent, #2563eb);
+  background: color-mix(in srgb, var(--accent-soft) 70%, var(--surface-1));
+}
+
+.resource-games-table thead th.resource-col-th--drop-target {
+  box-shadow: inset 0 -4px 0 0 var(--accent, #2563eb);
+  background: color-mix(in srgb, var(--accent-soft) 55%, var(--surface-1));
+}
+
+body.resource-col-dragging {
+  cursor: grabbing !important;
 }
 
 /* Drag handle (pointer-based, UV1) */
@@ -464,20 +477,24 @@
 }
 
 .resource-groupby-add {
+  box-sizing: border-box;
+  height: 22px;
   border: 1px solid var(--border-strong);
-  border-radius: 6px;
+  border-radius: 4px;
   background: var(--surface-1);
   color: var(--text-secondary);
   font: inherit;
-  font-size: 0.76rem;
+  font-size: 0.75rem;
   padding: 2px 6px;
   cursor: pointer;
 }
 
 .resource-groupby-clear,
 .resource-filter-clear-all {
+  box-sizing: border-box;
+  height: 22px;
   border: 1px solid var(--border-strong);
-  border-radius: 6px;
+  border-radius: 4px;
   background: var(--surface-1);
   color: var(--text-secondary);
   font: inherit;
@@ -508,7 +525,10 @@
 }
 
 .resource-schema-select {
-  font-size: 0.78rem;
+  box-sizing: border-box;
+  height: 22px;
+  font: inherit;
+  font-size: 0.75rem;
   padding: 2px 4px;
   border: 1px solid var(--border-strong);
   border-radius: 4px;
@@ -530,6 +550,9 @@
 }
 
 .resource-schema-change-btn {
+  box-sizing: border-box;
+  height: 22px;
+  font: inherit;
   font-size: 0.75rem;
   padding: 2px 8px;
   border: 1px solid var(--border-strong);
@@ -556,6 +579,9 @@
 }
 
 .resource-schema-change-cancel {
+  box-sizing: border-box;
+  height: 22px;
+  font: inherit;
   font-size: 0.75rem;
   padding: 2px 8px;
   border: 1px solid var(--border-strong);
@@ -571,10 +597,12 @@
 }
 
 .resource-metadata-add-field {
-  font-size: 0.78rem;
+  box-sizing: border-box;
+  height: 22px;
+  font: inherit;
+  font-size: 0.75rem;
   max-width: 11rem;
   padding: 2px 4px;
-  margin-left: 6px;
   border: 1px solid var(--border-strong);
   border-radius: 4px;
   background: var(--surface-1);
@@ -733,6 +761,104 @@
   color: var(--accent-strong);
 }
 
+/* Game ID column — icon control + copy (full id on hover) */
+.resource-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+  white-space: nowrap;
+}
+
+.resource-game-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-wrap: nowrap;
+  max-width: 100%;
+  justify-content: flex-start;
+}
+
+.resource-game-id-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  cursor: copy;
+  line-height: 0;
+  width: 16px;
+  height: 16px;
+  box-sizing: content-box;
+}
+
+.resource-game-id-btn:hover {
+  background: color-mix(in srgb, var(--accent, #2563eb) 14%, transparent);
+}
+
+.resource-game-id-btn__icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  opacity: 0.88;
+}
+
+.resource-col-sort-btn--game-id {
+  flex: 0 0 auto;
+  min-width: 0;
+  padding: 0 2px 0 0;
+  justify-content: center;
+}
+
+.resource-col-sort-icon {
+  display: block;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  opacity: 0.88;
+}
+
+/* Game ID column — honour narrow `<col>` width (hash icon); avoid flex-grow eating space */
+.resource-games-table thead th[data-resource-col-key="game"],
+.resource-games-table tbody td[data-resource-col-key="game"] {
+  padding-left: 0.22rem;
+  padding-right: 0.22rem;
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+.resource-games-table thead th[data-resource-col-key="game"] .resource-col-drag-handle {
+  padding: 0 2px 0 0;
+  font-size: 0.72rem;
+}
+
+.resource-games-table thead th[data-resource-col-key="game"] .resource-col-header-inner {
+  min-width: 0;
+  gap: 0;
+}
+
+.resource-games-table thead th[data-resource-col-key="game"] .resource-col-remove-btn {
+  padding: 0 1px;
+  font-size: 0.85rem;
+}
+
+.resource-meta-cell-with-lead {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
 /* Two-line rendered game cell (GRP) */
 .resource-game-rendered {
   display: inline-flex;
@@ -790,6 +916,146 @@
 
 .resource-game-row:hover td {
   background: var(--surface-2);
+}
+
+.resource-toolbar-arrange-columns-btn {
+  box-sizing: border-box;
+  height: 22px;
+  font: inherit;
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-1);
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.resource-toolbar-arrange-columns-btn:hover {
+  border-color: var(--accent, #2563eb);
+  color: var(--accent, #2563eb);
+}
+
+.resource-column-order-dialog {
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  padding: 0;
+  width: min(420px, calc(100vw - 2rem));
+  max-height: min(72vh, 560px);
+  background: var(--surface-1);
+}
+
+.resource-column-order-dialog::backdrop {
+  background: rgba(8, 15, 28, 0.35);
+}
+
+.resource-column-order-dialog__panel {
+  padding: 0.85rem 1rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.resource-column-order-dialog__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.resource-column-order-dialog__hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  line-height: 1.35;
+}
+
+.resource-column-order-dialog__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  max-height: min(44vh, 360px);
+  overflow: auto;
+}
+
+.resource-column-order-dialog__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0.55rem;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 0.82rem;
+}
+
+.resource-column-order-dialog__row:last-child {
+  border-bottom: none;
+}
+
+.resource-column-order-dialog__label {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resource-column-order-dialog__actions {
+  flex: 0 0 auto;
+  display: inline-flex;
+  gap: 0.15rem;
+}
+
+.resource-column-order-dialog__btn {
+  min-width: 1.75rem;
+  padding: 0.15rem 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-2);
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.resource-column-order-dialog__btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.resource-column-order-dialog__btn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.resource-column-order-dialog__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  margin-top: 0.35rem;
+}
+
+.resource-column-order-dialog__cancel,
+.resource-column-order-dialog__apply {
+  font-size: 0.82rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.resource-column-order-dialog__cancel {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.resource-column-order-dialog__apply {
+  border: none;
+  background: var(--accent, #2563eb);
+  color: #fff;
+  font-weight: 600;
 }
 
 .resource-metadata-dialog {
@@ -1205,6 +1471,121 @@
   background: var(--accent-soft);
 }
 
+.eco-field-row {
+  display: flex;
+  gap: 4px;
+  align-items: stretch;
+}
+
+.eco-field-row select,
+.eco-field-row .eco-display {
+  flex: 1;
+  min-width: 0;
+}
+
+.eco-display {
+  height: 30px;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  background: var(--surface-1);
+  color: var(--text-primary);
+  padding: 0 0.45rem;
+  font-size: 0.86rem;
+  cursor: default;
+}
+
+.eco-picker {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.eco-picker-btn {
+  height: 30px;
+  width: 30px;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  background: var(--surface-1);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.eco-picker-btn:hover {
+  background: var(--accent-soft);
+  color: var(--text-primary);
+}
+
+.eco-picker-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.eco-picker-popup {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 2px);
+  min-width: 280px;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  background: var(--surface-1);
+  box-shadow: var(--shadow-m);
+  z-index: 35;
+  padding: 0.2rem;
+  list-style: none;
+  margin: 0;
+}
+
+.eco-picker-option {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  padding: 0.28rem 0.35rem;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.83rem;
+}
+
+.eco-picker-option:hover {
+  background: var(--accent-soft);
+}
+
+.eco-picker-code {
+  font-weight: 600;
+  flex-shrink: 0;
+  color: var(--text-primary);
+}
+
+.eco-picker-name {
+  flex: 1;
+  color: var(--text-primary);
+}
+
+.eco-picker-depth {
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+  font-size: 0.74rem;
+}
+
+.eco-picker-separator {
+  border: none;
+  border-top: 1px solid var(--border-soft);
+  margin: 0.2rem 0.35rem;
+}
+
+.eco-picker-option--other {
+  opacity: 0.45;
+}
+
+.eco-picker-option--other:hover {
+  opacity: 1;
+}
+
 .board-editor-box {
   display: grid;
   grid-template-columns: minmax(320px, var(--board-column-width)) 14px minmax(320px, 1fr);
@@ -1483,8 +1864,8 @@
   box-shadow: var(--shadow-s);
   margin-bottom: 0.9rem;
   overflow: hidden;
-  /* Size to tab content; main window scrolls on the document (do not flex-fill the viewport). */
-  flex: 0 0 auto;
+  flex: 1 1 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
@@ -1534,7 +1915,7 @@
   min-height: 420px;
   display: flex;
   flex-direction: column;
-  flex: 0 1 auto;
+  flex: 1 1 0;
 }
 
 .right-panel-content {
@@ -1557,7 +1938,7 @@
 }
 
 /* When ResourceViewer is embedded inside the panel tab, strip its outer card
-   styling; table scroll uses max-height, not viewport filling. */
+   styling and let it fill the panel body vertically. */
 .right-panel-content-resources .resource-viewer-card {
   border: none;
   border-radius: 0;
@@ -1567,6 +1948,8 @@
   display: flex;
   flex-direction: column;
   overflow: visible;
+  flex: 1 1 0;
+  min-height: 0;
 }
 
 .right-panel-content-resources .resource-viewer-tab-bar-region {
@@ -1577,18 +1960,16 @@
   flex-shrink: 0;
 }
 
-/* Bounded table chrome: ~7 game rows visible (plus sticky thead); more rows scroll
-   inside `.resource-table-scroll`. Max height comes from `--resource-table-scroll-viewport-max`. */
+/* Table fills remaining panel height; rows scroll inside `.resource-table-scroll`. */
 .right-panel-content-resources .resource-table-wrap {
-  flex: 0 1 auto;
+  flex: 1 1 0;
   height: auto;
   min-height: 0;
-  max-height: var(--resource-table-scroll-viewport-max);
+  max-height: none;
 }
 
-/* Ensure the scroll region itself is capped (some flex combinations only grow the wrap). */
 .right-panel-content-resources .resource-table-scroll {
-  max-height: var(--resource-table-scroll-viewport-max);
+  max-height: none;
 }
 
 /* ── Compact layout for small viewport heights (≤ 750 px) ─────────────── */

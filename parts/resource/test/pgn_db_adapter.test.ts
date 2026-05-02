@@ -254,7 +254,9 @@ const queryGameMetadata = (
   // WHERE meta_key = ? AND val_str IN (…)  — searchByMetadataValues
   if (/WHERE\s+meta_key\s*=\s*\?\s+AND\s+val_str\s+IN/i.test(sql)) {
     const key = asStr(params[0]);
-    const valSet = new Set(params.slice(1, -1).map(asStr));
+    const isAllMode: boolean = /HAVING\s+COUNT\(DISTINCT\s+val_str\)\s*=\s*\?/i.test(sql);
+    const valueParams: unknown[] = isAllMode ? params.slice(1, -1) : params.slice(1);
+    const valSet = new Set(valueParams.map(asStr));
     const matching = [...tbl.values()].filter(
       (r) => asStr(r.meta_key) === key && valSet.has(asStr(r.val_str)),
     );
@@ -389,6 +391,43 @@ test("db adapter: save updates pgn and revision token", async () => {
   assert.notEqual(saved.revisionToken, created.revisionToken);
   const loaded = await adapter.load(created.gameRef);
   assert.match(loaded.pgnText, /Carol/);
+});
+
+test("db adapter: save refreshes title_hint from PGN headers", async () => {
+  const dbPath = nextPath();
+  const db = buildInMemoryGateway();
+  const adapter = createDbAdapter(() => db);
+
+  const created = await adapter.create({ kind: "db", locator: dbPath }, GAME_A_PGN, "session-tab-hint");
+  let loaded = await adapter.load(created.gameRef);
+  assert.equal(loaded.title, "session-tab-hint");
+
+  await adapter.save(created.gameRef, GAME_B_PGN, {
+    expectedRevisionToken: created.revisionToken,
+  });
+  loaded = await adapter.load(created.gameRef);
+  assert.match(loaded.title, /Carol/);
+  assert.match(loaded.title, /Dave/);
+});
+
+test("db adapter: save rebuilds game_metadata for search from saved PGN", async () => {
+  const dbPath = nextPath();
+  const db = buildInMemoryGateway();
+  const adapter = createDbAdapter(() => db);
+
+  const created = await adapter.create({ kind: "db", locator: dbPath }, GAME_A_PGN, "");
+  await adapter.save(created.gameRef, GAME_B_PGN, {
+    expectedRevisionToken: created.revisionToken,
+  });
+
+  const search = adapter.searchByMetadataValues;
+  assert.ok(search !== undefined, "adapter should implement searchByMetadataValues");
+  const refsByWhite = await search.call(adapter, "White", ["Carol"], "any", { kind: "db", locator: dbPath });
+  assert.equal(refsByWhite.length, 1);
+  assert.equal(refsByWhite[0]?.recordId, created.gameRef.recordId);
+
+  const staleAlice = await search.call(adapter, "White", ["Alice"], "any", { kind: "db", locator: dbPath });
+  assert.equal(staleAlice.length, 0);
 });
 
 test("db adapter: save with wrong revision token throws conflict", async () => {

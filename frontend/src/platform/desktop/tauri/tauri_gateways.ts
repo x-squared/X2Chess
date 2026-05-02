@@ -68,27 +68,58 @@ export const buildTauriFormatImportGateway = (): FormatImportGateway => ({
   },
 });
 
+/**
+ * SQLite access for one `.x2chess` path: serialized queue + non-nested transaction gateway.
+ *
+ * Top-level `query`/`execute`/`transaction` calls are chained per `dbPath` so concurrent
+ * IPC sequences cannot interleave `BEGIN`/`COMMIT` on the shared Rust connection.
+ * Inside `transaction`, the callback receives a **direct** gateway (same connection,
+ * no extra enqueue) so nested `execute` calls do not deadlock the queue.
+ */
 export const buildTauriDbGateway = (dbPath: string): DbGateway => {
-  const gw: DbGateway = {
-    query: async (sql: string, params?: unknown[]): Promise<unknown[]> => {
-      const invoke = await getCoreInvoke();
-      const result: unknown = await invoke("query_db", { dbPath, sql, params: params ?? [] });
-      return Array.isArray(result) ? result : [];
-    },
-    execute: async (sql: string, params?: unknown[]): Promise<void> => {
-      const invoke = await getCoreInvoke();
-      await invoke("execute_db", { dbPath, sql, params: params ?? [] });
-    },
+  const rawQuery = async (sql: string, params?: unknown[]): Promise<unknown[]> => {
+    const invoke = await getCoreInvoke();
+    const result: unknown = await invoke("query_db", { dbPath, sql, params: params ?? [] });
+    return Array.isArray(result) ? result : [];
+  };
+  const rawExecute = async (sql: string, params?: unknown[]): Promise<void> => {
+    const invoke = await getCoreInvoke();
+    await invoke("execute_db", { dbPath, sql, params: params ?? [] });
+  };
+
+  let tail: Promise<unknown> = Promise.resolve();
+  const enqueue = async <T>(op: () => Promise<T>): Promise<T> => {
+    const next: Promise<T> = tail.then(() => op()) as Promise<T>;
+    tail = next.then(
+      (): undefined => undefined,
+      (): undefined => undefined,
+    );
+    return next;
+  };
+
+  const directGw: DbGateway = {
+    query: rawQuery,
+    execute: rawExecute,
     transaction: async (fn: (db: DbGateway) => Promise<void>): Promise<void> => {
-      await gw.execute("BEGIN");
+      await rawExecute("BEGIN");
       try {
-        await fn(gw);
-        await gw.execute("COMMIT");
+        await fn(directGw);
+        await rawExecute("COMMIT");
       } catch (err) {
-        await gw.execute("ROLLBACK").catch(() => {});
+        await rawExecute("ROLLBACK").catch(() => {
+          /* ignore */
+        });
         throw err;
       }
     },
   };
-  return gw;
+
+  return {
+    query: (sql: string, params?: unknown[]): Promise<unknown[]> =>
+      enqueue(() => directGw.query(sql, params)),
+    execute: (sql: string, params?: unknown[]): Promise<void> =>
+      enqueue(() => directGw.execute(sql, params)),
+    transaction: (fn: (db: DbGateway) => Promise<void>): Promise<void> =>
+      enqueue(() => directGw.transaction(fn)),
+  };
 };

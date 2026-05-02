@@ -157,6 +157,16 @@ This manual contains Architecture Decision Records (ADRs): why major architectur
 - Implication:
   - One consistent header map for GRP, tabs, and file export; no duplicate merge at render time.
 
+## ADR-016: `.x2chess` derived indexes, title hint on save, and Tauri DB gateway serialization
+- Status: Accepted
+- Date: 2026-05-02
+- Decision:
+  - Rebuilds of `game_metadata`, `position_hashes`, and `move_edges` for a game go only through `rewriteDerivedGameIndexes` in the same SQLite transaction as the `games` row write (`parts/resource/src/adapters/db/`).
+  - On `save`, `games.title_hint` is recomputed from bracket headers (same derivation as list titles) so `load` stays aligned with stored PGN; `create` continues to store the caller-supplied title hint (session disambiguation suffixes).
+  - The Tauri `DbGateway` serializes `query`/`execute`/`transaction` IPC per database file path and runs transaction bodies on a **direct** inner gateway so nested `execute` calls do not deadlock the queue.
+- Implication:
+  - One obvious write pipeline for derived tables; reduced risk of interleaved transactions on the shared Rust SQLite connection.
+
 ## Change Log
 
 - 2026-03-18:
@@ -171,3 +181,4 @@ This manual contains Architecture Decision Records (ADRs): why major architectur
   - Added ADR-014: typed resource-domain events for mutation propagation.
 - 2026-05-02:
   - Added ADR-015: open-from-resource PGN header hydration; single source for session metadata.
+  - Added ADR-016: `.x2chess` derived-index pipeline, `title_hint` refresh on save, Tauri DB gateway queue.

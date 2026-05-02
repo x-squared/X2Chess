@@ -29,9 +29,7 @@ import type {
   GameSearchQuery,
 } from "../../../resources/ext_databases/game_db_types";
 import { UI_IDS } from "../../../core/model/ui_ids";
-import { useAppContext } from "../../../app/providers/AppStateProvider";
-import { selectLocale } from "../../../core/state/selectors";
-import ecoOpenings from "../../../../data/eco-openings.json";
+import { ECO_OPENING_CODES, resolveEcoOpeningName } from "../../../model";
 import { log } from "../../../logger";
 
 // ── Registered adapters ────────────────────────────────────────────────────────
@@ -60,11 +58,7 @@ const elo = (v?: number): string => (v === undefined ? "—" : String(v));
  * Searches Lichess or Chess.com by username and optional filters; shows a table
  * with an import button per row.
  */
-type EcoLangKey = keyof (typeof ecoOpenings)["openings"][0]["names"];
-
 export const GameSearchPanel = ({ onImport, t }: GameSearchPanelProps): ReactElement => {
-  const { state } = useAppContext();
-  const ecoLangKey = selectLocale(state).toUpperCase() as EcoLangKey;
 
   const [adapterId, setAdapterId] = useState<string>(ADAPTERS[0].id);
   const [username, setUsername] = useState<string>("");
@@ -257,9 +251,9 @@ export const GameSearchPanel = ({ onImport, t }: GameSearchPanelProps): ReactEle
             }}
           >
             <option value="">{t("gameSearch.ecoAny", "Any opening")}</option>
-            {ecoOpenings.openings.map((entry) => (
-              <option key={entry.code} value={entry.code}>
-                {entry.code} – {entry.names[ecoLangKey] ?? entry.names["EN"]}
+            {ECO_OPENING_CODES.map((code: string) => (
+              <option key={code} value={code}>
+                {code} – {resolveEcoOpeningName(code)}
               </option>
             ))}
           </select>

@@ -14,7 +14,6 @@
  */
 
 import {
-  ECO_OPENING_CODES,
   REQUIRED_PGN_TAG_DEFAULTS,
   X2_STYLE_HEADER_KEY,
   X2_BOARD_ORIENTATION_HEADER_KEY,
@@ -122,12 +121,7 @@ export const GAME_INFO_HEADER_FIELDS: readonly GameInfoField[] = [
   },
   { key: "Event", label: "Event", control: "text" },
   // Row 3 — opening + termination
-  {
-    key: "ECO",
-    label: "ECO",
-    control: "select",
-    options: ["", ...ECO_OPENING_CODES],
-  },
+  { key: "ECO", label: "ECO", control: "text" },
   { key: "Opening", label: "Opening", control: "text" },
   { key: "Termination", label: "Termination", control: "text" },
   // Row 4 — date + venue

@@ -10,7 +10,8 @@
  * data row repeats the same `data-ui-id` for the table row part with a unique
  * `data-resource-row-index` for the row’s source index.
  *
- * Metadata columns (not `game`) show a remove control (×) in the header to drop the column.
+ * Optional `game` (record id) column — narrow icon button (hover = id + GRP, click = copy);
+ * removable like other columns. Column order is user-controlled (prefs), not schema order.
  */
 
 import {
@@ -22,7 +23,14 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ChangeEvent,
 } from "react";
-import { buildRecordIdToRowMap, clampWidth, tabRows } from "../services/viewer_utils";
+import {
+  buildRecordIdToRowMap,
+  clampGameIdColumnWidth,
+  clampWidth,
+  rowPrimaryRecordId,
+  tabRows,
+} from "../services/viewer_utils";
+import { resolveResourceTableColumnLabel } from "../resource_column_labels";
 import type {
   TabState,
   ResourceRow,
@@ -58,6 +66,8 @@ type ResourceTableProps = {
   activeSchema: MetadataSchema | null;
   /** Key of the column currently being pointer-dragged (for visual feedback). */
   colDragActiveKey: string;
+  /** Header key under the cursor while dragging (drop target). */
+  colDropTargetKey: string;
   supportsReorder: boolean;
   t: (key: string, fallback?: string) => string;
   onRowOpen: (rowIndex: number) => void;
@@ -66,13 +76,11 @@ type ResourceTableProps = {
   onMoveUp: (row: ResourceRow, afterRow: ResourceRow | null) => void;
   onMoveDown: (row: ResourceRow, afterRow: ResourceRow) => void;
   onResizeStart: (key: string, e: ReactPointerEvent<HTMLSpanElement>) => void;
-  /** Pointer-based column drag start (UV1 — replaces HTML5 DnD). */
-  onColDragStart: (key: string) => void;
-  /** Pointer-based column drop on a target column (UV1). */
-  onColDrop: (targetKey: string) => void;
+  /** Pointer-based column drag start; drop is handled globally on pointerup (UV1). */
+  onColDragStart: (key: string, e: ReactPointerEvent<HTMLSpanElement>) => void;
   onSortChange: (key: string) => void;
   onToggleGroup: (groupKey: string) => void;
-  /** Remove a metadata column (not `game`) from the table. */
+  /** Remove a column from the table (including optional Game ID / `game`). */
   onRemoveMetadataColumn: (key: string) => void;
   /** Training badges keyed by `"kind:locator:recordId"` composite ref (T14). */
   trainingBadges?: Map<string, TrainingBadge>;
@@ -208,18 +216,6 @@ const ReferenceCell = ({
   );
 };
 
-// ── Column-label helper ───────────────────────────────────────────────────────
-
-const resolveColLabel = (
-  key: string,
-  t: (key: string, fallback?: string) => string,
-): string => {
-  if (key === "identifier") return t("resources.table.identifier", "Identifier");
-  if (key === "source") return t("resources.table.source", "Source");
-  if (key === "revision") return t("resources.table.revision", "Revision");
-  return key;
-};
-
 // ── Group-by computation ──────────────────────────────────────────────────────
 
 /**
@@ -242,9 +238,10 @@ const computeGroupItems = (
   // Collect unique values in order of first appearance.
   const seen = new Map<string, { row: ResourceRow; originalIndex: number }[]>();
   for (const r of rows) {
-    const val = field === "game"
-      ? (renderedGameMap?.get(r.row)?.line1 ?? r.row.game)
-      : String(r.row.metadata[field] ?? "—");
+    const val =
+      field === "game"
+        ? rowPrimaryRecordId(r.row) || r.row.game
+        : String(r.row.metadata[field] ?? "—");
     let group = seen.get(val);
     if (!group) { group = []; seen.set(val, group); }
     group.push(r);
@@ -279,6 +276,70 @@ const rowSourceGameRef = (row: ResourceRow): string => {
   const locator = typeof r["locator"] === "string" ? r["locator"] : "";
   const recordId = typeof r["recordId"] === "string" ? r["recordId"] : "";
   return `${kind}:${locator}:${recordId}`;
+};
+
+type GameIdCopyCellProps = {
+  idLabel: string;
+  hoverDetail: string;
+  t: (key: string, fallback?: string) => string;
+};
+
+/**
+ * Icon-only game id control: title shows id and optional GRP summary; click copies id (stops row open).
+ */
+const GameIdCopyCell = ({ idLabel, hoverDetail, t }: GameIdCopyCellProps): ReactElement => {
+  const [copied, setCopied] = useState<boolean>(false);
+
+  useEffect((): (() => void) | void => {
+    if (!copied) return;
+    const timerId: number = window.setTimeout((): void => {
+      setCopied(false);
+    }, 1600);
+    return (): void => {
+      window.clearTimeout(timerId);
+    };
+  }, [copied]);
+
+  const detailBlock: string = [idLabel, hoverDetail].filter(Boolean).join("\n\n");
+  const title: string = copied
+    ? t("resources.table.gameIdCopied", "Copied to clipboard")
+    : `${detailBlock}\n\n${t("resources.table.copyGameIdHint", "Click to copy ID")}`;
+
+  const handleClick = (e: ReactMouseEvent<HTMLButtonElement>): void => {
+    e.stopPropagation();
+    if (!idLabel) return;
+    void (async (): Promise<void> => {
+      try {
+        await navigator.clipboard.writeText(idLabel);
+        setCopied(true);
+      } catch (err: unknown) {
+        const message: string = err instanceof Error ? err.message : String(err);
+        log.error("ResourceTable", "Game ID clipboard write failed", { message });
+      }
+    })();
+  };
+
+  const ariaCopy: string = t("resources.table.copyGameIdAria", "Copy game ID to clipboard");
+
+  return (
+    <button
+      type="button"
+      className="resource-game-id-btn"
+      title={title}
+      aria-label={`${ariaCopy}: ${idLabel || "—"}`}
+      data-ui-id={UI_IDS.RESOURCES_TABLE_GAME_ID_BTN}
+      onClick={handleClick}
+    >
+      <img
+        src="/icons/toolbar/game-id.svg"
+        width={16}
+        height={16}
+        alt=""
+        aria-hidden
+        className="resource-game-id-btn__icon"
+      />
+    </button>
+  );
 };
 
 const TrainingBadgeChip = ({ badge }: { badge: TrainingBadge }): ReactElement => (
@@ -356,6 +417,7 @@ export const ResourceTable = ({
   sortConfig,
   activeSchema,
   colDragActiveKey,
+  colDropTargetKey,
   supportsReorder,
   t,
   onRowOpen,
@@ -365,7 +427,6 @@ export const ResourceTable = ({
   onMoveDown,
   onResizeStart,
   onColDragStart,
-  onColDrop,
   onSortChange,
   onToggleGroup,
   onRemoveMetadataColumn,
@@ -376,6 +437,7 @@ export const ResourceTable = ({
 }: ResourceTableProps): ReactElement => {
   const allRows = tabRows(activeTab);
   const recordIdToRow = useMemo((): Map<string, ResourceRow> => buildRecordIdToRowMap(allRows), [allRows]);
+  const tableHasGameCol: boolean = Boolean(activeTab?.metadataColumnOrder.includes("game"));
 
   // Build field-definition lookup for type-aware filtering (UV2).
   const fieldDefMap = new Map<string, MetadataFieldDefinition>(
@@ -383,21 +445,28 @@ export const ResourceTable = ({
   );
   const hasActiveFilter = Object.values(columnFilters).some((v) => v !== "");
 
-  // Pre-compute rendered display strings for all rows (display1 slot).
-  // Used for filter, sort, group-by labels, and cell display.
+  // Pre-compute GRP display lines (compact + detail merge — see `buildRenderedGameMap`).
+  // Used for filter text, group headers, tooltips on the Game ID cell, and reference cells.
   const renderedGameMap = useMemo((): Map<ResourceRow, RenderedGameDisplay> | null => {
     const profile = activeSchema?.rendering;
     if (!profile) return null;
-    return buildRenderedGameMap(allRows, profile, "display1", activeSchema?.fields);
+    return buildRenderedGameMap(allRows, profile, activeSchema?.fields);
   }, [allRows, activeSchema?.rendering, activeSchema?.fields]);
 
   // 1. Filter (UV2: type-aware operators)
   const filteredRows = allRows.filter((row: ResourceRow): boolean =>
     Object.entries(columnFilters).every(([key, val]: [string, string]): boolean => {
       if (!val) return true;
-      const text = key === "game"
-        ? (renderedGameMap?.get(row)?.filterText ?? row.game)
-        : String(row.metadata[key] ?? "");
+      const text =
+        key === "game"
+          ? [
+              rowPrimaryRecordId(row),
+              renderedGameMap?.get(row)?.filterText ?? "",
+              row.game,
+            ]
+              .filter(Boolean)
+              .join(" ")
+          : String(row.metadata[key] ?? "");
       return applyFilter(text, val, fieldDefMap.get(key), resolvedRefMeta);
     }),
   );
@@ -405,12 +474,14 @@ export const ResourceTable = ({
   // 2. Sort (UV4)
   const sortedRows: ResourceRow[] = sortConfig
     ? [...filteredRows].sort((a: ResourceRow, b: ResourceRow): number => {
-        const valA = sortConfig.key === "game"
-          ? (renderedGameMap?.get(a)?.line1 ?? a.game)
-          : String(a.metadata[sortConfig.key] ?? "");
-        const valB = sortConfig.key === "game"
-          ? (renderedGameMap?.get(b)?.line1 ?? b.game)
-          : String(b.metadata[sortConfig.key] ?? "");
+        const valA =
+          sortConfig.key === "game"
+            ? rowPrimaryRecordId(a)
+            : String(a.metadata[sortConfig.key] ?? "");
+        const valB =
+          sortConfig.key === "game"
+            ? rowPrimaryRecordId(b)
+            : String(b.metadata[sortConfig.key] ?? "");
         const cmp = valA.localeCompare(valB, undefined, { numeric: true, sensitivity: "base" });
         return sortConfig.dir === "asc" ? cmp : -cmp;
       })
@@ -455,73 +526,94 @@ export const ResourceTable = ({
         <div className="resource-table-scroll" data-ui-id={UI_IDS.RESOURCES_TABLE_SCROLL}>
           <table className="resource-games-table" data-ui-id={UI_IDS.RESOURCES_TABLE_GRID}>
           <colgroup data-ui-id={UI_IDS.RESOURCES_TABLE_COLGROUP}>
-            {activeTab.metadataColumnOrder.map((key: string): ReactElement => (
-              <col
-                key={key}
-                data-resource-col-key={key}
-                style={{ width: `${clampWidth(activeTab.columnWidths[key])}px` }}
-              />
-            ))}
+            {activeTab.metadataColumnOrder.map((key: string): ReactElement => {
+              const w: number =
+                key === "game"
+                  ? clampGameIdColumnWidth(activeTab.columnWidths[key])
+                  : clampWidth(activeTab.columnWidths[key]);
+              return (
+                <col
+                  key={key}
+                  data-resource-col-key={key}
+                  style={{ width: `${w}px` }}
+                />
+              );
+            })}
           </colgroup>
           <thead data-ui-id={UI_IDS.RESOURCES_TABLE_HEAD}>
             <tr>
               {activeTab.metadataColumnOrder.map((key: string): ReactElement => {
                 const isSortedAsc = sortConfig?.key === key && sortConfig.dir === "asc";
                 const isSortedDesc = sortConfig?.key === key && sortConfig.dir === "desc";
-                const isDragActive = colDragActiveKey === key;
+                const isDragActive: boolean = colDragActiveKey === key;
+                const isDropTarget: boolean =
+                  Boolean(colDropTargetKey) && colDropTargetKey === key && colDropTargetKey !== colDragActiveKey;
+                const colClass: string = [
+                  isDragActive ? "resource-col-th--drag-source" : "",
+                  isDropTarget ? "resource-col-th--drop-target" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ");
                 return (
                   <th
                     key={key}
+                    className={colClass || undefined}
                     data-resource-col-key={key}
                     data-col-drag-active={isDragActive ? "true" : undefined}
-                    onPointerUp={(): void => {
-                      if (colDragActiveKey && colDragActiveKey !== key) {
-                        onColDrop(key);
-                      }
-                    }}
+                    data-col-drop-target={isDropTarget ? "true" : undefined}
                   >
                     <div className="resource-col-header-inner">
-                      {/* Drag handle — pointer-based (UV1) */}
+                      {/* Drag handle — pointer-based (UV1); global pointerup commits drop */}
                       <span
                         className="resource-col-drag-handle"
                         aria-hidden="true"
                         title={t("resources.table.dragColumn", "Drag to reorder column")}
                         onPointerDown={(e: ReactPointerEvent<HTMLSpanElement>): void => {
                           e.stopPropagation();
-                          onColDragStart(key);
+                          onColDragStart(key, e);
                         }}
                       >⠿</span>
                       {/* Sortable label (UV4) */}
                       <button
                         type="button"
-                        className="resource-col-sort-btn"
+                        className={`resource-col-sort-btn${key === "game" ? " resource-col-sort-btn--game-id" : ""}`}
                         onClick={(): void => { onSortChange(key); }}
-                        aria-label={`Sort by ${resolveColLabel(key, t)}`}
+                        aria-label={`Sort by ${resolveResourceTableColumnLabel(key, t)}`}
                       >
-                        {key === "game"
-                          ? t("resources.table.game", "Game")
-                          : resolveColLabel(key, t)}
+                        {key === "game" ? (
+                          <>
+                            <img
+                              src="/icons/toolbar/game-id.svg"
+                              width={16}
+                              height={16}
+                              alt=""
+                              aria-hidden
+                              className="resource-col-sort-icon"
+                            />
+                            <span className="resource-sr-only">{resolveResourceTableColumnLabel(key, t)}</span>
+                          </>
+                        ) : (
+                          resolveResourceTableColumnLabel(key, t)
+                        )}
                         {isSortedAsc && <span className="resource-sort-indicator" aria-hidden="true">↑</span>}
                         {isSortedDesc && <span className="resource-sort-indicator" aria-hidden="true">↓</span>}
                       </button>
-                      {key !== "game" && (
-                        <button
-                          type="button"
-                          className="resource-col-remove-btn"
-                          data-ui-id={`${UI_IDS.RESOURCES_TABLE_HEAD}.remove.${key}`}
-                          aria-label={t("resources.table.removeColumn", "Remove column")}
-                          title={t("resources.table.removeColumn", "Remove column")}
-                          onPointerDown={(e: ReactPointerEvent<HTMLButtonElement>): void => {
-                            e.stopPropagation();
-                          }}
-                          onClick={(e: ReactMouseEvent<HTMLButtonElement>): void => {
-                            e.stopPropagation();
-                            onRemoveMetadataColumn(key);
-                          }}
-                        >
-                          ×
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        className="resource-col-remove-btn"
+                        data-ui-id={`${UI_IDS.RESOURCES_TABLE_HEAD}.remove.${key}`}
+                        aria-label={t("resources.table.removeColumn", "Remove column")}
+                        title={t("resources.table.removeColumn", "Remove column")}
+                        onPointerDown={(e: ReactPointerEvent<HTMLButtonElement>): void => {
+                          e.stopPropagation();
+                        }}
+                        onClick={(e: ReactMouseEvent<HTMLButtonElement>): void => {
+                          e.stopPropagation();
+                          onRemoveMetadataColumn(key);
+                        }}
+                      >
+                        ×
+                      </button>
                       <span
                         className="resource-col-resize-handle"
                         aria-hidden="true"
@@ -548,7 +640,7 @@ export const ResourceTable = ({
                 // Select columns get a dropdown of allowed values (UV2).
                 if (fieldDef?.type === "select" && fieldDef.selectValues?.length) {
                   return (
-                    <th key={key} className={cellClass}>
+                    <th key={key} className={cellClass} data-resource-col-key={key}>
                       <div className="resource-filter-cell-inner">
                         <select
                           className={`resource-filter-select${isActive ? " resource-filter-input--active" : ""}`}
@@ -587,7 +679,7 @@ export const ResourceTable = ({
                       : "";
 
                 return (
-                  <th key={key} className={cellClass}>
+                  <th key={key} className={cellClass} data-resource-col-key={key}>
                     <div className="resource-filter-cell-inner">
                       <input
                         type="text"
@@ -683,54 +775,59 @@ export const ResourceTable = ({
                     }
                   }}
                 >
-                  {activeTab.metadataColumnOrder.map((key: string): ReactElement => {
-                    let cellContent: ReactElement | string;
-                    if (key === "game") {
-                      cellContent = (
-                        <span className="resource-game-cell">
-                          {supportsReorder && (
-                            <span className="resource-row-order-btns">
-                              <button
-                                type="button"
-                                className="resource-order-btn"
-                                aria-label={t("resources.table.moveUp", "Move up")}
-                                disabled={visibleIdx === 0}
-                                onClick={(e): void => {
-                                  e.stopPropagation();
-                                  const afterRow = visibleRows[visibleIdx - 2] ?? null;
-                                  onMoveUp(row, afterRow);
-                                }}
-                              >▲</button>
-                              <button
-                                type="button"
-                                className="resource-order-btn"
-                                aria-label={t("resources.table.moveDown", "Move down")}
-                                disabled={visibleIdx === visibleRows.length - 1}
-                                onClick={(e): void => {
-                                  e.stopPropagation();
-                                  const neighbor = visibleRows[visibleIdx + 1];
-                                  if (neighbor) onMoveDown(row, neighbor);
-                                }}
-                              >▼</button>
-                            </span>
-                          )}
-                          {trainingBadges && (() => {
-                            const ref = rowSourceGameRef(row);
+                  {activeTab.metadataColumnOrder.map((key: string, colIdx: number): ReactElement => {
+                    const isFirstCol: boolean = colIdx === 0;
+                    const showReorderInCell: boolean =
+                      supportsReorder && (key === "game" || (!tableHasGameCol && isFirstCol));
+                    const showTrainingInCell: boolean = key === "game" || (!tableHasGameCol && isFirstCol);
+                    const reorderBtns: ReactElement | null = showReorderInCell ? (
+                      <span className="resource-row-order-btns">
+                        <button
+                          type="button"
+                          className="resource-order-btn"
+                          aria-label={t("resources.table.moveUp", "Move up")}
+                          disabled={visibleIdx === 0}
+                          onClick={(e): void => {
+                            e.stopPropagation();
+                            const afterRow = visibleRows[visibleIdx - 2] ?? null;
+                            onMoveUp(row, afterRow);
+                          }}
+                        >▲</button>
+                        <button
+                          type="button"
+                          className="resource-order-btn"
+                          aria-label={t("resources.table.moveDown", "Move down")}
+                          disabled={visibleIdx === visibleRows.length - 1}
+                          onClick={(e): void => {
+                            e.stopPropagation();
+                            const neighbor = visibleRows[visibleIdx + 1];
+                            if (neighbor) onMoveDown(row, neighbor);
+                          }}
+                        >▼</button>
+                      </span>
+                    ) : null;
+                    const trainingChip: ReactElement | null =
+                      showTrainingInCell && trainingBadges
+                        ? ((): ReactElement | null => {
+                            const ref: string = rowSourceGameRef(row);
                             const badge = ref ? trainingBadges.get(ref) : undefined;
                             return badge ? <TrainingBadgeChip badge={badge} /> : null;
-                          })()}
-                          <button type="button" className="resource-open-button">
-                            {(() => {
-                              const rendered = renderedGameMap?.get(row);
-                              if (!rendered) return row.game;
-                              return (
-                                <span className="resource-game-rendered">
-                                  <span className="resource-game-line1">{rendered.line1}</span>
-                                  {rendered.line2 && <span className="resource-game-line2">{rendered.line2}</span>}
-                                </span>
-                              );
-                            })()}
-                          </button>
+                          })()
+                        : null;
+
+                    let cellContent: ReactElement | string;
+                    if (key === "game") {
+                      const idLabel: string = rowPrimaryRecordId(row) || row.identifier;
+                      const rendered: RenderedGameDisplay | null | undefined = renderedGameMap?.get(row);
+                      const hoverDetail: string =
+                        rendered?.line1 || rendered?.line2
+                          ? [rendered.line1, rendered.line2].filter(Boolean).join("\n")
+                          : row.game;
+                      cellContent = (
+                        <span className="resource-game-cell">
+                          {reorderBtns}
+                          {trainingChip}
+                          <GameIdCopyCell idLabel={idLabel} hoverDetail={hoverDetail} t={t} />
                         </span>
                       );
                     } else if (fieldDefMap.get(key)?.type === "reference" && row.metadata[key] && onFetchMetadata) {
@@ -765,8 +862,17 @@ export const ResourceTable = ({
                     } else {
                       cellContent = String(row.metadata[key] ?? "-");
                     }
+                    if (!tableHasGameCol && isFirstCol && (reorderBtns || trainingChip)) {
+                      cellContent = (
+                        <span className="resource-meta-cell-with-lead">
+                          {reorderBtns}
+                          {trainingChip}
+                          {cellContent}
+                        </span>
+                      );
+                    }
                     return (
-                      <td key={key}>
+                      <td key={key} data-resource-col-key={key}>
                         {cellContent}
                       </td>
                     );

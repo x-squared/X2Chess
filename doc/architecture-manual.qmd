@@ -1,6 +1,6 @@
 # X2Chess Architecture Manual
 
-Last updated: 2026-05-02
+Last updated: 2026-05-03
 
 ## 1) Goals
 
@@ -47,10 +47,17 @@ Architecture decisions are maintained in `doc/architecture-adr-manual.qmd`.
 - Configuration: `frontend/src-tauri/tauri.conf.json`.
 - Runtime entrypoint: `frontend/src-tauri/src/main.rs`.
 - Capability model:
-  - `frontend/src-tauri/capabilities/default.json` with `core:default`, `core:menu:default`.
+  - `frontend/src-tauri/capabilities/default.json` with `core:default`, `core:menu:default`, `log:default`, and app permission `allow-x2chess-app-commands` (allowlists every custom `#[tauri::command]` from `main.rs`; see `permissions/app-commands.toml`).
+- Dependency: `sysinfo` (Rust) for total physical memory in `host_hardware_summary`; logical CPU count uses `std::thread::available_parallelism()`.
 - Build wiring:
   - Dev URL `http://localhost:5287`.
   - Production frontend assets from `frontend/dist`.
+
+### Tauri IPC boundary (TypeScript)
+
+- **Rust command IPC** (`invoke` / `#[tauri::command]`): application modules (`features/`, `app_shell/`, `core/`, `hooks/`, most of `resources/`) call **`frontend/src/platform/desktop/tauri_ipc_bridge.ts`** (`tauriInvoke`, `isTauri`), or use existing adapters under **`frontend/src/platform/desktop/`** (e.g. `tauri_gateways.ts`, storage) and resource helpers that already wrap the same pattern (`picker_fs_helpers`, `runtime_config_service`).
+- **Do not** spread **`import` from `@tauri-apps/api/core`** for `invoke` through features, or read **`window.__TAURI__` / `__TAURI_INTERNALS__`** for IPC there — see **`dev/rules/tauri-ipc-bridge.mdc`** for the canonical rule and the short list of infrastructure exceptions (logger, menu hook, OTA, open URL, `platform/desktop/**`).
+- **`parts/`** packages stay **shell-agnostic** (no `@tauri-apps/*`). Desktop-only adapters such as **`tauri_engine_adapter.ts`** live under **`frontend/src/platform/desktop/`**.
 
 ### Desktop menu bar
 

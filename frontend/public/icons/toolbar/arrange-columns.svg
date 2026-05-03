@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#1f2937" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Three vertical column bars -->
+  <rect x="3" y="4" width="4" height="16" rx="1"/>
+  <rect x="10" y="4" width="4" height="16" rx="1"/>
+  <rect x="17" y="4" width="4" height="16" rx="1"/>
+  <!-- Bidirectional swap arrow between first two columns -->
+  <path d="M7.5 12h3M9 10.5l1.5 1.5L9 13.5"/>
+</svg>

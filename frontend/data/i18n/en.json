@@ -305,5 +305,10 @@
   "gamePicker.clearConfirm": "Remove this reference?",
   "gamePicker.clearYes": "Remove",
   "gamePicker.unavailable": "Resource not available.",
-  "gamePicker.loadError": "Could not load game list."
+  "gamePicker.loadError": "Could not load game list.",
+  "engines.config.optionHelpButton": "Show help for this option",
+  "engines.config.help.hashMachine": "This system has about {{ramGb}} GB RAM ({{ramMb}} MB). A practical Hash target is often around {{suggestMb}} MB (~25% of that memory), up to this engine’s maximum of {{engineMaxMb}} MB.",
+  "engines.config.help.hashMachineNoRam": "Installed RAM is not available from this environment. As a rule of thumb, set Hash to about 25% of physical memory, not above this engine’s maximum of {{engineMaxMb}} MB.",
+  "engines.config.help.threadsMachine": "This system reports {{cores}} logical processors. Reserving two for the OS suggests up to about {{suggest}} threads for analysis (within this engine’s maximum of {{engineMax}}).",
+  "engines.config.help.threadsMachineNoCores": "This environment does not expose CPU count. Leave one or two cores free for the OS; this engine allows at most {{engineMax}} threads."
 }

@@ -50,6 +50,8 @@ import {
 import { useTranslator } from "../../hooks/useTranslator";
 import { useAppStartup } from "../../startup/useAppStartup";
 import { useEngineAnalysis } from "../../../features/analysis/hooks/useEngineAnalysis";
+import { useEngineConfig } from "../../../features/engines/hooks/useEngineConfig";
+import { EngineManagerPanel } from "../../../features/engines/components/EngineManagerPanel";
 import { useOpeningExplorer } from "../../../features/analysis/hooks/useOpeningExplorer";
 import { useExtDatabaseSettings } from "../../../features/resources/hooks/useExtDatabaseSettings";
 import { useTablebaseProbe } from "../../../features/analysis/hooks/useTablebaseProbe";
@@ -119,8 +121,17 @@ export const AppShell = (): ReactElement => {
   const t: (key: string, fallback?: string) => string = useTranslator();
   const { showPreview, hidePreview } = useHoverPreview();
 
-  const { variations, isAnalyzing, engineName, startAnalysis, stopAnalysis, findBestMove } =
-    useEngineAnalysis();
+  const engineConfig = useEngineConfig();
+  const engineRegistry = useMemo(
+    () => ({ engines: engineConfig.engines, defaultEngineId: engineConfig.defaultEngineId }),
+    [engineConfig.engines, engineConfig.defaultEngineId],
+  );
+  const {
+    variations, isAnalyzing, engineName, activeEngineId, multiPv, threads, discoveredOptions,
+    startAnalysis, stopAnalysis, findBestMove, setMultiPv, setThreads, setActiveEngine,
+  } = useEngineAnalysis(engineRegistry);
+
+  const [showEngineManager, setShowEngineManager] = useState(false);
 
   const {
     resolveUrl,
@@ -381,6 +392,7 @@ export const AppShell = (): ReactElement => {
   const services: AppStartupServices = {
     ...rawServices,
     openCurriculumPanel: (): void => { training.setShowCurriculumPanel(true); },
+    openEngineManager: (): void => { setShowEngineManager(true); },
     openEditorStyleDialog: (): void => { setShowEditorStyleDialog(true); },
     openDefaultLayoutDialog: (): void => { setShowDefaultLayoutDialog(true); },
     openNewGameDialog: (): void => { setShowNewGameDialog(true); },
@@ -600,9 +612,17 @@ export const AppShell = (): ReactElement => {
             variations={variations}
             isAnalyzing={isAnalyzing}
             engineName={engineName}
+            activeEngineId={activeEngineId}
+            engines={engineConfig.engines}
+            multiPv={multiPv}
+            threads={threads}
             sideToMove={sideToMove}
             onStartAnalysis={handleStartAnalysis}
             onStopAnalysis={stopAnalysis}
+            onSetMultiPv={setMultiPv}
+            onSetThreads={setThreads}
+            onSetActiveEngine={setActiveEngine}
+            onOpenEngineManager={(): void => { setShowEngineManager(true); }}
             onPvMoveHover={handlePvMoveHover}
             onPvMoveHoverEnd={handlePvMoveHoverEnd}
             openingResult={openingExplorer.result}
@@ -668,6 +688,16 @@ export const AppShell = (): ReactElement => {
               setBoardResetKey((k) => k + 1);
             }}
             onSkip={trainingControls.skipMove}
+          />
+        )}
+
+        {/* ── Engine manager panel ── */}
+        {showEngineManager && (
+          <EngineManagerPanel
+            engineConfig={engineConfig}
+            discoveredOptions={discoveredOptions}
+            onClose={(): void => { setShowEngineManager(false); }}
+            t={t}
           />
         )}
 

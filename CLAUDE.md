@@ -42,6 +42,7 @@ before working on frontend or resource code.** Key files:
 | `typescript-strict-types.mdc` | Any TypeScript change |
 | `component-contract.mdc` | Adding or editing a React component |
 | `dual-target-architecture.mdc` | Resource, adapter, or build changes |
+| `dev/rules/tauri-ipc-bridge.mdc` | Any new Tauri `invoke` / Rust command wiring from TS; desktop IPC touchpoints |
 | `public-code-documentation.mdc` | Adding exported functions or modules |
 | `logging.mdc` | Any code change — new or existing code being touched |
 | `regression-tests.mdc` | Bug fixes |

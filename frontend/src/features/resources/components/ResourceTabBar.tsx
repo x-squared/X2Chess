@@ -34,7 +34,6 @@ type ResourceTabBarProps = {
   onDeleteGameCancel: () => void;
   isDeleteGameConfirmArmed: boolean;
   canDeleteGame: boolean;
-  onMetadataOpen: () => void;
   onOpenResourceFile: () => void;
   onOpenResourceDatabase: () => void;
   onOpenResourceDirectory: () => void;
@@ -57,7 +56,6 @@ export const ResourceTabBar = ({
   onDeleteGameCancel,
   isDeleteGameConfirmArmed,
   canDeleteGame,
-  onMetadataOpen,
   onOpenResourceFile,
   onOpenResourceDatabase,
   onOpenResourceDirectory,
@@ -85,17 +83,6 @@ export const ResourceTabBar = ({
         <p className="resource-viewer-title">{t("resources.title", "Resources")}</p>
       </div>
       <div className="resource-viewer-actions">
-        <button
-          id="btn-resource-metadata"
-          className="resource-icon-button"
-          type="button"
-          aria-label={t("resources.metadata.button", "Choose metadata columns")}
-          title={t("resources.metadata.button", "Choose metadata columns")}
-          disabled={activeTabId === null}
-          onClick={onMetadataOpen}
-        >
-          <img src="/icons/toolbar/metadata-columns.svg" alt="" aria-hidden="true" />
-        </button>
         <details className="resource-new-dropdown" ref={newDropdownRef} onMouseLeave={closeNewDropdown}>
           <summary className="resource-action-button">
             {t("resources.new", "New resource")}

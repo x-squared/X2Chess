@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   createEngineManager,
   parseEngineRegistry,
+  serializeEngineRegistry,
   type ProcessFactory,
 } from "../src/client/engine_manager.js";
 import type { EngineProcess } from "../src/uci/uci_session.js";
@@ -111,6 +112,21 @@ test("parseEngineRegistry — missing engines key returns empty array", () => {
 test("parseEngineRegistry — engines not an array returns empty array", () => {
   const registry = parseEngineRegistry(JSON.stringify({ engines: "oops" }));
   assert.deepEqual(registry.engines, []);
+});
+
+// ── serializeEngineRegistry / round-trip ────────────────────────────────────
+
+test("serializeEngineRegistry — empty engines writes null default and parses back", () => {
+  const json = serializeEngineRegistry({ engines: [], defaultEngineId: "stale-would-be-wrong" });
+  assert.match(json, /"defaultEngineId"\s*:\s*null/);
+  const round = parseEngineRegistry(json);
+  assert.deepEqual(round.engines, []);
+  assert.equal(round.defaultEngineId, undefined);
+});
+
+test("parseEngineRegistry — JSON null defaultEngineId becomes undefined", () => {
+  const registry = parseEngineRegistry(JSON.stringify({ engines: [], defaultEngineId: null }));
+  assert.equal(registry.defaultEngineId, undefined);
 });
 
 // ── createEngineManager — listEngines / defaultEngineId ────────────────────

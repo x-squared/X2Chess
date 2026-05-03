@@ -1,0 +1,43 @@
+# Allowlist for every application-defined command registered in `main.rs` (`invoke_handler`).
+# Partial lists break unrelated features (file pickers, saves, engine IPC) when ACL runs in deny-by-default mode.
+
+[[permission]]
+identifier = "allow-x2chess-app-commands"
+description = "All X2Chess custom Tauri IPC commands from src-tauri/src/main.rs."
+commands.allow = [
+  "detect_default_games_directory",
+  "pick_games_directory",
+  "pick_resource_file",
+  "load_text_file",
+  "write_text_file",
+  "list_pgn_files",
+  "load_game_file",
+  "save_game_file",
+  "load_user_config",
+  "query_db",
+  "execute_db",
+  "pick_x2chess_file",
+  "create_x2chess_file",
+  "create_pgn_file",
+  "pick_storage_export_file",
+  "pick_storage_import_file",
+  "spawn_engine",
+  "send_to_engine",
+  "kill_engine",
+  "pick_engine_executable",
+  "get_app_config_path",
+  "host_hardware_summary",
+  "save_engines_config",
+  "reveal_in_finder",
+  "detect_engines",
+  "native_http_get",
+  "open_external_url",
+  "open_devtools",
+  "open_browser_window",
+  "close_browser_window",
+  "browser_window_navigate",
+  "browser_window_go_back",
+  "browser_window_go_forward",
+  "browser_window_reload",
+  "browser_window_capture",
+]

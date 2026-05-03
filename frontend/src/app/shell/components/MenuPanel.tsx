@@ -22,6 +22,7 @@
 
 import { useEffect, useState } from "react";
 import type { ReactElement, ChangeEvent } from "react";
+import { UI_IDS } from "../../../core/model/ui_ids";
 import { SUPPORTED_LOCALES } from "../../i18n";
 import { useAppContext } from "../../providers/AppStateProvider";
 import {
@@ -92,6 +93,7 @@ export const MenuPanel = (): ReactElement => {
       {/* Sidebar panel */}
       <aside
         id="app-menu-panel"
+        data-ui-id={UI_IDS.APP_MENU}
         className={isMenuOpen ? "app-menu-panel open" : "app-menu-panel"}
         aria-hidden={isMenuOpen ? undefined : "true"}
       >
@@ -234,6 +236,16 @@ export const MenuPanel = (): ReactElement => {
             onClick={(): void => { services.setMenuOpen(false); services.openCurriculumPanel(); }}
           >
             {t("controls.trainingPlan", "Training Plan…")}
+          </button>
+
+          {/* Engines */}
+          <button
+            id="btn-engine-manager"
+            className="source-button"
+            type="button"
+            onClick={(): void => { services.setMenuOpen(false); services.openEngineManager(); }}
+          >
+            {t("controls.engineManager", "Engines…")}
           </button>
 
           {/* Web import rules */}

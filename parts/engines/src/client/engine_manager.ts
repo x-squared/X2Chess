@@ -9,13 +9,16 @@
  * - `EngineManager.getSession(engineId?)` — returns an initialized UciSession.
  * - `EngineManager.listEngines()` — returns all configured engine configs.
  * - `EngineManager.shutdownAll()` — kills all running engines.
+ * - `parseEngineRegistry` / `serializeEngineRegistry` — load/save `engines.json` text.
  *
  * Configuration API:
  * - `EngineRegistry` from `engines/domain/engine_config.ts`.
  *
  * Communication API:
- * - `processFactory(config)` — dependency injection point; supply
- *   `createTauriEngine` in production or a mock in tests.
+ * - `processFactory(config)` — dependency injection point; supply a desktop
+ *   `EngineProcess` factory (e.g. `createTauriEngine` from
+ *   `frontend/src/platform/desktop/tauri_engine_adapter.ts`) in production or a
+ *   mock in tests.
  */
 
 import type { EngineConfig, EngineRegistry } from "../domain/engine_config";
@@ -134,12 +137,30 @@ export const createEngineManager = (
  */
 export const parseEngineRegistry = (json: string): EngineRegistry => {
   try {
-    const parsed = JSON.parse(json) as Partial<EngineRegistry>;
+    const parsed = JSON.parse(json) as Partial<EngineRegistry> & {
+      defaultEngineId?: string | null;
+    };
+    const rawDefault: string | null | undefined = parsed.defaultEngineId;
+    const defaultEngineId: string | undefined =
+      typeof rawDefault === "string" && rawDefault.length > 0 ? rawDefault : undefined;
     return {
       engines: Array.isArray(parsed.engines) ? parsed.engines : [],
-      defaultEngineId: parsed.defaultEngineId,
+      defaultEngineId,
     };
   } catch {
     return { engines: [] };
   }
+};
+
+/**
+ * Serialize registry for `engines.json`. When there are no engines, writes `defaultEngineId: null`
+ * so a removed default cannot linger on disk.
+ *
+ * @param registry Current user registry.
+ * @returns Pretty-printed JSON string.
+ */
+export const serializeEngineRegistry = (registry: EngineRegistry): string => {
+  const defaultEngineId: string | null =
+    registry.engines.length === 0 ? null : registry.defaultEngineId ?? null;
+  return JSON.stringify({ engines: registry.engines, defaultEngineId }, null, 2);
 };

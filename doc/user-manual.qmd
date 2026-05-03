@@ -1,6 +1,6 @@
 # X2Chess User Manual
 
-Last updated: 2026-05-02
+Last updated: 2026-05-03
 
 ## Who this manual is for
 
@@ -368,6 +368,16 @@ The **Analysis panel** is in the right column.
   - **Depth** — search depth reached.
   - **Principal variation** — the sequence of best moves found.
 - Click a move in an engine line to preview that position on the board.
+
+### Managing engines
+
+- **Manage engines…** in the Analysis panel (desktop) opens the list of
+  configured UCI engines. You can add, remove, **copy** a row, and open
+  **Configure** to edit the display name and engine options.
+- **Copy** points at the same executable as the original. The full UCI options
+  table appears as soon as options for that binary have been loaded (for
+  example after analysis has used any engine entry with the same path), so you
+  do not need to start analysis on the copy first.
 
 ### Play vs engine
 

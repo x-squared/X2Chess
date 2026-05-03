@@ -288,9 +288,71 @@ export const metadataMatchesRenderingWhen = (
   });
 };
 
+// ── Slot resolution helpers ───────────────────────────────────────────────────
+
+type SlotResult = { display: GameRenderingDisplay; ruleIndex: number };
+
+/**
+ * Scan for default rules (empty `when`) and return the last one that has `slot` set.
+ * Multiple default rules are unusual; last-wins matches the original scan semantics.
+ */
+const findDefaultSlot = (
+  profile: GameRenderingProfile,
+  slot: "display1" | "display2",
+): SlotResult | null => {
+  let result: SlotResult | null = null;
+  for (let ri = 0; ri < profile.rules.length; ri++) {
+    const rule = profile.rules[ri];
+    if (Object.keys(rule.when).length !== 0) continue;
+    const candidate: GameRenderingDisplay | undefined = rule[slot];
+    if (candidate != null) result = { display: candidate, ruleIndex: ri };
+  }
+  return result;
+};
+
+/**
+ * Scan conditional rules (non-empty `when`) for the first one that matches `metadata`
+ * AND has `slot` set. Logs when a rule matches but its slot is unset — the caller falls
+ * back to the default rule in that case.
+ */
+const findConditionalSlot = (
+  metadata: Record<string, string>,
+  profile: GameRenderingProfile,
+  slot: "display1" | "display2",
+  fieldsByKey: Map<string, MetadataFieldDefinition> | null,
+  schemaFields: readonly MetadataFieldDefinition[] | undefined,
+): SlotResult | null => {
+  for (let ri = 0; ri < profile.rules.length; ri++) {
+    const rule = profile.rules[ri];
+    if (Object.keys(rule.when).length === 0) continue;
+    if (!metadataMatchesRenderingWhen(metadata, rule.when, fieldsByKey)) continue;
+    const candidate: GameRenderingDisplay | undefined = rule[slot];
+    if (candidate != null) {
+      log.debug(
+        "game_rendering",
+        () =>
+          `resolveDisplay: slot=${slot} outcome=conditional ruleIndex=${String(ri)} when=${JSON.stringify(rule.when)} schemaFields=${schemaFields != null && schemaFields.length > 0 ? "yes" : "no"}`,
+      );
+      return { display: candidate, ruleIndex: ri };
+    }
+    // Rule matched but this slot is unset — keep scanning; use default rule at end.
+    log.debug(
+      "game_rendering",
+      () =>
+        `resolveDisplay: slot=${slot} ruleIndex=${String(ri)} matched when=${JSON.stringify(rule.when)} but ${slot} unset on rule`,
+    );
+  }
+  return null;
+};
+
 /**
  * Find the display slot for a given metadata row and profile.
- * Returns null when no profile is set or no rule (including fallback) matches.
+ *
+ * Resolution order:
+ * 1. First conditional rule (`when` non-empty) that matches **and** has `slot` set.
+ *    If a conditional rule matches but its slot is unset, scanning continues.
+ * 2. Default rule (empty `when`) — last one with `slot` set is the fallback.
+ * 3. `null` when neither resolves.
  *
  * @param schemaFields - Optional schema `fields` list; enables case-insensitive select `when` matching.
  */
@@ -301,48 +363,20 @@ export const resolveDisplay = (
   schemaFields?: readonly MetadataFieldDefinition[],
 ): GameRenderingDisplay | null => {
   const fieldsByKey: Map<string, MetadataFieldDefinition> | null = fieldDefByKey(schemaFields);
-  let fallback: GameRenderingDisplay | null = null;
-  let fallbackRuleIndex: number | null = null;
+  const fallback: SlotResult | null = findDefaultSlot(profile, slot);
+  const match: SlotResult | null = findConditionalSlot(metadata, profile, slot, fieldsByKey, schemaFields);
 
-  for (let ri = 0; ri < profile.rules.length; ri++) {
-    const rule = profile.rules[ri];
-    const isDefault = Object.keys(rule.when).length === 0;
-    if (isDefault) {
-      const candidate = rule[slot];
-      if (candidate != null) {
-        fallback = candidate;
-        fallbackRuleIndex = ri;
-      }
-      continue;
-    }
-    const matches: boolean = metadataMatchesRenderingWhen(metadata, rule.when, fieldsByKey);
-    if (matches) {
-      const candidate = rule[slot];
-      if (candidate != null) {
-        // [log: may downgrade to debug once GRP diagnosis is stable]
-        log.debug(
-          "game_rendering",
-          () =>
-            `resolveDisplay: slot=${slot} outcome=conditional ruleIndex=${String(ri)} when=${JSON.stringify(rule.when)} schemaFields=${schemaFields != null && schemaFields.length > 0 ? "yes" : "no"}`,
-        );
-        return candidate;
-      }
-      // Rule matched but this slot is unset — keep scanning; use default rule at end.
-      log.debug(
-        "game_rendering",
-        () =>
-          `resolveDisplay: slot=${slot} ruleIndex=${String(ri)} matched when=${JSON.stringify(rule.when)} but ${slot} unset on rule`,
-      );
-    }
+  if (match !== null) {
+    return match.display;
   }
 
-  if (fallback != null) {
+  if (fallback !== null) {
     log.debug(
       "game_rendering",
       () =>
-        `resolveDisplay: slot=${slot} outcome=fallback ruleIndex=${fallbackRuleIndex === null ? "?" : String(fallbackRuleIndex)} Type=${getMetadataValueIgnoreKeyCase(metadata, "Type")} snapshot=${JSON.stringify(pickConditionFieldsForLog(metadata, profile.conditionKeys))}`,
+        `resolveDisplay: slot=${slot} outcome=fallback ruleIndex=${String(fallback.ruleIndex)} Type=${getMetadataValueIgnoreKeyCase(metadata, "Type")} snapshot=${JSON.stringify(pickConditionFieldsForLog(metadata, profile.conditionKeys))}`,
     );
-    return fallback;
+    return fallback.display;
   }
 
   log.info("game_rendering", "resolveDisplay: no display for slot (null)", {

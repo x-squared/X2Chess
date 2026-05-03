@@ -65,6 +65,7 @@ export type AppStartupServices = {
   closeSession: (sessionId: string) => void;
   flipBoard: () => void;
   openCurriculumPanel: () => void;
+  openEngineManager: () => void;
   setMenuOpen: (open: boolean) => void;
   openEditorStyleDialog: () => void;
   openDefaultLayoutDialog: () => void;

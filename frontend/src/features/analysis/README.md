@@ -7,6 +7,7 @@ Important subdirectories:
 - `hooks/`: stateful hooks such as `useEngineAnalysis`, `useOpeningExplorer`, `useTablebaseProbe`, `useVsEngine`, and `useGameAnnotation`.
 - `components/`: panels and dialogs rendered in the shell.
 - `services/`: framework-free analysis helpers when analysis UI needs shared support code.
+- `pv_move_tokens.ts` (package root): builds PGN-style move-number tokens for the engine analysis PV strip (`buildPvMoveTokens`).
 
 Use this package when the code is about engine-backed analysis or exploratory chess tooling. Keep raw desktop transport in `platform/` or shared resource fetch helpers in `resources/`.
 

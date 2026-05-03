@@ -12,6 +12,7 @@ import {
   applySanWithFallback,
   buildMainlinePlyByMoveId,
   buildMovePositionById,
+  pvUciMovesToSan,
   replayPvToPosition,
   resolveMovePositionById,
   stripAnnotationsForBoardParser,
@@ -137,6 +138,25 @@ test("replayPvToPosition — bad start FEN returns original fen", () => {
   const result = replayPvToPosition(bad, ["e4"], 0);
   assert.equal(result.fen, bad);
   assert.equal(result.lastMove, null);
+});
+
+test("pvUciMovesToSan — opening line uses SAN (Nf3), not UCI squares", () => {
+  const startFen: string = new Chess().fen();
+  const sans: string[] = pvUciMovesToSan(startFen, ["g1f3", "d7d5", "d2d4"]);
+  assert.deepEqual(sans, ["Nf3", "d5", "d4"]);
+});
+
+test("pvUciMovesToSan — disambiguates when two knights can reach the same square", () => {
+  const fen =
+    "8/8/8/8/8/8/1N1N4/4K2k w - - 0 1";
+  const sans: string[] = pvUciMovesToSan(fen, ["b2c4"]);
+  assert.deepEqual(sans, ["Nbc4"]);
+});
+
+test("pvUciMovesToSan — illegal line yields empty array", () => {
+  const startFen: string = new Chess().fen();
+  const sans: string[] = pvUciMovesToSan(startFen, ["g1g3"]);
+  assert.deepEqual(sans, []);
 });
 
 // Non-standard FEN (position after 1. e4 c5): white to move on move 2.

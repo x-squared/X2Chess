@@ -16,6 +16,7 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
 import type { EngineVariation } from "../../../../../parts/engines/src/domain/analysis_types";
+import type { EngineConfig } from "../../../../../parts/engines/src/domain/engine_config";
 import type { OpeningResult } from "../../../resources/ext_databases/opening_types";
 import type { TbProbeResult } from "../../../resources/ext_databases/endgame_types";
 import { AnalysisPanel } from "../../../features/analysis/components/AnalysisPanel";
@@ -55,9 +56,17 @@ type RightPanelStackProps = {
   variations: EngineVariation[];
   isAnalyzing: boolean;
   engineName: string | null;
+  activeEngineId: string | undefined;
+  engines: EngineConfig[];
+  multiPv: number;
+  threads: number;
   sideToMove: "w" | "b";
   onStartAnalysis: () => void;
   onStopAnalysis: () => void;
+  onSetMultiPv: (n: number) => void;
+  onSetThreads: (n: number) => void;
+  onSetActiveEngine: (id: string) => void;
+  onOpenEngineManager: () => void;
   onPvMoveHover?: (pvSans: string[], upToIndex: number, rect: DOMRect) => void;
   onPvMoveHoverEnd?: () => void;
   // Opening explorer
@@ -106,8 +115,8 @@ const PANEL_TABS: Array<{ id: PanelId; label: string; labelKey: string; tabUiId:
 
 export const RightPanelStack = ({
   devToolsEnabled,
-  variations, isAnalyzing, engineName, sideToMove,
-  onStartAnalysis, onStopAnalysis,
+  variations, isAnalyzing, engineName, activeEngineId, engines, multiPv, threads, sideToMove,
+  onStartAnalysis, onStopAnalysis, onSetMultiPv, onSetThreads, onSetActiveEngine, onOpenEngineManager,
   onPvMoveHover, onPvMoveHoverEnd,
   openingResult, openingIsLoading, openingSource, openingEnabled,
   onOpeningSourceChange, onOpeningToggle, onOpenSettings,
@@ -174,10 +183,18 @@ export const RightPanelStack = ({
             variations={variations}
             isAnalyzing={isAnalyzing}
             engineName={engineName}
+            activeEngineId={activeEngineId}
+            engines={engines}
+            multiPv={multiPv}
+            threads={threads}
             sideToMove={sideToMove}
             t={t}
             onStartAnalysis={onStartAnalysis}
             onStopAnalysis={onStopAnalysis}
+            onSetMultiPv={onSetMultiPv}
+            onSetThreads={onSetThreads}
+            onSetActiveEngine={onSetActiveEngine}
+            onOpenEngineManager={onOpenEngineManager}
             onPvMoveHover={onPvMoveHover}
             onPvMoveHoverEnd={onPvMoveHoverEnd}
           />

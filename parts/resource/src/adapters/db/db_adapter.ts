@@ -484,19 +484,19 @@ export const createDbAdapter = (
     const db = gatewayForPath(dbPath);
     await ensureMigrated(db, dbPath);
 
-    const placeholders = values.map(() => "?").join(", ");
-    const params: unknown[] = [cleanKey, ...values];
-
+    const placeholders: string = values.map(() => "?").join(", ");
     let sql: string;
+    let params: unknown[];
     if (mode === "all") {
-      params.push(values.length);
       sql = `SELECT game_id FROM game_metadata
              WHERE meta_key = ? AND val_str IN (${placeholders})
              GROUP BY game_id
              HAVING COUNT(DISTINCT val_str) = ?`;
+      params = [cleanKey, ...values, values.length];
     } else {
       sql = `SELECT DISTINCT game_id FROM game_metadata
              WHERE meta_key = ? AND val_str IN (${placeholders})`;
+      params = [cleanKey, ...values];
     }
 
     const rows = await db.query(sql, params);

@@ -4,6 +4,7 @@ use std::fs;
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Component, Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
@@ -333,6 +334,227 @@ fn kill_engine(
     }
   }
   Ok(())
+}
+
+/// Open a file-picker dialog for selecting a chess engine executable.
+///
+/// On macOS, `rfd` must open the sheet on the **application main thread**; Tauri
+/// invokes commands on a worker thread, so we schedule the dialog with
+/// [`tauri::AppHandle::run_on_main_thread`] and return the path through a channel.
+/// Returns the chosen path, or `None` when the user cancels.
+#[tauri::command]
+fn pick_engine_executable(app: tauri::AppHandle) -> Option<String> {
+  info!("pick_engine_executable: schedule native dialog on main thread");
+  let (tx, rx) = mpsc::sync_channel::<Option<String>>(1);
+  let app_for_dialog: tauri::AppHandle = app.clone();
+  if let Err(e) = app.run_on_main_thread(move || {
+    info!("pick_engine_executable: main thread — building FileDialog");
+    let mut dialog: rfd::FileDialog = rfd::FileDialog::new().set_title("Choose chess engine executable");
+    if let Some(window) = app_for_dialog.get_webview_window("main") {
+      dialog = dialog.set_parent(&window);
+    }
+    let picked: Option<String> = dialog
+      .pick_file()
+      .map(|path| path.to_string_lossy().to_string());
+    if picked.is_some() {
+      info!("pick_engine_executable: user chose an executable");
+    } else {
+      info!("pick_engine_executable: dialog closed without selection");
+    }
+    if tx.send(picked).is_err() {
+      warn!("pick_engine_executable: result channel closed before send");
+    }
+  }) {
+    warn!("pick_engine_executable: run_on_main_thread failed: {}", e);
+    return None;
+  }
+  match rx.recv() {
+    Ok(path) => path,
+    Err(e) => {
+      warn!("pick_engine_executable: channel recv failed: {}", e);
+      None
+    }
+  }
+}
+
+/// Return the path to a named file in the app config directory (`~/.x2chess/config/`).
+/// Creates the directory if it does not exist.
+#[tauri::command]
+fn get_app_config_path(file_name: String) -> Result<String, String> {
+  let home = env::var("HOME")
+    .map(PathBuf::from)
+    .unwrap_or_else(|_| PathBuf::from("/tmp"));
+  let config_dir = home.join(".x2chess").join("config");
+  fs::create_dir_all(&config_dir)
+    .map_err(|e| format!("Cannot create config directory: {e}"))?;
+  Ok(config_dir.join(&file_name).to_string_lossy().to_string())
+}
+
+/// Logical CPU count and total installed RAM for engine Hash / Threads tooltip hints (desktop shell).
+#[tauri::command]
+fn host_hardware_summary() -> JsonValue {
+  let logical_processors: u32 = std::thread::available_parallelism()
+    .map(|n| n.get() as u32)
+    .unwrap_or(1);
+
+  let mut sys = sysinfo::System::new();
+  sys.refresh_memory();
+  let total_memory_bytes: u64 = sys.total_memory();
+  let total_memory_megabytes: u64 = total_memory_bytes / (1024 * 1024);
+
+  json!({
+    "logicalProcessors": logical_processors,
+    "totalMemoryMegabytes": total_memory_megabytes,
+  })
+}
+
+/// Write the engines.json configuration file to `~/.x2chess/config/engines.json`.
+#[tauri::command]
+fn save_engines_config(content: String) -> Result<(), String> {
+  let home = env::var("HOME")
+    .map(PathBuf::from)
+    .unwrap_or_else(|_| PathBuf::from("/tmp"));
+  let config_dir = home.join(".x2chess").join("config");
+  fs::create_dir_all(&config_dir)
+    .map_err(|e| format!("Cannot create config directory: {e}"))?;
+  fs::write(config_dir.join("engines.json"), content)
+    .map_err(|e| format!("Unable to save engines config: {e}"))
+}
+
+/// Reveal a file path in the system file manager (Finder on macOS, Explorer on Windows).
+#[tauri::command]
+fn reveal_in_finder(path: String) -> Result<(), String> {
+  #[cfg(target_os = "macos")]
+  let result = std::process::Command::new("open").args(["-R", &path]).spawn();
+  #[cfg(target_os = "windows")]
+  let result = std::process::Command::new("explorer")
+    .args(["/select,", &path])
+    .spawn();
+  #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+  let result = {
+    let parent = Path::new(&path).parent().unwrap_or(Path::new("/"));
+    std::process::Command::new("xdg-open").arg(parent).spawn()
+  };
+  result.map(|_| ()).map_err(|e| format!("Failed to reveal in file manager: {e}"))
+}
+
+/// PATH merged with common install locations. GUI apps on macOS often omit Homebrew/MacPorts.
+fn merged_path_for_engine_probe() -> String {
+  #[cfg(target_os = "windows")]
+  {
+    let mut segments: Vec<String> = Vec::new();
+    if let Ok(profile) = env::var("USERPROFILE") {
+      segments.push(format!(r"{profile}\scoop\shims"));
+      segments.push(format!(r"{profile}\.local\bin"));
+    }
+    if let Ok(existing) = env::var("PATH") {
+      segments.push(existing);
+    }
+    segments.join(";")
+  }
+  #[cfg(not(target_os = "windows"))]
+  {
+    let mut segments: Vec<String> = Vec::new();
+    for p in [
+      "/opt/homebrew/bin",
+      "/usr/local/bin",
+      "/opt/local/bin",
+      "/usr/bin",
+      "/bin",
+    ] {
+      segments.push(p.to_string());
+    }
+    if let Ok(home) = env::var("HOME") {
+      segments.push(format!("{home}/.local/bin"));
+      segments.push(format!("{home}/bin"));
+    }
+    if let Ok(existing) = env::var("PATH") {
+      segments.push(existing);
+    }
+    segments.join(":")
+  }
+}
+
+#[cfg(target_family = "unix")]
+fn resolve_exe_via_which(cmd: &str) -> Option<String> {
+  let path_env: String = merged_path_for_engine_probe();
+  let output = Command::new("/bin/sh")
+    .env("PATH", &path_env)
+    .arg("-c")
+    .arg(format!("command -v {cmd}"))
+    .output()
+    .ok()?;
+  if !output.status.success() {
+    return None;
+  }
+  let resolved: String = String::from_utf8_lossy(&output.stdout).trim().to_string();
+  if resolved.is_empty() {
+    return None;
+  }
+  if Path::new(&resolved).is_file() {
+    return Some(resolved);
+  }
+  None
+}
+
+#[cfg(target_os = "windows")]
+fn resolve_exe_via_which(cmd: &str) -> Option<String> {
+  let path_env: String = merged_path_for_engine_probe();
+  let output = Command::new("where.exe")
+    .env("PATH", &path_env)
+    .arg(cmd)
+    .output()
+    .ok()?;
+  if !output.status.success() {
+    return None;
+  }
+  let line: Option<&str> = String::from_utf8_lossy(&output.stdout).lines().next();
+  let resolved: String = line?.trim().to_string();
+  if resolved.is_empty() {
+    return None;
+  }
+  if Path::new(&resolved).is_file() {
+    return Some(resolved);
+  }
+  None
+}
+
+/// Probe well-known locations for UCI chess engines and return any found.
+/// Runs `which` with an enriched PATH (GUI apps on macOS often lack `/opt/homebrew/bin`).
+#[tauri::command]
+fn detect_engines() -> Vec<serde_json::Value> {
+  let mut found: Vec<serde_json::Value> = Vec::new();
+
+  // PATH lookups (same basename may appear under Homebrew / MacPorts / user ~/bin).
+  for (cmd, name) in [("stockfish", "Stockfish"), ("lc0", "Leela Chess Zero")] {
+    if let Some(path) = resolve_exe_via_which(cmd) {
+      let already = found.iter().any(|e| e["path"].as_str() == Some(path.as_str()));
+      if !already {
+        found.push(serde_json::json!({ "path": path, "name": name }));
+      }
+    }
+  }
+
+  // Hard-coded fallbacks when `which` misses symlinks or unusual installs.
+  let candidates = [
+    ("/opt/homebrew/bin/stockfish", "Stockfish"),
+    ("/usr/local/bin/stockfish", "Stockfish"),
+    ("/opt/local/bin/stockfish", "Stockfish"),
+    ("/usr/bin/stockfish", "Stockfish"),
+    ("/opt/homebrew/bin/lc0", "Leela Chess Zero"),
+    ("/usr/local/bin/lc0", "Leela Chess Zero"),
+    ("/opt/local/bin/lc0", "Leela Chess Zero"),
+  ];
+  for (path, name) in &candidates {
+    if Path::new(path).is_file() {
+      let already = found.iter().any(|e| e["path"].as_str() == Some(path));
+      if !already {
+        found.push(serde_json::json!({ "path": path, "name": name }));
+      }
+    }
+  }
+
+  found
 }
 
 #[tauri::command]
@@ -723,6 +945,7 @@ fn main() {
       }
       Ok(())
     })
+    // Custom commands: add each new `#[tauri::command]` to `permissions/app-commands.toml` (Tauri 2 ACL).
     .invoke_handler(tauri::generate_handler![
       detect_default_games_directory,
       pick_games_directory,
@@ -743,6 +966,12 @@ fn main() {
       spawn_engine,
       send_to_engine,
       kill_engine,
+      pick_engine_executable,
+      get_app_config_path,
+      host_hardware_summary,
+      save_engines_config,
+      reveal_in_finder,
+      detect_engines,
       native_http_get,
       open_external_url,
       open_devtools,

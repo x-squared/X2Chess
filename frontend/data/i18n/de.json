@@ -285,5 +285,10 @@
   "gamePicker.clearConfirm": "Diese Referenz entfernen?",
   "gamePicker.clearYes": "Entfernen",
   "gamePicker.unavailable": "Ressource nicht verfuegbar.",
-  "gamePicker.loadError": "Partieliste konnte nicht geladen werden."
+  "gamePicker.loadError": "Partieliste konnte nicht geladen werden.",
+  "engines.config.optionHelpButton": "Hilfe zu dieser Option anzeigen",
+  "engines.config.help.hashMachine": "Dieses System hat etwa {{ramGb}} GB RAM ({{ramMb}} MB). Ein sinnvolles Hash-Ziel sind oft rund {{suggestMb}} MB (~25 % dieses Speichers), maximal {{engineMaxMb}} MB laut Engine-Limit.",
+  "engines.config.help.hashMachineNoRam": "Der installierte RAM steht in dieser Umgebung nicht zur Verfuegung. Richtwert: etwa 25 % des physischen Speichers, hoerchstens {{engineMaxMb}} MB laut Engine-Limit.",
+  "engines.config.help.threadsMachine": "Dieses System meldet {{cores}} logische Prozessoren. Wenn Sie zwei fuer das Betriebssystem freilassen, bleiben fuer die Analyse oft bis zu {{suggest}} Threads (Hoechstwert laut Engine: {{engineMax}}).",
+  "engines.config.help.threadsMachineNoCores": "Die CPU-Anzahl ist hier nicht verfuegbar. Lassen Sie ein oder zwei Kerne frei; diese Engine erlaubt hoechstens {{engineMax}} Threads."
 }

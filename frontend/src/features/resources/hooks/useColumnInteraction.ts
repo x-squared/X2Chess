@@ -22,6 +22,7 @@ import {
   clampWidth,
   clampGameIdColumnWidth,
   persistTabPrefs,
+  reconcileColumns,
   type TabState,
 } from "../services/viewer_utils";
 import { log } from "../../../logger";
@@ -159,7 +160,7 @@ export const useColumnInteraction = (
           if (from < 0 || to < 0) return t;
           order.splice(from, 1);
           order.splice(to, 0, fromKey);
-          const updated: TabState = { ...t, metadataColumnOrder: order };
+          const updated: TabState = reconcileColumns({ ...t, metadataColumnOrder: order });
           persistTabPrefs(updated);
           log.info("column_interaction", "Column drag reorder committed", {
             fromKey,

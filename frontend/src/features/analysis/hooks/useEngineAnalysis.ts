@@ -1,115 +1,171 @@
 /**
  * useEngineAnalysis — React hook for UCI engine analysis state.
  *
- * Initializes the engine manager from `config/engines.json` (via Tauri FS),
- * manages analysis lifecycle, and exposes engine variations to the UI.
- * Gracefully degrades when no engine is configured or Tauri is unavailable.
+ * Manages the engine manager lifecycle, exposes engine variations, and allows
+ * runtime configuration of multiPv, threads, and active engine. Gracefully
+ * degrades when no engine is configured or Tauri is unavailable.
  *
  * Integration API:
- * - `const analysis = useEngineAnalysis(position)` — pass the current board
- *   position; the hook manages analysis start/stop against it.
+ * - `const analysis = useEngineAnalysis(registry?)`
  *
  * Communication API:
- * - Returns `{ variations, isAnalyzing, engineName, startAnalysis, stopAnalysis }`
+ * - Returns `{ variations, isAnalyzing, engineName, activeEngineId, multiPv,
+ *     threads, discoveredOptions, startAnalysis, stopAnalysis, findBestMove,
+ *     setMultiPv, setThreads, setActiveEngine }`
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import type { EngineVariation, EngineBestMove, MoveSearchOptions } from "../../../../../parts/engines/src/domain/analysis_types";
+import type {
+  EngineVariation,
+  EngineBestMove,
+  MoveSearchOptions,
+  EnginePosition,
+} from "../../../../../parts/engines/src/domain/analysis_types";
+import type { UciOption } from "../../../../../parts/engines/src/domain/uci_types";
 import type { EngineManager } from "../../../../../parts/engines/src/client/engine_manager";
-import {
-  createEngineManager,
-  parseEngineRegistry,
-} from "../../../../../parts/engines/src/client/engine_manager";
-import { createTauriEngine } from "../../../../../parts/engines/src/adapters/tauri_engine";
-import type { EnginePosition } from "../../../../../parts/engines/src/domain/analysis_types";
+import type { EngineRegistry } from "../../../../../parts/engines/src/domain/engine_config";
+import { createEngineManager } from "../../../../../parts/engines/src/client/engine_manager";
+import { createTauriEngine } from "../../../platform/desktop/tauri_engine_adapter";
+import { pvUciMovesToSan } from "../../../board/move_position";
+import { log } from "../../../logger";
 
-// ── Tauri FS helpers (mirrors source_gateway.ts pattern) ────────────────────
+// ── Tauri environment check ───────────────────────────────────────────────────
 
-type TauriWindowLike = typeof window & {
+type TauriGlobal = typeof globalThis & {
   __TAURI__?: { core?: { invoke?: (cmd: string, args?: Record<string, unknown>) => Promise<unknown> } };
   __TAURI_INTERNALS__?: unknown;
 };
 
 const isTauriEnvironment = (): boolean => {
-  const runtimeWindow = window as TauriWindowLike;
-  return Boolean(runtimeWindow.__TAURI_INTERNALS__ || runtimeWindow.__TAURI__);
+  const g = globalThis as TauriGlobal;
+  return Boolean(g.__TAURI_INTERNALS__ || g.__TAURI__);
 };
 
-const tauriReadTextFile = async (path: string): Promise<string> => {
-  const runtimeWindow = window as TauriWindowLike;
-  const invokeFn = runtimeWindow.__TAURI__?.core?.invoke;
-  if (typeof invokeFn !== "function") throw new Error("Tauri unavailable");
-  return String(await invokeFn("load_text_file", { filePath: path }));
-};
-
-const tauriGetConfigPath = async (): Promise<string> => {
-  const runtimeWindow = window as TauriWindowLike;
-  const invokeFn = runtimeWindow.__TAURI__?.core?.invoke;
-  if (typeof invokeFn !== "function") throw new Error("Tauri unavailable");
-  return String(await invokeFn("get_app_config_path", { fileName: "engines.json" }));
-};
-
-// ── Hook types ───────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 export type EngineAnalysisState = {
   variations: EngineVariation[];
   isAnalyzing: boolean;
   engineName: string | null;
+  activeEngineId: string | undefined;
+  multiPv: number;
+  threads: number;
+  discoveredOptions: Map<string, UciOption[]>;
   startAnalysis: (position: EnginePosition) => void;
   stopAnalysis: () => void;
   findBestMove: (position: EnginePosition, opts: MoveSearchOptions) => Promise<EngineBestMove | null>;
+  setMultiPv: (n: number) => void;
+  setThreads: (n: number) => void;
+  setActiveEngine: (id: string) => void;
 };
 
-// ── Hook ─────────────────────────────────────────────────────────────────────
+// ── Hook ──────────────────────────────────────────────────────────────────────
 
 /**
- * Manages engine analysis lifecycle for a given board position.
- * Safe to render when no engine is configured — returns inert state.
- *
- * @returns Engine analysis state with `variations`, `isAnalyzing`, `engineName`, `startAnalysis`, `stopAnalysis`, and `findBestMove`.
+ * Manages engine analysis lifecycle. Accepts the current engine registry so
+ * the manager rebuilds when the user adds/removes/reconfigures engines.
  */
-export const useEngineAnalysis = (): EngineAnalysisState => {
+export const useEngineAnalysis = (registry?: EngineRegistry): EngineAnalysisState => {
   const [variations, setVariations] = useState<EngineVariation[]>([]);
-  const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [engineName, setEngineName] = useState<string | null>(null);
-  const managerRef = useRef<EngineManager | null>(null);
+  const [activeEngineId, setActiveEngineId] = useState<string | undefined>(
+    registry?.defaultEngineId,
+  );
+  const [multiPv, setMultiPv] = useState(3);
+  const [threads, setThreads] = useState(4);
+  const [discoveredOptions, setDiscoveredOptions] = useState<Map<string, UciOption[]>>(
+    new Map(),
+  );
 
-  // Initialize engine manager from config on mount.
+  const managerRef = useRef<EngineManager | null>(null);
+  const lastPositionRef = useRef<EnginePosition | null>(null);
+  const isAnalyzingRef = useRef(false);
+  const activeEngineIdRef = useRef(activeEngineId);
+  const multiPvRef = useRef(multiPv);
+  const threadsRef = useRef(threads);
+
+  useEffect((): void => { isAnalyzingRef.current = isAnalyzing; }, [isAnalyzing]);
+  useEffect((): void => { activeEngineIdRef.current = activeEngineId; }, [activeEngineId]);
+  useEffect((): void => { multiPvRef.current = multiPv; }, [multiPv]);
+  useEffect((): void => { threadsRef.current = threads; }, [threads]);
+
+  // Rebuild manager when registry changes.
   useEffect((): (() => void) => {
+    if (!registry || registry.engines.length === 0) {
+      managerRef.current = null;
+      setEngineName(null);
+      setActiveEngineId(undefined);
+      activeEngineIdRef.current = undefined;
+      setDiscoveredOptions(new Map());
+      log.debug("useEngineAnalysis", () => "registry empty — cleared manager ref and analysis labels");
+      return (): void => undefined;
+    }
+
     if (!isTauriEnvironment()) return (): void => undefined;
 
     let cancelled = false;
-    const init = async (): Promise<void> => {
+    const manager = createEngineManager(registry, (config) =>
+      createTauriEngine({ config }),
+    );
+    managerRef.current = manager;
+
+    const effectiveId = activeEngineIdRef.current ?? registry.defaultEngineId;
+    const activeCfg = registry.engines.find((e) => e.id === effectiveId);
+    if (activeCfg) {
+      setEngineName(activeCfg.label ?? activeCfg.id);
+      setActiveEngineId(activeCfg.id);
+    }
+
+    void (async (): Promise<void> => {
       try {
-        const configPath = await tauriGetConfigPath();
-        const json = await tauriReadTextFile(configPath);
+        const session = await manager.getSession(effectiveId);
         if (cancelled) return;
-        const registry = parseEngineRegistry(json);
-        if (!registry.defaultEngineId || registry.engines.length === 0) return;
-        const manager = createEngineManager(registry, (config) =>
-          createTauriEngine({ config }),
-        );
-        managerRef.current = manager;
-        const defaultCfg = registry.engines.find(
-          (e) => e.id === registry.defaultEngineId,
-        );
-        if (defaultCfg) setEngineName(defaultCfg.label ?? defaultCfg.id);
+        const opts = Array.from(session.options.values());
+        setDiscoveredOptions((prev) => {
+          const next = new Map(prev);
+          next.set(effectiveId ?? "", opts);
+          return next;
+        });
       } catch {
-        // No engine config — silent; engineName stays null.
+        // Engine not yet reachable — options appear on first analysis.
       }
-    };
-    void init();
+    })();
+
     return (): void => {
       cancelled = true;
-      void managerRef.current?.shutdownAll().catch(() => undefined);
+      void manager.shutdownAll().catch(() => undefined);
+      managerRef.current = null;
     };
+  // registry identity change is the intended trigger; activeEngineId is read via ref.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [registry]);
+
+  // Extracted variation handler — avoids >4 levels of nesting inside startAnalysis.
+  const handleVariation = useCallback((v: EngineVariation): void => {
+    if (!isAnalyzingRef.current) return;
+    const pos = lastPositionRef.current;
+    let enriched: EngineVariation = v;
+    if (pos !== null && v.pv.length > 0) {
+      const pvSan: string[] = pvUciMovesToSan(pos.fen, v.pv);
+      if (pvSan.length === v.pv.length) {
+        enriched = { ...v, pvSan };
+      }
+    }
+    setVariations((prev) => {
+      const next = [...prev];
+      const idx = next.findIndex((x) => x.multipvIndex === enriched.multipvIndex);
+      if (idx >= 0) next[idx] = enriched; else next.push(enriched);
+      return next.sort((a, b) => a.multipvIndex - b.multipvIndex);
+    });
   }, []);
 
   const stopAnalysis = useCallback((): void => {
     setIsAnalyzing(false);
+    isAnalyzingRef.current = false;
     void managerRef.current
-      ?.getSession()
-      .then((session) => session.stopAnalysis())
+      ?.getSession(activeEngineIdRef.current)
+      .then((s) => s.stopAnalysis())
       .catch(() => undefined);
   }, []);
 
@@ -117,37 +173,42 @@ export const useEngineAnalysis = (): EngineAnalysisState => {
     const manager = managerRef.current;
     if (!manager) return;
 
+    lastPositionRef.current = position;
     stopAnalysis();
     setVariations([]);
     setIsAnalyzing(true);
+    isAnalyzingRef.current = true;
+
+    const engineId = activeEngineIdRef.current;
+    const pvCount = multiPvRef.current;
+    const threadCount = threadsRef.current;
 
     manager
-      .getSession()
-      .then((session) => {
-        session.startAnalysis(
-          position,
-          { infinite: true, multiPv: 3 },
-          (v: EngineVariation): void => {
-            setVariations((prev) => {
-              const next = [...prev];
-              const idx = next.findIndex((x) => x.multipvIndex === v.multipvIndex);
-              if (idx >= 0) next[idx] = v; else next.push(v);
-              return next.sort((a, b) => a.multipvIndex - b.multipvIndex);
-            });
-          },
-        );
+      .getSession(engineId)
+      .then((session): void => {
+        const opts = Array.from(session.options.values());
+        setDiscoveredOptions((prev) => {
+          const next = new Map(prev);
+          next.set(engineId ?? "", opts);
+          return next;
+        });
+        session.setOption("MultiPV", String(pvCount));
+        if (session.options.has("Threads")) {
+          session.setOption("Threads", String(threadCount));
+        }
+        session.startAnalysis(position, { infinite: true, multiPv: pvCount }, handleVariation);
       })
-      .catch(() => {
+      .catch((): void => {
         setIsAnalyzing(false);
+        isAnalyzingRef.current = false;
       });
-  }, [stopAnalysis]);
+  }, [stopAnalysis, handleVariation]);
 
   const findBestMove = useCallback(
     async (position: EnginePosition, opts: MoveSearchOptions): Promise<EngineBestMove | null> => {
-      const manager = managerRef.current;
-      if (!manager) return null;
+      if (!managerRef.current) return null;
       try {
-        const session = await manager.getSession();
+        const session = await managerRef.current.getSession(activeEngineIdRef.current);
         return await session.findBestMove(position, opts);
       } catch {
         return null;
@@ -156,5 +217,50 @@ export const useEngineAnalysis = (): EngineAnalysisState => {
     [],
   );
 
-  return { variations, isAnalyzing, engineName, startAnalysis, stopAnalysis, findBestMove };
+  // Callbacks that do more than set state use distinct names to avoid shadowing.
+  const changeMultiPv = useCallback((n: number): void => {
+    setMultiPv(n);
+    multiPvRef.current = n;
+    if (isAnalyzingRef.current && lastPositionRef.current) {
+      stopAnalysis();
+      const pos = lastPositionRef.current;
+      setTimeout((): void => { startAnalysis(pos); }, 0);
+    }
+  }, [stopAnalysis, startAnalysis]);
+
+  const changeThreads = useCallback((n: number): void => {
+    setThreads(n);
+    threadsRef.current = n;
+    if (isAnalyzingRef.current && lastPositionRef.current) {
+      stopAnalysis();
+      const pos = lastPositionRef.current;
+      setTimeout((): void => { startAnalysis(pos); }, 0);
+    }
+  }, [stopAnalysis, startAnalysis]);
+
+  const changeActiveEngine = useCallback((id: string): void => {
+    if (id === activeEngineIdRef.current) return;
+    stopAnalysis();
+    setActiveEngineId(id);
+    activeEngineIdRef.current = id;
+    setVariations([]);
+    const cfg = registry?.engines.find((e) => e.id === id);
+    if (cfg) setEngineName(cfg.label ?? cfg.id);
+  }, [stopAnalysis, registry]);
+
+  return {
+    variations,
+    isAnalyzing,
+    engineName,
+    activeEngineId,
+    multiPv,
+    threads,
+    discoveredOptions,
+    startAnalysis,
+    stopAnalysis,
+    findBestMove,
+    setMultiPv: changeMultiPv,
+    setThreads: changeThreads,
+    setActiveEngine: changeActiveEngine,
+  };
 };

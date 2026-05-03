@@ -16,6 +16,8 @@ import "../components/dialogs/new_game_dialog.css";
 import "../components/dialogs/game_picker_dialog.css";
 import "../components/board/move_dialogs.css";
 import "../features/settings/components/ext_db_panels.css";
+import "../features/analysis/components/analysis_panel.css";
+import "../features/engines/components/engines.css";
 import "../features/resources/components/web_import_rules.css";
 import "../training/styles.css";
 import { StrictMode } from "react";

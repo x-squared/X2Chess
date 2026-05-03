@@ -252,5 +252,10 @@
   "gamePicker.clearConfirm": "¿Quitar esta referencia?",
   "gamePicker.clearYes": "Quitar",
   "gamePicker.unavailable": "Recurso no disponible.",
-  "gamePicker.loadError": "No se pudo cargar la lista de partidas."
+  "gamePicker.loadError": "No se pudo cargar la lista de partidas.",
+  "engines.config.optionHelpButton": "Mostrar ayuda para esta opción",
+  "engines.config.help.hashMachine": "Este equipo tiene unos {{ramGb}} GB de RAM ({{ramMb}} MB). Un Hash razonable suele rondar {{suggestMb}} MB (~25% de esa memoria), hasta el máximo que permite el motor ({{engineMaxMb}} MB).",
+  "engines.config.help.hashMachineNoRam": "La RAM instalada no está disponible en este entorno. Como referencia, usa ~25% de la memoria física, sin superar el máximo del motor ({{engineMaxMb}} MB).",
+  "engines.config.help.threadsMachine": "El sistema indica {{cores}} procesadores lógicos. Reservando dos para el sistema caben hasta unos {{suggest}} hilos para el análisis (máximo del motor: {{engineMax}}).",
+  "engines.config.help.threadsMachineNoCores": "Aquí no se expone el número de CPU. Deja uno o dos núcleos libres; este motor admite como máximo {{engineMax}} hilos."
 }

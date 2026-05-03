@@ -22,6 +22,7 @@ import { log } from "../logger";
  * - `resolveMovePositionById(pgnModel, moveId)`
  * - `buildMainlinePlyByMoveId(pgnModel)`
  * - `stripAnnotationsForBoardParser(source)`
+ * - `pvUciMovesToSan(startFen, uciMoves)`
  * - `replayPvToPosition(startFen, pvSans, upToIndex)`
  */
 
@@ -484,6 +485,54 @@ export const buildMainlinePlyByMoveId = (pgnModel: PgnModel): MainlinePlyByMoveI
     byId[entry.id] = ply;
   });
   return byId;
+};
+
+/**
+ * Converts an engine principal-variation line from UCI (e.g. `g1f3`, `e7e8q`) to
+ * standard algebraic notation, replaying into a temporary `Chess` instance so
+ * file/rank disambiguation matches chess.js output (`Ngf3`, `Rfe1`, promotion `=Q`).
+ *
+ * Returns an empty array when `startFen` is invalid or any UCI token is illegal
+ * on the accumulated position (caller should fall back to showing raw UCI).
+ *
+ * @param startFen - FEN of the position before the first PV move (matches analysis root).
+ * @param uciMoves - UCI moves in engine order.
+ * @returns SAN strings, or `[]` if conversion cannot be completed for the full line.
+ */
+export const pvUciMovesToSan = (startFen: string, uciMoves: string[]): string[] => {
+  let game: Chess;
+  try {
+    game = new Chess(startFen);
+  } catch {
+    log.warn("move_position", `pvUciMovesToSan: malformed startFen="${startFen}"`);
+    return [];
+  }
+  const sans: string[] = [];
+  for (const uci of uciMoves) {
+    if (uci.length < 4) {
+      log.warn("move_position", `pvUciMovesToSan: short uci="${uci}"`);
+      return [];
+    }
+    const from: string = uci.slice(0, 2);
+    const to: string = uci.slice(2, 4);
+    const promotion: "q" | "r" | "b" | "n" | undefined =
+      uci.length >= 5 ? (uci[4] as "q" | "r" | "b" | "n") : undefined;
+    let moved: Move | null = null;
+    try {
+      moved = game.move({ from, to, promotion });
+    } catch {
+      moved = null;
+    }
+    if (!moved) {
+      log.warn(
+        "move_position",
+        `pvUciMovesToSan: illegal uci="${uci}" fen="${game.fen()}"`,
+      );
+      return [];
+    }
+    sans.push(moved.san);
+  }
+  return sans;
 };
 
 /**

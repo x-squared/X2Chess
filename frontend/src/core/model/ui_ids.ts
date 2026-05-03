@@ -151,6 +151,13 @@ export const UI_IDS = {
   ANCHOR_DEF_DIALOG: "dialog.anchor-def",
   METADATA_SCHEMA_EDITOR_DIALOG: "dialog.metadata-schema-editor",
 
+  // ── Engine manager ──────────────────────────────────────────────────────
+  ENGINE_MANAGER_PANEL: "engines.manager",
+  ENGINE_MANAGER_LIST: "engines.manager.list",
+  ENGINE_MANAGER_TOOLBAR: "engines.manager.toolbar",
+  ENGINE_CONFIG_DIALOG: "engines.config-dialog",
+  ENGINE_CONFIG_OPTIONS_TABLE: "engines.config-dialog.options-table",
+
   // ── Developer dock ──────────────────────────────────────────────────────
   DEV_DOCK: "dev.dock",
 

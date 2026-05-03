@@ -1,6 +1,6 @@
 # X2Chess Architecture ADR Manual
 
-Last updated: 2026-05-02
+Last updated: 2026-05-03
 
 ## Purpose
 
@@ -167,6 +167,18 @@ This manual contains Architecture Decision Records (ADRs): why major architectur
 - Implication:
   - One obvious write pipeline for derived tables; reduced risk of interleaved transactions on the shared Rust SQLite connection.
 
+## ADR-017: Tauri command IPC through a TypeScript bridge
+- Status: Accepted
+- Date: 2026-05-03
+- Decision:
+  - Application UI and domain-adjacent TypeScript must not call Rust commands via scattered `@tauri-apps/api/core` `invoke` imports or ad hoc `window.__TAURI__` reads.
+  - Generic IPC uses **`frontend/src/platform/desktop/tauri_ipc_bridge.ts`** (`tauriInvoke`, `isTauri`). Higher-level access continues through **`frontend/src/platform/desktop/tauri/tauri_gateways.ts`** and resource adapters that already encapsulate `invoke` (`picker_fs_helpers`, `runtime_config_service`).
+  - Exceptions for non-invoke Tauri surfaces (logging plugin, native menu API, updater/relaunch, narrow helpers) are listed in **`dev/rules/tauri-ipc-bridge.mdc`** and kept minimal.
+  - **`parts/engines`** stays shell-agnostic; the Tauri-backed **`EngineProcess`** implementation is **`frontend/src/platform/desktop/tauri_engine_adapter.ts`** (uses **`tauri_ipc_bridge`** for `invoke`).
+- Implication:
+  - Tauri v2 webviews that expose only `__TAURI_INTERNALS__` remain compatible; feature code stays testable and isolated from Tauri package churn.
+  - Shared **`parts/`** packages avoid `@tauri-apps/*`; desktop-only glue remains under **`frontend/src/platform/desktop/`**.
+
 ## Change Log
 
 - 2026-03-18:
@@ -182,3 +194,5 @@ This manual contains Architecture Decision Records (ADRs): why major architectur
 - 2026-05-02:
   - Added ADR-015: open-from-resource PGN header hydration; single source for session metadata.
   - Added ADR-016: `.x2chess` derived-index pipeline, `title_hint` refresh on save, Tauri DB gateway queue.
+- 2026-05-03:
+  - Added ADR-017: Tauri `invoke` IPC boundary (`tauri_ipc_bridge`, governed by `dev/rules/tauri-ipc-bridge.mdc`).

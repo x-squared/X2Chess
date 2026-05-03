@@ -14,6 +14,7 @@ See dev/check/00_README.md. These rules must be strictly adhered to when this fi
 
 ## Checklist
 
+- [ ] **LAYOUT-6** — With a short window (e.g. height under 700 px), scroll the main page until the resources tab content is in view: the right strip `panel.right-tabs` (Resources / Metadata / Analysis / …) stays visible at the top of the viewport instead of scrolling away.
 
 ## ---------- Completed -----------------------------------------
 

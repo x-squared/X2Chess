@@ -3,8 +3,7 @@
  *
  * Control order (left → right):
  *   [Schema label + chooser/locked display]
- *   [Show metadata dropdown]
- *   [Arrange columns…]
+ *   [Metadata columns icon] [Arrange columns icon]
  *   [Group by: label + pills + add dropdown + clear]
  *   [Clear filters]
  *
@@ -26,7 +25,6 @@ import { useState, type ReactElement } from "react";
 import type { GroupByState } from "../services/viewer_utils";
 import {
   BUILT_IN_SCHEMA,
-  type MetadataFieldDefinition,
   type MetadataSchema,
 } from "../../../../../parts/resource/src/domain/metadata_schema";
 import { UI_IDS } from "../../../core/model/ui_ids";
@@ -44,9 +42,8 @@ type ResourceToolbarProps = {
   onGroupByClear: () => void;
   onClearFilters: () => void;
   onSchemaSelect: (id: string) => void;
-  /** Schema fields not yet shown as table columns (same order as schema editor). */
-  addableSchemaFields: MetadataFieldDefinition[];
-  onAddMetadataField: (fieldKey: string) => void;
+  /** Opens the metadata columns dialog. */
+  onMetadataOpen: () => void;
   /** Opens the column order dialog (Move up / down). */
   onOpenColumnOrder: () => void;
 };
@@ -64,8 +61,7 @@ export const ResourceToolbar = ({
   onGroupByClear,
   onClearFilters,
   onSchemaSelect,
-  addableSchemaFields,
-  onAddMetadataField,
+  onMetadataOpen,
   onOpenColumnOrder,
 }: ResourceToolbarProps): ReactElement => {
   const [isChangingSchema, setIsChangingSchema] = useState<boolean>(false);
@@ -125,38 +121,27 @@ export const ResourceToolbar = ({
         </>
       )}
 
-      {/* ── Show metadata column ───────────────────────────────────────── */}
+      {/* ── Column controls ────────────────────────────────────────────── */}
       <button
         type="button"
-        className="resource-toolbar-arrange-columns-btn"
-        data-ui-id={`${UI_IDS.RESOURCES_TOOLBAR}.arrangeColumns`}
-        onClick={(): void => { onOpenColumnOrder(); }}
+        className="resource-toolbar-icon-btn"
+        data-ui-id={`${UI_IDS.RESOURCES_TOOLBAR}.metadataColumns`}
+        aria-label={t("resources.metadata.button", "Choose metadata columns")}
+        title={t("resources.metadata.button", "Choose metadata columns")}
+        onClick={onMetadataOpen}
       >
-        {t("resources.table.arrangeColumns", "Arrange columns…")}
+        <img src="/icons/toolbar/metadata-columns.svg" alt="" aria-hidden="true" />
       </button>
-
-      {addableSchemaFields.length > 0 && (
-        <select
-          className="resource-metadata-add-field"
-          value=""
-          aria-label={t("resources.metadata.showField", "Show metadata field")}
-          onChange={(e): void => {
-            const sel: HTMLSelectElement = e.target;
-            const v: string = sel.value;
-            if (v) {
-              onAddMetadataField(v);
-              sel.value = "";
-            }
-          }}
-        >
-          <option value="">{t("resources.metadata.showFieldPlaceholder", "Show metadata…")}</option>
-          {addableSchemaFields.map((f: MetadataFieldDefinition) => (
-            <option key={f.key} value={f.key}>
-              {f.key === "game" ? t("resources.table.gameId", "Game ID") : f.label}
-            </option>
-          ))}
-        </select>
-      )}
+      <button
+        type="button"
+        className="resource-toolbar-icon-btn"
+        data-ui-id={`${UI_IDS.RESOURCES_TOOLBAR}.arrangeColumns`}
+        aria-label={t("resources.table.arrangeColumns", "Arrange columns")}
+        title={t("resources.table.arrangeColumns", "Arrange columns")}
+        onClick={onOpenColumnOrder}
+      >
+        <img src="/icons/toolbar/arrange-columns.svg" alt="" aria-hidden="true" />
+      </button>
 
       {/* ── Group by ───────────────────────────────────────────────────── */}
       <span className="resource-groupby-label">

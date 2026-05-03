@@ -51,6 +51,7 @@ const defaultServices: AppStartupServices = {
   switchSession: noop,
   closeSession: noop,
   openCurriculumPanel: noop,
+  openEngineManager: noop,
   setMenuOpen: noop,
   openEditorStyleDialog: noop,
   openDefaultLayoutDialog: noop,

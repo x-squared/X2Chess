@@ -51,6 +51,7 @@ reuse the existing file — do not create a second icon for the same semantic ac
 | `comment-left.svg` | Insert comment before move |
 | `comment-right.svg` | Insert comment after move |
 | `metadata-columns.svg` | Toggle metadata column view |
+| `arrange-columns.svg` | Arrange / reorder columns |
 | `mode-plain.svg` | PGN layout mode: Plain (raw/code — `< >` brackets) |
 | `mode-text.svg` | PGN layout mode: Text (narrative prose — paragraph lines) |
 | `mode-tree.svg` | PGN layout mode: Tree (variation tree — trunk + branches) |

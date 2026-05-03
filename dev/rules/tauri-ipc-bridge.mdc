@@ -1,0 +1,60 @@
+---
+description: All Rust command IPC and Tauri runtime probes must go through the desktop bridge or approved platform adapters — application code must not import @tauri-apps/api/core for invoke or read window.__TAURI__.
+alwaysApply: true
+---
+
+# Tauri IPC bridge
+
+Application code must stay isolated from Tauri implementation details. **Rust `#[tauri::command]` IPC** and **“are we in the desktop webview?”** checks use a dedicated TypeScript boundary, not `@tauri-apps/*` or `window.__TAURI__` scattered through features.
+
+## Canonical bridge
+
+- **`frontend/src/platform/desktop/tauri_ipc_bridge.ts`**
+  - Export **`tauriInvoke(cmd, args)`** — all generic command IPC from features/hooks/app shell/core (unless using an approved adapter below).
+  - Export **`isTauri()`** — runtime probe; **do not** read `__TAURI_INTERNALS__` / `__TAURI__` in feature modules for this purpose.
+
+## Approved higher-level adapters (invoke already encapsulated)
+
+Use these when they match the domain instead of raw `tauriInvoke`:
+
+- **`frontend/src/platform/desktop/tauri/tauri_gateways.ts`** — `buildTauriFsGateway`, `buildTauriDbGateway`, `buildTauriFormatImportGateway`, `openDevTools`, `isTauriRuntime` (same probe semantics as `isTauri`).
+- **`frontend/src/resources/picker_fs_helpers.ts`** — `tauriInvoke` / `isTauriRuntime` for the resource source-picker pipeline.
+- **`frontend/src/resources/runtime_config_service.ts`** — cached invoke for app config paths.
+
+New commands needed from UI: call **`tauriInvoke`** from the bridge (or extend an existing gateway in `platform/desktop/` if the operation is FS/DB-shaped).
+
+## Forbidden (application layers)
+
+In **`frontend/src/features/**`, `components/**`, `app_shell/**`, `core/**`, `resources/**`, `hooks/**`** (except files listed under “Infrastructure exceptions”):
+
+- **`import … from "@tauri-apps/api/core"`** for **`invoke`** (and avoid static imports that pull command IPC into features).
+- **`window.__TAURI__`**, **`globalThis.__TAURI_INTERNALS__`**, or legacy globals **for IPC** — use **`tauriInvoke`** / **`isTauri`** (or a gateway above).
+
+- **`parts/`** stays **host-agnostic** — no `@tauri-apps/*`. Desktop-only adapters (e.g. UCI **`EngineProcess`** via **`tauri_engine_adapter.ts`**) belong under **`frontend/src/platform/desktop/`**.
+
+## Infrastructure exceptions (only files in this set may import Tauri plugins / specialized APIs directly)
+
+Keep this list **small**; extend only when adding a new integration point and documenting it here:
+
+| Area | Module | Tauri surface |
+|------|--------|----------------|
+| Logging | `frontend/src/logger.ts` | `@tauri-apps/plugin-log` |
+| Native menu | `frontend/src/hooks/useTauriMenu.ts` | `@tauri-apps/api/menu` |
+| OTA / relaunch | `frontend/src/app/hooks/useUpdateCheck.ts` | `@tauri-apps/plugin-updater`, `@tauri-apps/plugin-process` |
+| Open URL IPC | `frontend/src/resources/open_url.ts` | dynamic `invoke` for `open_external_url` |
+| Desktop platform | `frontend/src/platform/desktop/**` | `@tauri-apps/api/*`, gateways, **`tauri_ipc_bridge.ts`**, **`tauri_engine_adapter.ts`** |
+| Types only | `frontend/src/resources/tauri_invoke_types.ts` | type-only imports from `@tauri-apps/api/core` |
+
+New **`invoke`** call sites outside `platform/desktop/` and outside this table should **not** be added — route through **`tauri_ipc_bridge`** or move logic into **`platform/desktop/`**.
+
+## Agent checklist
+
+- Before finishing a change that adds IPC: confirm no new `@tauri-apps/api/core` **`invoke`** usage under `features/` / `resources/` except via bridge or listed adapters.
+- Prefer **`tauri_ipc_bridge`** for new Rust commands from UI code.
+- **Tauri 2 ACL:** Every new **`#[tauri::command]`** registered in **`frontend/src-tauri/src/main.rs`** must be appended to **`frontend/src-tauri/permissions/app-commands.toml`** (`allow-x2chess-app-commands`). Partial allowlists cause **`invoke` permission denied** for unrelated UI (e.g. engine browse, file dialogs).
+
+## Related docs
+
+- **Authoritative copy:** **`dev/rules/tauri-ipc-bridge.mdc`** (this file).
+- **`doc/architecture-manual.qmd`** §2.3 — Tauri IPC boundary summary.
+- **`frontend/src/platform/desktop/README.md`** — desktop adapter layout.

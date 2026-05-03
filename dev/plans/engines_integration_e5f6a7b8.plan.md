@@ -40,8 +40,7 @@ engines/
 │   ├── uci_writer.ts        # Format UCI commands for stdin
 │   └── uci_session.ts       # UCI state machine (idle/thinking/pondering)
 ├── adapters/
-│   ├── tauri_engine.ts      # Spawn + pipe native engine via Tauri commands
-│   └── stockfish_wasm.ts    # Stockfish-WASM adapter (browser fallback)
+│   └── stockfish_wasm.ts    # Stockfish-WASM adapter (browser fallback); Tauri `EngineProcess` is `frontend/src/platform/desktop/tauri_engine_adapter.ts`
 ├── client/
 │   └── engine_manager.ts    # Lifecycle: start/stop/restart; multi-engine registry
 └── index.ts
@@ -49,7 +48,7 @@ engines/
 
 The `engines/` module lives at the repository root (peer of `resource/`),
 following the same pure-logic convention. It has no React or Tauri imports.
-Tauri I/O is injected via an `EngineProcess` interface.
+Tauri-backed `EngineProcess` lives in **`frontend/src/platform/desktop/tauri_engine_adapter.ts`**; other hosts inject via the same interface.
 
 ---
 
@@ -176,7 +175,7 @@ This avoids polling and gives sub-millisecond latency for analysis updates.
 
 ### Frontend adapter
 
-`tauri_engine.ts` wraps the Tauri commands into the `EngineProcess` interface.
+`frontend/src/platform/desktop/tauri_engine_adapter.ts` wraps the Tauri commands into the `EngineProcess` interface.
 The `onOutput` handler subscribes to `engine-output` Tauri events filtered by
 engine ID.
 
@@ -381,7 +380,7 @@ This is to be configurable.
 | G1 | `uci_parser.ts` + `uci_writer.ts` (pure logic, fully testable) | None |
 | G2 | `uci_session.ts` state machine | G1 |
 | G3 | Tauri Rust commands: `spawn_engine`, `send_to_engine`, `kill_engine`, event streaming | None |
-| G4 | `tauri_engine.ts` adapter + `UciEngine` implementation | G2, G3 |
+| G4 | `tauri_engine_adapter.ts` (frontend) + `UciEngine` implementation | G2, G3 |
 | G5 | `engine_manager.ts` + config loading | G4 |
 | G6 | Analysis panel UI (`AnalysisPanel.tsx`) + real-time board arrows | G5 |
 | G7 | Best-move hint button in editor toolbar | G5 |

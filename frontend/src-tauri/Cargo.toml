@@ -20,6 +20,7 @@ tauri-plugin-process = "2"
 tauri-plugin-log = "2"
 log = "0.4"
 chrono = "0.4"
+sysinfo = { version = "0.38", default-features = false, features = ["system"] }
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]

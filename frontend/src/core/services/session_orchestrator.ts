@@ -377,6 +377,7 @@ export const createSessionOrchestrator = (
     // ── Overrideable UI stubs ───────────────────────────────────────────────
     // AppShell replaces these after construction to open panel/dialog components.
     openCurriculumPanel: (): void => {},
+    openEngineManager: (): void => {},
     openEditorStyleDialog: (): void => {},
     openDefaultLayoutDialog: (): void => {},
     openNewGameDialog: (): void => {},

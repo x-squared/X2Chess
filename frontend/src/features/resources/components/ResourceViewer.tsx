@@ -48,8 +48,6 @@ import { useServiceContext } from "../../../app/providers/ServiceProvider";
 import {
   persistTabPrefs,
   reconcileColumns,
-  insertMetadataColumnFromSchema,
-  listAddableMetadataFields,
   removeMetadataColumnFromTab,
   DEFAULT_METADATA_KEYS,
   readPrefsMap,
@@ -71,7 +69,6 @@ import { ResourceMetadataDialog } from "./ResourceMetadataDialog";
 import { ResourceColumnOrderDialog } from "./ResourceColumnOrderDialog";
 import { ResourceToolbar } from "./ResourceToolbar";
 import { resolveResourceTableColumnLabel } from "../resource_column_labels";
-import type { MetadataFieldDefinition } from "../../../../../parts/resource/src/domain/metadata_schema";
 import { log } from "../../../logger";
 import { mirrorResourceSchemaIdToLocalStorage } from "../services/schema_storage";
 import { loadBadgesForRefs } from "../../../training/transcript_storage";
@@ -382,25 +379,6 @@ export const ResourceViewer = ({ onOpenMetadataTab }: ResourceViewerProps): Reac
 
   // ── Metadata column handlers ──────────────────────────────────────────
 
-  const handleAddMetadataField = useCallback((fieldKey: string): void => {
-    if (!activeTabId || !fieldKey) return;
-    setTabs((prev: TabState[]): TabState[] =>
-      prev.map((t: TabState): TabState => {
-        if (t.tabId !== activeTabId) return t;
-        const updated: TabState = insertMetadataColumnFromSchema(
-          t,
-          fieldKey,
-          activeSchema,
-          tabAvailableKeys(t),
-        );
-        if (updated === t) return t;
-        log.info("ResourceViewer", "Added metadata column", { fieldKey, schemaId: activeSchema.id });
-        persistTabPrefs(updated);
-        return updated;
-      }),
-    );
-  }, [activeTabId, activeSchema, setTabs]);
-
   const handleRemoveMetadataColumn = useCallback((fieldKey: string): void => {
     if (!activeTabId) return;
     setColumnFiltersMap((prev: Record<string, Record<string, string>>): Record<string, Record<string, string>> => {
@@ -493,15 +471,6 @@ export const ResourceViewer = ({ onOpenMetadataTab }: ResourceViewerProps): Reac
 
   const hasActiveFilters: boolean = Object.values(columnFilters).some(Boolean);
 
-  const addableSchemaFields: MetadataFieldDefinition[] = useMemo((): MetadataFieldDefinition[] => {
-    if (!activeTab) return [];
-    return listAddableMetadataFields(
-      activeSchema,
-      activeTab.metadataColumnOrder,
-      tabAvailableKeys(activeTab),
-    );
-  }, [activeTab, activeSchema]);
-
   // ── Render ────────────────────────────────────────────────────────────
 
   return (
@@ -516,7 +485,6 @@ export const ResourceViewer = ({ onOpenMetadataTab }: ResourceViewerProps): Reac
         onDeleteGameCancel={handleDeleteGameCancel}
         isDeleteGameConfirmArmed={isDeleteGameConfirmArmed}
         canDeleteGame={canDeleteGame}
-        onMetadataOpen={handleMetadataOpen}
         onOpenResourceFile={(): void => { services.openResourceFile(); }}
         onOpenResourceDatabase={(): void => { services.openResourceDatabase(); }}
         onOpenResourceDirectory={(): void => { services.openResourceDirectory(); }}
@@ -567,8 +535,7 @@ export const ResourceViewer = ({ onOpenMetadataTab }: ResourceViewerProps): Reac
           onGroupByClear={handleGroupByClear}
           onClearFilters={handleClearFilters}
           onSchemaSelect={(id): void => { handleSchemaSelect(id, activeTab?.resourceRef ?? null); }}
-          addableSchemaFields={addableSchemaFields}
-          onAddMetadataField={handleAddMetadataField}
+          onMetadataOpen={handleMetadataOpen}
           onOpenColumnOrder={(): void => {
             setIsColumnOrderDialogOpen(true);
           }}

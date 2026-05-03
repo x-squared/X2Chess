@@ -275,5 +275,10 @@
   "gamePicker.clearConfirm": "Rimuovere questo riferimento?",
   "gamePicker.clearYes": "Rimuovi",
   "gamePicker.unavailable": "Risorsa non disponibile.",
-  "gamePicker.loadError": "Impossibile caricare l'elenco partite."
+  "gamePicker.loadError": "Impossibile caricare l'elenco partite.",
+  "engines.config.optionHelpButton": "Mostra aiuto per questa opzione",
+  "engines.config.help.hashMachine": "Questo sistema ha circa {{ramGb}} GB di RAM ({{ramMb}} MB). Un obiettivo pratico per Hash è spesso intorno a {{suggestMb}} MB (~25% di quella memoria), fino al massimo consentito dal motore ({{engineMaxMb}} MB).",
+  "engines.config.help.hashMachineNoRam": "La RAM installata non è disponibile in questo ambiente. Come linea guida, imposta Hash a circa il 25% della memoria fisica, senza superare il massimo del motore ({{engineMaxMb}} MB).",
+  "engines.config.help.threadsMachine": "Il sistema segnala {{cores}} processori logici. Riservandone due al sistema operativo restano fino a circa {{suggest}} thread per l’analisi (massimo del motore: {{engineMax}}).",
+  "engines.config.help.threadsMachineNoCores": "Il numero di CPU non è esposto qui. Lascia libero uno o due core per il sistema; questo motore consente al massimo {{engineMax}} thread."
 }

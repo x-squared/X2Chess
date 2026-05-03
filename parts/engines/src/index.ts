@@ -2,7 +2,8 @@
  * engines — chess engine integration module.
  *
  * Exports the public API surface for integrating UCI chess engines.
- * All modules are pure-logic; I/O is injected via EngineProcess.
+ * Core UCI/domain logic is framework-free; host-specific `EngineProcess` factories
+ * (e.g. Tauri desktop) live in the application shell (`frontend/src/platform/desktop/`).
  */
 
 export type {
@@ -30,9 +31,9 @@ export { formatUciCommand } from "./uci/uci_writer";
 export type { EngineProcess, UciSession } from "./uci/uci_session";
 export { createUciSession } from "./uci/uci_session";
 
-export { createTauriEngine } from "./adapters/tauri_engine";
 export {
   createEngineManager,
   parseEngineRegistry,
+  serializeEngineRegistry,
 } from "./client/engine_manager";
 export type { EngineManager, ProcessFactory } from "./client/engine_manager";

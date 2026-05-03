@@ -12,7 +12,7 @@ Treat manuals as living specification in line with `.cursor/rules/manuals-as-spe
 
 - Determine which manuals are impacted by the current changes.
 - For each impacted manual, apply its dedicated maintenance rule.
-- If a manual has no dedicated maintenance rule yet, create one in `.cursor/rules/`.
+- If a manual has no dedicated maintenance rule yet, create one in `dev/rules/`.
 - Keep setup instructions centralized in `doc/setup-manual.qmd`; do not duplicate setup details in other manuals.
 - If manuals or rules are added/renamed/removed, update `doc/manuals-index.md` in the same step.
 

@@ -40,16 +40,13 @@ import type {
 import type {
   MetadataSchema,
   MetadataFieldDefinition,
-  GameRenderingProfile,
-  GameRenderingDisplay,
 } from "../../../../../parts/resource/src/domain/metadata_schema";
 import {
   buildRenderedGameMap,
-  resolveDisplayForReferenceChip,
-  renderDisplayText,
-  type ReferenceChipDisplaySource,
   type RenderedGameDisplay,
 } from "../services/game_rendering";
+import { applyFilter } from "../services/resource_table_filters";
+import { ReferenceCell } from "./ReferenceCell";
 import type { TrainingBadge } from "../../../training/transcript_storage";
 import { UI_IDS } from "../../../core/model/ui_ids";
 import { openExternalUrl } from "../../../resources/open_url";
@@ -104,117 +101,6 @@ type TableItem =
       rowCount: number;
     }
   | { kind: "row"; row: ResourceRow; originalIndex: number };
-
-// ── Reference cell ────────────────────────────────────────────────────────────
-
-const ReferenceCell = ({
-  recordId,
-  /** Same `ResourceRow` object as in this tab when the reference points at a loaded game — chips match the Game column. */
-  syncedRow,
-  syncedRendered,
-  onFetchMetadata,
-  onOpen,
-  renderingProfile,
-  schemaFieldsForGrp,
-}: {
-  recordId: string;
-  syncedRow: ResourceRow | null;
-  syncedRendered: RenderedGameDisplay | null;
-  onFetchMetadata: (id: string) => Promise<Record<string, string> | null>;
-  onOpen?: (id: string) => void;
-  renderingProfile?: GameRenderingProfile;
-  /** Active schema fields — enables select `when` matching (case-insensitive Type, etc.). */
-  schemaFieldsForGrp?: readonly MetadataFieldDefinition[];
-}): ReactElement => {
-  const [meta, setMeta] = useState<Record<string, string> | null>(null);
-
-  const useTableSync: boolean = syncedRow !== null;
-
-  useEffect((): (() => void) | void => {
-    if (!recordId || useTableSync) return;
-    let cancelled = false;
-    void (async (): Promise<void> => {
-      const result = await onFetchMetadata(recordId);
-      if (!cancelled) setMeta(result);
-    })();
-    return (): void => {
-      cancelled = true;
-    };
-  }, [recordId, useTableSync, onFetchMetadata]);
-
-  const metaForDisplay: Record<string, string> | null =
-    syncedRow !== null ? syncedRow.metadata : meta;
-
-  const white = String(metaForDisplay?.White ?? "").trim();
-  const black = String(metaForDisplay?.Black ?? "").trim();
-  const result = String(metaForDisplay?.Result ?? "").trim();
-  const date = String(metaForDisplay?.Date ?? "").trim();
-  const event = String(metaForDisplay?.Event ?? "").trim();
-
-  const chipResolution: {
-    display: GameRenderingDisplay | null;
-    source: ReferenceChipDisplaySource;
-  } =
-    metaForDisplay && renderingProfile
-      ? resolveDisplayForReferenceChip(metaForDisplay, renderingProfile, schemaFieldsForGrp)
-      : { display: null, source: "none" };
-  const rendered =
-    !useTableSync && chipResolution.display
-      ? renderDisplayText(chipResolution.display, metaForDisplay!)
-      : null;
-
-  const playersLabel = white && black ? `${white} — ${black}` : white || black || recordId;
-  const metaInline = [result, event, date].filter(Boolean).join(" · ");
-  const tooltip = [
-    white && `White: ${white}`,
-    black && `Black: ${black}`,
-    result && `Result: ${result}`,
-    event && `Event: ${event}`,
-    date && `Date: ${date}`,
-  ].filter(Boolean).join("\n") || recordId;
-
-  const primaryFromGrp = rendered?.line1 || playersLabel;
-  const secondaryFromGrp = rendered?.line2 ?? metaInline;
-
-  const primaryText: string =
-    useTableSync && syncedRow
-      ? (syncedRendered?.line1 ?? syncedRow.game)
-      : primaryFromGrp;
-  const secondaryText: string =
-    useTableSync && syncedRow ? (syncedRendered?.line2 ?? "") : secondaryFromGrp;
-
-  const unresolvedClass = metaForDisplay ? "" : "metadata-field-reference-game-chip--unresolved";
-  const noOpenClass = onOpen ? "" : "metadata-field-reference-game-chip--no-open";
-
-  if (
-    metaForDisplay &&
-    renderingProfile &&
-    !useTableSync &&
-    !rendered &&
-    primaryFromGrp === recordId
-  ) {
-    log.warn("ResourceTable", "ReferenceCell falls back to raw record id — check GRP rules / metadata fetch", {
-      recordId,
-      grpSlot: chipResolution.source,
-      hasWhiteBlack: Boolean(white || black),
-    });
-  }
-
-  return (
-    <button
-      type="button"
-      className={["metadata-field-reference-game-chip", unresolvedClass, noOpenClass].filter(Boolean).join(" ")}
-      data-grp-reference-slot={chipResolution.source}
-      title={tooltip}
-      onClick={onOpen ? (e): void => { e.stopPropagation(); onOpen(recordId); } : undefined}
-    >
-      <span className="metadata-field-reference-game-primary">{primaryText}</span>
-      {secondaryText && (
-        <span className="metadata-field-reference-game-secondary"> · {secondaryText}</span>
-      )}
-    </button>
-  );
-};
 
 // ── Group-by computation ──────────────────────────────────────────────────────
 
@@ -352,60 +238,6 @@ const TrainingBadgeChip = ({ badge }: { badge: TrainingBadge }): ReactElement =>
     <span className="training-badge__count">×{badge.sessionCount}</span>
   </span>
 );
-
-// ── Type-aware filter helpers (UV2) ───────────────────────────────────────────
-
-const applyNumberFilter = (raw: string, filterVal: string): boolean => {
-  const trimmed = filterVal.trim();
-  const op = trimmed[0];
-  if (op === ">" || op === "<" || op === "=") {
-    const threshold = Number.parseFloat(trimmed.slice(1).trim());
-    const cellNum = Number.parseFloat(raw);
-    if (!Number.isFinite(threshold) || !Number.isFinite(cellNum)) return false;
-    if (op === ">") return cellNum > threshold;
-    if (op === "<") return cellNum < threshold;
-    return cellNum === threshold;
-  }
-  return raw.toLowerCase().includes(filterVal.toLowerCase());
-};
-
-const applyReferenceFilter = (
-  recordId: string,
-  filterVal: string,
-  resolvedRefMeta?: Map<string, Record<string, string>>,
-): boolean => {
-  const meta = resolvedRefMeta?.get(recordId);
-  // Currently: substring on concatenated game fields from resolved metadata.
-  // Future: use renderDisplayFilterText with a profile-aware display when
-  // the rendering profile is threaded into this call site.
-  const searchText = meta
-    ? [meta["White"], meta["Black"], meta["Result"], meta["Event"], meta["Date"]]
-        .filter(Boolean).join(" ")
-    : recordId;
-  return searchText.toLowerCase().includes(filterVal.toLowerCase());
-};
-
-/**
- * Apply a type-aware filter to a raw cell value.
- * - number: supports `>N`, `<N`, `=N` prefix operators.
- * - select: exact match (case-insensitive) or empty = show all.
- * - reference: substring on concatenated game fields from resolvedRefMeta;
- *   falls back to the raw recordId when not yet resolved.
- * - date / text: substring match (case-insensitive).
- */
-const applyFilter = (
-  raw: string,
-  filterVal: string,
-  fieldDef?: MetadataFieldDefinition,
-  resolvedRefMeta?: Map<string, Record<string, string>>,
-): boolean => {
-  if (!filterVal) return true;
-  const type = fieldDef?.type ?? "text";
-  if (type === "number") return applyNumberFilter(raw, filterVal);
-  if (type === "select") return raw.toLowerCase() === filterVal.toLowerCase();
-  if (type === "reference") return applyReferenceFilter(raw, filterVal, resolvedRefMeta);
-  return raw.toLowerCase().includes(filterVal.toLowerCase());
-};
 
 // ── Component ─────────────────────────────────────────────────────────────────
 

@@ -8,16 +8,18 @@
  * - `const tb = useTablebaseProbe(fen)` — pass the current board FEN.
  *
  * Communication API:
- * - Returns `{ result, isLoading, enabled, setEnabled }`
+ * - Returns `{ result, line, isLoading, isLineLoading, enabled, setEnabled }`
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import type { TbProbeResult } from "../../../resources/ext_databases/endgame_types";
+import type { TbProbeResult, TbMainLine } from "../../../resources/ext_databases/endgame_types";
 import { LICHESS_TB_ADAPTER } from "../../../resources/ext_databases/lichess_tb";
 
 export type TablebaseProbeState = {
   result: TbProbeResult | null;
+  line: TbMainLine | null;
   isLoading: boolean;
+  isLineLoading: boolean;
   enabled: boolean;
   setEnabled: (enabled: boolean) => void;
 };
@@ -38,11 +40,13 @@ const fenPieceCount = (fen: string): number => {
  * Only activates when the position has ≤ 7 pieces; probes are debounced 200 ms.
  *
  * @param fen Current board FEN string.
- * @returns Tablebase probe state with `result`, `isLoading`, `enabled`, and `setEnabled`.
+ * @returns Tablebase probe state with `result`, `line`, `isLoading`, `enabled`, and `setEnabled`.
  */
 export const useTablebaseProbe = (fen: string): TablebaseProbeState => {
   const [result, setResult] = useState<TbProbeResult | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [line,   setLine]   = useState<TbMainLine | null>(null);
+  const [isLoading,     setIsLoading]     = useState(false);
+  const [isLineLoading, setIsLineLoading] = useState(false);
   const [enabled, setEnabled] = useState(false);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -51,7 +55,13 @@ export const useTablebaseProbe = (fen: string): TablebaseProbeState => {
     setIsLoading(true);
     const data = await LICHESS_TB_ADAPTER.probe(queryFen);
     setResult(data);
-    setIsLoading(false);
+    setIsLoading(false);  // show verdict + move groups immediately
+    if (data && LICHESS_TB_ADAPTER.probeLine) {
+      setIsLineLoading(true);
+      const lineData = await LICHESS_TB_ADAPTER.probeLine(queryFen);
+      setLine(lineData);
+      setIsLineLoading(false);
+    }
   }, []);
 
   useEffect((): (() => void) => {
@@ -72,13 +82,15 @@ export const useTablebaseProbe = (fen: string): TablebaseProbeState => {
     };
   }, [fen, enabled, fetchResult]);
 
-  // Clear result when disabled.
+  // Clear result and line when disabled.
   useEffect((): void => {
     if (!enabled) {
       setResult(null);
+      setLine(null);
       setIsLoading(false);
+      setIsLineLoading(false);
     }
   }, [enabled]);
 
-  return { result, isLoading, enabled, setEnabled };
+  return { result, line, isLoading, isLineLoading, enabled, setEnabled };
 };

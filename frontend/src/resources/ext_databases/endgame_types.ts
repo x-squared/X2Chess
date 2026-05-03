@@ -51,6 +51,23 @@ export type TbProbeResult = {
   insufficientMaterial?: boolean;
 };
 
+/** A single move in a tablebase main-line continuation. */
+export type TbLineMove = {
+  san: string;
+  uci: string;
+  wdl: TbWdl;
+  dtz?: number;
+};
+
+/** A main-line continuation built by following optimal play from both sides. */
+export type TbMainLine = {
+  moves: TbLineMove[];
+  /** Side to move at the root position ("w" or "b"). */
+  startColor: "w" | "b";
+  /** Set when the last move in the line is terminal. */
+  terminal?: "mate" | "stalemate";
+};
+
 /** Contract for an endgame tablebase adapter. */
 export type EndgameTbAdapter = {
   readonly id: string;
@@ -62,4 +79,9 @@ export type EndgameTbAdapter = {
    * Resolves to null when not available (too many pieces, network error, etc.).
    */
   probe(fen: string): Promise<TbProbeResult | null>;
+  /**
+   * Follow optimal play from both sides to build a main-line continuation.
+   * Optional — not all adapters implement this.
+   */
+  probeLine?(fen: string, maxDepth?: number): Promise<TbMainLine | null>;
 };

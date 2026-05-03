@@ -50,6 +50,7 @@ export type EngineAnalysisState = {
   activeEngineId: string | undefined;
   multiPv: number;
   threads: number;
+  searchMoves: string[] | null;
   discoveredOptions: Map<string, UciOption[]>;
   startAnalysis: (position: EnginePosition) => void;
   stopAnalysis: () => void;
@@ -57,6 +58,7 @@ export type EngineAnalysisState = {
   setMultiPv: (n: number) => void;
   setThreads: (n: number) => void;
   setActiveEngine: (id: string) => void;
+  setSearchMoves: (moves: string[] | null) => void;
 };
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
@@ -74,6 +76,7 @@ export const useEngineAnalysis = (registry?: EngineRegistry): EngineAnalysisStat
   );
   const [multiPv, setMultiPv] = useState(3);
   const [threads, setThreads] = useState(4);
+  const [searchMoves, setSearchMoves] = useState<string[] | null>(null);
   const [discoveredOptions, setDiscoveredOptions] = useState<Map<string, UciOption[]>>(
     new Map(),
   );
@@ -84,11 +87,13 @@ export const useEngineAnalysis = (registry?: EngineRegistry): EngineAnalysisStat
   const activeEngineIdRef = useRef(activeEngineId);
   const multiPvRef = useRef(multiPv);
   const threadsRef = useRef(threads);
+  const searchMovesRef = useRef<string[] | null>(null);
 
   useEffect((): void => { isAnalyzingRef.current = isAnalyzing; }, [isAnalyzing]);
   useEffect((): void => { activeEngineIdRef.current = activeEngineId; }, [activeEngineId]);
   useEffect((): void => { multiPvRef.current = multiPv; }, [multiPv]);
   useEffect((): void => { threadsRef.current = threads; }, [threads]);
+  useEffect((): void => { searchMovesRef.current = searchMoves; }, [searchMoves]);
 
   // Rebuild manager when registry changes.
   useEffect((): (() => void) => {
@@ -98,11 +103,16 @@ export const useEngineAnalysis = (registry?: EngineRegistry): EngineAnalysisStat
       setActiveEngineId(undefined);
       activeEngineIdRef.current = undefined;
       setDiscoveredOptions(new Map());
-      log.debug("useEngineAnalysis", () => "registry empty — cleared manager ref and analysis labels");
+      log.info("useEngineAnalysis", "registry empty — manager cleared");
       return (): void => undefined;
     }
 
-    if (!isTauriEnvironment()) return (): void => undefined;
+    if (!isTauriEnvironment()) {
+      log.info("useEngineAnalysis", "not a Tauri environment — engine manager not created");
+      return (): void => undefined;
+    }
+
+    log.info("useEngineAnalysis", `registry changed — creating manager (${registry.engines.length} engines)`);
 
     let cancelled = false;
     const manager = createEngineManager(registry, (config) =>
@@ -115,26 +125,39 @@ export const useEngineAnalysis = (registry?: EngineRegistry): EngineAnalysisStat
     if (activeCfg) {
       setEngineName(activeCfg.label ?? activeCfg.id);
       setActiveEngineId(activeCfg.id);
+      const configuredThreads = Number(activeCfg.options["Threads"]);
+      if (configuredThreads > 0) {
+        setThreads(configuredThreads);
+        threadsRef.current = configuredThreads;
+      }
+      log.info("useEngineAnalysis", "active engine set", { engineId: activeCfg.id, configuredThreads });
+    } else {
+      log.warn("useEngineAnalysis", `no config found for effectiveId="${effectiveId ?? "(none)"}"`);
     }
 
     void (async (): Promise<void> => {
       try {
+        log.info("useEngineAnalysis", "probing session options on registry load", { engineId: effectiveId ?? null });
         const session = await manager.getSession(effectiveId);
         if (cancelled) return;
         const opts = Array.from(session.options.values());
+        log.info("useEngineAnalysis", `session options loaded (${opts.length} options)`, { engineId: effectiveId ?? null });
         setDiscoveredOptions((prev) => {
           const next = new Map(prev);
           next.set(effectiveId ?? "", opts);
           return next;
         });
-      } catch {
-        // Engine not yet reachable — options appear on first analysis.
+      } catch (err) {
+        log.warn("useEngineAnalysis", `session options probe failed — options will appear on first analysis: ${String(err)}`, { engineId: effectiveId ?? null });
       }
     })();
 
     return (): void => {
       cancelled = true;
-      void manager.shutdownAll().catch(() => undefined);
+      log.info("useEngineAnalysis", "registry effect cleanup — shutting down manager");
+      void manager.shutdownAll().catch((err) => {
+        log.error("useEngineAnalysis", "shutdownAll failed", { message: String(err) });
+      });
       managerRef.current = null;
     };
   // registry identity change is the intended trigger; activeEngineId is read via ref.
@@ -143,7 +166,10 @@ export const useEngineAnalysis = (registry?: EngineRegistry): EngineAnalysisStat
 
   // Extracted variation handler — avoids >4 levels of nesting inside startAnalysis.
   const handleVariation = useCallback((v: EngineVariation): void => {
-    if (!isAnalyzingRef.current) return;
+    if (!isAnalyzingRef.current) {
+      log.debug("useEngineAnalysis", () => `handleVariation: dropped (isAnalyzingRef=false) multipvIndex=${v.multipvIndex}`);
+      return;
+    }
     const pos = lastPositionRef.current;
     let enriched: EngineVariation = v;
     if (pos !== null && v.pv.length > 0) {
@@ -152,6 +178,7 @@ export const useEngineAnalysis = (registry?: EngineRegistry): EngineAnalysisStat
         enriched = { ...v, pvSan };
       }
     }
+    log.debug("useEngineAnalysis", () => `handleVariation: multipvIndex=${v.multipvIndex} depth=${v.depth}`);
     setVariations((prev) => {
       const next = [...prev];
       const idx = next.findIndex((x) => x.multipvIndex === enriched.multipvIndex);
@@ -161,18 +188,25 @@ export const useEngineAnalysis = (registry?: EngineRegistry): EngineAnalysisStat
   }, []);
 
   const stopAnalysis = useCallback((): void => {
+    log.info("useEngineAnalysis", "stopAnalysis called", { engineId: activeEngineIdRef.current ?? null });
     setIsAnalyzing(false);
     isAnalyzingRef.current = false;
     void managerRef.current
       ?.getSession(activeEngineIdRef.current)
       .then((s) => s.stopAnalysis())
-      .catch(() => undefined);
+      .catch((err) => {
+        log.error("useEngineAnalysis", "stopAnalysis: session error", { message: String(err) });
+      });
   }, []);
 
   const startAnalysis = useCallback((position: EnginePosition): void => {
     const manager = managerRef.current;
-    if (!manager) return;
+    if (!manager) {
+      log.warn("useEngineAnalysis", "startAnalysis: no manager — engine not configured or not Tauri");
+      return;
+    }
 
+    log.info("useEngineAnalysis", `startAnalysis: fen="${position.fen}" engineId="${activeEngineIdRef.current ?? "(default)"}"`);
     lastPositionRef.current = position;
     stopAnalysis();
     setVariations([]);
@@ -180,12 +214,15 @@ export const useEngineAnalysis = (registry?: EngineRegistry): EngineAnalysisStat
     isAnalyzingRef.current = true;
 
     const engineId = activeEngineIdRef.current;
-    const pvCount = multiPvRef.current;
+    const pvCount = multiPvRef.current === 0 ? 500 : multiPvRef.current;
     const threadCount = threadsRef.current;
+    const smoves = searchMovesRef.current;
 
+    log.info("useEngineAnalysis", `startAnalysis: calling getSession engineId="${engineId ?? "(default)"}" pvCount=${pvCount} threads=${threadCount}`);
     manager
       .getSession(engineId)
       .then((session): void => {
+        log.info("useEngineAnalysis", `startAnalysis: session obtained — setting options and starting, engineId="${engineId ?? "(default)"}"`);
         const opts = Array.from(session.options.values());
         setDiscoveredOptions((prev) => {
           const next = new Map(prev);
@@ -196,9 +233,16 @@ export const useEngineAnalysis = (registry?: EngineRegistry): EngineAnalysisStat
         if (session.options.has("Threads")) {
           session.setOption("Threads", String(threadCount));
         }
-        session.startAnalysis(position, { infinite: true, multiPv: pvCount }, handleVariation);
+        log.debug("useEngineAnalysis", () => `startAnalysis: calling session.startAnalysis, searchMoves=${JSON.stringify(smoves)}`);
+        log.info("useEngineAnalysis", "startAnalysis: session.startAnalysis called");
+        session.startAnalysis(
+          position,
+          { infinite: true, multiPv: pvCount, searchMoves: smoves ?? undefined },
+          handleVariation,
+        );
       })
-      .catch((): void => {
+      .catch((err): void => {
+        log.error("useEngineAnalysis", "startAnalysis: getSession failed", { engineId: engineId ?? null, message: String(err) });
         setIsAnalyzing(false);
         isAnalyzingRef.current = false;
       });
@@ -238,6 +282,17 @@ export const useEngineAnalysis = (registry?: EngineRegistry): EngineAnalysisStat
     }
   }, [stopAnalysis, startAnalysis]);
 
+  const changeSearchMoves = useCallback((moves: string[] | null): void => {
+    const prevMoves = searchMovesRef.current;
+    setSearchMoves(moves);
+    searchMovesRef.current = moves;
+    if (prevMoves !== moves && isAnalyzingRef.current && lastPositionRef.current) {
+      stopAnalysis();
+      const pos = lastPositionRef.current;
+      setTimeout((): void => { startAnalysis(pos); }, 0);
+    }
+  }, [stopAnalysis, startAnalysis]);
+
   const changeActiveEngine = useCallback((id: string): void => {
     if (id === activeEngineIdRef.current) return;
     stopAnalysis();
@@ -255,6 +310,7 @@ export const useEngineAnalysis = (registry?: EngineRegistry): EngineAnalysisStat
     activeEngineId,
     multiPv,
     threads,
+    searchMoves,
     discoveredOptions,
     startAnalysis,
     stopAnalysis,
@@ -262,5 +318,6 @@ export const useEngineAnalysis = (registry?: EngineRegistry): EngineAnalysisStat
     setMultiPv: changeMultiPv,
     setThreads: changeThreads,
     setActiveEngine: changeActiveEngine,
+    setSearchMoves: changeSearchMoves,
   };
 };

@@ -5,7 +5,7 @@
  * with ≤ 7 pieces, using the Lichess tablebase API.
  *
  * Integration API:
- * - `<TablebasePanel result={...} isLoading={...} enabled={...}
+ * - `<TablebasePanel result={...} line={...} isLoading={...} enabled={...}
  *     onToggle={...} t={...} />`
  *
  * Configuration API:
@@ -16,12 +16,14 @@
  */
 
 import { useCallback, type ReactElement } from "react";
-import type { TbProbeResult, TbWdl, TbMoveEntry } from "../../../resources/ext_databases/endgame_types";
+import type { TbProbeResult, TbWdl, TbMoveEntry, TbMainLine } from "../../../resources/ext_databases/endgame_types";
 import { UI_IDS } from "../../../core/model/ui_ids";
 
 type TablebasePanelProps = {
   result: TbProbeResult | null;
+  line: TbMainLine | null;
   isLoading: boolean;
+  isLineLoading: boolean;
   enabled: boolean;
   onToggle: (enabled: boolean) => void;
   /** Called with the UCI string of the selected move (e.g. "e2e4"). */
@@ -53,6 +55,14 @@ const wdlClass = (wdl: TbWdl): string => {
   }
 };
 
+/** Inline abbreviation element for DTZ with a plain-language tooltip. */
+const Dtz = ({ value }: { value: number }): ReactElement => (
+  <>
+    <abbr className="tb-dtz-abbr" title="Distance to zeroing — half-moves until a capture or pawn move resets the 50-move clock">DTZ</abbr>
+    {" "}{value}
+  </>
+);
+
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
 const MoveRow = ({
@@ -69,7 +79,7 @@ const MoveRow = ({
   >
     <td className="tb-move-san">{move.san}</td>
     <td className="tb-move-dtz">
-      {move.dtz !== undefined ? `DTZ ${move.dtz}` : ""}
+      {move.dtz !== undefined && <Dtz value={move.dtz} />}
     </td>
     <td className="tb-move-flags">
       {move.checkmate && <span className="tb-flag tb-flag--mate">✓</span>}
@@ -104,6 +114,48 @@ const MoveGroup = ({ label, moves, wdl, onMoveClick }: MoveGroupProps): ReactEle
   );
 };
 
+/** Renders the main-line continuation as a PV token row. */
+const MainLine = ({ line }: { line: TbMainLine }): ReactElement | null => {
+  if (line.moves.length === 0) return null;
+
+  const tokens: ReactElement[] = [];
+  let moveNumber = 1;
+  let isWhiteMove = line.startColor === "w";
+
+  if (!isWhiteMove) {
+    tokens.push(
+      <span key="start-num" className="tb-pv-num">1…</span>
+    );
+  }
+
+  line.moves.forEach((move) => {
+    if (isWhiteMove) {
+      tokens.push(
+        <span key={`num-${move.uci}`} className="tb-pv-num">{moveNumber}.</span>
+      );
+    }
+    tokens.push(
+      <span key={`mv-${move.uci}`} className={`tb-pv-move ${wdlClass(move.wdl)}`}>{move.san}</span>
+    );
+    if (isWhiteMove) {
+      isWhiteMove = false;
+    } else {
+      moveNumber++;
+      isWhiteMove = true;
+    }
+  });
+
+  if (line.terminal === "mate")      tokens.push(<span key="term" className="tb-pv-terminal">✓</span>);
+  if (line.terminal === "stalemate") tokens.push(<span key="term" className="tb-pv-terminal">½</span>);
+
+  return (
+    <div className="tb-main-line">
+      <span className="tb-main-line-label">Best:</span>
+      <span className="tb-pv">{tokens}</span>
+    </div>
+  );
+};
+
 // ── Component ──────────────────────────────────────────────────────────────────
 
 /**
@@ -111,7 +163,9 @@ const MoveGroup = ({ label, moves, wdl, onMoveClick }: MoveGroupProps): ReactEle
  */
 export const TablebasePanel = ({
   result,
+  line,
   isLoading,
+  isLineLoading,
   enabled,
   onToggle,
   onMoveClick,
@@ -125,9 +179,15 @@ export const TablebasePanel = ({
   const byDtzAsc  = (a: TbMoveEntry, b: TbMoveEntry): number => (a.dtz ?? 999) - (b.dtz ?? 999);
   const byDtzDesc = (a: TbMoveEntry, b: TbMoveEntry): number => (b.dtz ?? 999) - (a.dtz ?? 999);
 
-  const winningMoves  = result ? result.moves.filter((m) => m.wdl === "win" || m.wdl === "cursed_win").sort(byDtzAsc)  : [];
-  const drawingMoves  = result ? result.moves.filter((m) => m.wdl === "draw" || m.wdl === "blessed_loss")              : [];
-  const losingMoves   = result ? result.moves.filter((m) => m.wdl === "loss" || m.wdl === "unknown").sort(byDtzDesc)   : [];
+  const winningMoves = result ? result.moves.filter((m) => m.wdl === "win" || m.wdl === "cursed_win").sort(byDtzAsc)  : [];
+  const drawingMoves = result ? result.moves.filter((m) => m.wdl === "draw" || m.wdl === "blessed_loss")              : [];
+  const losingMoves  = result ? result.moves.filter((m) => m.wdl === "loss" || m.wdl === "unknown").sort(byDtzDesc)   : [];
+
+  // First best move derived synchronously from the initial probe result so something
+  // is always shown inside the moves area while probeLine fetches the full continuation.
+  const firstBestMove: TbMoveEntry | null = result
+    ? (winningMoves[0] ?? drawingMoves[0] ?? losingMoves[0] ?? null)
+    : null;
 
   return (
     <div className="tablebase-panel" data-ui-id={UI_IDS.TABLEBASE_PANEL}>
@@ -137,14 +197,16 @@ export const TablebasePanel = ({
           {t("tablebase.panel.title", "Tablebase")}
         </span>
 
-        {result && !isLoading && (
-          <span className={`tablebase-verdict ${wdlClass(result.wdl)}`}>
+        {result && (
+          <span className={`tablebase-verdict ${wdlClass(result.wdl)}${isLoading ? " tablebase-verdict--stale" : ""}`}>
             {wdlLabel(result.wdl)}
             {result.dtz !== undefined && (
-              <span className="tablebase-verdict-dtz"> DTZ {result.dtz}</span>
+              <span className="tablebase-verdict-dtz"> <Dtz value={result.dtz} /></span>
             )}
           </span>
         )}
+
+        {isLoading && <span className="tablebase-spinner" aria-label="Loading" />}
 
         <button
           type="button"
@@ -160,26 +222,34 @@ export const TablebasePanel = ({
       {/* Body */}
       {enabled && (
         <div className="tablebase-panel-body">
-          {isLoading && (
-            <p className="tablebase-loading">
-              {t("tablebase.panel.loading", "Probing…")}
-            </p>
-          )}
-
           {!isLoading && !result && (
             <p className="tablebase-empty">
               {t("tablebase.panel.noData", "Position not in tablebase (> 7 pieces or no data).")}
             </p>
           )}
 
-          {!isLoading && result?.insufficientMaterial && (
+          {result?.insufficientMaterial && (
             <p className="tablebase-insuf">
               {t("tablebase.panel.insuf", "Insufficient material — drawn.")}
             </p>
           )}
 
-          {!isLoading && result && (winningMoves.length > 0 || drawingMoves.length > 0 || losingMoves.length > 0) && (
+          {firstBestMove && (
             <div className="tb-groups" data-ui-id={UI_IDS.TABLEBASE_MOVES}>
+              {/* Best-line row — full continuation when probeLine has finished,
+                  single best move immediately while it is still fetching. */}
+              {(line && line.moves.length > 0)
+                ? <MainLine line={line} />
+                : (
+                  <div className="tb-main-line">
+                    <span className="tb-main-line-label">Best:</span>
+                    <span className="tb-pv">
+                      <span className={`tb-pv-move ${wdlClass(firstBestMove.wdl)}`}>{firstBestMove.san}</span>
+                      {isLineLoading && <span className="tb-pv-ellipsis">⋯</span>}
+                    </span>
+                  </div>
+                )
+              }
               <MoveGroup label={t("tablebase.group.winning", "Winning")} moves={winningMoves} wdl="win"  onMoveClick={onMoveClick} />
               <MoveGroup label={t("tablebase.group.drawing", "Drawing")} moves={drawingMoves} wdl="draw" onMoveClick={onMoveClick} />
               <MoveGroup label={t("tablebase.group.losing",  "Losing")}  moves={losingMoves}  wdl="loss" onMoveClick={onMoveClick} />

@@ -13,6 +13,7 @@
  *
  * Communication API:
  * - `onMovePlayed(from, to)` — called by the board when a piece is dropped.
+ * - `onInsertLinePv(pvUci)` — insert a full engine PV from the current position.
  * - `handleForkDecide(choice)` — called when the user picks a fork resolution.
  * - `handlePromotionPick(piece)` — called when the user picks a promotion piece.
  * - `handleCancel()` — cancel a pending fork or promotion.
@@ -53,6 +54,10 @@ export type PendingFork = {
   existingNextMoveId: string;
   model: PgnModel;
   cursor: PgnCursor;
+  /** UCI moves to append after the fork is resolved (from onInsertLinePv). */
+  remainingPvUci?: string[];
+  /** FEN at the fork point, needed to convert remainingPvUci → SAN. */
+  currentFen?: string;
 };
 
 export type PendingPromotion = {
@@ -65,6 +70,7 @@ export type MoveEntryState = {
   pendingFork: PendingFork | null;
   pendingPromotion: PendingPromotion | null;
   onMovePlayed: (from: string, to: string) => void;
+  onInsertLinePv: (pvUci: string[]) => void;
   handleForkDecide: (choice: ForkChoice) => void;
   handlePromotionPick: (piece: PromotionPiece) => void;
   handleCancel: () => void;
@@ -178,6 +184,31 @@ export const resolveMoveEntryCursor = (
         variationId: model.root.id,
       })
     : { moveId: null, variationId: model.root.id };
+};
+
+/**
+ * Append a sequence of UCI moves to `model` at `cursor`, converting each via chess.js.
+ * Stops on the first illegal move. Returns the updated model and cursor after the last move.
+ */
+const buildLineFromCursor = (
+  model: PgnModel,
+  cursor: PgnCursor,
+  fen: string,
+  pvUci: string[],
+): [PgnModel, PgnCursor] => {
+  let m = model;
+  let c = cursor;
+  let f = fen;
+  for (const uci of pvUci) {
+    if (uci.length < 4) break;
+    const chess = new Chess();
+    try { chess.load(f); } catch { break; }
+    const mv = chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] });
+    if (!mv) break;
+    [m, c] = appendMove(m, c, mv.san);
+    f = chess.fen();
+  }
+  return [m, c];
 };
 
 // ── Hook ───────────────────────────────────────────────────────────────────────
@@ -336,16 +367,46 @@ export const useMoveEntry = (servicesRef: { current: AppStartupServices | null }
       const fork = pendingFork;
       if (!fork) return;
       setPendingFork(null);
-      if (choice === "variation") {
-        // Attach the RAV to the existing next move so it appears after it in PGN,
-        // not to the preceding move which would mis-label it as the wrong side.
-        const nextCursor = findCursorForMoveId(fork.model, fork.existingNextMoveId) ?? fork.cursor;
-        commitMove(fork.san, fork.model, nextCursor, choice);
-      } else {
-        commitMove(fork.san, fork.model, fork.cursor, choice);
+
+      const hasRemaining = (fork.remainingPvUci?.length ?? 0) > 0 && fork.currentFen;
+
+      if (!hasRemaining) {
+        if (choice === "variation") {
+          // Attach the RAV to the existing next move so it appears after it in PGN,
+          // not to the preceding move which would mis-label it as the wrong side.
+          const nextCursor = findCursorForMoveId(fork.model, fork.existingNextMoveId) ?? fork.cursor;
+          commitMove(fork.san, fork.model, nextCursor, choice);
+        } else {
+          commitMove(fork.san, fork.model, fork.cursor, choice);
+        }
+        return;
       }
+
+      // For insert-line forks: apply the choice then chain remaining moves.
+      let m: PgnModel;
+      let c: PgnCursor;
+      if (choice === "variation") {
+        const nextCursor = findCursorForMoveId(fork.model, fork.existingNextMoveId) ?? fork.cursor;
+        [m, c] = insertVariation(fork.model, nextCursor, fork.san);
+      } else if (choice === "replace") {
+        [m, c] = replaceMove(fork.model, fork.cursor, fork.san);
+      } else if (choice === "promote") {
+        const [m2, c2] = insertVariation(fork.model, fork.cursor, fork.san);
+        const promoted = promoteToMainline(m2, c2);
+        m = promoted[0];
+        c = promoted[1] ?? c2;
+      } else {
+        [m, c] = appendMove(fork.model, fork.cursor, fork.san);
+      }
+
+      const chess = new Chess();
+      try { chess.load(fork.currentFen as string); } catch { commitOp([m, c]); return; }
+      chess.move(fork.san);
+      const fenAfter = chess.fen();
+      const [finalM, finalC] = buildLineFromCursor(m, c, fenAfter, fork.remainingPvUci as string[]);
+      commitOp([finalM, finalC]);
     },
-    [pendingFork, commitMove],
+    [pendingFork, commitMove, commitOp],
   );
 
   const handlePromotionPick = useCallback(
@@ -373,10 +434,69 @@ export const useMoveEntry = (servicesRef: { current: AppStartupServices | null }
     setPendingPromotion(null);
   }, []);
 
+  const onInsertLinePv = useCallback(
+    (pvUci: string[]): void => {
+      const model = pgnModel;
+      if (!model || pvUci.length === 0) return;
+
+      const fen = resolveMoveEntryFen(
+        model, selectedMoveId, boardPreview?.fen ?? null, moves, currentPly, startingFen || undefined,
+      );
+      const cursor = resolveMoveEntryCursor(model, selectedMoveId, currentPly);
+
+      const first = pvUci[0];
+      if (!first || first.length < 4) return;
+      const from = first.slice(0, 2);
+      const to = first.slice(2, 4);
+      const promotion = first.length === 5 ? (first[4] as PromotionPiece) : undefined;
+
+      const resolution = resolveMoveEntry({ boardMove: { from, to, promotion }, currentFen: fen, model, cursor });
+      if (!resolution || resolution.kind === "illegal") return;
+
+      const remaining = pvUci.slice(1);
+
+      if (resolution.kind === "fork") {
+        setPendingFork({
+          san: resolution.san,
+          existingNextSan: resolution.existingNextSan,
+          existingNextMoveId: resolution.existingNextMoveId,
+          model,
+          cursor,
+          remainingPvUci: remaining,
+          currentFen: fen,
+        });
+        return;
+      }
+
+      // Determine base model/cursor after first move.
+      let baseModel = model;
+      let baseCursor = cursor;
+      if (resolution.kind === "append") {
+        [baseModel, baseCursor] = appendMove(model, cursor, resolution.san);
+      } else if (resolution.kind === "advance") {
+        baseCursor = findCursorForMoveId(model, resolution.nextMoveId) ?? cursor;
+      } else {
+        // enter_variation
+        baseCursor = findCursorForMoveId(model, resolution.firstMoveId) ?? cursor;
+      }
+
+      // Compute FEN after first move to convert remaining UCI.
+      const chess = new Chess();
+      try { chess.load(fen); } catch { commitOp([baseModel, baseCursor]); return; }
+      chess.move(resolution.san);
+      const fenAfter = chess.fen();
+
+      const [finalModel, finalCursor] = buildLineFromCursor(baseModel, baseCursor, fenAfter, remaining);
+      commitOp([finalModel, finalCursor]);
+    },
+    [pgnModel, selectedMoveId, boardPreview, moves, currentPly, startingFen, commitOp],
+  );
+
   return {
     pendingFork,
     pendingPromotion,
     onMovePlayed,
+    onInsertLinePv,
     handleForkDecide,
     handlePromotionPick,
     handleCancel,

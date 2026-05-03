@@ -64,7 +64,7 @@ import { STANDARD_STARTING_FEN } from "../../../features/editor/model/fen_utils"
 import { ServiceContextProvider } from "../../providers/ServiceProvider";
 import type { AppStartupServices } from "../../../core/contracts/app_services";
 import { useHoverPreview } from "../../../components/board/HoverPreviewContext";
-import { replayPvToPosition } from "../../../board/move_position";
+import { replayPvToPosition, getLegalMovesFromFen, type LegalMove } from "../../../board/move_position";
 import { MenuPanel } from "./MenuPanel";
 import { GuideInspector } from "../../../features/guide/components/GuideInspector";
 import { UI_IDS } from "../../../core/model/ui_ids";
@@ -127,8 +127,9 @@ export const AppShell = (): ReactElement => {
     [engineConfig.engines, engineConfig.defaultEngineId],
   );
   const {
-    variations, isAnalyzing, engineName, activeEngineId, multiPv, threads, discoveredOptions,
-    startAnalysis, stopAnalysis, findBestMove, setMultiPv, setThreads, setActiveEngine,
+    variations, isAnalyzing, engineName, activeEngineId, multiPv, threads, searchMoves,
+    discoveredOptions, startAnalysis, stopAnalysis, findBestMove,
+    setMultiPv, setThreads, setActiveEngine, setSearchMoves,
   } = useEngineAnalysis(engineRegistry);
 
   const [showEngineManager, setShowEngineManager] = useState(false);
@@ -196,6 +197,14 @@ export const AppShell = (): ReactElement => {
   const tablebase = useTablebaseProbe(currentFen);
   const sideToMove: "w" | "b" = currentFen.split(" ")[1] === "b" ? "b" : "w";
 
+  const legalMoves: LegalMove[] = useMemo(
+    () => getLegalMovesFromFen(currentFen),
+    [currentFen],
+  );
+
+  // Clear engine search-move filter whenever the position changes.
+  useEffect((): void => { setSearchMoves(null); }, [currentFen, setSearchMoves]);
+
   const handleStartAnalysis = useCallback((): void => {
     startAnalysis({ fen: currentFen, moves: [] });
   }, [startAnalysis, currentFen]);
@@ -245,6 +254,7 @@ export const AppShell = (): ReactElement => {
     pendingFork,
     pendingPromotion,
     onMovePlayed,
+    onInsertLinePv,
     handleForkDecide,
     handlePromotionPick,
     handleCancel: handleCancelMove,
@@ -262,6 +272,13 @@ export const AppShell = (): ReactElement => {
     onMovePlayed(uci.slice(0, 2), uci.slice(2, 4));
   }, [onMovePlayed]);
 
+  const handleInsertFirstMove = useCallback((uci: string): void => {
+    handlePanelMoveClick(uci);
+  }, [handlePanelMoveClick]);
+
+  const handleInsertLine = useCallback((pvUci: string[]): void => {
+    onInsertLinePv(pvUci);
+  }, [onInsertLinePv]);
 
   const handleSearchPlayer = useCallback((query: string): void => {
     setActiveRightPanel("text-search");
@@ -616,13 +633,19 @@ export const AppShell = (): ReactElement => {
             engines={engineConfig.engines}
             multiPv={multiPv}
             threads={threads}
+            searchMoves={searchMoves}
+            discoveredOptions={discoveredOptions}
+            legalMoves={legalMoves}
             sideToMove={sideToMove}
             onStartAnalysis={handleStartAnalysis}
             onStopAnalysis={stopAnalysis}
             onSetMultiPv={setMultiPv}
             onSetThreads={setThreads}
             onSetActiveEngine={setActiveEngine}
+            onSetSearchMoves={setSearchMoves}
             onOpenEngineManager={(): void => { setShowEngineManager(true); }}
+            onInsertFirstMove={handleInsertFirstMove}
+            onInsertLine={handleInsertLine}
             onPvMoveHover={handlePvMoveHover}
             onPvMoveHoverEnd={handlePvMoveHoverEnd}
             openingResult={openingExplorer.result}
@@ -633,7 +656,9 @@ export const AppShell = (): ReactElement => {
             onOpeningToggle={openingExplorer.setEnabled}
             onOpenSettings={(): void => { setShowExtDbSettings(true); }}
             tbResult={tablebase.result}
+            tbLine={tablebase.line}
             tbIsLoading={tablebase.isLoading}
+            tbLineIsLoading={tablebase.isLineLoading}
             tbEnabled={tablebase.enabled}
             onTbToggle={tablebase.setEnabled}
             shapePrefs={shapePrefs}
@@ -706,7 +731,7 @@ export const AppShell = (): ReactElement => {
 
         {/* ── All modal dialogs and overlay panels ── */}
         <AppShellOverlays
-          moveEntry={{ pendingFork, pendingPromotion, onMovePlayed, handleForkDecide, handlePromotionPick, handleCancel: handleCancelMove }}
+          moveEntry={{ pendingFork, pendingPromotion, onMovePlayed, onInsertLinePv, handleForkDecide, handlePromotionPick, handleCancel: handleCancelMove }}
           onMoveCancel={handleCancel}
           showEditStartPos={showEditStartPos}
           onCloseEditStartPos={(): void => { setShowEditStartPos(false); }}

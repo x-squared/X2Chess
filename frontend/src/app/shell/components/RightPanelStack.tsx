@@ -16,9 +16,11 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
 import type { EngineVariation } from "../../../../../parts/engines/src/domain/analysis_types";
+import type { UciOption } from "../../../../../parts/engines/src/domain/uci_types";
 import type { EngineConfig } from "../../../../../parts/engines/src/domain/engine_config";
+import type { LegalMove } from "../../../board/move_position";
 import type { OpeningResult } from "../../../resources/ext_databases/opening_types";
-import type { TbProbeResult } from "../../../resources/ext_databases/endgame_types";
+import type { TbProbeResult, TbMainLine } from "../../../resources/ext_databases/endgame_types";
 import { AnalysisPanel } from "../../../features/analysis/components/AnalysisPanel";
 import { OpeningExplorerPanel } from "../../../features/analysis/components/OpeningExplorerPanel";
 import { TablebasePanel } from "../../../features/analysis/components/TablebasePanel";
@@ -60,13 +62,19 @@ type RightPanelStackProps = {
   engines: EngineConfig[];
   multiPv: number;
   threads: number;
+  searchMoves: string[] | null;
+  discoveredOptions: Map<string, UciOption[]>;
+  legalMoves: LegalMove[];
   sideToMove: "w" | "b";
   onStartAnalysis: () => void;
   onStopAnalysis: () => void;
   onSetMultiPv: (n: number) => void;
   onSetThreads: (n: number) => void;
   onSetActiveEngine: (id: string) => void;
+  onSetSearchMoves: (moves: string[] | null) => void;
   onOpenEngineManager: () => void;
+  onInsertFirstMove: (uci: string) => void;
+  onInsertLine: (pvUci: string[]) => void;
   onPvMoveHover?: (pvSans: string[], upToIndex: number, rect: DOMRect) => void;
   onPvMoveHoverEnd?: () => void;
   // Opening explorer
@@ -79,7 +87,9 @@ type RightPanelStackProps = {
   onOpenSettings: () => void;
   // Tablebase
   tbResult: TbProbeResult | null;
+  tbLine: TbMainLine | null;
   tbIsLoading: boolean;
+  tbLineIsLoading: boolean;
   tbEnabled: boolean;
   onTbToggle: (enabled: boolean) => void;
   // Settings
@@ -115,12 +125,14 @@ const PANEL_TABS: Array<{ id: PanelId; label: string; labelKey: string; tabUiId:
 
 export const RightPanelStack = ({
   devToolsEnabled,
-  variations, isAnalyzing, engineName, activeEngineId, engines, multiPv, threads, sideToMove,
-  onStartAnalysis, onStopAnalysis, onSetMultiPv, onSetThreads, onSetActiveEngine, onOpenEngineManager,
+  variations, isAnalyzing, engineName, activeEngineId, engines, multiPv, threads,
+  searchMoves, discoveredOptions, legalMoves, sideToMove,
+  onStartAnalysis, onStopAnalysis, onSetMultiPv, onSetThreads, onSetActiveEngine,
+  onSetSearchMoves, onOpenEngineManager, onInsertFirstMove, onInsertLine,
   onPvMoveHover, onPvMoveHoverEnd,
   openingResult, openingIsLoading, openingSource, openingEnabled,
   onOpeningSourceChange, onOpeningToggle, onOpenSettings,
-  tbResult, tbIsLoading, tbEnabled, onTbToggle,
+  tbResult, tbLine, tbIsLoading, tbLineIsLoading, tbEnabled, onTbToggle,
   shapePrefs, onShapePrefsChange,
   activePanel, onActivePanelChange,
   onSearchPlayer, textSearchTrigger,
@@ -187,6 +199,9 @@ export const RightPanelStack = ({
             engines={engines}
             multiPv={multiPv}
             threads={threads}
+            searchMoves={searchMoves}
+            discoveredOptions={discoveredOptions}
+            legalMoves={legalMoves}
             sideToMove={sideToMove}
             t={t}
             onStartAnalysis={onStartAnalysis}
@@ -194,7 +209,10 @@ export const RightPanelStack = ({
             onSetMultiPv={onSetMultiPv}
             onSetThreads={onSetThreads}
             onSetActiveEngine={onSetActiveEngine}
+            onSetSearchMoves={onSetSearchMoves}
             onOpenEngineManager={onOpenEngineManager}
+            onInsertFirstMove={onInsertFirstMove}
+            onInsertLine={onInsertLine}
             onPvMoveHover={onPvMoveHover}
             onPvMoveHoverEnd={onPvMoveHoverEnd}
           />
@@ -228,7 +246,9 @@ export const RightPanelStack = ({
         >
           <TablebasePanel
             result={tbResult}
+            line={tbLine}
             isLoading={tbIsLoading}
+            isLineLoading={tbLineIsLoading}
             enabled={tbEnabled}
             onToggle={onTbToggle}
             onMoveClick={onMoveClick}

@@ -16,7 +16,8 @@
  * - Pure async fetch; no side effects beyond network requests.
  */
 
-import type { EndgameTbAdapter, TbProbeResult, TbWdl, TbMoveEntry } from "./endgame_types";
+import { Chess } from "chess.js";
+import type { EndgameTbAdapter, TbProbeResult, TbWdl, TbMoveEntry, TbLineMove, TbMainLine } from "./endgame_types";
 
 // ── Lichess API response types ────────────────────────────────────────────────
 
@@ -40,11 +41,55 @@ type LichessTbResponse = {
   moves: LichessTbMove[];
 };
 
-// ── In-memory cache ───────────────────────────────────────────────────────────
+// ── In-memory caches ─────────────────────────────────────────────────────────
 
-const cache = new Map<string, TbProbeResult | null>();
+const cache     = new Map<string, TbProbeResult | null>();
+const lineCache = new Map<string, TbMainLine | null>();
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/**
+ * Normalize a FEN string for use as a cache key.
+ *
+ * Strips the half-move clock and full-move number: they do not affect
+ * tablebase results, so the same position reached via different game
+ * histories maps to a single cache entry.
+ */
+const normalizeFen = (fen: string): string => {
+  const p = fen.split(" ");
+  return `${p[0] ?? ""} ${p[1] ?? "w"} ${p[2] ?? "-"} ${p[3] ?? "-"} 0 1`;
+};
+
+/** Apply a UCI move to a FEN and return the resulting FEN, or null on failure. */
+const applyUci = (fen: string, uci: string): string | null => {
+  try {
+    const chess = new Chess(fen);
+    chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] });
+    return chess.fen();
+  } catch {
+    return null;
+  }
+};
+
+/** Pick the tablebase-optimal move for the side to move. */
+const pickBestMove = (result: TbProbeResult): TbMoveEntry | null => {
+  const winning = result.moves
+    .filter((m) => m.wdl === "win" || m.wdl === "cursed_win")
+    .sort((a, b) => (a.dtz ?? 999) - (b.dtz ?? 999));
+  if (winning.length > 0) return winning[0] ?? null;
+
+  const drawing = result.moves.filter((m) => m.wdl === "draw" || m.wdl === "blessed_loss");
+  if (drawing.length > 0) return drawing[0] ?? null;
+
+  const losing = result.moves
+    .filter((m) => m.wdl === "loss")
+    .sort((a, b) => (b.dtz ?? 0) - (a.dtz ?? 0));
+  if (losing.length > 0) return losing[0] ?? null;
+
+  // Fallback: Lichess API returns wdl: null (mapped to "unknown") for some positions.
+  // Take any move rather than silently producing an empty line.
+  return result.moves[0] ?? null;
+};
 
 const wdlFromNumber = (n: number | null): TbWdl => {
   switch (n) {
@@ -70,10 +115,9 @@ const pieceCount = (fen: string): number => {
 // ── Adapter implementation ────────────────────────────────────────────────────
 
 const probe = async (fen: string): Promise<TbProbeResult | null> => {
-  // Reject positions with more than 7 pieces.
   if (pieceCount(fen) > 7) return null;
 
-  const key = fen;
+  const key = normalizeFen(fen);
   if (cache.has(key)) return cache.get(key) ?? null;
 
   try {
@@ -117,9 +161,52 @@ const probe = async (fen: string): Promise<TbProbeResult | null> => {
   }
 };
 
+/**
+ * Follow optimal play from both sides to build a main-line continuation.
+ *
+ * Each half-move is fetched via `probe` (cached), and the resulting position
+ * is computed with chess.js. The line is itself cached by the normalised root
+ * FEN so subsequent calls for the same position are synchronous.
+ */
+const probeLine = async (fen: string, maxDepth = 6): Promise<TbMainLine | null> => {
+  if (pieceCount(fen) > 7) return null;
+
+  const key = normalizeFen(fen);
+  if (lineCache.has(key)) return lineCache.get(key) ?? null;
+
+  const parts = fen.split(" ");
+  const startColor: "w" | "b" = parts[1] === "b" ? "b" : "w";
+
+  const moves: TbLineMove[] = [];
+  let terminal: TbMainLine["terminal"];
+  let currentFen = fen;
+
+  for (let i = 0; i < maxDepth; i++) {
+    const result = await probe(currentFen);
+    if (!result) break;
+
+    const best = pickBestMove(result);
+    if (!best) break;
+
+    moves.push({ san: best.san, uci: best.uci, wdl: best.wdl, dtz: best.dtz });
+
+    if (best.checkmate)  { terminal = "mate";      break; }
+    if (best.stalemate)  { terminal = "stalemate"; break; }
+
+    const next = applyUci(currentFen, best.uci);
+    if (!next) break;
+    currentFen = next;
+  }
+
+  const line: TbMainLine = { moves, startColor, terminal };
+  lineCache.set(key, line);
+  return line;
+};
+
 export const LICHESS_TB_ADAPTER: EndgameTbAdapter = {
   id: "lichess_tb",
   label: "Lichess Tablebase",
   maxPieces: 7,
   probe,
+  probeLine,
 };

@@ -94,6 +94,10 @@ export const createUciSession = (process: EngineProcess): UciSession => {
   let pendingBestMove: ((result: EngineBestMove | null) => void) | null = null;
 
   let variationCallback: ((v: EngineVariation) => void) | null = null;
+  // True when the next "bestmove" should reset state and clear variationCallback.
+  // Set to false by startAnalysis (infinite) to protect a freshly installed callback
+  // from being wiped by a "bestmove" arriving from a concurrent stop command.
+  let clearCallbackOnBestMove = false;
 
   // Subscribe to engine output for the lifetime of the session.
   const unsubscribe = process.onOutput((line: string): void => {
@@ -142,12 +146,15 @@ export const createUciSession = (process: EngineProcess): UciSession => {
       }
 
       case "bestmove": {
-        state = "ready";
-        variationCallback = null;
         const result: EngineBestMove = {
           uci: msg.move,
           ponder: msg.ponder,
         };
+        if (clearCallbackOnBestMove) {
+          state = "ready";
+          variationCallback = null;
+          clearCallbackOnBestMove = false;
+        }
         pendingBestMove?.(result);
         pendingBestMove = null;
         break;
@@ -209,6 +216,11 @@ export const createUciSession = (process: EngineProcess): UciSession => {
       opts: AnalysisOptions,
       onVariation: (v: EngineVariation) => void,
     ): void {
+      const isInfinite = opts.infinite ?? (!opts.depth && !opts.movetime);
+      // For infinite analysis the caller will stop explicitly, so the bestmove
+      // from a concurrent stop command must NOT clear the freshly installed
+      // callback.  For depth/time-limited analysis the engine stops on its own.
+      clearCallbackOnBestMove = !isInfinite;
       state = "thinking";
       variationCallback = onVariation;
       setPosition(position);
@@ -218,13 +230,14 @@ export const createUciSession = (process: EngineProcess): UciSession => {
           depth: opts.depth,
           movetime: opts.movetime,
           searchmoves: opts.searchMoves,
-          infinite: opts.infinite ?? (!opts.depth && !opts.movetime),
+          infinite: isInfinite,
         }),
       );
     },
 
     stopAnalysis(): Promise<EngineBestMove | null> {
       if (state !== "thinking") return Promise.resolve(null);
+      clearCallbackOnBestMove = true;
       return new Promise<EngineBestMove | null>((resolve): void => {
         pendingBestMove = resolve;
         send(formatUciCommand({ type: "stop" }));
@@ -235,6 +248,7 @@ export const createUciSession = (process: EngineProcess): UciSession => {
       position: EnginePosition,
       opts: MoveSearchOptions,
     ): Promise<EngineBestMove | null> {
+      clearCallbackOnBestMove = true;
       state = "thinking";
       setPosition(position);
       return new Promise<EngineBestMove | null>((resolve): void => {

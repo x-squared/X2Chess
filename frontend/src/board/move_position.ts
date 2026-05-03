@@ -585,6 +585,19 @@ export const replayPvToPosition = (
   return { fen: game.fen(), lastMove };
 };
 
+/** A legal move in both SAN and UCI notation. */
+export type LegalMove = { san: string; uci: string };
+
+/** Return all legal moves in the given position, as SAN + UCI pairs. */
+export const getLegalMovesFromFen = (fen: string): LegalMove[] => {
+  let game: Chess;
+  try { game = new Chess(fen); } catch { return []; }
+  return game.moves({ verbose: true }).map((m) => ({
+    san: m.san,
+    uci: m.from + m.to + (m.promotion ?? ""),
+  }));
+};
+
 /**
  * Strip PGN comments (`{ … }`) and side-variations (`( … )`) from raw PGN source.
  *

@@ -485,11 +485,24 @@
   font-weight: 700;
   padding: 2px 8px;
   border-radius: 4px;
+  transition: opacity 0.1s;
 }
+.tablebase-verdict--stale { opacity: 0.5; }
 .tablebase-verdict-dtz {
   font-weight: 400;
   font-size: 0.75rem;
   margin-left: 4px;
+}
+@keyframes tb-spin { to { transform: rotate(360deg); } }
+.tablebase-spinner {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid var(--text-secondary);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: tb-spin 0.7s linear infinite;
+  flex-shrink: 0;
 }
 .tablebase-toggle-btn {
   font-size: 0.75rem;
@@ -513,7 +526,6 @@
   flex-direction: column;
   gap: 8px;
 }
-.tablebase-loading,
 .tablebase-empty,
 .tablebase-insuf {
   font-size: 0.82rem;
@@ -547,6 +559,59 @@
 .tb-wdl--blessed-loss { color: #ca8a04; }
 .tb-wdl--loss         { color: #dc2626; }
 .tb-wdl--unknown      { color: var(--text-secondary); }
+
+/* DTZ abbreviation — dotted underline signals an available tooltip */
+.tb-dtz-abbr {
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  cursor: help;
+}
+
+/* Main-line continuation (best play from both sides) */
+.tb-main-line {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 5px 6px;
+  background: var(--bg-input, #1e293b);
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+.tb-main-line-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+  margin-right: 2px;
+}
+.tb-pv {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 3px;
+}
+.tb-pv-num {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+.tb-pv-move {
+  font-weight: 600;
+}
+.tb-pv-terminal {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  margin-left: 1px;
+}
+.tb-pv-ellipsis {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+  margin-left: 2px;
+}
 
 /* Group layout */
 .tb-groups { display: flex; flex-direction: column; }

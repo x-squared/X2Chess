@@ -12,6 +12,9 @@
  * Communication API:
  * - `onCreate(pgn: string)` — called with the new game's PGN on confirm.
  * - `onClose()` — called when the dialog is dismissed without creating.
+ *
+ * Position setup normalizes FEN via `sanitizeSetupFen` (`model/fen_sanitization.ts`)
+ * after validation so impossible castling flags are not stored in `[FEN]`.
  */
 
 import {
@@ -29,6 +32,8 @@ import {
   validateFenStructure,
   validateKings,
 } from "../../features/editor/model/fen_utils";
+import type { FenSanitizeMode } from "../../model/fen_sanitization";
+import { sanitizeSetupFen } from "../../model/fen_sanitization";
 import { useTranslator } from "../../app/hooks/useTranslator";
 import {
   GAME_INFO_HEADER_FIELDS,
@@ -41,7 +46,6 @@ import { UI_IDS } from "../../core/model/ui_ids";
 import {
   PositionSetupBoard,
   detectChess960,
-  chess960Fen,
   chess960SpToBackRank,
   chess960SpFromBackRank,
 } from "./PositionSetupBoard";
@@ -215,22 +219,39 @@ export const NewGameDialog = ({ onCreate, onClose }: NewGameDialogProps): ReactE
     [chess960BackRank],
   );
 
-  const handleFenInputChange = useCallback((value: string): void => {
-    setFenInput(value);
-    const error = validateFen(value);
-    setFenError(error);
-    if (!error) {
-      setFen(value);
-      setChess960Override(null);
-    }
-  }, []);
+  const handleFenInputChange = useCallback(
+    (value: string): void => {
+      setFenInput(value);
+      const error = validateFen(value);
+      setFenError(error);
+      if (error === null) {
+        const mode: FenSanitizeMode = isChess960 ? "chess960" : "standard";
+        const sanitized: string = sanitizeSetupFen(value, mode);
+        setFen(sanitized);
+        setFenInput(sanitized);
+        setChess960Override(null);
+      }
+    },
+    [isChess960],
+  );
 
-  const handleBoardFenChange = useCallback((newFen: string): void => {
-    setFen(newFen);
-    setFenInput(newFen);
-    setFenError(validateFen(newFen));
-    setChess960Override(null);
-  }, []);
+  const handleBoardFenChange = useCallback(
+    (newFen: string): void => {
+      const err = validateFen(newFen);
+      setFenError(err);
+      if (err === null) {
+        const mode: FenSanitizeMode = isChess960 ? "chess960" : "standard";
+        const sanitized: string = sanitizeSetupFen(newFen, mode);
+        setFen(sanitized);
+        setFenInput(sanitized);
+      } else {
+        setFen(newFen);
+        setFenInput(newFen);
+      }
+      setChess960Override(null);
+    },
+    [isChess960],
+  );
 
   const handleMetaCommit = useCallback((key: string, value: string): void => {
     setMeta((m) => ({ ...m, [key]: value }));
@@ -241,14 +262,16 @@ export const NewGameDialog = ({ onCreate, onClose }: NewGameDialogProps): ReactE
     let isCustom: boolean;
     let effectiveIsChess960: boolean;
     if (positionType === "chess960") {
-      const wr = chess960BackRank;
-      startFen = `${wr.toLowerCase()}/pppppppp/8/8/8/8/PPPPPPPP/${wr} w KQkq - 0 1`;
+      const wr: string = chess960BackRank;
+      const raw: string = `${wr.toLowerCase()}/pppppppp/8/8/8/8/PPPPPPPP/${wr} w KQkq - 0 1`;
+      startFen = sanitizeSetupFen(raw, "chess960");
       isCustom = true;
       effectiveIsChess960 = true;
     } else if (positionType === "custom") {
-      startFen = fen;
-      isCustom = true;
       effectiveIsChess960 = isChess960;
+      const mode: FenSanitizeMode = effectiveIsChess960 ? "chess960" : "standard";
+      startFen = sanitizeSetupFen(fen, mode);
+      isCustom = true;
     } else {
       startFen = STANDARD_STARTING_FEN;
       isCustom = false;
@@ -483,7 +506,16 @@ export const NewGameDialog = ({ onCreate, onClose }: NewGameDialogProps): ReactE
                         type="checkbox"
                         checked={isChess960}
                         onChange={(e: ChangeEvent<HTMLInputElement>): void => {
-                          setChess960Override(e.target.checked);
+                          const nextChess960: boolean = e.target.checked;
+                          setChess960Override(nextChess960);
+                          if (positionType !== "custom") return;
+                          const validationErr: string | null = validateFen(fen);
+                          if (validationErr !== null) return;
+                          const mode: FenSanitizeMode = nextChess960 ? "chess960" : "standard";
+                          const sanitized: string = sanitizeSetupFen(fen, mode);
+                          setFen(sanitized);
+                          setFenInput(sanitized);
+                          setFenError(validateFen(sanitized));
                         }}
                       />
                       {t("newgame.chess960", "Fischer-Random starting position (Chess960)")}

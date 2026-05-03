@@ -241,6 +241,38 @@ test("getSession — second call returns same initialized session", async () => 
   assert.equal(uciCount, 1, "should only send 'uci' once");
 });
 
+test("restartEngine — kills process and returns a fresh initialized session", async () => {
+  const killById = new Map<string, number>();
+
+  const factory: ProcessFactory = (config: EngineConfig) => {
+    const mock = makeMockProcess(config.id);
+    const innerKill: () => Promise<void> = mock.process.kill.bind(mock.process);
+    mock.process.kill = async (): Promise<void> => {
+      killById.set(config.id, (killById.get(config.id) ?? 0) + 1);
+      await innerKill();
+    };
+    return mock.process;
+  };
+
+  const manager = createEngineManager(
+    {
+      engines: [{ id: "sf", label: "Stockfish", path: "/sf", options: {} }],
+      defaultEngineId: "sf",
+    },
+    factory,
+  );
+
+  const before = await manager.getSession("sf");
+  assert.equal(killById.get("sf") ?? 0, 0);
+
+  const after = await manager.restartEngine("sf");
+  assert.equal(killById.get("sf"), 1);
+  assert.notEqual(before, after);
+
+  const cached = await manager.getSession("sf");
+  assert.equal(cached, after);
+});
+
 test("getSession — applies engine config options after initialization", async () => {
   const { factory, mocks } = makeFactory();
   const manager = createEngineManager(

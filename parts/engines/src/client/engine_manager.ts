@@ -7,6 +7,8 @@
  * Integration API:
  * - `createEngineManager(registry, processFactory)` — creates an EngineManager.
  * - `EngineManager.getSession(engineId?)` — returns an initialized UciSession.
+ * - `EngineManager.restartEngine(engineId?)` — kills the process if running and
+ *   returns a freshly initialized session (recovery when stop/bestmove hangs).
  * - `EngineManager.listEngines()` — returns all configured engine configs.
  * - `EngineManager.shutdownAll()` — kills all running engines.
  * - `parseEngineRegistry` / `serializeEngineRegistry` — load/save `engines.json` text.
@@ -41,6 +43,11 @@ type ManagedEngine = {
 export type EngineManager = {
   /** Return an initialized session for `engineId`, or the default engine. */
   getSession(engineId?: string): Promise<UciSession>;
+  /**
+   * Kill the engine process for `engineId` (if any) and return a new initialized session.
+   * Use when `stop` does not yield `bestmove` (hung native engine).
+   */
+  restartEngine(engineId?: string): Promise<UciSession>;
   /** List all configured engines. */
   listEngines(): EngineConfig[];
   /** The default engine ID (from registry). */
@@ -101,6 +108,28 @@ export const createEngineManager = (
           `Engine "${id ?? "(default)"}" not found in registry. ` +
             `Available: ${registry.engines.map((e) => e.id).join(", ")}`,
         );
+      }
+      const entry = getOrCreate(config);
+      return initialize(entry);
+    },
+
+    async restartEngine(engineId?: string): Promise<UciSession> {
+      const id = engineId ?? registry.defaultEngineId;
+      const config = registry.engines.find((e) => e.id === id);
+      if (!config) {
+        throw new Error(
+          `Engine "${id ?? "(default)"}" not found in registry. ` +
+            `Available: ${registry.engines.map((e) => e.id).join(", ")}`,
+        );
+      }
+      const existing = managed.get(config.id);
+      if (existing) {
+        try {
+          await existing.process.kill();
+        } catch {
+          // Best-effort; proceed with a fresh process entry.
+        }
+        managed.delete(config.id);
       }
       const entry = getOrCreate(config);
       return initialize(entry);

@@ -4,6 +4,7 @@ area: New Game dialog
 ---
 
 ## Key source files
+- `frontend/src/model/fen_sanitization.ts` — `sanitizeSetupFen` applied when custom/Chess960 position is confirmed or edited (valid FEN)
 - `frontend/src/components/dialogs/NewGameDialog.tsx` — dialog implementation (standard / custom FEN, metadata tabs)
 - `frontend/src/components/dialogs/PositionSetupBoard.tsx` — board + palette for custom positions
 - `frontend/src/app/shell/components/AppShellOverlays.tsx` — renders NewGameDialog at top level; wired via `showNewGameDialog` / `onNewGameCreate` / `onCloseNewGameDialog` props
@@ -23,6 +24,7 @@ See dev/check/00_README.md. These rules must be strictly adhered to when this fi
 - [ ] **NEWGAME-9** — Global hamburger menu: a "New game…" button appears at the top of the menu in its own group separated by a divider; clicking it closes the menu and opens the New Game dialog.
 - [ ] **NEWGAME-10** — When a resource tab is active and the New Game dialog is confirmed, the game is created inside that resource and immediately opened in the editor (not just a floating unsaved session).
 - [ ] **NEWGAME-11** — When no resource tab is open and the New Game dialog is confirmed, the game opens as a floating (unsaved) editor session.
+- [ ] **NEWGAME-12** — Tab 1 (Custom position): enter a FEN with an impossible castling flag (e.g. White `K` without a rook on `h1`); after the field validates, the castling segment normalizes (impossible rights removed) and Confirm writes a `[FEN]` header matching the normalized line.
 
 ## ---------- Completed -----------------------------------------
 

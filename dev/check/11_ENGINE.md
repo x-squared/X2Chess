@@ -4,6 +4,9 @@ area: Engine analysis panel
 ---
 
 ## Key source files
+- `frontend/src/features/analysis/hooks/useEngineAnalysis.ts` — engine manager + analysis start/stop (timeout restart when stop hangs; FEN sanitization before UCI)
+- `frontend/src/model/fen_sanitization.ts` — strip impossible castling rights before `position fen`; shared with New Game dialog
+- `parts/engines/src/client/engine_manager.ts` — `restartEngine` kills process and re-inits UCI
 - `frontend/src/features/analysis/components/AnalysisPanel.tsx` — analysis panel UI
 - `frontend/src/features/analysis/pv_move_tokens.ts` — PGN-style numbering for PV lines
 - `frontend/src/components/board/HoverPositionPopup.tsx` — PV-move hover mini-board popup
@@ -33,3 +36,4 @@ See dev/check/00_README.md. These rules must be strictly adhered to when this fi
 - [ ] **ENGINE-13** — Desktop: Manage engines → Add → **Auto-detect** finds Stockfish when installed via Homebrew/MacPorts/PATH (typical macOS locations); at least one candidate appears when `stockfish` is on disk.
 - [ ] **ENGINE-14** — Manage engines: after removing the **last** configured engine, the list shows “No engines configured”, and no Stockfish/configure strip or embedded **Configure engine** panel remains (sidecar state clears with the registry).
 - [ ] **ENGINE-15** — Manage engines: **Copy** an engine that shares a path with an entry already probed (e.g. default engine after analysis): select the copy and confirm the **Configure engine** panel lists UCI options (Hash, Threads, …), not only “Displayed name” and the “start analysis once” hint—unless no engine at that path was ever probed yet.
+- [ ] **ENGINE-16** — Desktop: if analysis previously stuck at “Waiting for engine…” with no PV updates, press **Stop** then **Analyze** again (or change MultiPV/threads while analyzing): within a few seconds the panel shows live PV lines again (engine process restarted after hung `stop`).

@@ -23,6 +23,11 @@ export { ECO_OPENING_CODES, resolveEcoOpeningName } from "./eco_openings";
 export { lookupEco, allEcoMatches } from "./eco_lookup";
 export type { EcoMatch } from "./eco_lookup";
 export {
+  sanitizeSetupFen,
+  sanitizeEnginePositionForUci,
+} from "./fen_sanitization";
+export type { FenSanitizeMode } from "./fen_sanitization";
+export {
   applyDefaultIndentDirectives,
   applyDefaultLayout,
   findExistingCommentIdAroundMove,

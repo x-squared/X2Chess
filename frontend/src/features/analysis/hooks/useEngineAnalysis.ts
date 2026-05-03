@@ -26,8 +26,50 @@ import type { EngineManager } from "../../../../../parts/engines/src/client/engi
 import type { EngineRegistry } from "../../../../../parts/engines/src/domain/engine_config";
 import { createEngineManager } from "../../../../../parts/engines/src/client/engine_manager";
 import { createTauriEngine } from "../../../platform/desktop/tauri_engine_adapter";
+import { sanitizeEnginePositionForUci } from "../../../model/fen_sanitization";
 import { pvUciMovesToSan } from "../../../board/move_position";
 import { log } from "../../../logger";
+
+/** Max time to wait for `bestmove` after `stop` before killing and restarting the engine process. */
+const ENGINE_STOP_TIMEOUT_MS: number = 2500;
+
+/**
+ * Waits for the current search to end via UCI `stop` → `bestmove`. If the native
+ * engine is hung (no `bestmove`), restarts the process so a new analysis can run.
+ *
+ * @param manager Active engine manager.
+ * @param engineId Registry engine id or undefined for default.
+ */
+const awaitStopOrTimeoutRestart = async (
+  manager: EngineManager,
+  engineId: string | undefined,
+): Promise<void> => {
+  try {
+    const session = await manager.getSession(engineId);
+    const stoppedInTime: boolean = await Promise.race<boolean>([
+      session.stopAnalysis().then((): boolean => true),
+      new Promise<boolean>((resolve): void => {
+        setTimeout((): void => {
+          resolve(false);
+        }, ENGINE_STOP_TIMEOUT_MS);
+      }),
+    ]);
+    if (!stoppedInTime) {
+      log.warn(
+        "useEngineAnalysis",
+        "stopAnalysis timed out — restarting engine process",
+        { engineId: engineId ?? null },
+      );
+      await manager.restartEngine(engineId);
+    }
+  } catch (err) {
+    log.error("useEngineAnalysis", "awaitStopOrTimeoutRestart failed — restarting engine", {
+      engineId: engineId ?? null,
+      message: String(err),
+    });
+    await manager.restartEngine(engineId);
+  }
+};
 
 // ── Tauri environment check ───────────────────────────────────────────────────
 
@@ -125,12 +167,18 @@ export const useEngineAnalysis = (registry?: EngineRegistry): EngineAnalysisStat
     if (activeCfg) {
       setEngineName(activeCfg.label ?? activeCfg.id);
       setActiveEngineId(activeCfg.id);
-      const configuredThreads = Number(activeCfg.options["Threads"]);
+      const configuredThreadsRaw: number = Number(activeCfg.options["Threads"]);
+      const configuredThreads: number = Number.isFinite(configuredThreadsRaw)
+        ? configuredThreadsRaw
+        : Number.NaN;
       if (configuredThreads > 0) {
         setThreads(configuredThreads);
         threadsRef.current = configuredThreads;
       }
-      log.info("useEngineAnalysis", "active engine set", { engineId: activeCfg.id, configuredThreads });
+      log.info("useEngineAnalysis", "active engine set", {
+        engineId: activeCfg.id,
+        configuredThreads: Number.isFinite(configuredThreads) ? configuredThreads : null,
+      });
     } else {
       log.warn("useEngineAnalysis", `no config found for effectiveId="${effectiveId ?? "(none)"}"`);
     }
@@ -191,38 +239,66 @@ export const useEngineAnalysis = (registry?: EngineRegistry): EngineAnalysisStat
     log.info("useEngineAnalysis", "stopAnalysis called", { engineId: activeEngineIdRef.current ?? null });
     setIsAnalyzing(false);
     isAnalyzingRef.current = false;
-    void managerRef.current
-      ?.getSession(activeEngineIdRef.current)
-      .then((s) => s.stopAnalysis())
-      .catch((err) => {
-        log.error("useEngineAnalysis", "stopAnalysis: session error", { message: String(err) });
-      });
+    const manager: EngineManager | null = managerRef.current;
+    const engineId: string | undefined = activeEngineIdRef.current;
+    if (!manager) return;
+    void (async (): Promise<void> => {
+      try {
+        await awaitStopOrTimeoutRestart(manager, engineId);
+      } catch (err) {
+        log.error("useEngineAnalysis", "stopAnalysis: awaitStopOrTimeoutRestart failed", {
+          message: String(err),
+        });
+      }
+    })();
   }, []);
 
   const startAnalysis = useCallback((position: EnginePosition): void => {
-    const manager = managerRef.current;
+    const manager: EngineManager | null = managerRef.current;
     if (!manager) {
       log.warn("useEngineAnalysis", "startAnalysis: no manager — engine not configured or not Tauri");
       return;
     }
 
-    log.info("useEngineAnalysis", `startAnalysis: fen="${position.fen}" engineId="${activeEngineIdRef.current ?? "(default)"}"`);
-    lastPositionRef.current = position;
-    stopAnalysis();
+    log.info(
+      "useEngineAnalysis",
+      `startAnalysis: fen="${position.fen}" engineId="${activeEngineIdRef.current ?? "(default)"}"`,
+    );
     setVariations([]);
     setIsAnalyzing(true);
     isAnalyzingRef.current = true;
 
-    const engineId = activeEngineIdRef.current;
-    const pvCount = multiPvRef.current === 0 ? 500 : multiPvRef.current;
-    const threadCount = threadsRef.current;
-    const smoves = searchMovesRef.current;
+    const engineId: string | undefined = activeEngineIdRef.current;
+    const pvCount: number = multiPvRef.current === 0 ? 500 : multiPvRef.current;
+    const threadCount: number = threadsRef.current;
+    const smoves: string[] | null = searchMovesRef.current;
 
-    log.info("useEngineAnalysis", `startAnalysis: calling getSession engineId="${engineId ?? "(default)"}" pvCount=${pvCount} threads=${threadCount}`);
-    manager
-      .getSession(engineId)
-      .then((session): void => {
-        log.info("useEngineAnalysis", `startAnalysis: session obtained — setting options and starting, engineId="${engineId ?? "(default)"}"`);
+    void (async (): Promise<void> => {
+      try {
+        await awaitStopOrTimeoutRestart(manager, engineId);
+
+        const sanitizedPosition: EnginePosition = sanitizeEnginePositionForUci(position);
+        lastPositionRef.current = sanitizedPosition;
+        if (
+          sanitizedPosition.fen !== position.fen ||
+          sanitizedPosition.moves.length !== position.moves.length
+        ) {
+          log.debug(
+            "useEngineAnalysis",
+            () =>
+              `startAnalysis: sanitized engine position fen="${sanitizedPosition.fen}" (from "${position.fen}")`,
+          );
+        }
+
+        log.info(
+          "useEngineAnalysis",
+          `startAnalysis: calling getSession engineId="${engineId ?? "(default)"}" pvCount=${pvCount} threads=${threadCount}`,
+        );
+        const session = await manager.getSession(engineId);
+        log.info(
+          "useEngineAnalysis",
+          `startAnalysis: session obtained — setting options and starting, engineId="${engineId ?? "(default)"}"`,
+        );
         const opts = Array.from(session.options.values());
         setDiscoveredOptions((prev) => {
           const next = new Map(prev);
@@ -233,27 +309,34 @@ export const useEngineAnalysis = (registry?: EngineRegistry): EngineAnalysisStat
         if (session.options.has("Threads")) {
           session.setOption("Threads", String(threadCount));
         }
-        log.debug("useEngineAnalysis", () => `startAnalysis: calling session.startAnalysis, searchMoves=${JSON.stringify(smoves)}`);
+        log.debug(
+          "useEngineAnalysis",
+          () => `startAnalysis: calling session.startAnalysis, searchMoves=${JSON.stringify(smoves)}`,
+        );
         log.info("useEngineAnalysis", "startAnalysis: session.startAnalysis called");
         session.startAnalysis(
-          position,
+          sanitizedPosition,
           { infinite: true, multiPv: pvCount, searchMoves: smoves ?? undefined },
           handleVariation,
         );
-      })
-      .catch((err): void => {
-        log.error("useEngineAnalysis", "startAnalysis: getSession failed", { engineId: engineId ?? null, message: String(err) });
+      } catch (err) {
+        log.error("useEngineAnalysis", "startAnalysis failed", {
+          engineId: engineId ?? null,
+          message: String(err),
+        });
         setIsAnalyzing(false);
         isAnalyzingRef.current = false;
-      });
-  }, [stopAnalysis, handleVariation]);
+      }
+    })();
+  }, [handleVariation]);
 
   const findBestMove = useCallback(
     async (position: EnginePosition, opts: MoveSearchOptions): Promise<EngineBestMove | null> => {
       if (!managerRef.current) return null;
       try {
         const session = await managerRef.current.getSession(activeEngineIdRef.current);
-        return await session.findBestMove(position, opts);
+        const sanitizedPosition: EnginePosition = sanitizeEnginePositionForUci(position);
+        return await session.findBestMove(sanitizedPosition, opts);
       } catch {
         return null;
       }
@@ -265,33 +348,30 @@ export const useEngineAnalysis = (registry?: EngineRegistry): EngineAnalysisStat
   const changeMultiPv = useCallback((n: number): void => {
     setMultiPv(n);
     multiPvRef.current = n;
-    if (isAnalyzingRef.current && lastPositionRef.current) {
-      stopAnalysis();
-      const pos = lastPositionRef.current;
-      setTimeout((): void => { startAnalysis(pos); }, 0);
+    if (isAnalyzingRef.current && lastPositionRef.current !== null) {
+      const pos: EnginePosition = lastPositionRef.current;
+      startAnalysis(pos);
     }
-  }, [stopAnalysis, startAnalysis]);
+  }, [startAnalysis]);
 
   const changeThreads = useCallback((n: number): void => {
     setThreads(n);
     threadsRef.current = n;
-    if (isAnalyzingRef.current && lastPositionRef.current) {
-      stopAnalysis();
-      const pos = lastPositionRef.current;
-      setTimeout((): void => { startAnalysis(pos); }, 0);
+    if (isAnalyzingRef.current && lastPositionRef.current !== null) {
+      const pos: EnginePosition = lastPositionRef.current;
+      startAnalysis(pos);
     }
-  }, [stopAnalysis, startAnalysis]);
+  }, [startAnalysis]);
 
   const changeSearchMoves = useCallback((moves: string[] | null): void => {
-    const prevMoves = searchMovesRef.current;
+    const prevMoves: string[] | null = searchMovesRef.current;
     setSearchMoves(moves);
     searchMovesRef.current = moves;
-    if (prevMoves !== moves && isAnalyzingRef.current && lastPositionRef.current) {
-      stopAnalysis();
-      const pos = lastPositionRef.current;
-      setTimeout((): void => { startAnalysis(pos); }, 0);
+    if (prevMoves !== moves && isAnalyzingRef.current && lastPositionRef.current !== null) {
+      const pos: EnginePosition = lastPositionRef.current;
+      startAnalysis(pos);
     }
-  }, [stopAnalysis, startAnalysis]);
+  }, [startAnalysis]);
 
   const changeActiveEngine = useCallback((id: string): void => {
     if (id === activeEngineIdRef.current) return;
